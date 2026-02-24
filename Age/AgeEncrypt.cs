@@ -30,6 +30,14 @@ public static class AgeEncrypt
 
     private static void EncryptToStream(Stream input, Stream output, ReadOnlySpan<IRecipient> recipients)
     {
+        // Check label consistency — reject mixing PQ and non-PQ recipients
+        string? firstLabel = recipients[0].Label;
+        for (int i = 1; i < recipients.Length; i++)
+        {
+            if (recipients[i].Label != firstLabel)
+                throw new AgeException("cannot mix recipients with different security labels");
+        }
+
         // Generate random 16-byte file key
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);

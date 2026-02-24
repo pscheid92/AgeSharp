@@ -20,9 +20,8 @@ public class CctvTestRunner
         foreach (var file in Directory.EnumerateFiles(TestDataDir, "*.txt").OrderBy(f => f))
         {
             var name = Path.GetFileNameWithoutExtension(file);
-            // Skip unsupported test vectors (hybrid/PQ identities)
-            if (name.StartsWith("hybrid_") || name.StartsWith("p256tag_") || name.StartsWith("mlkem768p256tag_")
-                || name == "hybrid" || name == "armor_hybrid")
+            // Skip unsupported test vectors
+            if (name.StartsWith("p256tag_") || name.StartsWith("mlkem768p256tag_"))
                 continue;
             yield return new object[] { name, file };
         }
@@ -33,19 +32,19 @@ public class CctvTestRunner
     public void RunTestVector(string name, string path)
     {
         _ = name; // Used for test display
-        var (metadata, ageFileBytes) = ParseTestFile(path);
+        var (metadata, identityStrings, ageFileBytes) = ParseTestFile(path);
 
         string expect = metadata["expect"];
-        string? identityStr = metadata.GetValueOrDefault("identity");
         string? passphrase = metadata.GetValueOrDefault("passphrase");
         string? payloadHash = metadata.GetValueOrDefault("payload");
 
         // Build identities
         var identities = new List<IIdentity>();
-        if (identityStr != null)
+        foreach (var identityStr in identityStrings)
         {
-            // Only parse X25519 identities; skip unknown types (e.g. PQ)
-            if (identityStr.StartsWith("AGE-SECRET-KEY-1"))
+            if (identityStr.StartsWith("AGE-SECRET-KEY-PQ-", StringComparison.OrdinalIgnoreCase))
+                identities.Add(MlKem768X25519Identity.Parse(identityStr));
+            else if (identityStr.StartsWith("AGE-SECRET-KEY-1", StringComparison.OrdinalIgnoreCase))
                 identities.Add(X25519Identity.Parse(identityStr));
         }
         if (passphrase != null)
@@ -140,7 +139,7 @@ public class CctvTestRunner
             $"Expected AgeArmorException or AgeHeaderException, got {ex.GetType().Name}: {ex.Message}");
     }
 
-    private static (Dictionary<string, string> metadata, byte[] ageFileBytes) ParseTestFile(string path)
+    private static (Dictionary<string, string> metadata, List<string> identityStrings, byte[] ageFileBytes) ParseTestFile(string path)
     {
         // The file consists of:
         // 1. Header lines (key: value pairs)
@@ -149,6 +148,7 @@ public class CctvTestRunner
         var allBytes = File.ReadAllBytes(path);
 
         var metadata = new Dictionary<string, string>();
+        var identityStrings = new List<string>();
         int pos = 0;
 
         while (pos < allBytes.Length)
@@ -170,6 +170,8 @@ public class CctvTestRunner
             {
                 string key = line[..colonIdx];
                 string value = line[(colonIdx + 2)..];
+                if (key == "identity")
+                    identityStrings.Add(value);
                 metadata[key] = value;
             }
         }
@@ -183,7 +185,7 @@ public class CctvTestRunner
             bodyBytes = ZlibDecompress(bodyBytes);
         }
 
-        return (metadata, bodyBytes);
+        return (metadata, identityStrings, bodyBytes);
     }
 
     private static byte[] ZlibDecompress(byte[] data)

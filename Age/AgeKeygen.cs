@@ -9,4 +9,10 @@ public static class AgeKeygen
     public static X25519Identity ParseIdentity(string s) => X25519Identity.Parse(s);
 
     public static X25519Recipient ParseRecipient(string s) => X25519Recipient.Parse(s);
+
+    public static MlKem768X25519Identity GeneratePq() => MlKem768X25519Identity.Generate();
+
+    public static MlKem768X25519Identity ParsePqIdentity(string s) => MlKem768X25519Identity.Parse(s);
+
+    public static MlKem768X25519Recipient ParsePqRecipient(string s) => MlKem768X25519Recipient.Parse(s);
 }
