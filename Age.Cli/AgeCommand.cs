@@ -15,6 +15,7 @@ internal static class AgeCommand
         var identityFiles = new List<string>();
         var recipientFiles = new List<string>();
         string? outputPath = null;
+        string? inputPath = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -76,18 +77,22 @@ internal static class AgeCommand
                         Error($"unknown option: {args[i]}");
                         return 1;
                     }
-                    // Positional args not supported for input; use stdin or -o
-                    Error($"unexpected argument: {args[i]}");
-                    return 1;
+                    if (inputPath != null)
+                    {
+                        Error($"unexpected argument: {args[i]}");
+                        return 1;
+                    }
+                    inputPath = args[i];
+                    break;
             }
         }
 
         try
         {
             if (encrypt)
-                return Encrypt(recipients, recipientFiles, identityFiles, passphrase, armor, outputPath);
+                return Encrypt(recipients, recipientFiles, identityFiles, passphrase, armor, inputPath, outputPath);
             else
-                return Decrypt(identityFiles, passphrase, outputPath);
+                return Decrypt(identityFiles, passphrase, inputPath, outputPath);
         }
         catch (Exception ex) when (ex is AgeException or FormatException)
         {
@@ -108,6 +113,7 @@ internal static class AgeCommand
         List<string> identityFiles,
         bool passphrase,
         bool armor,
+        string? inputPath,
         string? outputPath)
     {
         var callbacks = new CliPluginCallbacks();
@@ -190,7 +196,7 @@ internal static class AgeCommand
             return 1;
         }
 
-        using var input = Console.OpenStandardInput();
+        using var input = OpenInput(inputPath);
         using var output = OpenOutput(outputPath);
         AgeEncrypt.Encrypt(input, output, armor, [.. recipients]);
         return 0;
@@ -199,6 +205,7 @@ internal static class AgeCommand
     private static int Decrypt(
         List<string> identityFiles,
         bool passphrase,
+        string? inputPath,
         string? outputPath)
     {
         var callbacks = new CliPluginCallbacks();
@@ -230,8 +237,8 @@ internal static class AgeCommand
             }
         }
 
-        // Buffer stdin into a seekable MemoryStream so armor auto-detection works
-        using var rawInput = Console.OpenStandardInput();
+        // Buffer input into a seekable MemoryStream so armor auto-detection works
+        using var rawInput = OpenInput(inputPath);
         using var input = new MemoryStream();
         rawInput.CopyTo(input);
         input.Position = 0;
@@ -310,6 +317,13 @@ internal static class AgeCommand
             parts[i] = new string(chars);
         }
         return string.Join("-", parts);
+    }
+
+    private static Stream OpenInput(string? path)
+    {
+        if (path is null)
+            return Console.OpenStandardInput();
+        return File.OpenRead(path);
     }
 
     private static Stream OpenOutput(string? path)
