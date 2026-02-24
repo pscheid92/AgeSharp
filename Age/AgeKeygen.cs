@@ -50,9 +50,9 @@ public static class AgeKeygen
 
     /// <summary>
     /// Parses a recipients file containing public keys, comments, and blank lines.
-    /// Supports age X25519 (age1...), ML-KEM-768 (age1pq...), and SSH public keys.
+    /// Supports age X25519 (age1...), ML-KEM-768 (age1pq...), plugin (age1name1...), and SSH public keys.
     /// </summary>
-    public static IReadOnlyList<IRecipient> ParseRecipientsFile(string text)
+    public static IReadOnlyList<IRecipient> ParseRecipientsFile(string text, Plugin.IPluginCallbacks? callbacks = null)
     {
         var recipients = new List<IRecipient>();
         foreach (var line in text.Split('\n'))
@@ -63,6 +63,8 @@ public static class AgeKeygen
 
             if (trimmed.StartsWith("age1pq"))
                 recipients.Add(MlKem768X25519Recipient.Parse(trimmed));
+            else if (trimmed.StartsWith("age1") && trimmed.IndexOf('1', 4) > 0)
+                recipients.Add(new PluginRecipient(trimmed, callbacks));
             else if (trimmed.StartsWith("age1"))
                 recipients.Add(X25519Recipient.Parse(trimmed));
             else if (trimmed.StartsWith("ssh-"))
@@ -75,9 +77,9 @@ public static class AgeKeygen
     }
 
     /// <summary>
-    /// Parses a plaintext identity file containing AGE-SECRET-KEY lines, comments, and blank lines.
+    /// Parses a plaintext identity file containing AGE-SECRET-KEY lines, plugin identities, comments, and blank lines.
     /// </summary>
-    public static IReadOnlyList<IIdentity> ParseIdentityFile(string text)
+    public static IReadOnlyList<IIdentity> ParseIdentityFile(string text, Plugin.IPluginCallbacks? callbacks = null)
     {
         var identities = new List<IIdentity>();
         foreach (var line in text.Split('\n'))
@@ -90,6 +92,8 @@ public static class AgeKeygen
                 identities.Add(MlKem768X25519Identity.Parse(trimmed));
             else if (trimmed.StartsWith("AGE-SECRET-KEY-"))
                 identities.Add(X25519Identity.Parse(trimmed));
+            else if (trimmed.StartsWith("AGE-PLUGIN-"))
+                identities.Add(new PluginIdentity(trimmed, callbacks));
             else
                 throw new FormatException($"unrecognized line in identity file: {trimmed}");
         }

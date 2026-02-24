@@ -9,7 +9,7 @@
 | SSH-Ed25519 | ✅ | ✅ | ✅ | |
 | SSH-RSA | ✅ | ✅ | ✅ | |
 | ML-KEM-768-X25519 (PQ) | ✅ | ❌ | ✅ | rage has no built-in PQ; AgeSharp is ahead of rage here |
-| Plugin recipients | ✅ | ✅ | ❌ | stdin/stdout protocol for `age-plugin-*` binaries |
+| Plugin recipients | ✅ | ✅ | ✅ | stdin/stdout protocol for `age-plugin-*` binaries |
 
 ## Core Encryption Features
 
@@ -43,10 +43,9 @@
 
 ## Summary
 
-AgeSharp covers all the core encryption features — every recipient type from the base spec plus post-quantum. The main gaps vs the reference implementations:
+AgeSharp covers all the core encryption features — every recipient type from the base spec, post-quantum, and the plugin protocol. The remaining gaps vs the reference implementations:
 
-1. **Plugin system** — The `age-plugin-*` protocol for extensible recipient types (both Go and Rust have this)
-2. **CLI tool** — No command-line binary (library-only by design)
-3. **Go v1.3.0 advanced APIs** — Random-access decryption, detached headers, `age-inspect` (only Go has these; rage doesn't either)
+1. **CLI tool** — No command-line binary (library-only by design)
+2. **Go v1.3.0 advanced APIs** — Random-access decryption, detached headers, `age-inspect` (only Go has these; rage doesn't either)
 
-For a library targeting .NET developers, the plugin system is the only meaningful gap. The CLI and Go v1.3.0 advanced APIs are less critical since AgeSharp is a library, and even rage hasn't implemented those advanced Go features.
+For a library targeting .NET developers, there are no meaningful feature gaps. AgeSharp supports every recipient type including plugins, and even leads rage with built-in ML-KEM-768 post-quantum support. The CLI and Go v1.3.0 advanced APIs are less critical since AgeSharp is a library, and even rage hasn't implemented those advanced Go features.

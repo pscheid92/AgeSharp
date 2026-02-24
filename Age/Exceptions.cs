@@ -32,3 +32,9 @@ public class NoIdentityMatchException : AgeException
 {
     public NoIdentityMatchException() : base("no identity matched any recipient stanza") { }
 }
+
+public class AgePluginException : AgeException
+{
+    public AgePluginException(string message) : base(message) { }
+    public AgePluginException(string message, Exception inner) : base(message, inner) { }
+}

@@ -108,23 +108,19 @@ public static class AgeEncrypt
             if (hasScrypt && header.Stanzas.Count > 1)
                 throw new AgeHeaderException("scrypt stanza must be the only stanza in the header");
 
-            // Try each identity on each stanza
+            // Try each identity against all stanzas (batch unwrap supports plugin protocol)
             byte[]? fileKey = null;
             foreach (var identity in identities)
             {
-                foreach (var stanza in header.Stanzas)
+                try
                 {
-                    try
-                    {
-                        fileKey = identity.Unwrap(stanza);
-                        if (fileKey is not null) break;
-                    }
-                    catch (AgeException)
-                    {
-                        throw;
-                    }
+                    fileKey = identity.Unwrap(header.Stanzas);
+                    if (fileKey is not null) break;
                 }
-                if (fileKey is not null) break;
+                catch (AgeException)
+                {
+                    throw;
+                }
             }
 
             if (fileKey is null)
