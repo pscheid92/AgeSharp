@@ -27,10 +27,10 @@
 
 | Feature | Go | Rust | AgeSharp | Notes |
 |---|:---:|:---:|:---:|---|
-| Random-access decryption (`DecryptReaderAt`) | ✅ | ❌ | ❌ | Seek into encrypted files (e.g. ZIP in age) |
-| Detached header APIs | ✅ | ❌ | ❌ | Extract/decrypt header separately |
-| `age-inspect` | ✅ | ❌ | ❌ | Metadata inspection without decryption |
-| Pull-based encryption (`EncryptReader`) | ✅ | ✅ | ❌ | AgeSharp uses push-based only |
+| Random-access decryption (`DecryptReaderAt`) | ✅ | ❌ | ✅ | Seek into encrypted files (e.g. ZIP in age) |
+| Detached header APIs | ✅ | ❌ | ✅ | Extract/decrypt header separately |
+| `age-inspect` | ✅ | ❌ | ✅ | Metadata inspection without decryption |
+| Pull-based encryption (`EncryptReader`) | ✅ | ✅ | ✅ | Stream-returning API, lazy payload encryption/decryption |
 | Async I/O | ❌ | ✅ | ❌ | Rust-specific feature flag |
 
 ## CLI Tools
@@ -43,8 +43,4 @@
 
 ## Summary
 
-AgeSharp covers all the core encryption features — every recipient type from the base spec, post-quantum, and the plugin protocol. The remaining gaps vs the reference implementations:
-
-1. **Go v1.3.0 advanced APIs** — Random-access decryption, detached headers, `age-inspect` (only Go has these; rage doesn't either)
-
-AgeSharp supports every recipient type including plugins, has a fully-featured CLI (`Age.Cli`), and leads rage with built-in ML-KEM-768 post-quantum support. The Go v1.3.0 advanced APIs are less critical since even rage hasn't implemented those features.
+AgeSharp is the most complete non-Go implementation of the age encryption specification. It covers every recipient type (including post-quantum ML-KEM-768 and the plugin protocol), all core encryption features, and all Go v1.3.0 advanced APIs — detached headers, pull-based streams, random-access decryption, and `age inspect`. AgeSharp leads rage in both post-quantum support and advanced API coverage.

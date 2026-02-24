@@ -13,6 +13,11 @@ internal static class Program
             return KeygenCommand.Run(keygenArgs);
         }
 
+        if (args.Length > 0 && args[0] == "inspect")
+        {
+            return InspectCommand.Run(args[1..]);
+        }
+
         return AgeCommand.Run(args);
     }
 }
