@@ -46,6 +46,8 @@ public class CctvTestRunner
                 identities.Add(MlKem768X25519Identity.Parse(identityStr));
             else if (identityStr.StartsWith("AGE-SECRET-KEY-1", StringComparison.OrdinalIgnoreCase))
                 identities.Add(X25519Identity.Parse(identityStr));
+            else if (identityStr.StartsWith("-----BEGIN"))
+                identities.Add(AgeKeygen.ParseSshIdentity(identityStr));
         }
         if (passphrase != null)
             identities.Add(new ScryptRecipient(passphrase));
