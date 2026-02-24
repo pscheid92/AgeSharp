@@ -22,3 +22,4 @@ TestResults/
 ## OS files
 .DS_Store
 Thumbs.db
+dist/

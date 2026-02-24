@@ -43,14 +43,18 @@ AGEKEYGEN="age-keygen"
 
 # --- Build or locate AgeSharp CLI ---
 if [ -n "${1:-}" ]; then
-    CLI_DLL="$1"
+    # Accept either a native binary or a .dll
+    if [[ "$1" == *.dll ]]; then
+        SHARP="dotnet $1"
+    else
+        SHARP="$1"
+    fi
 else
     echo "Building Age.Cli..."
     BUILD_OUT="$(mktemp -d)"
     dotnet build "$SCRIPT_DIR/Age.Cli" -o "$BUILD_OUT" -v quiet 2>&1
-    CLI_DLL="$BUILD_OUT/Age.Cli.dll"
+    SHARP="dotnet $BUILD_OUT/Age.Cli.dll"
 fi
-SHARP="dotnet $CLI_DLL"
 
 # --- Temp dir for test artifacts ---
 TMPDIR="$(mktemp -d)"

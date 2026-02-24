@@ -8,6 +8,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <!-- AOT publish settings (active when -p:PublishAot=true or via Makefile) -->
+  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <StripSymbols>true</StripSymbols>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Age\Age.csproj" />
   </ItemGroup>
