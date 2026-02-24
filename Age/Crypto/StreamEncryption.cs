@@ -1,6 +1,4 @@
 using System.Buffers.Binary;
-using System.Security.Cryptography;
-using NSec.Cryptography;
 
 namespace Age.Crypto;
 
@@ -13,9 +11,6 @@ internal static class StreamEncryption
 
     public static void Encrypt(ReadOnlySpan<byte> payloadKey, Stream input, Stream output)
     {
-        var aead = AeadAlgorithm.ChaCha20Poly1305;
-        using var key = NSec.Cryptography.Key.Import(aead, payloadKey, KeyBlobFormat.RawSymmetricKey);
-
         using var inputMs = new MemoryStream();
         input.CopyTo(inputMs);
         var inputData = inputMs.GetBuffer().AsSpan(0, (int)inputMs.Length);
@@ -33,7 +28,7 @@ internal static class StreamEncryption
             var plaintext = inputData.Slice(offset, chunkLen);
             MakeNonce(counter, isFinal, nonce);
 
-            var ciphertext = aead.Encrypt(key, nonce, ReadOnlySpan<byte>.Empty, plaintext);
+            var ciphertext = CryptoHelper.ChaChaEncrypt(payloadKey, nonce, plaintext);
             output.Write(ciphertext);
 
             offset += chunkLen;
@@ -45,9 +40,6 @@ internal static class StreamEncryption
 
     public static void Decrypt(ReadOnlySpan<byte> payloadKey, Stream input, Stream output)
     {
-        var aead = AeadAlgorithm.ChaCha20Poly1305;
-        using var key = NSec.Cryptography.Key.Import(aead, payloadKey, KeyBlobFormat.RawSymmetricKey);
-
         using var inputMs = new MemoryStream();
         input.CopyTo(inputMs);
         var inputData = inputMs.GetBuffer().AsSpan(0, (int)inputMs.Length);
@@ -79,18 +71,9 @@ internal static class StreamEncryption
             var ciphertext = inputData.Slice(offset, chunkLen);
             MakeNonce(counter, isFinal, nonce);
 
-            byte[]? plaintext;
-            try
-            {
-                plaintext = aead.Decrypt(key, nonce, ReadOnlySpan<byte>.Empty, ciphertext);
-            }
-            catch (CryptographicException)
-            {
-                throw new AgePayloadException($"chunk {counter} authentication failed (final={isFinal})");
-            }
-
+            var plaintext = CryptoHelper.ChaChaDecrypt(payloadKey, nonce, ciphertext);
             if (plaintext == null)
-                throw new AgePayloadException($"chunk {counter} decryption returned null");
+                throw new AgePayloadException($"chunk {counter} authentication failed (final={isFinal})");
 
             // The final chunk can be empty ONLY if it's the first (and only) chunk
             if (isFinal && plaintext.Length == 0 && counter > 0)

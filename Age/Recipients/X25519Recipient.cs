@@ -1,8 +1,9 @@
 using System.Security.Cryptography;
-using System.Text;
 using Age.Crypto;
 using Age.Format;
-using NSec.Cryptography;
+using Org.BouncyCastle.Crypto.Agreement;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Security;
 
 namespace Age.Recipients;
 
@@ -12,9 +13,9 @@ public sealed class X25519Recipient : IRecipient
     private const string HkdfLabel = "age-encryption.org/v1/X25519";
     private const string Hrp = "age";
 
-    private readonly PublicKey _publicKey;
+    private readonly X25519PublicKeyParameters _publicKey;
 
-    internal X25519Recipient(PublicKey publicKey)
+    internal X25519Recipient(X25519PublicKeyParameters publicKey)
     {
         _publicKey = publicKey;
     }
@@ -31,46 +32,50 @@ public sealed class X25519Recipient : IRecipient
         if (s != s.ToLowerInvariant())
             throw new FormatException("age recipient must be lowercase");
 
-        var pk = PublicKey.Import(KeyAgreementAlgorithm.X25519, data, KeyBlobFormat.RawPublicKey);
-        if (pk == null)
-            throw new FormatException("invalid X25519 public key");
-        return new X25519Recipient(pk);
+        return new X25519Recipient(new X25519PublicKeyParameters(data));
     }
 
     public override string ToString()
     {
-        var rawPk = _publicKey.Export(KeyBlobFormat.RawPublicKey);
-        return Bech32.Encode(Hrp, rawPk);
+        return Bech32.Encode(Hrp, _publicKey.GetEncoded());
     }
 
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
         // Generate ephemeral X25519 key pair
-        using var ephemeral = NSec.Cryptography.Key.Create(KeyAgreementAlgorithm.X25519,
-            new KeyCreationParameters { ExportPolicy = KeyExportPolicies.AllowPlaintextExport });
-        var ephPubBytes = ephemeral.PublicKey.Export(KeyBlobFormat.RawPublicKey);
+        var ephemeral = new X25519PrivateKeyParameters(new SecureRandom());
+        var ephPubBytes = ephemeral.GeneratePublicKey().GetEncoded();
 
         // DH: ephemeral × recipient
-        using var sharedSecret = KeyAgreementAlgorithm.X25519.Agree(ephemeral, _publicKey);
-        if (sharedSecret == null)
+        var agreement = new X25519Agreement();
+        agreement.Init(ephemeral);
+        var sharedSecret = new byte[agreement.AgreementSize];
+        try
+        {
+            agreement.CalculateAgreement(_publicKey, sharedSecret, 0);
+        }
+        catch (InvalidOperationException)
+        {
+            throw new AgeException("X25519 key agreement failed (shared secret is zero)");
+        }
+
+        // BouncyCastle may not reject all low-order points — check for all-zero shared secret
+        if (sharedSecret.All(b => b == 0))
             throw new AgeException("X25519 key agreement failed (shared secret is zero)");
 
         // HKDF: salt = ephPub || recipientPub, info = label
-        var recipientPubBytes = _publicKey.Export(KeyBlobFormat.RawPublicKey);
+        var recipientPubBytes = _publicKey.GetEncoded();
         var salt = new byte[32 + 32];
         ephPubBytes.CopyTo(salt, 0);
         recipientPubBytes.CopyTo(salt, 32);
 
-        var hkdf = KeyDerivationAlgorithm.HkdfSha256;
-        var wrapKey = hkdf.DeriveBytes(sharedSecret, salt, Encoding.ASCII.GetBytes(HkdfLabel), 32);
+        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, HkdfLabel, 32);
 
         try
         {
             // Encrypt file key with ChaCha20-Poly1305, zero nonce
-            var aead = AeadAlgorithm.ChaCha20Poly1305;
-            using var ck = NSec.Cryptography.Key.Import(aead, wrapKey, KeyBlobFormat.RawSymmetricKey);
             var zeroNonce = new byte[12];
-            var body = aead.Encrypt(ck, zeroNonce, ReadOnlySpan<byte>.Empty, fileKey);
+            var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
 
             var ephPubB64 = Base64Unpadded.Encode(ephPubBytes);
             return new Stanza(StanzaType, [ephPubB64], body);
@@ -78,6 +83,7 @@ public sealed class X25519Recipient : IRecipient
         finally
         {
             CryptographicOperations.ZeroMemory(wrapKey);
+            CryptographicOperations.ZeroMemory(sharedSecret);
         }
     }
 }

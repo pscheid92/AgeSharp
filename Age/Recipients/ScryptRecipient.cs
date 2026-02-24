@@ -1,9 +1,8 @@
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using Age.Crypto;
 using Age.Format;
-using NSec.Cryptography;
+using Org.BouncyCastle.Crypto.Generators;
 
 namespace Age.Recipients;
 
@@ -30,12 +29,9 @@ public sealed class ScryptRecipient : IRecipient, IIdentity
 
         var wrapKey = DeriveWrapKey(_passphrase, salt, _workFactor);
 
-        var aead = AeadAlgorithm.ChaCha20Poly1305;
-        using var ck = NSec.Cryptography.Key.Import(aead, wrapKey, KeyBlobFormat.RawSymmetricKey);
-        CryptographicOperations.ZeroMemory(wrapKey);
-
         var zeroNonce = new byte[12];
-        var body = aead.Encrypt(ck, zeroNonce, ReadOnlySpan<byte>.Empty, fileKey);
+        var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
+        CryptographicOperations.ZeroMemory(wrapKey);
 
         var saltB64 = Base64Unpadded.Encode(salt);
         return new Stanza(StanzaType, [saltB64, _workFactor.ToString()], body);
@@ -73,19 +69,12 @@ public sealed class ScryptRecipient : IRecipient, IIdentity
 
         var wrapKey = DeriveWrapKey(_passphrase, salt, workFactor);
 
-        var aead = AeadAlgorithm.ChaCha20Poly1305;
-        using var ck = NSec.Cryptography.Key.Import(aead, wrapKey, KeyBlobFormat.RawSymmetricKey);
+        var zeroNonce = new byte[12];
+        var fileKey = CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body);
         CryptographicOperations.ZeroMemory(wrapKey);
 
-        var zeroNonce = new byte[12];
-        try
-        {
-            return aead.Decrypt(ck, zeroNonce, ReadOnlySpan<byte>.Empty, stanza.Body);
-        }
-        catch (CryptographicException)
-        {
-            throw new AgeException("incorrect passphrase for scrypt recipient");
-        }
+        // AEAD auth failure → wrong passphrase, return null to signal no match
+        return fileKey;
     }
 
     internal static bool ValidateWorkFactor(string s, out int workFactor)
@@ -111,29 +100,13 @@ public sealed class ScryptRecipient : IRecipient, IIdentity
         labelBytes.CopyTo(scryptSalt, 0);
         salt.CopyTo(scryptSalt, labelBytes.Length);
 
-        ulong n = 1UL << workFactor;
+        int n = 1 << workFactor;
         var passphraseBytes = Encoding.UTF8.GetBytes(passphrase);
 
-        var result = new byte[32];
-        int rc = crypto_pwhash_scryptsalsa208sha256_ll(
-            passphraseBytes, (nuint)passphraseBytes.Length,
-            scryptSalt, (nuint)scryptSalt.Length,
-            n, 8, 1,
-            result, (nuint)result.Length);
+        var result = SCrypt.Generate(passphraseBytes, scryptSalt, n, 8, 1, 32);
 
         CryptographicOperations.ZeroMemory(passphraseBytes);
 
-        if (rc != 0)
-            throw new AgeException("scrypt key derivation failed");
-
         return result;
     }
-
-    // P/Invoke into libsodium (bundled by NSec.Cryptography)
-    [DllImport("libsodium", CallingConvention = CallingConvention.Cdecl)]
-    private static extern int crypto_pwhash_scryptsalsa208sha256_ll(
-        byte[] passwd, nuint passwdlen,
-        byte[] salt, nuint saltlen,
-        ulong N, uint r, uint p,
-        byte[] buf, nuint buflen);
 }

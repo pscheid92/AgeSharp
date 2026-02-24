@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using Age.Crypto;
-using NSec.Cryptography;
 
 namespace Age.Format;
 
@@ -88,15 +87,10 @@ internal sealed class Header
     public static byte[] ComputeMac(ReadOnlySpan<byte> fileKey, ReadOnlySpan<byte> headerBytes)
     {
         // HKDF-SHA-256(ikm=fileKey, salt="", info="header") → hmac_key (32 bytes)
-        var hkdf = KeyDerivationAlgorithm.HkdfSha256;
-        var hmacKeyBytes = hkdf.DeriveBytes(fileKey, ReadOnlySpan<byte>.Empty,
-            Encoding.ASCII.GetBytes("header"), 32);
+        var hmacKeyBytes = CryptoHelper.HkdfDerive(fileKey, ReadOnlySpan<byte>.Empty, "header", 32);
 
         // HMAC-SHA-256(key=hmac_key, message=headerBytes)
-        var hmacAlg = MacAlgorithm.HmacSha256;
-        using var hmacKey = NSec.Cryptography.Key.Import(hmacAlg, hmacKeyBytes,
-            KeyBlobFormat.RawSymmetricKey);
-        return hmacAlg.Mac(hmacKey, headerBytes);
+        return CryptoHelper.HmacSha256(hmacKeyBytes, headerBytes);
     }
 
     public void WriteTo(Stream stream, ReadOnlySpan<byte> fileKey)

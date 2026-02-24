@@ -1,8 +1,9 @@
 using System.Security.Cryptography;
-using System.Text;
 using Age.Crypto;
 using Age.Format;
-using NSec.Cryptography;
+using Org.BouncyCastle.Crypto.Agreement;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Security;
 
 namespace Age.Recipients;
 
@@ -12,23 +13,31 @@ public sealed class X25519Identity : IIdentity, IDisposable
     private const string HkdfLabel = "age-encryption.org/v1/X25519";
     private const string Hrp = "AGE-SECRET-KEY-";
 
-    private readonly NSec.Cryptography.Key _privateKey;
+    private readonly byte[] _rawPrivateKey;
     private bool _disposed;
 
-    private X25519Identity(NSec.Cryptography.Key privateKey)
+    private X25519Identity(byte[] rawPrivateKey)
     {
-        _privateKey = privateKey;
+        _rawPrivateKey = rawPrivateKey;
     }
 
-    public X25519Recipient Recipient => new(PublicKey);
+    public X25519Recipient Recipient => new(PublicKeyParams);
 
-    internal PublicKey PublicKey => _privateKey.PublicKey;
+    internal X25519PublicKeyParameters PublicKeyParams
+    {
+        get
+        {
+            var priv = new X25519PrivateKeyParameters(_rawPrivateKey);
+            return priv.GeneratePublicKey();
+        }
+    }
 
     public static X25519Identity Generate()
     {
-        var key = NSec.Cryptography.Key.Create(KeyAgreementAlgorithm.X25519,
-            new KeyCreationParameters { ExportPolicy = KeyExportPolicies.AllowPlaintextExport });
-        return new X25519Identity(key);
+        var priv = new X25519PrivateKeyParameters(new SecureRandom());
+        var raw = new byte[32];
+        Array.Copy(priv.GetEncoded(), raw, 32);
+        return new X25519Identity(raw);
     }
 
     public static X25519Identity Parse(string s)
@@ -43,18 +52,18 @@ public sealed class X25519Identity : IIdentity, IDisposable
         if (data.Length != 32)
             throw new FormatException($"X25519 secret key must be 32 bytes, got {data.Length}");
 
-        var key = NSec.Cryptography.Key.Import(KeyAgreementAlgorithm.X25519, data,
-            KeyBlobFormat.RawPrivateKey,
-            new KeyCreationParameters { ExportPolicy = KeyExportPolicies.AllowPlaintextExport });
+        var raw = new byte[32];
+        Array.Copy(data, raw, 32);
         CryptographicOperations.ZeroMemory(data);
-        return new X25519Identity(key);
+        return new X25519Identity(raw);
     }
 
     public override string ToString()
     {
-        var rawKey = _privateKey.Export(KeyBlobFormat.RawPrivateKey);
-        var result = Bech32.Encode(Hrp, rawKey).ToUpperInvariant();
-        CryptographicOperations.ZeroMemory(rawKey);
+        var rawCopy = new byte[32];
+        Array.Copy(_rawPrivateKey, rawCopy, 32);
+        var result = Bech32.Encode(Hrp, rawCopy).ToUpperInvariant();
+        CryptographicOperations.ZeroMemory(rawCopy);
         return result;
     }
 
@@ -83,44 +92,50 @@ public sealed class X25519Identity : IIdentity, IDisposable
         if (stanza.Body.Length != 32) // 16 bytes file key + 16 bytes tag
             throw new AgeHeaderException($"X25519 stanza body must be 32 bytes, got {stanza.Body.Length}");
 
-        var ephPub = PublicKey.Import(KeyAgreementAlgorithm.X25519, ephPubBytes, KeyBlobFormat.RawPublicKey);
-        if (ephPub == null)
-            throw new AgeHeaderException("invalid X25519 ephemeral public key");
+        var ephPub = new X25519PublicKeyParameters(ephPubBytes);
+        var privKey = new X25519PrivateKeyParameters(_rawPrivateKey);
 
         // DH: identity × ephemeral
-        using var sharedSecret = KeyAgreementAlgorithm.X25519.Agree(_privateKey, ephPub);
-        if (sharedSecret == null)
+        var agreement = new X25519Agreement();
+        agreement.Init(privKey);
+        var sharedSecret = new byte[agreement.AgreementSize];
+        try
+        {
+            agreement.CalculateAgreement(ephPub, sharedSecret, 0);
+        }
+        catch (InvalidOperationException)
+        {
+            throw new AgeHeaderException("X25519 shared secret is all-zero (low-order or identity point)");
+        }
+
+        // BouncyCastle may not reject all low-order points — check for all-zero shared secret
+        if (sharedSecret.All(b => b == 0))
             throw new AgeHeaderException("X25519 shared secret is all-zero (low-order or identity point)");
 
         // HKDF: salt = ephPub || recipientPub, info = label
-        var recipientPubBytes = _privateKey.PublicKey.Export(KeyBlobFormat.RawPublicKey);
+        var recipientPubBytes = PublicKeyParams.GetEncoded();
         var salt = new byte[32 + 32];
         ephPubBytes.CopyTo(salt, 0);
         recipientPubBytes.CopyTo(salt, 32);
 
-        var hkdf = KeyDerivationAlgorithm.HkdfSha256;
-        var wrapKey = hkdf.DeriveBytes(sharedSecret, salt, Encoding.ASCII.GetBytes(HkdfLabel), 32);
+        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, HkdfLabel, 32);
 
         try
         {
             // Decrypt file key
-            var aead = AeadAlgorithm.ChaCha20Poly1305;
-            using var ck = NSec.Cryptography.Key.Import(aead, wrapKey, KeyBlobFormat.RawSymmetricKey);
             var zeroNonce = new byte[12];
-
-            try
-            {
-                return aead.Decrypt(ck, zeroNonce, ReadOnlySpan<byte>.Empty, stanza.Body);
-            }
-            catch (CryptographicException)
+            var fileKey = CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body);
+            if (fileKey == null)
             {
                 // AEAD failure → wrong recipient, not our stanza
                 return null;
             }
+            return fileKey;
         }
         finally
         {
             CryptographicOperations.ZeroMemory(wrapKey);
+            CryptographicOperations.ZeroMemory(sharedSecret);
         }
     }
 
@@ -128,6 +143,6 @@ public sealed class X25519Identity : IIdentity, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _privateKey.Dispose();
+        CryptographicOperations.ZeroMemory(_rawPrivateKey);
     }
 }

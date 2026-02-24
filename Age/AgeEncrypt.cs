@@ -1,9 +1,7 @@
 using System.Security.Cryptography;
-using System.Text;
 using Age.Crypto;
 using Age.Format;
 using Age.Recipients;
-using NSec.Cryptography;
 
 namespace Age;
 
@@ -52,9 +50,7 @@ public static class AgeEncrypt
             output.Write(payloadNonce);
 
             // Derive payload key: HKDF-SHA-256(ikm=fileKey, salt=payloadNonce, info="payload")
-            var hkdf = KeyDerivationAlgorithm.HkdfSha256;
-            var payloadKey = hkdf.DeriveBytes(fileKey, payloadNonce,
-                Encoding.ASCII.GetBytes("payload"), 32);
+            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", 32);
 
             // STREAM encrypt
             StreamEncryption.Encrypt(payloadKey, input, output);
@@ -141,9 +137,7 @@ public static class AgeEncrypt
                     throw new AgeHeaderException($"expected 16-byte payload nonce, got {nonceRead} bytes");
 
                 // Derive payload key
-                var hkdf = KeyDerivationAlgorithm.HkdfSha256;
-                var payloadKey = hkdf.DeriveBytes(fileKey, payloadNonce,
-                    Encoding.ASCII.GetBytes("payload"), 32);
+                var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", 32);
 
                 // Get remaining stream data for STREAM decrypt
                 // We need to pass the remaining data from the underlying stream

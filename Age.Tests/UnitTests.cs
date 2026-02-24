@@ -3,7 +3,6 @@ using Age;
 using Age.Crypto;
 using Age.Format;
 using Age.Recipients;
-using NSec.Cryptography;
 using Xunit;
 
 namespace Age.Tests;
@@ -677,8 +676,7 @@ public class StreamEncryptionTests
         var nonce = new byte[16];
         new Random(43).NextBytes(nonce);
 
-        var hkdf = NSec.Cryptography.KeyDerivationAlgorithm.HkdfSha256;
-        return hkdf.DeriveBytes(fileKey, nonce, Encoding.ASCII.GetBytes("payload"), 32);
+        return CryptoHelper.HkdfDerive(fileKey, nonce, "payload", 32);
     }
 
     [Theory]
@@ -1096,8 +1094,7 @@ public class AgeEncryptTests
         // Write payload nonce + encrypted payload
         var payloadNonce = new byte[16];
         ms.Write(payloadNonce);
-        var hkdf = KeyDerivationAlgorithm.HkdfSha256;
-        var payloadKey = hkdf.DeriveBytes(fileKey, payloadNonce, Encoding.ASCII.GetBytes("payload"), 32);
+        var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", 32);
         StreamEncryption.Encrypt(payloadKey, new MemoryStream(Array.Empty<byte>()), ms);
 
         ms.Position = 0;
@@ -1147,8 +1144,7 @@ public class AgeEncryptTests
         header.WriteTo(ms, fileKey);
         // Append a payload nonce + minimal encrypted payload
         ms.Write(new byte[16]); // nonce
-        var hkdf = KeyDerivationAlgorithm.HkdfSha256;
-        var payloadKey = hkdf.DeriveBytes(fileKey, new byte[16], Encoding.ASCII.GetBytes("payload"), 32);
+        var payloadKey = CryptoHelper.HkdfDerive(fileKey, new byte[16], "payload", 32);
         StreamEncryption.Encrypt(payloadKey, new MemoryStream(Array.Empty<byte>()), ms);
 
         ms.Position = 0;
