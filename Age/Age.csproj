@@ -5,6 +5,15 @@
     <LangVersion>14</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+
+    <PackageId>AgeSharp</PackageId>
+    <Authors>pscheid92</Authors>
+    <Description>A C# implementation of the age file encryption format</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/pscheid92/AgeSharp</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/pscheid92/AgeSharp</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>age;encryption;cryptography</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,6 +22,10 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Age.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
 </Project>
