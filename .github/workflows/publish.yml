@@ -1,11 +1,92 @@
-name: Publish to NuGet
+name: Publish
 
 on:
   push:
     tags: ["v*"]
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test -c Release
+
+  build:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            archive-os: linux
+            archive-arch: x64
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
+            archive-os: linux
+            archive-arch: arm64
+          - os: macos-latest
+            rid: osx-arm64
+            archive-os: macos
+            archive-arch: arm64
+          - os: macos-13
+            rid: osx-x64
+            archive-os: macos
+            archive-arch: x64
+          - os: windows-latest
+            rid: win-x64
+            archive-os: windows
+            archive-arch: x64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish AOT binary
+        run: dotnet publish Age.Cli/Age.Cli.csproj -r ${{ matrix.rid }} -p:PublishAot=true -c Release
+
+      - name: Package binary (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir age-sharp
+          cp Age.Cli/bin/Release/net10.0/${{ matrix.rid }}/publish/Age.Cli age-sharp/age-sharp
+          chmod +x age-sharp/age-sharp
+          tar czf age-sharp-${{ steps.version.outputs.VERSION }}-${{ matrix.archive-os }}-${{ matrix.archive-arch }}.tar.gz age-sharp
+
+      - name: Package binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path age-sharp
+          Copy-Item Age.Cli/bin/Release/net10.0/${{ matrix.rid }}/publish/Age.Cli.exe age-sharp/age-sharp.exe
+          Compress-Archive -Path age-sharp -DestinationPath age-sharp-${{ steps.version.outputs.VERSION }}-${{ matrix.archive-os }}-${{ matrix.archive-arch }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.archive-os }}-${{ matrix.archive-arch }}
+          path: age-sharp-*.*
+
   publish:
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -19,24 +100,22 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --no-restore -c Release
-
-      - name: Test
-        run: dotnet test --no-build -c Release
-
       - name: Extract version from tag
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Pack
-        run: dotnet pack Age/Age.csproj -c Release --no-build /p:Version=${{ steps.version.outputs.VERSION }} -o ./nupkg
+      - name: Pack NuGet
+        run: dotnet pack Age/Age.csproj -c Release /p:Version=${{ steps.version.outputs.VERSION }} -o ./nupkg
+
+      - name: Download all binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+          pattern: binary-*
+          merge-multiple: true
 
       - name: Create GitHub release
-        run: gh release create "$GITHUB_REF_NAME" ./nupkg/*.nupkg --generate-notes ${{ contains(steps.version.outputs.VERSION, '-') && '--prerelease' || '' }}
+        run: gh release create "$GITHUB_REF_NAME" ./nupkg/*.nupkg ./artifacts/age-sharp-* --generate-notes ${{ contains(steps.version.outputs.VERSION, '-') && '--prerelease' || '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
