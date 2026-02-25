@@ -132,7 +132,7 @@ internal static class AgeCommand
                 pass = GeneratePassphrase();
                 Console.Error.WriteLine($"using auto-generated passphrase \"{pass}\"");
             }
-            else
+            else if (Environment.GetEnvironmentVariable("AGE_PASSPHRASE") is null)
             {
                 var confirm = ReadPassphrase("Confirm passphrase: ");
                 if (pass != confirm)
@@ -287,6 +287,10 @@ internal static class AgeCommand
 
     private static string ReadPassphrase(string prompt)
     {
+        var envPass = Environment.GetEnvironmentVariable("AGE_PASSPHRASE");
+        if (envPass is not null)
+            return envPass;
+
         Console.Error.Write(prompt);
         var sb = new StringBuilder();
         while (true)
