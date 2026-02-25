@@ -15,13 +15,6 @@ public interface IIdentity
     /// Attempts to unwrap a file key from any of the provided stanzas.
     /// Default implementation iterates one at a time; plugin identities override for batching.
     /// </summary>
-    byte[]? Unwrap(IReadOnlyList<Stanza> stanzas)
-    {
-        foreach (var stanza in stanzas)
-        {
-            var fileKey = Unwrap(stanza);
-            if (fileKey is not null) return fileKey;
-        }
-        return null;
-    }
+    byte[]? Unwrap(IReadOnlyList<Stanza> stanzas) =>
+        stanzas.Select(Unwrap).OfType<byte[]>().FirstOrDefault();
 }

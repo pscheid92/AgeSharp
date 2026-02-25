@@ -6,35 +6,29 @@ using Org.BouncyCastle.Crypto.Generators;
 
 namespace Age.Recipients;
 
-public sealed class ScryptRecipient : IRecipient, IIdentity
+public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IRecipient, IIdentity
 {
     private const string StanzaType = "scrypt";
     private const string ScryptSaltLabel = "age-encryption.org/v1/scrypt";
     private const int SaltSize = 16;
     private const int MaxWorkFactor = 20;
-
-    private readonly string _passphrase;
-    private readonly int _workFactor;
-
-    public ScryptRecipient(string passphrase, int workFactor = 18)
-    {
-        _passphrase = passphrase;
-        _workFactor = workFactor;
-    }
+    private const int KeySize = 32;
+    private const int NonceSize = 12;
+    private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
 
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
         var salt = new byte[SaltSize];
         RandomNumberGenerator.Fill(salt);
 
-        var wrapKey = DeriveWrapKey(_passphrase, salt, _workFactor);
+        var wrapKey = DeriveWrapKey(passphrase, salt, workFactor);
 
-        var zeroNonce = new byte[12];
+        var zeroNonce = new byte[NonceSize];
         var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
         CryptographicOperations.ZeroMemory(wrapKey);
 
         var saltB64 = Base64Unpadded.Encode(salt);
-        return new Stanza(StanzaType, [saltB64, _workFactor.ToString()], body);
+        return new Stanza(StanzaType, [saltB64, workFactor.ToString()], body);
     }
 
     public byte[]? Unwrap(Stanza stanza)
@@ -57,19 +51,19 @@ public sealed class ScryptRecipient : IRecipient, IIdentity
         if (salt.Length != SaltSize)
             throw new AgeHeaderException($"scrypt salt must be {SaltSize} bytes, got {salt.Length}");
 
-        string wfStr = stanza.Args[1];
-        if (!ValidateWorkFactor(wfStr, out int workFactor))
+        var wfStr = stanza.Args[1];
+        if (!ValidateWorkFactor(wfStr, out var stanzaWorkFactor))
             throw new AgeHeaderException($"invalid scrypt work factor: {wfStr}");
 
-        if (workFactor > MaxWorkFactor)
-            throw new AgeHeaderException($"scrypt work factor {workFactor} exceeds maximum {MaxWorkFactor}");
+        if (stanzaWorkFactor > MaxWorkFactor)
+            throw new AgeHeaderException($"scrypt work factor {stanzaWorkFactor} exceeds maximum {MaxWorkFactor}");
 
-        if (stanza.Body.Length != 32)
-            throw new AgeHeaderException($"scrypt stanza body must be 32 bytes, got {stanza.Body.Length}");
+        if (stanza.Body.Length != WrappedKeySize)
+            throw new AgeHeaderException($"scrypt stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
 
-        var wrapKey = DeriveWrapKey(_passphrase, salt, workFactor);
+        var wrapKey = DeriveWrapKey(passphrase, salt, stanzaWorkFactor);
 
-        var zeroNonce = new byte[12];
+        var zeroNonce = new byte[NonceSize];
         var fileKey = CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body);
         CryptographicOperations.ZeroMemory(wrapKey);
 
@@ -80,13 +74,17 @@ public sealed class ScryptRecipient : IRecipient, IIdentity
     internal static bool ValidateWorkFactor(string s, out int workFactor)
     {
         workFactor = 0;
-        if (string.IsNullOrEmpty(s)) return false;
+        if (string.IsNullOrEmpty(s))
+            return false;
 
         // ABNF: %x31-39 *DIGIT — first char is 1-9, rest are 0-9
-        if (s[0] < '1' || s[0] > '9') return false;
-        for (int i = 1; i < s.Length; i++)
+        if (s[0] < '1' || s[0] > '9')
+            return false;
+
+        for (var i = 1; i < s.Length; i++)
         {
-            if (s[i] < '0' || s[i] > '9') return false;
+            if (s[i] < '0' || s[i] > '9')
+                return false;
         }
 
         return int.TryParse(s, out workFactor);
@@ -96,14 +94,12 @@ public sealed class ScryptRecipient : IRecipient, IIdentity
     {
         // scrypt salt = "age-encryption.org/v1/scrypt" || decoded_salt (44 bytes total)
         var labelBytes = Encoding.ASCII.GetBytes(ScryptSaltLabel);
-        var scryptSalt = new byte[labelBytes.Length + salt.Length];
-        labelBytes.CopyTo(scryptSalt, 0);
-        salt.CopyTo(scryptSalt, labelBytes.Length);
+        var scryptSalt = (byte[])[.. labelBytes, .. salt];
 
-        int n = 1 << workFactor;
+        var n = 1 << workFactor;
         var passphraseBytes = Encoding.UTF8.GetBytes(passphrase);
 
-        var result = SCrypt.Generate(passphraseBytes, scryptSalt, n, 8, 1, 32);
+        var result = SCrypt.Generate(passphraseBytes, scryptSalt, n, 8, 1, KeySize);
 
         CryptographicOperations.ZeroMemory(passphraseBytes);
 

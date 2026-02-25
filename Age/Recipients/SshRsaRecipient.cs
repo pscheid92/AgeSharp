@@ -15,7 +15,6 @@ public sealed class SshRsaRecipient : IRecipient
     private const int MinKeyBits = 2048;
 
     private readonly RsaKeyParameters _publicKey;
-    private readonly byte[] _sshWireBytes;
     private readonly string _tag;
 
     internal SshRsaRecipient(RsaKeyParameters publicKey, byte[] sshWireBytes)
@@ -24,26 +23,21 @@ public sealed class SshRsaRecipient : IRecipient
             throw new ArgumentException($"RSA key must be at least {MinKeyBits} bits, got {publicKey.Modulus.BitLength}");
 
         _publicKey = publicKey;
-        _sshWireBytes = sshWireBytes;
         _tag = SshKeyParser.ComputeTag(sshWireBytes);
     }
 
     public static SshRsaRecipient Parse(string authorizedKeysLine)
     {
         var (keyType, wireBytes, pubKey) = SshKeyParser.ParsePublicKey(authorizedKeysLine);
-        if (keyType != "ssh-rsa")
-            throw new FormatException($"expected ssh-rsa, got {keyType}");
 
-        return new SshRsaRecipient((RsaKeyParameters)pubKey, wireBytes);
+        return keyType == "ssh-rsa"
+            ? new SshRsaRecipient((RsaKeyParameters)pubKey, wireBytes)
+            : throw new FormatException($"expected ssh-rsa, got {keyType}");
     }
 
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
-        var oaep = new OaepEncoding(
-            new RsaBlindedEngine(),
-            new Sha256Digest(),
-            new Sha256Digest(),
-            Encoding.ASCII.GetBytes(OaepLabel));
+        var oaep = new OaepEncoding(new RsaBlindedEngine(), new Sha256Digest(), new Sha256Digest(), Encoding.ASCII.GetBytes(OaepLabel));
 
         oaep.Init(true, _publicKey);
         var input = fileKey.ToArray();

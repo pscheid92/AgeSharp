@@ -12,6 +12,8 @@ public sealed class X25519Identity : IIdentity, IDisposable
     private const string StanzaType = "X25519";
     private const string HkdfLabel = "age-encryption.org/v1/X25519";
     private const string Hrp = "AGE-SECRET-KEY-";
+    private const int KeySize = 32;
+    private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
 
     private readonly byte[] _rawPrivateKey;
     private bool _disposed;
@@ -23,20 +25,20 @@ public sealed class X25519Identity : IIdentity, IDisposable
 
     public X25519Recipient Recipient => new(PublicKeyParams);
 
-    internal X25519PublicKeyParameters PublicKeyParams
+    private X25519PublicKeyParameters PublicKeyParams
     {
         get
         {
-            var priv = new X25519PrivateKeyParameters(_rawPrivateKey);
-            return priv.GeneratePublicKey();
+            var privateParams = new X25519PrivateKeyParameters(_rawPrivateKey);
+            return privateParams.GeneratePublicKey();
         }
     }
 
     public static X25519Identity Generate()
     {
-        var priv = new X25519PrivateKeyParameters(new SecureRandom());
-        var raw = new byte[32];
-        Array.Copy(priv.GetEncoded(), raw, 32);
+        var privateKeyParams = new X25519PrivateKeyParameters(new SecureRandom());
+        var raw = new byte[KeySize];
+        Array.Copy(privateKeyParams.GetEncoded(), raw, KeySize);
         return new X25519Identity(raw);
     }
 
@@ -47,23 +49,27 @@ public sealed class X25519Identity : IIdentity, IDisposable
             throw new FormatException("age secret key must be uppercase");
 
         var (hrp, data) = Bech32.Decode(s);
+
         if (!string.Equals(hrp, Hrp, StringComparison.OrdinalIgnoreCase))
             throw new FormatException($"expected HRP '{Hrp}', got '{hrp}'");
-        if (data.Length != 32)
-            throw new FormatException($"X25519 secret key must be 32 bytes, got {data.Length}");
 
-        var raw = new byte[32];
-        Array.Copy(data, raw, 32);
+        if (data.Length != KeySize)
+            throw new FormatException($"X25519 secret key must be {KeySize} bytes, got {data.Length}");
+
+        var raw = new byte[KeySize];
+        Array.Copy(data, raw, KeySize);
         CryptographicOperations.ZeroMemory(data);
         return new X25519Identity(raw);
     }
 
     public override string ToString()
     {
-        var rawCopy = new byte[32];
-        Array.Copy(_rawPrivateKey, rawCopy, 32);
+        var rawCopy = new byte[KeySize];
+        Array.Copy(_rawPrivateKey, rawCopy, KeySize);
+
         var result = Bech32.Encode(Hrp, rawCopy).ToUpperInvariant();
         CryptographicOperations.ZeroMemory(rawCopy);
+
         return result;
     }
 
@@ -86,18 +92,18 @@ public sealed class X25519Identity : IIdentity, IDisposable
             throw new AgeHeaderException($"invalid X25519 ephemeral key encoding: {ex.Message}", ex);
         }
 
-        if (ephPubBytes.Length != 32)
-            throw new AgeHeaderException($"X25519 ephemeral key must be 32 bytes, got {ephPubBytes.Length}");
+        if (ephPubBytes.Length != KeySize)
+            throw new AgeHeaderException($"X25519 ephemeral key must be {KeySize} bytes, got {ephPubBytes.Length}");
 
-        if (stanza.Body.Length != 32) // 16 bytes file key + 16 bytes tag
-            throw new AgeHeaderException($"X25519 stanza body must be 32 bytes, got {stanza.Body.Length}");
+        if (stanza.Body.Length != WrappedKeySize)
+            throw new AgeHeaderException($"X25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
 
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
-        var privKey = new X25519PrivateKeyParameters(_rawPrivateKey);
+        var privateKeyParams = new X25519PrivateKeyParameters(_rawPrivateKey);
 
         // DH: identity × ephemeral
         var agreement = new X25519Agreement();
-        agreement.Init(privKey);
+        agreement.Init(privateKeyParams);
         var sharedSecret = new byte[agreement.AgreementSize];
         try
         {
@@ -114,23 +120,17 @@ public sealed class X25519Identity : IIdentity, IDisposable
 
         // HKDF: salt = ephPub || recipientPub, info = label
         var recipientPubBytes = PublicKeyParams.GetEncoded();
-        var salt = new byte[32 + 32];
-        ephPubBytes.CopyTo(salt, 0);
-        recipientPubBytes.CopyTo(salt, 32);
+        var salt = (byte[])[.. ephPubBytes, .. recipientPubBytes];
 
-        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, HkdfLabel, 32);
+        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, HkdfLabel, KeySize);
 
         try
         {
             // Decrypt file key
             var zeroNonce = new byte[12];
-            var fileKey = CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body);
-            if (fileKey == null)
-            {
-                // AEAD failure → wrong recipient, not our stanza
-                return null;
-            }
-            return fileKey;
+
+            // AEAD failure → wrong recipient, not our stanza
+            return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body);
         }
         finally
         {
@@ -141,7 +141,9 @@ public sealed class X25519Identity : IIdentity, IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed)
+            return;
+
         _disposed = true;
         CryptographicOperations.ZeroMemory(_rawPrivateKey);
     }

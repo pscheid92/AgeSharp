@@ -11,6 +11,8 @@ public sealed class SshEd25519Recipient : IRecipient
 {
     private const string StanzaType = "ssh-ed25519";
     private const string HkdfLabel = "age-encryption.org/v1/ssh-ed25519";
+    private const int KeySize = 32;
+    private const int NonceSize = 12;
 
     private readonly byte[] _sshWireBytes;
     private readonly byte[] _x25519PublicKey;
@@ -26,6 +28,7 @@ public sealed class SshEd25519Recipient : IRecipient
     public static SshEd25519Recipient Parse(string authorizedKeysLine)
     {
         var (keyType, wireBytes, pubKey) = SshKeyParser.ParsePublicKey(authorizedKeysLine);
+
         if (keyType != "ssh-ed25519")
             throw new FormatException($"expected ssh-ed25519, got {keyType}");
 
@@ -37,14 +40,16 @@ public sealed class SshEd25519Recipient : IRecipient
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
         // Compute tweak = HKDF(ikm=[], salt=sshWireBytes, info=label, 32)
-        var tweak = CryptoHelper.HkdfDerive([], _sshWireBytes, HkdfLabel, 32);
+        var tweak = CryptoHelper.HkdfDerive([], _sshWireBytes, HkdfLabel, KeySize);
 
         // tweakedKey = X25519.ScalarMult(tweak, _x25519PublicKey)
-        var tweakPriv = new X25519PrivateKeyParameters(tweak);
+        var tweakPrivate = new X25519PrivateKeyParameters(tweak);
         var recipientPub = new X25519PublicKeyParameters(_x25519PublicKey);
         var agreement = new X25519Agreement();
-        agreement.Init(tweakPriv);
+        
+        agreement.Init(tweakPrivate);
         var tweakedKey = new byte[agreement.AgreementSize];
+        
         agreement.CalculateAgreement(recipientPub, tweakedKey, 0);
 
         // Generate ephemeral X25519 key pair
@@ -61,14 +66,12 @@ public sealed class SshEd25519Recipient : IRecipient
         ephAgreement.CalculateAgreement(tweakedPub, sharedSecret, 0);
 
         // wrapKey = HKDF(ikm=sharedSecret, salt=ephPub||convertedKey, info=label, 32)
-        var salt = new byte[32 + 32];
-        ephPubBytes.CopyTo(salt, 0);
-        _x25519PublicKey.CopyTo(salt, 32);
-        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, HkdfLabel, 32);
+        var salt = (byte[])[.. ephPubBytes, .. _x25519PublicKey];
+        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, HkdfLabel, KeySize);
 
         try
         {
-            var zeroNonce = new byte[12];
+            var zeroNonce = new byte[NonceSize];
             var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
             var ephPubB64 = Base64Unpadded.Encode(ephPubBytes);
             return new Stanza(StanzaType, [_tag, ephPubB64], body);

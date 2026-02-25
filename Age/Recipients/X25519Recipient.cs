@@ -12,6 +12,7 @@ public sealed class X25519Recipient : IRecipient
     private const string StanzaType = "X25519";
     private const string HkdfLabel = "age-encryption.org/v1/X25519";
     private const string Hrp = "age";
+    private const int KeySize = 32;
 
     private readonly X25519PublicKeyParameters _publicKey;
 
@@ -23,10 +24,12 @@ public sealed class X25519Recipient : IRecipient
     public static X25519Recipient Parse(string s)
     {
         var (hrp, data) = Bech32.Decode(s);
+        
         if (hrp != Hrp)
             throw new FormatException($"expected HRP '{Hrp}', got '{hrp}'");
-        if (data.Length != 32)
-            throw new FormatException($"X25519 public key must be 32 bytes, got {data.Length}");
+        
+        if (data.Length != KeySize)
+            throw new FormatException($"X25519 public key must be {KeySize} bytes, got {data.Length}");
 
         // Must be lowercase
         if (s != s.ToLowerInvariant())
@@ -35,10 +38,8 @@ public sealed class X25519Recipient : IRecipient
         return new X25519Recipient(new X25519PublicKeyParameters(data));
     }
 
-    public override string ToString()
-    {
-        return Bech32.Encode(Hrp, _publicKey.GetEncoded());
-    }
+    public override string ToString() =>
+        Bech32.Encode(Hrp, _publicKey.GetEncoded());
 
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
@@ -50,6 +51,7 @@ public sealed class X25519Recipient : IRecipient
         var agreement = new X25519Agreement();
         agreement.Init(ephemeral);
         var sharedSecret = new byte[agreement.AgreementSize];
+
         try
         {
             agreement.CalculateAgreement(_publicKey, sharedSecret, 0);
@@ -65,11 +67,9 @@ public sealed class X25519Recipient : IRecipient
 
         // HKDF: salt = ephPub || recipientPub, info = label
         var recipientPubBytes = _publicKey.GetEncoded();
-        var salt = new byte[32 + 32];
-        ephPubBytes.CopyTo(salt, 0);
-        recipientPubBytes.CopyTo(salt, 32);
+        var salt = (byte[])[.. ephPubBytes, .. recipientPubBytes];
 
-        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, HkdfLabel, 32);
+        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, HkdfLabel, KeySize);
 
         try
         {

@@ -119,7 +119,7 @@ internal static class XWing
         return result;
     }
 
-    private static (MLKemPrivateKeyParameters mlKemPriv, byte[] seedPQ, X25519PrivateKeyParameters x25519Priv, byte[] pkX) ExpandSeed(byte[] seed)
+    private static (MLKemPrivateKeyParameters mlKemPrivate, byte[] seedPQ, X25519PrivateKeyParameters x25519Private, byte[] pkX) ExpandSeed(byte[] seed)
     {
         var shake = new ShakeDigest(256);
         shake.BlockUpdate(seed, 0, X25519KeySize);
