@@ -19,9 +19,9 @@ public sealed class AgeHeader
 
     public static AgeHeader Parse(Stream input)
     {
-        bool isArmored = false;
+        var isArmored = false;
         Stream binaryInput;
-        bool needsDispose = false;
+        var needsDispose = false;
 
         if (input.CanSeek && AsciiArmor.IsArmored(input))
         {
@@ -37,26 +37,24 @@ public sealed class AgeHeader
         try
         {
             var reader = new HeaderReader(binaryInput);
+
             Header header;
             try
             {
                 header = Header.Parse(reader);
-            }
-            catch (AgeHeaderException)
-            {
-                throw;
             }
             catch (FormatException ex)
             {
                 throw new AgeHeaderException($"header parse error: {ex.Message}", ex);
             }
 
-            long payloadOffset = reader.RawBytes.Length;
+            var payloadOffset = reader.RawBytes.Length;
             return new AgeHeader(header.Stanzas.AsReadOnly(), payloadOffset, isArmored);
         }
         finally
         {
-            if (needsDispose) binaryInput.Dispose();
+            if (needsDispose)
+                binaryInput.Dispose();
         }
     }
 }
