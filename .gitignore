@@ -15,6 +15,9 @@ obj/
 ## Test results
 TestResults/
 
+## Benchmark artifacts
+BenchmarkDotNet.Artifacts/
+
 ## NuGet
 *.nupkg
 *.snupkg
