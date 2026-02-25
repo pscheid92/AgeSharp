@@ -57,26 +57,18 @@ internal static class InspectCommand
 
             using (rawInput)
             {
-                // Buffer into a seekable stream if needed (for armor detection)
-                Stream input;
-                if (!rawInput.CanSeek)
-                {
-                    var ms = new MemoryStream();
-                    rawInput.CopyTo(ms);
-                    ms.Position = 0;
-                    input = ms;
-                }
-                else
-                {
-                    input = rawInput;
-                }
+                // Buffer into a seekable stream so we can measure total size
+                var ms = new MemoryStream();
+                rawInput.CopyTo(ms);
+                long totalSize = ms.Length;
+                ms.Position = 0;
 
-                var header = AgeHeader.Parse(input);
+                var header = AgeHeader.Parse(ms);
 
                 if (json)
-                    PrintJson(header, displayName);
+                    PrintJson(header, displayName, totalSize);
                 else
-                    PrintHuman(header, displayName);
+                    PrintHuman(header, displayName, totalSize);
             }
 
             return 0;
@@ -93,93 +85,93 @@ internal static class InspectCommand
         }
     }
 
-    private static void PrintHuman(AgeHeader header, string displayName)
-    {
-        Console.WriteLine($"File: {displayName}");
-        Console.WriteLine($"Armored: {(header.IsArmored ? "yes" : "no")}");
-        Console.WriteLine($"Recipients: {header.RecipientCount}");
+    private const int PayloadNonceSize = 16;
+    private const int ChunkSize = 64 * 1024;
+    private const int TagSize = 16;
+    private const int EncryptedChunkSize = ChunkSize + TagSize;
 
-        for (int i = 0; i < header.Recipients.Count; i++)
-        {
-            var stanza = header.Recipients[i];
-            string detail = FormatStanzaDetail(stanza);
-            Console.WriteLine($"  [{i}] {detail}");
-        }
+    private static readonly HashSet<string> PostQuantumTypes = ["mlkem768x25519"];
+
+    private static void PrintHuman(AgeHeader header, string displayName, long totalSize)
+    {
+        Console.WriteLine($"{displayName} is an age file, version \"age-encryption.org/v1\".");
+        Console.WriteLine();
+
+        // Recipient types (deduplicated, preserving order)
+        var types = header.Recipients.Select(s => s.Type).Distinct().ToList();
+        Console.WriteLine("This file is encrypted to the following recipient types:");
+        foreach (var type in types)
+            Console.WriteLine($"  - \"{type}\"");
+        Console.WriteLine();
+
+        // Post-quantum check
+        bool hasPq = types.Any(t => PostQuantumTypes.Contains(t));
+        if (hasPq)
+            Console.WriteLine("This file uses post-quantum encryption.");
+        else
+            Console.WriteLine("This file does NOT use post-quantum encryption.");
+        Console.WriteLine();
+
+        // Size breakdown
+        long headerSize = header.PayloadOffset;
+        long encryptedPayload = totalSize - headerSize;
+        long overhead = ComputeOverhead(encryptedPayload);
+        long payload = encryptedPayload - overhead;
+
+        Console.WriteLine("Size breakdown (assuming it decrypts successfully):");
+        Console.WriteLine();
+        Console.WriteLine($"    {"Header",-24}{headerSize,8} bytes");
+        Console.WriteLine($"    {"Encryption overhead",-24}{overhead,8} bytes");
+        Console.WriteLine($"    {"Payload",-24}{payload,8} bytes");
+        Console.WriteLine($"    {"",24}-------------------");
+        Console.WriteLine($"    {"Total",-24}{totalSize,8} bytes");
+        Console.WriteLine();
+
+        Console.WriteLine("Tip: for machine-readable output, use --json.");
     }
 
-    private static void PrintJson(AgeHeader header, string displayName)
+    private static long ComputeOverhead(long encryptedPayload)
     {
+        if (encryptedPayload <= PayloadNonceSize)
+            return encryptedPayload;
+
+        long afterNonce = encryptedPayload - PayloadNonceSize;
+        long fullChunks = afterNonce / EncryptedChunkSize;
+        long remainder = afterNonce % EncryptedChunkSize;
+        long totalChunks = fullChunks + (remainder > 0 ? 1 : 0);
+        return PayloadNonceSize + totalChunks * TagSize;
+    }
+
+    private static void PrintJson(AgeHeader header, string displayName, long totalSize)
+    {
+        long headerSize = header.PayloadOffset;
+        long encryptedPayload = totalSize - headerSize;
+        long overhead = ComputeOverhead(encryptedPayload);
+        long payload = encryptedPayload - overhead;
+
         var obj = new
         {
             file = displayName,
+            version = "age-encryption.org/v1",
             armored = header.IsArmored,
+            postQuantum = header.Recipients.Any(s => PostQuantumTypes.Contains(s.Type)),
             recipients = header.Recipients.Select((s, i) => new
             {
                 index = i,
                 type = s.Type,
                 args = s.Args,
             }).ToArray(),
+            size = new
+            {
+                header = headerSize,
+                overhead,
+                payload,
+                total = totalSize,
+            },
         };
 
         var options = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         Console.WriteLine(JsonSerializer.Serialize(obj, options));
-    }
-
-    private static string FormatStanzaDetail(Stanza stanza)
-    {
-        return stanza.Type switch
-        {
-            "X25519" => FormatX25519(stanza),
-            "scrypt" => FormatScrypt(stanza),
-            "ssh-ed25519" => FormatSshEd25519(stanza),
-            "ssh-rsa" => FormatSshRsa(stanza),
-            "mlkem768x25519" => FormatMlKem(stanza),
-            _ => FormatPlugin(stanza)
-        };
-    }
-
-    private static string FormatX25519(Stanza stanza)
-    {
-        var share = stanza.Args.Length > 0 ? Truncate(stanza.Args[0], 10) : "?";
-        return $"X25519 (ephemeral share: {share})";
-    }
-
-    private static string FormatScrypt(Stanza stanza)
-    {
-        var salt = stanza.Args.Length > 0 ? Truncate(stanza.Args[0], 10) : "?";
-        var logN = stanza.Args.Length > 1 ? stanza.Args[1] : "?";
-        return $"scrypt (salt: {salt}, log2(N): {logN})";
-    }
-
-    private static string FormatSshEd25519(Stanza stanza)
-    {
-        var tag = stanza.Args.Length > 0 ? Truncate(stanza.Args[0], 10) : "?";
-        return $"ssh-ed25519 (key tag: {tag})";
-    }
-
-    private static string FormatSshRsa(Stanza stanza)
-    {
-        var tag = stanza.Args.Length > 0 ? Truncate(stanza.Args[0], 10) : "?";
-        return $"ssh-rsa (key tag: {tag})";
-    }
-
-    private static string FormatMlKem(Stanza stanza)
-    {
-        var share = stanza.Args.Length > 0 ? Truncate(stanza.Args[0], 10) : "?";
-        return $"mlkem768x25519 (ephemeral share: {share})";
-    }
-
-    private static string FormatPlugin(Stanza stanza)
-    {
-        var argsStr = stanza.Args.Length > 0
-            ? string.Join(", ", stanza.Args.Select(a => Truncate(a, 10)))
-            : "none";
-        return $"{stanza.Type} (args: {argsStr})";
-    }
-
-    private static string Truncate(string s, int maxLen)
-    {
-        return s.Length <= maxLen ? s : s[..maxLen] + "…";
     }
 
     private static void PrintUsage()
