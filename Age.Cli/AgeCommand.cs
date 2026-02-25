@@ -367,6 +367,10 @@ internal static class AgeCommand
                 ssh-ed25519 ...        SSH Ed25519
                 ssh-rsa ...            SSH RSA
 
+            Subcommands:
+                age keygen             Generate a new identity (see age keygen -h)
+                age inspect            Inspect an age-encrypted file
+
             INPUT defaults to stdin, and OUTPUT defaults to stdout.
             """);
     }
