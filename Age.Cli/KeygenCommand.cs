@@ -86,12 +86,17 @@ internal static class KeygenCommand
         if (outputPath is not null)
         {
             File.WriteAllText(outputPath, output);
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(outputPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
             Console.Error.WriteLine($"Public key: {publicKey}");
         }
         else
         {
-            if (Console.IsErrorRedirected == false)
+            if (Console.IsOutputRedirected)
+            {
+                Console.Error.WriteLine("age-keygen: warning: writing secret key to a world-readable file");
                 Console.Error.WriteLine($"Public key: {publicKey}");
+            }
             Console.Write(output);
         }
 
