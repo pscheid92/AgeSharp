@@ -1,8 +1,17 @@
 using Age;
 using Age.Format;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Age.Cli;
+
+internal record InspectOutput(string File, string Version, bool Armored, bool PostQuantum, InspectRecipient[] Recipients, InspectSize Size);
+internal record InspectRecipient(int Index, string Type, string[] Args);
+internal record InspectSize(long Header, long Overhead, long Payload, long Total);
+
+[JsonSerializable(typeof(InspectOutput))]
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+internal partial class InspectJsonContext : JsonSerializerContext;
 
 internal static class InspectCommand
 {
@@ -149,29 +158,16 @@ internal static class InspectCommand
         long overhead = ComputeOverhead(encryptedPayload);
         long payload = encryptedPayload - overhead;
 
-        var obj = new
-        {
-            file = displayName,
-            version = "age-encryption.org/v1",
-            armored = header.IsArmored,
-            postQuantum = header.Recipients.Any(s => PostQuantumTypes.Contains(s.Type)),
-            recipients = header.Recipients.Select((s, i) => new
-            {
-                index = i,
-                type = s.Type,
-                args = s.Args,
-            }).ToArray(),
-            size = new
-            {
-                header = headerSize,
-                overhead,
-                payload,
-                total = totalSize,
-            },
-        };
+        var obj = new InspectOutput(
+            File: displayName,
+            Version: "age-encryption.org/v1",
+            Armored: header.IsArmored,
+            PostQuantum: header.Recipients.Any(s => PostQuantumTypes.Contains(s.Type)),
+            Recipients: header.Recipients.Select((s, i) => new InspectRecipient(i, s.Type, s.Args)).ToArray(),
+            Size: new InspectSize(headerSize, overhead, payload, totalSize)
+        );
 
-        var options = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-        Console.WriteLine(JsonSerializer.Serialize(obj, options));
+        Console.WriteLine(JsonSerializer.Serialize(obj, InspectJsonContext.Default.InspectOutput));
     }
 
     private static void PrintUsage()
