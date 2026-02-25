@@ -1,5 +1,6 @@
 using Age;
 using Age.Format;
+using System.Text.Json;
 
 namespace Age.Cli;
 
@@ -8,6 +9,7 @@ internal static class InspectCommand
     public static int Run(string[] args)
     {
         string? filePath = null;
+        var json = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -16,6 +18,12 @@ internal static class InspectCommand
                 case "-h" or "--help":
                     PrintUsage();
                     return 0;
+                case "--json":
+                    json = true;
+                    break;
+                case "-":
+                    filePath = null;
+                    break;
                 default:
                     if (args[i].StartsWith('-'))
                     {
@@ -65,16 +73,10 @@ internal static class InspectCommand
 
                 var header = AgeHeader.Parse(input);
 
-                Console.WriteLine($"File: {displayName}");
-                Console.WriteLine($"Armored: {(header.IsArmored ? "yes" : "no")}");
-                Console.WriteLine($"Recipients: {header.RecipientCount}");
-
-                for (int i = 0; i < header.Recipients.Count; i++)
-                {
-                    var stanza = header.Recipients[i];
-                    string detail = FormatStanzaDetail(stanza);
-                    Console.WriteLine($"  [{i}] {detail}");
-                }
+                if (json)
+                    PrintJson(header, displayName);
+                else
+                    PrintHuman(header, displayName);
             }
 
             return 0;
@@ -89,6 +91,38 @@ internal static class InspectCommand
             Error($"no such file: {filePath}");
             return 1;
         }
+    }
+
+    private static void PrintHuman(AgeHeader header, string displayName)
+    {
+        Console.WriteLine($"File: {displayName}");
+        Console.WriteLine($"Armored: {(header.IsArmored ? "yes" : "no")}");
+        Console.WriteLine($"Recipients: {header.RecipientCount}");
+
+        for (int i = 0; i < header.Recipients.Count; i++)
+        {
+            var stanza = header.Recipients[i];
+            string detail = FormatStanzaDetail(stanza);
+            Console.WriteLine($"  [{i}] {detail}");
+        }
+    }
+
+    private static void PrintJson(AgeHeader header, string displayName)
+    {
+        var obj = new
+        {
+            file = displayName,
+            armored = header.IsArmored,
+            recipients = header.Recipients.Select((s, i) => new
+            {
+                index = i,
+                type = s.Type,
+                args = s.Args,
+            }).ToArray(),
+        };
+
+        var options = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        Console.WriteLine(JsonSerializer.Serialize(obj, options));
     }
 
     private static string FormatStanzaDetail(Stanza stanza)
@@ -150,14 +184,20 @@ internal static class InspectCommand
 
     private static void PrintUsage()
     {
-        Console.Error.WriteLine("Usage: age inspect [FILE]");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Inspect an age-encrypted file without decrypting it.");
-        Console.Error.WriteLine("Reads from stdin if no file is specified.");
+        Console.Error.WriteLine("""
+            Usage:
+                age-inspect [--json] [INPUT]
+
+            Options:
+                --json                      Output machine-readable JSON.
+
+            INPUT defaults to standard input. "-" may be used as INPUT to explicitly
+            read from standard input.
+            """);
     }
 
     private static void Error(string msg)
     {
-        Console.Error.WriteLine($"age inspect: {msg}");
+        Console.Error.WriteLine($"age-inspect: {msg}");
     }
 }

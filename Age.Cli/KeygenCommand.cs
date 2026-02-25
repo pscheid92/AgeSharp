@@ -7,8 +7,9 @@ internal static class KeygenCommand
     public static int Run(string[] args)
     {
         var outputPath = (string?)null;
-        var convertPath = (string?)null;
+        var convertToPublic = false;
         var postQuantum = false;
+        string? inputPath = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -26,26 +27,31 @@ internal static class KeygenCommand
                     outputPath = args[i];
                     break;
                 case "-y":
-                    if (++i >= args.Length)
-                    {
-                        Error("flag needs an argument: -y");
-                        return 1;
-                    }
-                    convertPath = args[i];
+                    convertToPublic = true;
                     break;
-                case "--pq":
+                case "-pq" or "--pq":
                     postQuantum = true;
                     break;
                 default:
-                    Error($"unknown option: {args[i]}");
-                    return 1;
+                    if (args[i].StartsWith('-'))
+                    {
+                        Error($"unknown option: {args[i]}");
+                        return 1;
+                    }
+                    if (inputPath != null)
+                    {
+                        Error($"unexpected argument: {args[i]}");
+                        return 1;
+                    }
+                    inputPath = args[i];
+                    break;
             }
         }
 
         try
         {
-            if (convertPath is not null)
-                return ConvertToPublic(convertPath);
+            if (convertToPublic)
+                return ConvertToPublic(inputPath, outputPath);
 
             return Generate(outputPath, postQuantum);
         }
@@ -85,6 +91,11 @@ internal static class KeygenCommand
 
         if (outputPath is not null)
         {
+            if (File.Exists(outputPath))
+            {
+                Error($"output file already exists: {outputPath}");
+                return 1;
+            }
             File.WriteAllText(outputPath, output);
             if (!OperatingSystem.IsWindows())
                 File.SetUnixFileMode(outputPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
@@ -103,10 +114,15 @@ internal static class KeygenCommand
         return 0;
     }
 
-    private static int ConvertToPublic(string path)
+    private static int ConvertToPublic(string? inputPath, string? outputPath)
     {
-        var text = File.ReadAllText(path);
+        string text;
+        if (inputPath is not null)
+            text = File.ReadAllText(inputPath);
+        else
+            text = Console.In.ReadToEnd();
 
+        var recipients = new List<string>();
         foreach (var line in text.Split('\n'))
         {
             var trimmed = line.TrimEnd('\r');
@@ -116,23 +132,31 @@ internal static class KeygenCommand
             if (trimmed.StartsWith("AGE-SECRET-KEY-PQ-"))
             {
                 using var identity = MlKem768X25519Identity.Parse(trimmed);
-                Console.WriteLine(identity.Recipient);
-                return 0;
+                recipients.Add(identity.Recipient.ToString());
             }
-
-            if (trimmed.StartsWith("AGE-SECRET-KEY-"))
+            else if (trimmed.StartsWith("AGE-SECRET-KEY-"))
             {
                 using var identity = X25519Identity.Parse(trimmed);
-                Console.WriteLine(identity.Recipient);
-                return 0;
+                recipients.Add(identity.Recipient.ToString());
             }
+            else
+            {
+                Error($"unsupported identity type");
+                return 1;
+            }
+        }
 
-            Error($"unsupported identity type in file: {path}");
+        if (recipients.Count == 0)
+        {
+            Error("no identity found");
             return 1;
         }
 
-        Error($"no identity found in file: {path}");
-        return 1;
+        using var output = outputPath is not null ? File.CreateText(outputPath) : Console.Out;
+        foreach (var r in recipients)
+            output.WriteLine(r);
+
+        return 0;
     }
 
     private static void Error(string message)
@@ -144,15 +168,43 @@ internal static class KeygenCommand
     {
         Console.Error.WriteLine("""
             Usage:
-                age-keygen [-o OUTPUT]
-                age-keygen --pq [-o OUTPUT]
-                age-keygen -y IDENTITY_FILE
+                age-keygen [-pq] [-o OUTPUT]
+                age-keygen -y [-o OUTPUT] [INPUT]
 
             Options:
-                -o, --output PATH   Write identity to PATH (default: stdout)
-                -y IDENTITY_FILE    Convert identity file to public key
-                    --pq            Generate ML-KEM-768-X25519 (post-quantum) key
-                -h, --help          Print this help
+                -pq                       Generate a post-quantum hybrid ML-KEM-768 + X25519 key pair.
+                                          (This might become the default in the future.)
+                -o, --output OUTPUT       Write the result to the file at path OUTPUT.
+                -y                        Convert an identity file to a recipients file.
+
+            age-keygen generates a new native X25519 or, with the -pq flag, post-quantum
+            hybrid ML-KEM-768 + X25519 key pair, and outputs it to standard output or to
+            the OUTPUT file.
+
+            If an OUTPUT file is specified, the public key is printed to standard error.
+            If OUTPUT already exists, it is not overwritten.
+
+            In -y mode, age-keygen reads an identity file from INPUT or from standard
+            input and writes the corresponding recipient(s) to OUTPUT or to standard
+            output, one per line, with no comments.
+
+            Examples:
+
+                $ age-keygen
+                # created: 2021-01-02T15:30:45+01:00
+                # public key: age1lvyvwawkr0mcnnnncaghunadrqkmuf9e6507x9y920xxpp866cnql7dp2z
+                AGE-SECRET-KEY-1N9JEPW6DWJ0ZQUDX63F5A03GX8QUW7PXDE39N8UYF82VZ9PC8UFS3M7XA9
+
+                $ age-keygen -pq
+                # created: 2025-11-17T12:15:17+01:00
+                # public key: age1pq1pd[... 1950 more characters ...]
+                AGE-SECRET-KEY-PQ-1XXC4XS9DXHZ6TREKQTT3XECY8VNNU7GJ83C3Y49D0GZ3ZUME4JWS6QC3EF
+
+                $ age-keygen -o key.txt
+                Public key: age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p
+
+                $ age-keygen -y key.txt
+                age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p
             """);
     }
 }
