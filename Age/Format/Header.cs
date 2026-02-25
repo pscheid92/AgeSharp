@@ -20,49 +20,26 @@ internal sealed class Header
     {
         var header = new Header();
 
-        // Read version line
-        string? versionLine = reader.ReadLine()
+        var versionLine = reader.ReadLine()
             ?? throw new AgeHeaderException("empty header");
+
         if (versionLine != VersionLine)
             throw new AgeHeaderException($"unsupported version: {versionLine}");
 
         // Read stanzas until we hit the MAC line
         while (true)
         {
-            string? line = reader.ReadLine()
+            var line = reader.ReadLine()
                 ?? throw new AgeHeaderException("unexpected end of header");
 
             if (line.StartsWith("-> "))
             {
-                // Push back so Stanza.Parse can read it
                 reader.PushBack(line);
                 header.Stanzas.Add(Stanza.Parse(reader));
             }
             else if (line.StartsWith("---"))
             {
-                // This is the MAC line — process it below
-                if (!line.StartsWith("--- "))
-                    throw new AgeHeaderException($"expected MAC line starting with '--- ', got: {line}");
-
-                string macB64 = line[4..];
-                try
-                {
-                    header.Mac = Base64Unpadded.Decode(macB64);
-                }
-                catch (FormatException ex)
-                {
-                    throw new AgeHeaderException($"invalid MAC encoding: {ex.Message}", ex);
-                }
-
-                if (header.Mac.Length != 32)
-                    throw new AgeHeaderException($"MAC must be 32 bytes, got {header.Mac.Length}");
-
-                // HeaderBytesForMac = all raw bytes through "---" (before the space and MAC value)
-                // The raw bytes include: "--- <mac_b64>\n"
-                // The Go reference computes MAC over everything through "---" (no trailing space)
-                var allRaw = reader.RawBytes;
-                var macSuffix = Encoding.ASCII.GetBytes(" " + macB64 + "\n");
-                header.HeaderBytesForMac = allRaw[..^macSuffix.Length].ToArray();
+                ParseMacLine(header, line, reader);
                 break;
             }
             else
@@ -75,6 +52,32 @@ internal sealed class Header
             throw new AgeHeaderException("header contains no stanzas");
 
         return header;
+    }
+
+    private static void ParseMacLine(Header header, string line, HeaderReader reader)
+    {
+        if (!line.StartsWith("--- "))
+            throw new AgeHeaderException($"expected MAC line starting with '--- ', got: {line}");
+
+        var macB64 = line[4..];
+
+        try
+        {
+            header.Mac = Base64Unpadded.Decode(macB64);
+        }
+        catch (FormatException ex)
+        {
+            throw new AgeHeaderException($"invalid MAC encoding: {ex.Message}", ex);
+        }
+
+        if (header.Mac.Length != 32)
+            throw new AgeHeaderException($"MAC must be 32 bytes, got {header.Mac.Length}");
+
+        // The Go reference computes MAC over everything through "---" (no trailing space).
+        // The raw bytes include "--- <mac_b64>\n", so strip the suffix.
+        var allRaw = reader.RawBytes;
+        var macSuffix = Encoding.ASCII.GetBytes(" " + macB64 + "\n");
+        header.HeaderBytesForMac = allRaw[..^macSuffix.Length].ToArray();
     }
 
     public void VerifyMac(ReadOnlySpan<byte> fileKey)
