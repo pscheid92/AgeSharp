@@ -7,6 +7,7 @@
 </p>
 
 [![NuGet](https://img.shields.io/nuget/v/AgeSharp)](https://www.nuget.org/packages/AgeSharp)
+[![codecov](https://codecov.io/gh/pscheid92/AgeSharp/graph/badge.svg?token=QNXDXPJU8Q)](https://codecov.io/gh/pscheid92/AgeSharp)
 
 [`AgeSharp`](https://github.com/pscheid92/AgeSharp) is a C# implementation of the
 [age](https://age-encryption.org) file encryption format, fully interoperable
