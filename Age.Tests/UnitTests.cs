@@ -130,7 +130,7 @@ public class HeaderReaderTests
     [Fact]
     public void Returns_Null_At_EOF_On_Empty_Stream()
     {
-        var stream = new MemoryStream(Array.Empty<byte>());
+        var stream = new MemoryStream([]);
         var reader = new HeaderReader(stream);
         Assert.Null(reader.ReadLine());
     }
@@ -146,7 +146,7 @@ public class HeaderReaderTests
     [Fact]
     public void Throws_On_NonAscii()
     {
-        var stream = new MemoryStream(new byte[] { 0x80, 0x0A });
+        var stream = new MemoryStream([0x80, 0x0A]);
         var reader = new HeaderReader(stream);
         Assert.Throws<AgeHeaderException>(() => reader.ReadLine());
     }
@@ -217,7 +217,7 @@ public class StanzaTests
         var reader = new HeaderReader(stream);
         var stanza = Stanza.Parse(reader);
         Assert.Equal("scrypt", stanza.Type);
-        Assert.Equal(new[] { "salt", "18" }, stanza.Args);
+        Assert.Equal(["salt", "18"], stanza.Args);
         Assert.Empty(stanza.Body);
     }
 
@@ -260,7 +260,7 @@ public class StanzaTests
     {
         var body = new byte[50];
         new Random(42).NextBytes(body);
-        var original = new Stanza("X25519", new[] { "argA", "argB" }, body);
+        var original = new Stanza("X25519", ["argA", "argB"], body);
 
         using var ms = new MemoryStream();
         original.WriteTo(ms);
@@ -276,7 +276,7 @@ public class StanzaTests
     [Fact]
     public void WriteTo_Empty_Body_RoundTrips()
     {
-        var original = new Stanza("test", Array.Empty<string>(), Array.Empty<byte>());
+        var original = new Stanza("test", [], []);
         using var ms = new MemoryStream();
         original.WriteTo(ms);
         ms.Position = 0;
@@ -291,7 +291,7 @@ public class StanzaTests
         // 48 bytes → exactly 64 base64 chars → needs trailing empty line
         var body = new byte[48];
         new Random(42).NextBytes(body);
-        var original = new Stanza("test", Array.Empty<string>(), body);
+        var original = new Stanza("test", [], body);
         using var ms = new MemoryStream();
         original.WriteTo(ms);
         ms.Position = 0;
@@ -339,7 +339,7 @@ public class HeaderTests
         new Random(42).NextBytes(fileKey);
 
         var header = new Header();
-        header.Stanzas.Add(new Stanza("X25519", new[] { "ephemeralkey" }, new byte[32]));
+        header.Stanzas.Add(new Stanza("X25519", ["ephemeralkey"], new byte[32]));
 
         using var ms = new MemoryStream();
         header.WriteTo(ms, fileKey);
@@ -394,8 +394,8 @@ public class HeaderTests
         new Random(123).NextBytes(fileKey);
 
         var header = new Header();
-        header.Stanzas.Add(new Stanza("X25519", new[] { "arg1" }, new byte[32]));
-        header.Stanzas.Add(new Stanza("X25519", new[] { "arg2" }, new byte[32]));
+        header.Stanzas.Add(new Stanza("X25519", ["arg1"], new byte[32]));
+        header.Stanzas.Add(new Stanza("X25519", ["arg2"], new byte[32]));
 
         using var ms = new MemoryStream();
         header.WriteTo(ms, fileKey);
@@ -455,7 +455,7 @@ public class HeaderTests
         new Random(42).NextBytes(fileKey);
 
         var header = new Header();
-        header.Stanzas.Add(new Stanza("X25519", new[] { "arg" }, new byte[32]));
+        header.Stanzas.Add(new Stanza("X25519", ["arg"], new byte[32]));
 
         using var ms = new MemoryStream();
         header.WriteTo(ms, fileKey);
@@ -502,7 +502,7 @@ public class AsciiArmorTests
     [Fact]
     public void IsArmored_Returns_False_For_Binary_Input()
     {
-        var data = new byte[] { 0x00, 0x01, 0x02, 0x03 };
+        byte[] data = [0x00, 0x01, 0x02, 0x03];
         using var stream = new MemoryStream(data);
         Assert.False(AsciiArmor.IsArmored(stream));
     }
@@ -705,7 +705,7 @@ public class StreamEncryptionTests
     public void Decrypt_Rejects_Empty_Payload()
     {
         var payloadKey = MakePayloadKey();
-        using var input = new MemoryStream(Array.Empty<byte>());
+        using var input = new MemoryStream([]);
         using var output = new MemoryStream();
         Assert.Throws<AgePayloadException>(() => StreamEncryption.Decrypt(payloadKey, input, output));
     }
@@ -796,7 +796,7 @@ public class ScryptRecipientTests
     [InlineData("20", true, 20)]
     public void ValidateWorkFactor_Valid_Values(string input, bool expectedValid, int expectedValue)
     {
-        bool result = ScryptRecipient.ValidateWorkFactor(input, out int workFactor);
+        var result = ScryptRecipient.ValidateWorkFactor(input, out int workFactor);
         Assert.Equal(expectedValid, result);
         Assert.Equal(expectedValue, workFactor);
     }
@@ -818,7 +818,7 @@ public class ScryptRecipientTests
         var recipient = new ScryptRecipient("password");
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
-        var stanza = new Stanza("scrypt", new[] { saltB64, "21" }, new byte[32]);
+        var stanza = new Stanza("scrypt", [saltB64, "21"], new byte[32]);
         Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
     }
 
@@ -828,7 +828,7 @@ public class ScryptRecipientTests
         var recipient = new ScryptRecipient("password");
         var wrongSalt = new byte[10];
         var saltB64 = Base64Unpadded.Encode(wrongSalt);
-        var stanza = new Stanza("scrypt", new[] { saltB64, "10" }, new byte[32]);
+        var stanza = new Stanza("scrypt", [saltB64, "10"], new byte[32]);
         Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
     }
 
@@ -838,7 +838,7 @@ public class ScryptRecipientTests
         var recipient = new ScryptRecipient("password");
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
-        var stanza = new Stanza("scrypt", new[] { saltB64, "10" }, new byte[16]);
+        var stanza = new Stanza("scrypt", [saltB64, "10"], new byte[16]);
         Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
     }
 
@@ -846,7 +846,7 @@ public class ScryptRecipientTests
     public void Unwrap_Rejects_Wrong_Arg_Count()
     {
         var recipient = new ScryptRecipient("password");
-        var stanza = new Stanza("scrypt", new[] { "onlyone" }, new byte[32]);
+        var stanza = new Stanza("scrypt", ["onlyone"], new byte[32]);
         Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
     }
 
@@ -854,7 +854,7 @@ public class ScryptRecipientTests
     public void Unwrap_Rejects_Invalid_Salt_Encoding()
     {
         var recipient = new ScryptRecipient("password");
-        var stanza = new Stanza("scrypt", new[] { "@@invalid@@", "10" }, new byte[32]);
+        var stanza = new Stanza("scrypt", ["@@invalid@@", "10"], new byte[32]);
         Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
     }
 
@@ -864,7 +864,7 @@ public class ScryptRecipientTests
         var recipient = new ScryptRecipient("password");
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
-        var stanza = new Stanza("scrypt", new[] { saltB64, "abc" }, new byte[32]);
+        var stanza = new Stanza("scrypt", [saltB64, "abc"], new byte[32]);
         Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
     }
 
@@ -895,7 +895,7 @@ public class ScryptRecipientTests
     public void Unwrap_Returns_Null_For_NonMatching_Type()
     {
         var recipient = new ScryptRecipient("password");
-        var stanza = new Stanza("X25519", new[] { "arg" }, new byte[32]);
+        var stanza = new Stanza("X25519", ["arg"], new byte[32]);
         Assert.Null(recipient.Unwrap(stanza));
     }
 }
@@ -956,7 +956,7 @@ public class X25519RecipientIdentityTests
     public void Unwrap_Returns_Null_For_NonMatching_StanzaType()
     {
         using var identity = X25519Identity.Generate();
-        var stanza = new Stanza("scrypt", new[] { "arg" }, new byte[32]);
+        var stanza = new Stanza("scrypt", ["arg"], new byte[32]);
         Assert.Null(identity.Unwrap(stanza));
     }
 
@@ -979,7 +979,7 @@ public class X25519RecipientIdentityTests
     public void Unwrap_Rejects_Wrong_Arg_Count()
     {
         using var identity = X25519Identity.Generate();
-        var stanza = new Stanza("X25519", new[] { "a", "b" }, new byte[32]);
+        var stanza = new Stanza("X25519", ["a", "b"], new byte[32]);
         Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
     }
 
@@ -987,7 +987,7 @@ public class X25519RecipientIdentityTests
     public void Unwrap_Rejects_Invalid_EphKey_Encoding()
     {
         using var identity = X25519Identity.Generate();
-        var stanza = new Stanza("X25519", new[] { "@@invalid" }, new byte[32]);
+        var stanza = new Stanza("X25519", ["@@invalid"], new byte[32]);
         Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
     }
 
@@ -996,7 +996,7 @@ public class X25519RecipientIdentityTests
     {
         using var identity = X25519Identity.Generate();
         var shortKey = Base64Unpadded.Encode(new byte[16]);
-        var stanza = new Stanza("X25519", new[] { shortKey }, new byte[32]);
+        var stanza = new Stanza("X25519", [shortKey], new byte[32]);
         Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
     }
 
@@ -1005,7 +1005,7 @@ public class X25519RecipientIdentityTests
     {
         using var identity = X25519Identity.Generate();
         var ephKey = Base64Unpadded.Encode(new byte[32]);
-        var stanza = new Stanza("X25519", new[] { ephKey }, new byte[16]);
+        var stanza = new Stanza("X25519", [ephKey], new byte[16]);
         Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
     }
 
@@ -1095,7 +1095,7 @@ public class AgeEncryptTests
         var payloadNonce = new byte[16];
         ms.Write(payloadNonce);
         var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", 32);
-        StreamEncryption.Encrypt(payloadKey, new MemoryStream(Array.Empty<byte>()), ms);
+        StreamEncryption.Encrypt(payloadKey, new MemoryStream([]), ms);
 
         ms.Position = 0;
         using var output = new MemoryStream();
@@ -1136,7 +1136,7 @@ public class AgeEncryptTests
         new Random(42).NextBytes(fileKey);
 
         // Stanza with type X25519 but 2 args (expects 1) → Unwrap throws
-        var badStanza = new Stanza("X25519", new[] { "arg1", "arg2" }, new byte[32]);
+        var badStanza = new Stanza("X25519", ["arg1", "arg2"], new byte[32]);
         var header = new Header();
         header.Stanzas.Add(badStanza);
 
@@ -1145,7 +1145,7 @@ public class AgeEncryptTests
         // Append a payload nonce + minimal encrypted payload
         ms.Write(new byte[16]); // nonce
         var payloadKey = CryptoHelper.HkdfDerive(fileKey, new byte[16], "payload", 32);
-        StreamEncryption.Encrypt(payloadKey, new MemoryStream(Array.Empty<byte>()), ms);
+        StreamEncryption.Encrypt(payloadKey, new MemoryStream([]), ms);
 
         ms.Position = 0;
         using var output = new MemoryStream();
