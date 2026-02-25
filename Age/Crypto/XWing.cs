@@ -8,22 +8,28 @@ namespace Age.Crypto;
 
 internal static class XWing
 {
-    // X-Wing label: ASCII art `\.//^\`
-    private static readonly byte[] XWingLabel = { 0x5c, 0x2e, 0x2f, 0x2f, 0x5e, 0x5c };
+    // X-Wing combiner label: ASCII `\.//^\` (the X-Wing spec domain separator)
+    private static readonly byte[] XWingLabel = @"\.//^\"u8.ToArray();
 
-    internal const int PublicKeySize = 1184 + 32;  // ML-KEM-768 pk + X25519 pk
-    internal const int EncSize = 1088 + 32;        // ML-KEM-768 ct + X25519 ephemeral
+    private const int MlKemPublicKeySize = 1184;
+    private const int MlKemCiphertextSize = 1088;
+    private const int X25519KeySize = 32;
+    private const int SharedSecretSize = 32;
+    private const int MlKemSeedSize = 64;
+
+    internal const int PublicKeySize = MlKemPublicKeySize + X25519KeySize;
+    internal const int EncSize = MlKemCiphertextSize + X25519KeySize;
 
     public static byte[] GeneratePublicKey(byte[] seed)
     {
-        var (mlKemPriv, _, x25519Priv, _) = ExpandSeed(seed);
+        var (mlKemPrivate, _, x25519Private, _) = ExpandSeed(seed);
 
-        var pkM = mlKemPriv.GetPublicKeyEncoded();  // 1184 bytes
-        var pkX = x25519Priv.GeneratePublicKey().GetEncoded();  // 32 bytes
+        var pkM = mlKemPrivate.GetPublicKeyEncoded(); // 1184 bytes (see MlKemPublicKeySize)
+        var pkX = x25519Private.GeneratePublicKey().GetEncoded(); // 32 bytes (see X25519KeySize) 
 
         var publicKey = new byte[PublicKeySize];
         pkM.CopyTo(publicKey, 0);
-        pkX.CopyTo(publicKey, 1184);
+        pkX.CopyTo(publicKey, MlKemPublicKeySize);
         return publicKey;
     }
 
@@ -32,21 +38,21 @@ internal static class XWing
         if (publicKey.Length != PublicKeySize)
             throw new ArgumentException($"public key must be {PublicKeySize} bytes, got {publicKey.Length}");
 
-        var pkM = publicKey[..1184];
-        var pkX = publicKey[1184..];
+        var pkM = publicKey[..MlKemPublicKeySize];
+        var pkX = publicKey[MlKemPublicKeySize..];
 
         // ML-KEM-768 encapsulate
         var mlKemPub = MLKemPublicKeyParameters.FromEncoding(MLKemParameters.ml_kem_768, pkM);
         var encapsulator = new MLKemEncapsulator(MLKemParameters.ml_kem_768);
         encapsulator.Init(mlKemPub);
-        var ctM = new byte[1088];
-        var ssM = new byte[32];
-        encapsulator.Encapsulate(ctM, 0, 1088, ssM, 0, 32);
+        var ctM = new byte[MlKemCiphertextSize];
+        var ssM = new byte[SharedSecretSize];
+        encapsulator.Encapsulate(ctM, 0, MlKemCiphertextSize, ssM, 0, SharedSecretSize);
 
         // X25519 ephemeral DH
         var ekX = new X25519PrivateKeyParameters(new SecureRandom());
-        var ctX = ekX.GeneratePublicKey().GetEncoded();  // 32 bytes
-        var ssX = new byte[32];
+        var ctX = ekX.GeneratePublicKey().GetEncoded();
+        var ssX = new byte[SharedSecretSize];
         var agreement = new X25519Agreement();
         agreement.Init(ekX);
         agreement.CalculateAgreement(new X25519PublicKeyParameters(pkX), ssX, 0);
@@ -54,7 +60,7 @@ internal static class XWing
         // Combine: enc = ct_M || ct_X
         var enc = new byte[EncSize];
         ctM.CopyTo(enc, 0);
-        ctX.CopyTo(enc, 1088);
+        ctX.CopyTo(enc, MlKemCiphertextSize);
 
         // ss = SHA3-256(ss_M || ss_X || ct_X || pk_X || XWingLabel)
         var sharedSecret = CombineSharedSecret(ssM, ssX, ctX, pkX);
@@ -67,21 +73,22 @@ internal static class XWing
         if (enc.Length != EncSize)
             throw new ArgumentException($"enc must be {EncSize} bytes, got {enc.Length}");
 
-        var (mlKemPriv, _, x25519Priv, pkX) = ExpandSeed(seed);
+        var (mlKemPrivate, _, x25519Private, pkX) = ExpandSeed(seed);
 
-        var ctM = enc[..1088];
-        var ctX = enc[1088..];
+        var ctM = enc[..MlKemCiphertextSize];
+        var ctX = enc[MlKemCiphertextSize..];
 
         // ML-KEM-768 decapsulate
         var decapsulator = new MLKemDecapsulator(MLKemParameters.ml_kem_768);
-        decapsulator.Init(mlKemPriv);
-        var ssM = new byte[32];
-        decapsulator.Decapsulate(ctM, 0, 1088, ssM, 0, 32);
+        decapsulator.Init(mlKemPrivate);
+        var ssM = new byte[SharedSecretSize];
+        decapsulator.Decapsulate(ctM, 0, MlKemCiphertextSize, ssM, 0, SharedSecretSize);
 
         // X25519 DH
-        var ssX = new byte[32];
+        var ssX = new byte[SharedSecretSize];
         var agreement = new X25519Agreement();
-        agreement.Init(x25519Priv);
+        agreement.Init(x25519Private);
+
         try
         {
             agreement.CalculateAgreement(new X25519PublicKeyParameters(ctX), ssX, 0);
@@ -92,11 +99,10 @@ internal static class XWing
         }
 
         // Check for all-zero shared secret (low-order point that BC didn't reject)
-        if (ssX.All(b => b == 0))
-            throw new AgeHeaderException("X-Wing X25519 shared secret is all-zero (low-order or identity point)");
-
         // ss = SHA3-256(ss_M || ss_X || ct_X || pk_X || XWingLabel)
-        return CombineSharedSecret(ssM, ssX, ctX, pkX);
+        return ssX.All(b => b == 0)
+            ? throw new AgeHeaderException("X-Wing X25519 shared secret is all-zero (low-order or identity point)")
+            : CombineSharedSecret(ssM, ssX, ctX, pkX);
     }
 
     private static byte[] CombineSharedSecret(byte[] ssM, byte[] ssX, byte[] ctX, byte[] pkX)
@@ -107,7 +113,8 @@ internal static class XWing
         sha3.BlockUpdate(ctX, 0, ctX.Length);
         sha3.BlockUpdate(pkX, 0, pkX.Length);
         sha3.BlockUpdate(XWingLabel, 0, XWingLabel.Length);
-        var result = new byte[32];
+
+        var result = new byte[SharedSecretSize];
         sha3.DoFinal(result, 0);
         return result;
     }
@@ -115,18 +122,18 @@ internal static class XWing
     private static (MLKemPrivateKeyParameters mlKemPriv, byte[] seedPQ, X25519PrivateKeyParameters x25519Priv, byte[] pkX) ExpandSeed(byte[] seed)
     {
         var shake = new ShakeDigest(256);
-        shake.BlockUpdate(seed, 0, 32);
+        shake.BlockUpdate(seed, 0, X25519KeySize);
 
-        var seedPQ = new byte[64];
-        shake.Output(seedPQ, 0, 64);
+        var seedPq = new byte[MlKemSeedSize];
+        shake.Output(seedPq, 0, MlKemSeedSize);
 
-        var seedT = new byte[32];
-        shake.Output(seedT, 0, 32);
+        var seedT = new byte[X25519KeySize];
+        shake.Output(seedT, 0, X25519KeySize);
 
-        var mlKemPriv = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, seedPQ);
-        var x25519Priv = new X25519PrivateKeyParameters(seedT);
-        var pkX = x25519Priv.GeneratePublicKey().GetEncoded();
+        var mlKemPrivate = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, seedPq);
+        var x25519Private = new X25519PrivateKeyParameters(seedT);
+        var pkX = x25519Private.GeneratePublicKey().GetEncoded();
 
-        return (mlKemPriv, seedPQ, x25519Priv, pkX);
+        return (mlKemPrivate, seedPq, x25519Private, pkX);
     }
 }
