@@ -43,8 +43,7 @@ public sealed class Stanza(string type, string[] args, byte[] body)
 
     internal static Stanza Parse(HeaderReader reader)
     {
-        var line = reader.ReadLine()
-            ?? throw new AgeHeaderException("unexpected end of header while reading stanza");
+        var line = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header while reading stanza");
 
         if (!line.StartsWith("-> "))
             throw new AgeHeaderException($"expected stanza prefix '-> ', got: {line}");
@@ -73,14 +72,16 @@ public sealed class Stanza(string type, string[] args, byte[] body)
 
         while (true)
         {
-            var bodyLine = reader.ReadLine()
-                ?? throw new AgeHeaderException("unexpected end of header while reading stanza body");
+            var bodyLine = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header while reading stanza body");
 
-            if (bodyLine.Length > 64)
-                throw new AgeHeaderException("stanza body line exceeds 64 characters");
-
-            if (bodyLine.Length > 0)
-                bodyChunks.Add(Base64Unpadded.Decode(bodyLine));
+            switch (bodyLine.Length)
+            {
+                case > 64:
+                    throw new AgeHeaderException("stanza body line exceeds 64 characters");
+                case > 0:
+                    bodyChunks.Add(Base64Unpadded.Decode(bodyLine));
+                    break;
+            }
 
             // A short line (< 64 chars) or empty line terminates the body
             if (bodyLine.Length < 64)
@@ -110,10 +111,8 @@ public sealed class Stanza(string type, string[] args, byte[] body)
         if (string.IsNullOrEmpty(s))
             throw new AgeHeaderException("stanza type/argument cannot be empty");
 
-        foreach (var c in s)
-        {
-            if (c < 33 || c > 126)
-                throw new AgeHeaderException($"invalid character in stanza type/argument: 0x{(int)c:X2}");
-        }
+        var invalid = s.IndexOfAnyExceptInRange('!', '~');
+        if (invalid >= 0)
+            throw new AgeHeaderException($"invalid character in stanza type/argument: 0x{(int)s[invalid]:X2}");
     }
 }

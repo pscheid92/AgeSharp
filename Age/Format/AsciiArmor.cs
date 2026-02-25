@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text;
 
 namespace Age.Format;
@@ -14,8 +15,18 @@ internal static class AsciiArmor
             return false;
 
         var pos = stream.Position;
+        SkipLeadingWhitespace(stream);
 
-        // Skip leading whitespace (whitespace before armor is allowed)
+        var marker = Encoding.ASCII.GetBytes(BeginMarker);
+        var buf = new byte[marker.Length];
+        var read = ReadFully(stream, buf);
+
+        stream.Position = pos;
+        return read == marker.Length && buf.AsSpan().SequenceEqual(marker);
+    }
+
+    private static void SkipLeadingWhitespace(Stream stream)
+    {
         while (true)
         {
             var b = stream.ReadByte();
@@ -23,29 +34,29 @@ internal static class AsciiArmor
             if (b < 0)
                 break;
 
-            if (b != ' ' && b != '\t' && b != '\r' && b != '\n')
-            {
-                stream.Position--;
-                break;
-            }
+            if (b is ' ' or '\t' or '\r' or '\n')
+                continue;
+
+            stream.Position--;
+            break;
         }
+    }
 
-        var marker = Encoding.ASCII.GetBytes(BeginMarker);
-        var buf = new byte[marker.Length];
-        var read = 0;
+    private static int ReadFully(Stream stream, byte[] buffer)
+    {
+        var total = 0;
 
-        while (read < buf.Length)
+        while (total < buffer.Length)
         {
-            var r = stream.Read(buf, read, buf.Length - read);
+            var read = stream.Read(buffer, total, buffer.Length - total);
 
-            if (r == 0)
+            if (read == 0)
                 break;
 
-            read += r;
+            total += read;
         }
 
-        stream.Position = pos;
-        return read == marker.Length && buf.AsSpan().SequenceEqual(marker);
+        return total;
     }
 
     public static MemoryStream Dearmor(Stream input)
@@ -59,9 +70,7 @@ internal static class AsciiArmor
         while (pos < allBytes.Length && IsWhitespace(allBytes[pos]))
             pos++;
 
-        var beginLine = ReadLine(allBytes, ref pos)
-            ?? throw new AgeArmorException("empty armored data");
-
+        var beginLine = ReadLine(allBytes, ref pos) ?? throw new AgeArmorException("empty armored data");
         if (beginLine != BeginMarker)
             throw new AgeArmorException($"expected begin marker, got: {beginLine}");
 
@@ -86,8 +95,7 @@ internal static class AsciiArmor
 
         while (true)
         {
-            var line = ReadLine(allBytes, ref pos)
-                ?? throw new AgeArmorException("unexpected end of armored data");
+            var line = ReadLine(allBytes, ref pos) ?? throw new AgeArmorException("unexpected end of armored data");
 
             if (line == EndMarker)
                 return bodyBytes;
@@ -102,7 +110,7 @@ internal static class AsciiArmor
         if (line.Length == 0)
             throw new AgeArmorException("empty line in armor body");
 
-        if (line[0] == ' ' || line[0] == '\t' || line[^1] == ' ' || line[^1] == '\t')
+        if (line[0] is ' ' or '\t' || line[^1] is ' ' or '\t')
             throw new AgeArmorException("whitespace in armor body line");
 
         if (line.Length > ColumnsPerLine)
@@ -114,14 +122,7 @@ internal static class AsciiArmor
         if (line.Length < ColumnsPerLine)
             lastBodyLineWasShort = true;
 
-        if (line.Contains('\r') || line.Contains('\n'))
-            throw new AgeArmorException("line break within armor body line");
-
-        foreach (var c in line)
-        {
-            if (!IsBase64Char(c))
-                throw new AgeArmorException($"invalid character in armor body: '{c}'");
-        }
+        ValidateBase64Chars(line);
     }
 
     private static byte[] DecodeBase64Line(string line)
@@ -139,10 +140,9 @@ internal static class AsciiArmor
 
         var reencoded = Convert.ToBase64String(decoded);
 
-        if (reencoded != line)
-            throw new AgeArmorException("non-canonical base64 in armor");
-
-        return decoded;
+        return reencoded == line
+            ? decoded
+            : throw new AgeArmorException("non-canonical base64 in armor");
     }
 
     public static void Armor(Stream input, Stream output)
@@ -192,6 +192,14 @@ internal static class AsciiArmor
     private static bool IsWhitespace(byte b) =>
         b is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n';
 
-    private static bool IsBase64Char(char c) =>
-        c is (>= 'A' and <= 'Z') or (>= 'a' and <= 'z') or (>= '0' and <= '9') or '+' or '/' or '=';
+    private static readonly SearchValues<char> Base64Chars =
+        SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=");
+
+    private static void ValidateBase64Chars(string line)
+    {
+        var invalid = line.AsSpan().IndexOfAnyExcept(Base64Chars);
+
+        if (invalid >= 0)
+            throw new AgeArmorException($"invalid character in armor body: '{line[invalid]}'");
+    }
 }

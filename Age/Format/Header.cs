@@ -14,14 +14,13 @@ internal sealed class Header
     /// <summary>
     /// Raw header bytes through "--- " (inclusive, before MAC value) for MAC computation.
     /// </summary>
-    public byte[] HeaderBytesForMac { get; private set; } = [];
+    private byte[] HeaderBytesForMac { get; set; } = [];
 
     public static Header Parse(HeaderReader reader)
     {
         var header = new Header();
 
-        var versionLine = reader.ReadLine()
-            ?? throw new AgeHeaderException("empty header");
+        var versionLine = reader.ReadLine() ?? throw new AgeHeaderException("empty header");
 
         if (versionLine != VersionLine)
             throw new AgeHeaderException($"unsupported version: {versionLine}");
@@ -29,8 +28,7 @@ internal sealed class Header
         // Read stanzas until we hit the MAC line
         while (true)
         {
-            var line = reader.ReadLine()
-                ?? throw new AgeHeaderException("unexpected end of header");
+            var line = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header");
 
             if (line.StartsWith("-> "))
             {
@@ -48,10 +46,9 @@ internal sealed class Header
             }
         }
 
-        if (header.Stanzas.Count == 0)
-            throw new AgeHeaderException("header contains no stanzas");
-
-        return header;
+        return header.Stanzas.Count > 0
+            ? header
+            : throw new AgeHeaderException("header contains no stanzas");
     }
 
     private static void ParseMacLine(Header header, string line, HeaderReader reader)
