@@ -1,101 +1,39 @@
-using Age;
-using Age.Format;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Age.Cli;
 
 internal record InspectOutput(string File, string Version, bool Armored, bool PostQuantum, InspectRecipient[] Recipients, InspectSize Size);
-internal record InspectRecipient(int Index, string Type, string[] Args);
-internal record InspectSize(long Header, long Overhead, long Payload, long Total);
 
-[JsonSerializable(typeof(InspectOutput))]
-[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
-internal partial class InspectJsonContext : JsonSerializerContext;
+internal record InspectRecipient(int Index, string Type, string[] Args);
+
+internal record InspectSize(long Header, long Overhead, long Payload, long Total);
 
 internal static class InspectCommand
 {
-    public static int Run(string[] args)
+    public static int Execute(string? filePath, bool json)
     {
-        try
-        {
-            return Execute(args);
-        }
-        catch (AgeException ex)
-        {
-            Error(ex.Message);
-            return 1;
-        }
-        catch (FileNotFoundException ex)
-        {
-            Error($"no such file: {ex.FileName}");
-            return 1;
-        }
-    }
-
-    private record InspectArgs(string? FilePath, bool Json);
-
-    private static int Execute(string[] args)
-    {
-        var parsed = ParseArgs(args);
-        if (parsed is null)
-            return 0;
-
-        var (rawInput, displayName) = parsed.FilePath is not null
-            ? ((Stream)File.OpenRead(parsed.FilePath), parsed.FilePath)
+        var (rawInput, displayName) = filePath is not null
+            ? (File.OpenRead(filePath), filePath)
             : (Console.OpenStandardInput(), "(stdin)");
 
         using (rawInput)
         {
             var ms = new MemoryStream();
+
             rawInput.CopyTo(ms);
             var totalSize = ms.Length;
             ms.Position = 0;
 
             var header = AgeHeader.Parse(ms);
 
-            if (parsed.Json)
+            if (json)
                 PrintJson(header, displayName, totalSize);
             else
                 PrintHuman(header, displayName, totalSize);
         }
 
         return 0;
-    }
-
-    private static InspectArgs? ParseArgs(string[] args)
-    {
-        string? filePath = null;
-        var json = false;
-
-        for (var i = 0; i < args.Length; i++)
-        {
-            switch (args[i])
-            {
-                case "-h" or "--help":
-                    PrintUsage();
-                    return null;
-                case "--json":
-                    json = true;
-                    break;
-                case "-":
-                    filePath = null;
-                    break;
-                default:
-                    filePath = ParsePositionalArg(args[i], filePath);
-                    break;
-            }
-        }
-
-        return new InspectArgs(filePath, json);
-    }
-
-    private static string ParsePositionalArg(string arg, string? current)
-    {
-        if (arg.StartsWith('-'))
-            throw new AgeException($"unknown option: {arg}");
-
-        return current is not null ? throw new AgeException("too many arguments") : arg;
     }
 
     private const int PayloadNonceSize = 16;
@@ -112,14 +50,17 @@ internal static class InspectCommand
 
         var types = header.Recipients.Select(s => s.Type).Distinct().ToList();
         Console.WriteLine("This file is encrypted to the following recipient types:");
+
         foreach (var type in types)
             Console.WriteLine($"  - \"{type}\"");
+
         Console.WriteLine();
 
         var hasPq = types.Any(t => PostQuantumTypes.Contains(t));
         Console.WriteLine(hasPq
             ? "This file uses post-quantum encryption."
             : "This file does NOT use post-quantum encryption.");
+        
         Console.WriteLine();
 
         var sizes = ComputeSizes(header, totalSize);
@@ -174,20 +115,10 @@ internal static class InspectCommand
         return PayloadNonceSize + totalChunks * TagSize;
     }
 
-    private static void PrintUsage()
-    {
-        Console.Error.WriteLine("""
-            Usage:
-                age-inspect [--json] [INPUT]
-
-            Options:
-                --json                      Output machine-readable JSON.
-
-            INPUT defaults to standard input. "-" may be used as INPUT to explicitly
-            read from standard input.
-            """);
-    }
-
     private static void Error(string msg) =>
         Console.Error.WriteLine($"age-inspect: {msg}");
 }
+
+[JsonSerializable(typeof(InspectOutput))]
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+internal partial class InspectJsonContext : JsonSerializerContext;
