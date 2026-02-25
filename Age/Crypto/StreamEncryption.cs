@@ -15,14 +15,14 @@ internal static class StreamEncryption
         input.CopyTo(inputMs);
         var inputData = inputMs.GetBuffer().AsSpan(0, (int)inputMs.Length);
 
-        long counter = 0;
-        int offset = 0;
+        var counter = 0L;
+        var offset = 0;
 
         while (true)
         {
-            int remaining = inputData.Length - offset;
-            int chunkLen = Math.Min(ChunkSize, remaining);
-            bool isFinal = (offset + chunkLen >= inputData.Length);
+            var remaining = inputData.Length - offset;
+            var chunkLen = Math.Min(ChunkSize, remaining);
+            var isFinal = offset + chunkLen >= inputData.Length;
 
             var plaintext = inputData.Slice(offset, chunkLen);
             var ciphertext = EncryptChunk(payloadKey, counter, isFinal, plaintext);
@@ -31,7 +31,8 @@ internal static class StreamEncryption
             offset += chunkLen;
             counter++;
 
-            if (isFinal) break;
+            if (isFinal)
+                break;
         }
     }
 
@@ -45,43 +46,43 @@ internal static class StreamEncryption
             throw new AgePayloadException("payload is empty (no chunks)");
 
         long counter = 0;
-        int offset = 0;
-        bool seenFinal = false;
+        var offset = 0;
 
         while (offset < inputData.Length)
         {
-            if (seenFinal)
-                throw new AgePayloadException("data found after final chunk");
-
-            int remaining = inputData.Length - offset;
-            var (chunkLen, isFinal) = remaining > EncryptedChunkSize
-                ? (EncryptedChunkSize, false)
-                : (remaining, true);
-
-            if (chunkLen < TagSize)
-                throw new AgePayloadException("chunk too small for authentication tag");
-
-            if (!isFinal && chunkLen != EncryptedChunkSize)
-                throw new AgePayloadException("non-final chunk has wrong size");
-
+            var (chunkLen, isFinal) = NextChunk(inputData, offset);
             var ciphertext = inputData.Slice(offset, chunkLen);
             var plaintext = DecryptChunk(payloadKey, counter, isFinal, ciphertext);
 
-            // The final chunk can be empty ONLY if it's the first (and only) chunk
             if (isFinal && plaintext.Length == 0 && counter > 0)
                 throw new AgePayloadException("final STREAM chunk is empty but there were preceding chunks");
 
             output.Write(plaintext);
-
             offset += chunkLen;
             counter++;
 
-            if (isFinal)
-                seenFinal = true;
+            if (!isFinal)
+                continue;
+
+            if (offset < inputData.Length)
+                throw new AgePayloadException("data found after final chunk");
+
+            return;
         }
 
-        if (!seenFinal)
-            throw new AgePayloadException("payload ended without a final chunk");
+        throw new AgePayloadException("payload ended without a final chunk");
+    }
+
+    private static (int ChunkLen, bool IsFinal) NextChunk(ReadOnlySpan<byte> data, int offset)
+    {
+        var remaining = data.Length - offset;
+
+        var isFinal = remaining <= EncryptedChunkSize;
+        var chunkLen = isFinal ? remaining : EncryptedChunkSize;
+
+        return chunkLen >= TagSize
+            ? (chunkLen, isFinal)
+            : throw new AgePayloadException("chunk too small for authentication tag");
     }
 
     internal static byte[] EncryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal, ReadOnlySpan<byte> plaintext)
@@ -94,14 +95,14 @@ internal static class StreamEncryption
     internal static byte[] DecryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal, ReadOnlySpan<byte> ciphertext)
     {
         Span<byte> nonce = stackalloc byte[NonceSize];
+
         MakeNonce(counter, isFinal, nonce);
+
         var plaintext = CryptoHelper.ChaChaDecrypt(payloadKey, nonce, ciphertext);
-        if (plaintext == null)
-            throw new AgePayloadException($"chunk {counter} authentication failed (final={isFinal})");
-        return plaintext;
+        return plaintext ?? throw new AgePayloadException($"chunk {counter} authentication failed (final={isFinal})");
     }
 
-    internal static void MakeNonce(long counter, bool isFinal, Span<byte> nonce)
+    private static void MakeNonce(long counter, bool isFinal, Span<byte> nonce)
     {
         // 12-byte nonce: 11 bytes big-endian counter + 1 byte final flag
         nonce.Clear();
