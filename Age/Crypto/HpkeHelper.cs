@@ -9,14 +9,14 @@ internal static class HpkeHelper
 {
     // SuiteID = "HPKE" || BE16(0x647a) || BE16(0x0001) || BE16(0x0003)
     private static readonly byte[] SuiteId =
-    {
+    [
         (byte)'H', (byte)'P', (byte)'K', (byte)'E',
-        0x64, 0x7a,  // KEM ID: X-Wing
-        0x00, 0x01,  // KDF ID: HKDF-SHA256
-        0x00, 0x03   // AEAD ID: ChaCha20Poly1305
-    };
+        0x64, 0x7a, // KEM ID: X-Wing
+        0x00, 0x01, // KDF ID: HKDF-SHA256
+        0x00, 0x03 // AEAD ID: ChaCha20Poly1305
+    ];
 
-    private static readonly byte[] HpkeV1 = Encoding.ASCII.GetBytes("HPKE-v1");
+    private static readonly byte[] HpkeV1 = "HPKE-v1"u8.ToArray();
 
     public static (byte[] Enc, byte[] Ct) SealBase(byte[] publicKey, byte[] info, byte[] plaintext)
     {
@@ -47,22 +47,28 @@ internal static class HpkeHelper
         infoHash.CopyTo(ksContext, 33);
 
         var secret = LabeledExtract(sharedSecret, "secret", empty);
-
         var key = LabeledExpand(secret, "key", ksContext, 32);
         var baseNonce = LabeledExpand(secret, "base_nonce", ksContext, 12);
 
         return (key, baseNonce);
     }
 
-    internal static byte[] LabeledExtract(byte[] salt, string label, byte[] ikm)
+    private static byte[] LabeledExtract(byte[] salt, string label, byte[] ikm)
     {
         // labeled_ikm = "HPKE-v1" || SuiteID || label || ikm
         var labelBytes = Encoding.ASCII.GetBytes(label);
         var labeledIkm = new byte[HpkeV1.Length + SuiteId.Length + labelBytes.Length + ikm.Length];
-        int pos = 0;
-        HpkeV1.CopyTo(labeledIkm, pos); pos += HpkeV1.Length;
-        SuiteId.CopyTo(labeledIkm, pos); pos += SuiteId.Length;
-        labelBytes.CopyTo(labeledIkm, pos); pos += labelBytes.Length;
+
+        var pos = 0;
+        HpkeV1.CopyTo(labeledIkm, pos);
+        pos += HpkeV1.Length;
+
+        SuiteId.CopyTo(labeledIkm, pos);
+        pos += SuiteId.Length;
+
+        labelBytes.CopyTo(labeledIkm, pos);
+        pos += labelBytes.Length;
+
         ikm.CopyTo(labeledIkm, pos);
 
         // actual_salt: if empty, use Nh zero bytes (32 for SHA-256)
@@ -72,17 +78,24 @@ internal static class HpkeHelper
         return CryptoHelper.HmacSha256(actualSalt, labeledIkm);
     }
 
-    internal static byte[] LabeledExpand(byte[] prk, string label, byte[] info, int length)
+    private static byte[] LabeledExpand(byte[] prk, string label, byte[] info, int length)
     {
         // labeled_info = BE16(length) || "HPKE-v1" || SuiteID || label || info
         var labelBytes = Encoding.ASCII.GetBytes(label);
         var labeledInfo = new byte[2 + HpkeV1.Length + SuiteId.Length + labelBytes.Length + info.Length];
-        int pos = 0;
+
+        var pos = 0;
         labeledInfo[pos++] = (byte)(length >> 8);
         labeledInfo[pos++] = (byte)(length & 0xff);
-        HpkeV1.CopyTo(labeledInfo, pos); pos += HpkeV1.Length;
-        SuiteId.CopyTo(labeledInfo, pos); pos += SuiteId.Length;
-        labelBytes.CopyTo(labeledInfo, pos); pos += labelBytes.Length;
+        HpkeV1.CopyTo(labeledInfo, pos);
+
+        pos += HpkeV1.Length;
+        SuiteId.CopyTo(labeledInfo, pos);
+
+        pos += SuiteId.Length;
+        labelBytes.CopyTo(labeledInfo, pos);
+
+        pos += labelBytes.Length;
         info.CopyTo(labeledInfo, pos);
 
         // HKDF-Expand with PRK and labeled_info

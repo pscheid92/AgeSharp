@@ -26,7 +26,9 @@ internal static class CryptoHelper
     public static byte[] ChaChaEncrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> plaintext)
     {
         var cipher = new ChaCha20Poly1305();
-        cipher.Init(true, new AeadParameters(new KeyParameter(key.ToArray()), ChaChaMacSizeBits, nonce.ToArray()));
+
+        var parameters = new AeadParameters(new KeyParameter(key.ToArray()), ChaChaMacSizeBits, nonce.ToArray());
+        cipher.Init(true, parameters);
 
         var output = new byte[cipher.GetOutputSize(plaintext.Length)];
         var len = cipher.ProcessBytes(plaintext.ToArray(), 0, plaintext.Length, output, 0);
@@ -38,7 +40,9 @@ internal static class CryptoHelper
     public static byte[]? ChaChaDecrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> ciphertext)
     {
         var cipher = new ChaCha20Poly1305();
-        cipher.Init(false, new AeadParameters(new KeyParameter(key.ToArray()), ChaChaMacSizeBits, nonce.ToArray()));
+
+        var parameters = new AeadParameters(new KeyParameter(key.ToArray()), ChaChaMacSizeBits, nonce.ToArray());
+        cipher.Init(false, parameters);
 
         var output = new byte[cipher.GetOutputSize(ciphertext.Length)];
         var len = cipher.ProcessBytes(ciphertext.ToArray(), 0, ciphertext.Length, output, 0);
