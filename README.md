@@ -228,6 +228,16 @@ age-keygen -o key.txt
 age inspect encrypted.age
 ```
 
+## Development
+
+```sh
+make            # Build universal macOS binary (AOT)
+make build      # Framework-dependent build
+make test       # Run all tests
+make bench      # Run BenchmarkDotNet benchmarks
+make interop    # Interoperability tests vs Go age CLI
+```
+
 ## Feature comparison
 
 See [FEATURE_COMPARISON.md](FEATURE_COMPARISON.md) for a detailed comparison
