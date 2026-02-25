@@ -115,7 +115,9 @@ jobs:
           merge-multiple: true
 
       - name: Create GitHub release
-        run: gh release create "$GITHUB_REF_NAME" ./nupkg/*.nupkg ./artifacts/age-sharp-* --generate-notes ${{ contains(steps.version.outputs.VERSION, '-') && '--prerelease' || '' }}
+        run: |
+          gh release delete "$GITHUB_REF_NAME" --yes 2>/dev/null || true
+          gh release create "$GITHUB_REF_NAME" ./nupkg/*.nupkg ./artifacts/age-sharp-* --generate-notes ${{ contains(steps.version.outputs.VERSION, '-') && '--prerelease' || '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
