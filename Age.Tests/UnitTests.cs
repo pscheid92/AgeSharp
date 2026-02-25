@@ -1176,6 +1176,80 @@ public class AgeEncryptTests
     }
 }
 
+public class DecryptStreamTests
+{
+    [Fact]
+    public void DecryptReader_Rejects_Truncated_Payload_NoFinalChunk()
+    {
+        using var identity = X25519Identity.Generate();
+        // Encrypt >64KB so we get at least 2 chunks
+        var plaintext = new byte[100_000];
+        new Random(42).NextBytes(plaintext);
+
+        using var encInput = new MemoryStream(plaintext);
+        using var encOutput = new MemoryStream();
+        AgeEncrypt.Encrypt(encInput, encOutput, identity.Recipient);
+        var ciphertextBytes = encOutput.ToArray();
+
+        // Parse header to find payload offset
+        encOutput.Position = 0;
+        var header = AgeHeader.Parse(encOutput);
+        var payloadOffset = (int)header.PayloadOffset;
+
+        // Payload: 16-byte nonce + encrypted chunks
+        // Keep header + nonce + first encrypted chunk only (remove final chunk)
+        var nonceEnd = payloadOffset + 16;
+        var encryptedChunkSize = 64 * 1024 + 16;
+        var truncateAt = nonceEnd + encryptedChunkSize;
+
+        var truncated = ciphertextBytes[..truncateAt];
+
+        using var truncatedStream = new MemoryStream(truncated);
+        using var reader = AgeEncrypt.DecryptReader(truncatedStream, identity);
+
+        var buf = new byte[plaintext.Length];
+        // Truncating removes the final chunk, so DecryptStream will detect
+        // either an authentication failure or a missing final chunk
+        Assert.Throws<AgePayloadException>(() =>
+        {
+            var totalRead = 0;
+            while (totalRead < buf.Length)
+            {
+                var read = reader.Read(buf, totalRead, buf.Length - totalRead);
+                if (read == 0) break;
+                totalRead += read;
+            }
+        });
+    }
+
+    [Fact]
+    public void DecryptReader_Rejects_Chunk_TooSmallForTag()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = "small payload"u8.ToArray();
+
+        using var encInput = new MemoryStream(plaintext);
+        using var encOutput = new MemoryStream();
+        AgeEncrypt.Encrypt(encInput, encOutput, identity.Recipient);
+        var ciphertextBytes = encOutput.ToArray();
+
+        // Parse header to find payload offset
+        encOutput.Position = 0;
+        var header = AgeHeader.Parse(encOutput);
+        var payloadOffset = (int)header.PayloadOffset;
+
+        // Keep header + nonce + only a few bytes of payload (< TagSize = 16)
+        var truncateAt = payloadOffset + 16 + 5; // nonce + 5 bytes
+        var truncated = ciphertextBytes[..truncateAt];
+
+        using var truncatedStream = new MemoryStream(truncated);
+        using var reader = AgeEncrypt.DecryptReader(truncatedStream, identity);
+
+        var buf = new byte[100];
+        Assert.Throws<AgePayloadException>(() => reader.Read(buf, 0, buf.Length));
+    }
+}
+
 public class AgeKeygenTests
 {
     [Fact]

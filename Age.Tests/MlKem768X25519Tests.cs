@@ -114,6 +114,23 @@ public class MlKem768X25519RecipientTests
     }
 }
 
+public class MlKem768X25519ConstructorTests
+{
+    [Fact]
+    public void Constructor_Rejects_WrongKeySize()
+    {
+        Assert.Throws<ArgumentException>(() => new MlKem768X25519Recipient(new byte[100]));
+    }
+
+    [Fact]
+    public void Parse_Rejects_WrongDataLength()
+    {
+        var encoded = Bech32.Encode("age1pq", new byte[100]);
+        var ex = Assert.Throws<FormatException>(() => MlKem768X25519Recipient.Parse(encoded));
+        Assert.Contains("must be", ex.Message);
+    }
+}
+
 public class MlKem768X25519IdentityTests
 {
     [Fact]

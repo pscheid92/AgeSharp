@@ -193,4 +193,48 @@ public class DetachedHeaderTests
         Assert.Equal(1, header.RecipientCount);
         Assert.Equal("scrypt", header.Recipients[0].Type);
     }
+
+    [Fact]
+    public void AgeHeader_Parse_NonSeekableStream()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = "non-seekable header test"u8.ToArray();
+
+        using var input = new MemoryStream(plaintext);
+        using var ciphertext = new MemoryStream();
+        AgeEncrypt.Encrypt(input, ciphertext, identity.Recipient);
+
+        ciphertext.Position = 0;
+        using var nonSeekable = new NonSeekableStream(ciphertext);
+
+        var header = AgeHeader.Parse(nonSeekable);
+
+        Assert.False(header.IsArmored);
+        Assert.True(header.RecipientCount > 0);
+    }
+
+    [Fact]
+    public void AgeHeader_Parse_WrapsFormatException()
+    {
+        var text = "age-encryption.org/v1\n-> test\n@@@@\n\n--- AAAA\n";
+        using var stream = new MemoryStream(System.Text.Encoding.ASCII.GetBytes(text));
+
+        var ex = Assert.Throws<AgeHeaderException>(() => AgeHeader.Parse(stream));
+        Assert.Contains("header parse error", ex.Message);
+    }
+
+    private sealed class NonSeekableStream(Stream inner) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        protected override void Dispose(bool disposing) { if (disposing) inner.Dispose(); base.Dispose(disposing); }
+    }
 }
