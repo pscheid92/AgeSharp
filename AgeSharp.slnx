@@ -3,4 +3,5 @@
   <Project Path="Age.Tests/Age.Tests.csproj" />
   <Project Path="Age.TestKit/Age.TestKit.csproj" />
   <Project Path="Age/Age.csproj" />
+  <Project Path="Age.Benchmarks/Age.Benchmarks.csproj" />
 </Solution>
