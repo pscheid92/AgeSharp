@@ -3,12 +3,13 @@ using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Utilities;
 using Org.BouncyCastle.OpenSsl;
-using Org.BouncyCastle.Security;
 
 namespace Age.Crypto;
 
 internal static class SshKeyParser
 {
+    // age spec: SSH stanza tags use the first 4 bytes of SHA-256(publicKeyWireBytes)
+    private const int FingerprintLength = 4;
     /// <summary>
     /// Parses an SSH public key from an authorized_keys line.
     /// Returns (keyType, wireBytes, publicKeyParameter).
@@ -54,6 +55,7 @@ internal static class SshKeyParser
             var pemObject = pemReader.ReadPemObject();
             if (pemObject == null)
                 throw new FormatException("failed to read PEM object");
+
             privateKey = OpenSshPrivateKeyUtilities.ParsePrivateKeyBlob(pemObject.Content);
         }
         else
@@ -61,10 +63,11 @@ internal static class SshKeyParser
             // PKCS#1 or PKCS#8 format
             var pemReader = new PemReader(new StringReader(pemText));
             var obj = pemReader.ReadObject();
+
             privateKey = obj switch
             {
                 AsymmetricCipherKeyPair kp => kp.Private,
-                AsymmetricKeyParameter akp when akp.IsPrivate => akp,
+                AsymmetricKeyParameter { IsPrivate: true } akp => akp,
                 _ => throw new FormatException("PEM does not contain a private key")
             };
         }
@@ -75,12 +78,12 @@ internal static class SshKeyParser
 
         switch (privateKey)
         {
-            case Ed25519PrivateKeyParameters ed25519Priv:
-                publicKey = ed25519Priv.GeneratePublicKey();
+            case Ed25519PrivateKeyParameters ed25519Private:
+                publicKey = ed25519Private.GeneratePublicKey();
                 keyType = "ssh-ed25519";
                 break;
-            case RsaPrivateCrtKeyParameters rsaPriv:
-                publicKey = new RsaKeyParameters(false, rsaPriv.Modulus, rsaPriv.PublicExponent);
+            case RsaPrivateCrtKeyParameters rsaPrivate:
+                publicKey = new RsaKeyParameters(false, rsaPrivate.Modulus, rsaPrivate.PublicExponent);
                 keyType = "ssh-rsa";
                 break;
             default:
@@ -98,6 +101,6 @@ internal static class SshKeyParser
     public static string ComputeTag(byte[] wireBytes)
     {
         var hash = SHA256.HashData(wireBytes);
-        return Base64Unpadded.Encode(hash.AsSpan(0, 4));
+        return Base64Unpadded.Encode(hash.AsSpan(0, FingerprintLength));
     }
 }
