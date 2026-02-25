@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using Age.Crypto;
 
@@ -28,10 +29,9 @@ internal sealed class PluginConnection : IDisposable
 
         try
         {
-            _process = Process.Start(startInfo)
-                ?? throw new AgePluginException($"failed to start plugin: {binaryName}");
+            _process = Process.Start(startInfo) ?? throw new AgePluginException($"failed to start plugin: {binaryName}");
         }
-        catch (System.ComponentModel.Win32Exception ex)
+        catch (Win32Exception ex)
         {
             throw new AgePluginException($"plugin not found: {binaryName}", ex);
         }
@@ -53,92 +53,104 @@ internal sealed class PluginConnection : IDisposable
     {
         _writer.Write("-> ");
         _writer.Write(type);
+
         foreach (var arg in args)
         {
             _writer.Write(' ');
             _writer.Write(arg);
         }
+
         _writer.Write('\n');
 
-        string encoded = Base64Unpadded.Encode(body);
-        int offset = 0;
+        var encoded = Base64Unpadded.Encode(body);
+        var offset = 0;
+
         while (offset < encoded.Length)
         {
-            int len = Math.Min(64, encoded.Length - offset);
+            var len = Math.Min(64, encoded.Length - offset);
             _writer.Write(encoded.AsSpan(offset, len));
             _writer.Write('\n');
             offset += len;
         }
-        // If the body encodes to an exact multiple of 64 chars, we need an empty final line
-        if (encoded.Length > 0 && encoded.Length % 64 == 0)
-        {
+
+        // Empty body or exact multiple of 64 chars both need an empty terminator line
+        if (encoded.Length % 64 == 0)
             _writer.Write('\n');
-        }
-        // If body is empty, write an empty line
-        if (encoded.Length == 0)
-        {
-            _writer.Write('\n');
-        }
 
         _writer.Flush();
     }
 
     public (string Type, string[] Args, byte[] Body)? ReadStanza()
     {
-        string? line = _reader.ReadLine();
+        var line = _reader.ReadLine();
+
         if (line == null)
             return null;
 
         if (!line.StartsWith("-> "))
             throw new AgePluginException($"expected stanza prefix '-> ', got: {line}");
 
-        string rest = line[3..];
-        string[] parts = rest.Split(' ');
+        var parts = line[3..].Split(' ');
+
         if (parts.Length < 1 || string.IsNullOrEmpty(parts[0]))
             throw new AgePluginException("stanza must have at least a type");
 
-        string type = parts[0];
-        string[] args = parts.Length > 1 ? parts[1..] : [];
+        var stanzaType = parts[0];
+        var stanzaArgs = parts.Length > 1 ? parts[1..] : [];
+        var body = ReadBody();
 
-        // Read base64 body lines
+        return (stanzaType, stanzaArgs, body);
+    }
+
+    private byte[] ReadBody()
+    {
         var bodyChunks = new List<byte[]>();
+
         while (true)
         {
-            string? bodyLine = _reader.ReadLine();
-            if (bodyLine == null)
-                throw new AgePluginException("unexpected end of stream while reading stanza body");
+            var bodyLine = _reader.ReadLine() ?? throw new AgePluginException("unexpected end of stream while reading stanza body");
 
-            if (bodyLine.Length > 64)
-                throw new AgePluginException("stanza body line exceeds 64 characters");
+            switch (bodyLine.Length)
+            {
+                case > 64:
+                    throw new AgePluginException("stanza body line exceeds 64 characters");
+                case > 0:
+                    bodyChunks.Add(Base64Unpadded.Decode(bodyLine));
+                    break;
+            }
 
-            if (bodyLine.Length > 0)
-                bodyChunks.Add(Base64Unpadded.Decode(bodyLine));
-
-            // A short line (< 64 chars) or empty line terminates the body
             if (bodyLine.Length < 64)
                 break;
         }
 
-        int totalLen = 0;
-        foreach (var chunk in bodyChunks) totalLen += chunk.Length;
+        var totalLen = bodyChunks.Sum(c => c.Length);
         var body = new byte[totalLen];
-        int pos = 0;
+        var pos = 0;
+
         foreach (var chunk in bodyChunks)
         {
             chunk.CopyTo(body, pos);
             pos += chunk.Length;
         }
 
-        return (type, args, body);
+        return body;
     }
 
     public void Dispose()
     {
-        if (_process is not null)
+        if (_process is null)
+            return;
+
+        try
         {
-            try { _process.StandardInput.Close(); } catch { }
-            _process.WaitForExit(5000);
-            _process.Dispose();
+            _process.StandardInput.Close();
         }
+        catch
+        {
+            // EMPTY
+        }
+
+        _process.WaitForExit(5000);
+        _process.Dispose();
     }
 }
