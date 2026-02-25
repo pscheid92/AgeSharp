@@ -1,22 +1,15 @@
 namespace Age.Crypto;
 
-internal sealed class RandomAccessDecryptStream : Stream
+internal sealed class RandomAccessDecryptStream(AgeRandomAccess reader, long initialOffset) : Stream
 {
-    private readonly AgeRandomAccess _reader;
-    private long _position;
-    private readonly long _length;
-
-    public RandomAccessDecryptStream(AgeRandomAccess reader, long initialOffset)
-    {
-        _reader = reader;
-        _position = initialOffset;
-        _length = reader.PlaintextLength;
-    }
+    private long _position = initialOffset;
+    private readonly long _length = reader.PlaintextLength;
 
     public override bool CanRead => true;
     public override bool CanSeek => true;
     public override bool CanWrite => false;
     public override long Length => _length;
+
     public override long Position
     {
         get => _position;
@@ -35,14 +28,15 @@ internal sealed class RandomAccessDecryptStream : Stream
         if (_position >= _length)
             return 0;
 
-        int read = _reader.ReadAt(_position, buffer);
+        var read = reader.ReadAt(_position, buffer);
         _position += read;
+
         return read;
     }
 
     public override long Seek(long offset, SeekOrigin origin)
     {
-        long newPos = origin switch
+        var newPos = origin switch
         {
             SeekOrigin.Begin => offset,
             SeekOrigin.Current => _position + offset,
@@ -51,11 +45,18 @@ internal sealed class RandomAccessDecryptStream : Stream
         };
 
         ArgumentOutOfRangeException.ThrowIfNegative(newPos, nameof(offset));
+
         _position = newPos;
         return _position;
     }
 
-    public override void Flush() { }
-    public override void SetLength(long value) => throw new NotSupportedException();
-    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    public override void Flush()
+    {
+    }
+
+    public override void SetLength(long value) =>
+        throw new NotSupportedException();
+
+    public override void Write(byte[] buffer, int offset, int count) =>
+        throw new NotSupportedException();
 }
