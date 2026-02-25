@@ -1,4 +1,5 @@
 using System.Text;
+using Age.Format;
 using Age.Plugin;
 using Age.Recipients;
 
@@ -8,91 +9,9 @@ internal static class AgeCommand
 {
     public static int Run(string[] args)
     {
-        var encrypt = true;
-        var armor = false;
-        var passphrase = false;
-        var recipients = new List<IRecipient>();
-        var identityFiles = new List<string>();
-        var recipientFiles = new List<string>();
-        string? outputPath = null;
-        string? inputPath = null;
-
-        for (int i = 0; i < args.Length; i++)
-        {
-            switch (args[i])
-            {
-                case "-h" or "--help":
-                    PrintUsage();
-                    return 0;
-                case "--version":
-                    Console.WriteLine("age-sharp v0.1.0");
-                    return 0;
-                case "-d" or "--decrypt":
-                    encrypt = false;
-                    break;
-                case "-e" or "--encrypt":
-                    encrypt = true;
-                    break;
-                case "-a" or "--armor":
-                    armor = true;
-                    break;
-                case "-p" or "--passphrase":
-                    passphrase = true;
-                    break;
-                case "-r" or "--recipient":
-                    if (++i >= args.Length)
-                    {
-                        Error("flag needs an argument: -r");
-                        return 1;
-                    }
-                    recipients.Add(ParseRecipient(args[i]));
-                    break;
-                case "-R" or "--recipients-file":
-                    if (++i >= args.Length)
-                    {
-                        Error("flag needs an argument: -R");
-                        return 1;
-                    }
-                    recipientFiles.Add(args[i]);
-                    break;
-                case "-i" or "--identity":
-                    if (++i >= args.Length)
-                    {
-                        Error("flag needs an argument: -i");
-                        return 1;
-                    }
-                    identityFiles.Add(args[i]);
-                    break;
-                case "-o" or "--output":
-                    if (++i >= args.Length)
-                    {
-                        Error("flag needs an argument: -o");
-                        return 1;
-                    }
-                    outputPath = args[i];
-                    break;
-                default:
-                    if (args[i].StartsWith('-'))
-                    {
-                        Error($"unknown option: {args[i]}");
-                        return 1;
-                    }
-                    if (inputPath != null)
-                    {
-                        Error($"unexpected argument: {args[i]}");
-                        return 1;
-                    }
-                    inputPath = args[i];
-                    break;
-            }
-        }
-
         try
         {
-            if (encrypt)
-                return Encrypt(recipients, recipientFiles, identityFiles, passphrase, armor, inputPath, outputPath);
-            else
-                return Decrypt(identityFiles, passphrase, inputPath, outputPath);
+            return Execute(args);
         }
         catch (Exception ex) when (ex is AgeException or FormatException)
         {
@@ -107,129 +26,188 @@ internal static class AgeCommand
         }
     }
 
-    private static int Encrypt(
-        List<IRecipient> recipients,
-        List<string> recipientFiles,
-        List<string> identityFiles,
-        bool passphrase,
-        bool armor,
-        string? inputPath,
-        string? outputPath)
+    private record AgeArgs(bool Encrypt, bool Armor, bool Passphrase, List<IRecipient> Recipients, List<string> RecipientFiles, List<string> IdentityFiles, string? OutputPath, string? InputPath);
+
+    private static int Execute(string[] args)
+    {
+        var parsed = ParseArgs(args);
+        if (parsed is null)
+            return 0;
+
+        return parsed.Encrypt
+            ? Encrypt(parsed)
+            : Decrypt(parsed);
+    }
+
+    private static AgeArgs? ParseArgs(string[] args)
+    {
+        var state = new AgeArgState();
+
+        for (var i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "-h" or "--help":
+                    PrintUsage();
+                    return null;
+                case "--version":
+                    Console.WriteLine("age-sharp v0.1.0");
+                    return null;
+                default:
+                    state.Apply(args, ref i);
+                    break;
+            }
+        }
+
+        return state.ToArgs();
+    }
+
+    private sealed class AgeArgState
+    {
+        private bool _encrypt = true;
+        private bool _armor;
+        private bool _passphrase;
+        private readonly List<IRecipient> _recipients = [];
+        private readonly List<string> _recipientFiles = [];
+        private readonly List<string> _identityFiles = [];
+        private string? _outputPath;
+        private string? _inputPath;
+
+        public void Apply(string[] args, ref int i)
+        {
+            switch (args[i])
+            {
+                case "-d" or "--decrypt": _encrypt = false; break;
+                case "-e" or "--encrypt": _encrypt = true; break;
+                case "-a" or "--armor": _armor = true; break;
+                case "-p" or "--passphrase": _passphrase = true; break;
+                case "-r" or "--recipient": _recipients.Add(ParseRecipient(ReadRequiredArg(args, ref i, "-r"))); break;
+                case "-R" or "--recipients-file": _recipientFiles.Add(ReadRequiredArg(args, ref i, "-R")); break;
+                case "-i" or "--identity": _identityFiles.Add(ReadRequiredArg(args, ref i, "-i")); break;
+                case "-o" or "--output": _outputPath = ReadRequiredArg(args, ref i, "-o"); break;
+                default: _inputPath = ParsePositionalArg(args[i], _inputPath); break;
+            }
+        }
+
+        public AgeArgs ToArgs() =>
+            new(_encrypt, _armor, _passphrase, _recipients, _recipientFiles, _identityFiles, _outputPath, _inputPath);
+    }
+
+    private static string ReadRequiredArg(string[] args, ref int i, string flag) =>
+        ++i < args.Length ? args[i] : throw new AgeException($"flag requires an argument: {flag}");
+
+    private static string ParsePositionalArg(string arg, string? current)
+    {
+        if (arg.StartsWith('-'))
+            throw new AgeException($"unknown option: {arg}");
+
+        return current is not null ? throw new AgeException($"unexpected argument: {arg}") : arg;
+    }
+
+    private static int Encrypt(AgeArgs parsed)
     {
         var callbacks = new CliPluginCallbacks();
+        var recipients = parsed.Recipients;
 
-        if (passphrase)
+        if (parsed.Passphrase)
         {
-            if (recipients.Count > 0 || recipientFiles.Count > 0 || identityFiles.Count > 0)
-            {
-                Error("-p/--passphrase can't be combined with other recipient flags");
-                return 1;
-            }
+            if (recipients.Count > 0 || parsed.RecipientFiles.Count > 0 || parsed.IdentityFiles.Count > 0)
+                throw new AgeException("-p/--passphrase can't be combined with other recipient flags");
 
-            var pass = ReadPassphrase("Enter passphrase (leave empty to autogenerate): ");
-            if (pass.Length == 0)
-            {
-                pass = GeneratePassphrase();
-                Console.Error.WriteLine($"using auto-generated passphrase \"{pass}\"");
-            }
-            else if (Environment.GetEnvironmentVariable("AGE_PASSPHRASE") is null)
-            {
-                var confirm = ReadPassphrase("Confirm passphrase: ");
-                if (pass != confirm)
-                {
-                    Error("passphrases didn't match");
-                    return 1;
-                }
-            }
-
-            recipients.Add(new ScryptRecipient(pass));
+            recipients.Add(new ScryptRecipient(ReadAndConfirmPassphrase()));
         }
         else
         {
-            // Parse recipients from -R files
-            foreach (var file in recipientFiles)
-            {
-                var text = File.ReadAllText(file);
-                var parsed = AgeKeygen.ParseRecipientsFile(text, callbacks);
-                recipients.AddRange(parsed);
-            }
-
-            // Extract recipients from -i identity files (for encrypt mode)
-            foreach (var file in identityFiles)
-            {
-                var identities = LoadIdentities(file, callbacks);
-                foreach (var id in identities)
-                {
-                    switch (id)
-                    {
-                        case X25519Identity x:
-                            recipients.Add(x.Recipient);
-                            break;
-                        case MlKem768X25519Identity pq:
-                            recipients.Add(pq.Recipient);
-                            break;
-                        case SshEd25519Identity ssh:
-                            recipients.Add(ssh.Recipient);
-                            break;
-                        case SshRsaIdentity ssh:
-                            recipients.Add(ssh.Recipient);
-                            break;
-                        default:
-                            Console.Error.WriteLine($"warning: skipping identity without public recipient extraction (plugin identity)");
-                            break;
-                    }
-                }
-            }
+            CollectRecipientsFromFiles(parsed, recipients, callbacks);
 
             if (recipients.Count == 0)
-            {
-                Error("missing recipients (-r, -R, or -i required for encryption)");
-                PrintUsage();
-                return 1;
-            }
+                throw new AgeException("missing recipients (-r, -R, or -i required for encryption)");
         }
 
-        // Safety check: refuse binary output to terminal
-        if (outputPath is null && !armor && Console.IsOutputRedirected == false)
-        {
-            Error("refusing to output binary to a terminal. Did you mean to use -a/--armor?");
-            return 1;
-        }
+        if (parsed.OutputPath is null && !parsed.Armor && !Console.IsOutputRedirected)
+            throw new AgeException("refusing to output binary to a terminal. Did you mean to use -a/--armor?");
 
-        using var input = OpenInput(inputPath);
-        using var output = OpenOutput(outputPath);
-        AgeEncrypt.Encrypt(input, output, armor, [.. recipients]);
+        using var input = OpenInput(parsed.InputPath);
+        using var output = OpenOutput(parsed.OutputPath);
+        AgeEncrypt.Encrypt(input, output, parsed.Armor, [.. recipients]);
         return 0;
     }
 
-    private static int Decrypt(
-        List<string> identityFiles,
-        bool passphrase,
-        string? inputPath,
-        string? outputPath)
+    private static void CollectRecipientsFromFiles(AgeArgs parsed, List<IRecipient> recipients, IPluginCallbacks callbacks)
+    {
+        foreach (var file in parsed.RecipientFiles)
+        {
+            var text = File.ReadAllText(file);
+            recipients.AddRange(AgeKeygen.ParseRecipientsFile(text, callbacks));
+        }
+
+        foreach (var file in parsed.IdentityFiles)
+        {
+            var identities = LoadIdentities(file, callbacks);
+            foreach (var id in identities)
+            {
+                if (GetRecipientFromIdentity(id) is { } recipient)
+                    recipients.Add(recipient);
+                else
+                    Console.Error.WriteLine("warning: skipping identity without public recipient extraction (plugin identity)");
+            }
+        }
+    }
+
+    private static string ReadAndConfirmPassphrase()
+    {
+        var pass = ReadPassphrase("Enter passphrase (leave empty to autogenerate): ");
+
+        if (pass.Length == 0)
+        {
+            pass = GeneratePassphrase();
+            Console.Error.WriteLine($"using auto-generated passphrase \"{pass}\"");
+            return pass;
+        }
+
+        if (Environment.GetEnvironmentVariable("AGE_PASSPHRASE") is null)
+        {
+            var confirm = ReadPassphrase("Confirm passphrase: ");
+            if (pass != confirm)
+                throw new AgeException("passphrases didn't match");
+        }
+
+        return pass;
+    }
+
+    private static int Decrypt(AgeArgs parsed)
+    {
+        var identities = CollectDecryptIdentities(parsed);
+
+        // Buffer input into a seekable MemoryStream so armor auto-detection works
+        using var rawInput = OpenInput(parsed.InputPath);
+        using var input = new MemoryStream();
+        rawInput.CopyTo(input);
+        input.Position = 0;
+
+        using var output = OpenOutput(parsed.OutputPath);
+        AgeEncrypt.Decrypt(input, output, [.. identities]);
+        return 0;
+    }
+
+    private static List<IIdentity> CollectDecryptIdentities(AgeArgs parsed)
     {
         var callbacks = new CliPluginCallbacks();
         var identities = new List<IIdentity>();
 
-        if (passphrase)
+        if (parsed.Passphrase)
         {
-            if (identityFiles.Count > 0)
-            {
-                Error("-p/--passphrase can't be combined with -i/--identity");
-                return 1;
-            }
+            if (parsed.IdentityFiles.Count > 0)
+                throw new AgeException("-p/--passphrase can't be combined with -i/--identity");
 
             identities.Add(new LazyPassphraseIdentity());
         }
         else
         {
-            if (identityFiles.Count == 0)
-            {
-                Error("missing identity (-i required for decryption, or use -p for passphrase)");
-                return 1;
-            }
+            if (parsed.IdentityFiles.Count == 0)
+                throw new AgeException("missing identity (-i required for decryption, or use -p for passphrase)");
 
-            foreach (var file in identityFiles)
+            foreach (var file in parsed.IdentityFiles)
             {
                 var loaded = LoadIdentities(file, callbacks);
                 foreach (var id in loaded)
@@ -237,16 +215,17 @@ internal static class AgeCommand
             }
         }
 
-        // Buffer input into a seekable MemoryStream so armor auto-detection works
-        using var rawInput = OpenInput(inputPath);
-        using var input = new MemoryStream();
-        rawInput.CopyTo(input);
-        input.Position = 0;
-
-        using var output = OpenOutput(outputPath);
-        AgeEncrypt.Decrypt(input, output, [.. identities]);
-        return 0;
+        return identities;
     }
+
+    private static IRecipient? GetRecipientFromIdentity(IIdentity identity) => identity switch
+    {
+        X25519Identity x => x.Recipient,
+        MlKem768X25519Identity pq => pq.Recipient,
+        SshEd25519Identity ssh => ssh.Recipient,
+        SshRsaIdentity ssh => ssh.Recipient,
+        _ => null
+    };
 
     private static IRecipient ParseRecipient(string s)
     {
@@ -277,9 +256,7 @@ internal static class AgeCommand
 
         // SSH private key
         if (trimmed.StartsWith("-----BEGIN"))
-        {
             return [AgeKeygen.ParseSshIdentity(text)];
-        }
 
         // Standard age identity file (AGE-SECRET-KEY-, AGE-SECRET-KEY-PQ-, AGE-PLUGIN-)
         return [.. AgeKeygen.ParseIdentityFile(text, callbacks)];
@@ -301,6 +278,7 @@ internal static class AgeCommand
                 Console.Error.WriteLine();
                 return sb.ToString();
             }
+
             if (key.Key == ConsoleKey.Backspace && sb.Length > 0)
                 sb.Remove(sb.Length - 1, 1);
             else if (key.KeyChar != '\0')
@@ -310,73 +288,63 @@ internal static class AgeCommand
 
     private static string GeneratePassphrase()
     {
-        // Simple random passphrase: 10 groups of lowercase letters
         var rng = new Random();
         var parts = new string[10];
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             var chars = new char[6];
-            for (int j = 0; j < 6; j++)
+            for (var j = 0; j < 6; j++)
                 chars[j] = (char)('a' + rng.Next(26));
             parts[i] = new string(chars);
         }
+
         return string.Join("-", parts);
     }
 
-    private static Stream OpenInput(string? path)
-    {
-        if (path is null)
-            return Console.OpenStandardInput();
-        return File.OpenRead(path);
-    }
+    private static Stream OpenInput(string? path) =>
+        path is not null ? File.OpenRead(path) : Console.OpenStandardInput();
 
-    private static Stream OpenOutput(string? path)
-    {
-        if (path is null)
-            return Console.OpenStandardOutput();
-        return new LazyFileStream(path);
-    }
+    private static Stream OpenOutput(string? path) =>
+        path is not null ? new LazyFileStream(path) : Console.OpenStandardOutput();
 
-    private static void Error(string message)
-    {
+    private static void Error(string message) =>
         Console.Error.WriteLine($"age: {message}");
-    }
 
     private static void PrintUsage()
     {
         Console.Error.WriteLine("""
-            Usage:
-                age [--encrypt] -r RECIPIENT [-r ...] [-a] [-o OUTPUT] [INPUT]
-                age [--encrypt] -R PATH [-R ...] [-a] [-o OUTPUT] [INPUT]
-                age [--encrypt] -i IDENTITY [-i ...] [-a] [-o OUTPUT] [INPUT]
-                age [--encrypt] -p [-a] [-o OUTPUT] [INPUT]
-                age --decrypt [-i IDENTITY | -p] [-o OUTPUT] [INPUT]
+                                Usage:
+                                    age [--encrypt] -r RECIPIENT [-r ...] [-a] [-o OUTPUT] [INPUT]
+                                    age [--encrypt] -R PATH [-R ...] [-a] [-o OUTPUT] [INPUT]
+                                    age [--encrypt] -i IDENTITY [-i ...] [-a] [-o OUTPUT] [INPUT]
+                                    age [--encrypt] -p [-a] [-o OUTPUT] [INPUT]
+                                    age --decrypt [-i IDENTITY | -p] [-o OUTPUT] [INPUT]
 
-            Options:
-                -e, --encrypt          Encrypt the input (default)
-                -d, --decrypt          Decrypt the input
-                -o, --output PATH      Write output to PATH
-                -a, --armor            Use ASCII armored format
-                -p, --passphrase       Use passphrase-based encryption
-                -r, --recipient REC    Encrypt to recipient REC (can be repeated)
-                -R, --recipients-file  Path to a file with recipients (can be repeated)
-                -i, --identity PATH    Path to an identity file (can be repeated)
-                    --version          Print version
-                -h, --help             Print this help
+                                Options:
+                                    -e, --encrypt          Encrypt the input (default)
+                                    -d, --decrypt          Decrypt the input
+                                    -o, --output PATH      Write output to PATH
+                                    -a, --armor            Use ASCII armored format
+                                    -p, --passphrase       Use passphrase-based encryption
+                                    -r, --recipient REC    Encrypt to recipient REC (can be repeated)
+                                    -R, --recipients-file  Path to a file with recipients (can be repeated)
+                                    -i, --identity PATH    Path to an identity file (can be repeated)
+                                        --version          Print version
+                                    -h, --help             Print this help
 
-            Recipient types:
-                age1...                X25519
-                age1pq...              ML-KEM-768-X25519 (post-quantum)
-                age1<name>1...         Plugin (age-plugin-<name>)
-                ssh-ed25519 ...        SSH Ed25519
-                ssh-rsa ...            SSH RSA
+                                Recipient types:
+                                    age1...                X25519
+                                    age1pq...              ML-KEM-768-X25519 (post-quantum)
+                                    age1<name>1...         Plugin (age-plugin-<name>)
+                                    ssh-ed25519 ...        SSH Ed25519
+                                    ssh-rsa ...            SSH RSA
 
-            Subcommands:
-                age keygen             Generate a new identity (see age keygen -h)
-                age inspect            Inspect an age-encrypted file
+                                Subcommands:
+                                    age keygen             Generate a new identity (see age keygen -h)
+                                    age inspect            Inspect an age-encrypted file
 
-            INPUT defaults to stdin, and OUTPUT defaults to stdout.
-            """);
+                                INPUT defaults to stdin, and OUTPUT defaults to stdout.
+                                """);
     }
 
     /// <summary>
@@ -387,7 +355,7 @@ internal static class AgeCommand
     {
         private ScryptRecipient? _inner;
 
-        public byte[]? Unwrap(Format.Stanza stanza)
+        public byte[]? Unwrap(Stanza stanza)
         {
             _inner ??= new ScryptRecipient(ReadPassphrase("Enter passphrase: "));
             return _inner.Unwrap(stanza);
@@ -400,12 +368,10 @@ internal static class AgeCommand
     /// </summary>
     private sealed class RejectScryptIdentity : IIdentity
     {
-        public byte[]? Unwrap(Format.Stanza stanza)
-        {
-            if (stanza.Type == "scrypt")
-                throw new AgeException("passphrase-encrypted file can't be decrypted with -i; use -p instead");
-            return null;
-        }
+        public byte[]? Unwrap(Stanza stanza) =>
+            stanza.Type == "scrypt"
+                ? throw new AgeException("passphrase-encrypted file can't be decrypted with -i; use -p instead")
+                : null;
     }
 
     /// <summary>
@@ -425,7 +391,13 @@ internal static class AgeCommand
         public override bool CanSeek => false;
         public override bool CanWrite => true;
         public override long Length => Inner.Length;
-        public override long Position { get => Inner.Position; set => Inner.Position = value; }
+
+        public override long Position
+        {
+            get => Inner.Position;
+            set => Inner.Position = value;
+        }
+
         public override void Flush() => _inner?.Flush();
         public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();

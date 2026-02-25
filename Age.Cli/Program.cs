@@ -1,23 +1,8 @@
-namespace Age.Cli;
+using Age.Cli;
 
-internal static class Program
+return args.Length switch
 {
-    static int Main(string[] args)
-    {
-        var processName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "age");
-
-        if (processName.Contains("keygen", StringComparison.OrdinalIgnoreCase)
-            || (args.Length > 0 && args[0] == "keygen"))
-        {
-            var keygenArgs = args.Length > 0 && args[0] == "keygen" ? args[1..] : args;
-            return KeygenCommand.Run(keygenArgs);
-        }
-
-        if (args.Length > 0 && args[0] == "inspect")
-        {
-            return InspectCommand.Run(args[1..]);
-        }
-
-        return AgeCommand.Run(args);
-    }
-}
+    > 0 when args[0] == "keygen" => KeygenCommand.Run(args[1..]),
+    > 0 when args[0] == "inspect" => InspectCommand.Run(args[1..]),
+    _ => AgeCommand.Run(args)
+};
