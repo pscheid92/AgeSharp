@@ -36,7 +36,7 @@ test:
 
 # Interoperability test vs Go age CLI
 interop: $(OUT_DIR)/$(BINARY)
-	./interop_test.sh $(OUT_DIR)/$(BINARY)
+	./scripts/interop_test.sh $(OUT_DIR)/$(BINARY)
 
 # Run all benchmarks
 bench:

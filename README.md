@@ -238,6 +238,11 @@ make bench      # Run BenchmarkDotNet benchmarks
 make interop    # Interoperability tests vs Go age CLI
 ```
 
+## Benchmarks
+
+See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for detailed benchmark results
+comparing AgeSharp with the Go and Rust implementations.
+
 ## Feature comparison
 
 See [FEATURE_COMPARISON.md](FEATURE_COMPARISON.md) for a detailed comparison
