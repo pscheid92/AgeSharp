@@ -245,7 +245,7 @@ comparing AgeSharp with the Go and Rust implementations.
 
 ## Feature comparison
 
-See [FEATURE_COMPARISON.md](FEATURE_COMPARISON.md) for a detailed comparison
+See [docs/FEATURE_COMPARISON.md](docs/FEATURE_COMPARISON.md) for a detailed comparison
 with the Go reference implementation and Rust's `rage`.
 
 ## See also
