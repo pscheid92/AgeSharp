@@ -18,7 +18,7 @@ internal static class AsciiArmor
 
         var marker = Encoding.ASCII.GetBytes(BeginMarker);
         var buf = new byte[marker.Length];
-        var read = ReadFully(stream, buf);
+        var read = ReadChunk(stream, buf);
 
         stream.Position = pos;
         return read == marker.Length && buf.AsSpan().SequenceEqual(marker);
@@ -39,23 +39,6 @@ internal static class AsciiArmor
             stream.Position--;
             break;
         }
-    }
-
-    private static int ReadFully(Stream stream, byte[] buffer)
-    {
-        var total = 0;
-
-        while (total < buffer.Length)
-        {
-            var read = stream.Read(buffer, total, buffer.Length - total);
-
-            if (read == 0)
-                break;
-
-            total += read;
-        }
-
-        return total;
     }
 
     public static Stream Dearmor(Stream input)
@@ -85,24 +68,44 @@ internal static class AsciiArmor
 
     public static void Armor(Stream input, Stream output)
     {
-        using var inputMs = new MemoryStream();
-        input.CopyTo(inputMs);
-        var data = inputMs.ToArray();
+        const int bytesPerLine = 48; // 48 bytes encode to exactly 64 base64 chars
+        var readBuffer = new byte[bytesPerLine];
+        Span<char> charBuffer = stackalloc char[ColumnsPerLine + 4]; // room for padding
 
         var writer = new StreamWriter(output, leaveOpen: true) { NewLine = "\n" };
         writer.WriteLine(BeginMarker);
 
-        var b64 = Convert.ToBase64String(data);
-
-        for (var i = 0; i < b64.Length; i += ColumnsPerLine)
+        while (true)
         {
-            var len = Math.Min(ColumnsPerLine, b64.Length - i);
-            writer.Write(b64.AsSpan(i, len));
+            var bytesRead = ReadChunk(input, readBuffer);
+
+            if (bytesRead == 0)
+                break;
+
+            Convert.TryToBase64Chars(readBuffer.AsSpan(0, bytesRead), charBuffer, out var charsWritten);
+            writer.Write(charBuffer[..charsWritten]);
             writer.WriteLine();
         }
 
         writer.WriteLine(EndMarker);
         writer.Flush();
+    }
+
+    private static int ReadChunk(Stream stream, byte[] buffer)
+    {
+        var total = 0;
+
+        while (total < buffer.Length)
+        {
+            var read = stream.Read(buffer, total, buffer.Length - total);
+
+            if (read == 0)
+                break;
+
+            total += read;
+        }
+
+        return total;
     }
 
 }

@@ -12,31 +12,31 @@ All times in milliseconds (lower is better).
 
 | Size | Op | age (Go) | rage (Rust) | age-sharp (C#) |
 |---|---|---:|---:|---:|
-| 1 KB | enc | 28 ms | 29 ms | 30 ms |
-| 1 KB | dec | 29 ms | 28 ms | 29 ms |
-| 64 KB | enc | 29 ms | 29 ms | 30 ms |
-| 64 KB | dec | 28 ms | 29 ms | 30 ms |
-| 1 MB | enc | 31 ms | 33 ms | 34 ms |
-| 1 MB | dec | 32 ms | 37 ms | 34 ms |
-| 10 MB | enc | 52 ms | 83 ms | 90 ms |
-| 10 MB | dec | 44 ms | 75 ms | 73 ms |
-| 100 MB | enc | 278 ms | 532 ms | 431 ms |
-| 100 MB | dec | 168 ms | 486 ms | 411 ms |
+| 1 KB | enc | 24 ms | 23 ms | 24 ms |
+| 1 KB | dec | 24 ms | 23 ms | 25 ms |
+| 64 KB | enc | 24 ms | 27 ms | 26 ms |
+| 64 KB | dec | 26 ms | 25 ms | 26 ms |
+| 1 MB | enc | 26 ms | 29 ms | 31 ms |
+| 1 MB | dec | 27 ms | 30 ms | 30 ms |
+| 10 MB | enc | 47 ms | 68 ms | 68 ms |
+| 10 MB | dec | 40 ms | 70 ms | 63 ms |
+| 100 MB | enc | 189 ms | 459 ms | 467 ms |
+| 100 MB | dec | 156 ms | 470 ms | 384 ms |
 
 ### ASCII Armor (-a)
 
 | Size | Op | age (Go) | rage (Rust) | age-sharp (C#) |
 |---|---|---:|---:|---:|
-| 1 KB | enc | 28 ms | 29 ms | 29 ms |
-| 1 KB | dec | 28 ms | 28 ms | 30 ms |
-| 64 KB | enc | 33 ms | 31 ms | 30 ms |
-| 64 KB | dec | 29 ms | 28 ms | 29 ms |
-| 1 MB | enc | 79 ms | 64 ms | 49 ms |
-| 1 MB | dec | 34 ms | 34 ms | 36 ms |
-| 10 MB | enc | 102 ms | 93 ms | 118 ms |
-| 10 MB | dec | 90 ms | 110 ms | 86 ms |
-| 100 MB | enc | 524 ms | 622 ms | 754 ms |
-| 100 MB | dec | 365 ms | 616 ms | 591 ms |
+| 1 KB | enc | 25 ms | 24 ms | 25 ms |
+| 1 KB | dec | 25 ms | 24 ms | 25 ms |
+| 64 KB | enc | 24 ms | 25 ms | 25 ms |
+| 64 KB | dec | 25 ms | 24 ms | 25 ms |
+| 1 MB | enc | 31 ms | 29 ms | 32 ms |
+| 1 MB | dec | 28 ms | 31 ms | 31 ms |
+| 10 MB | enc | 77 ms | 75 ms | 87 ms |
+| 10 MB | dec | 58 ms | 82 ms | 78 ms |
+| 100 MB | enc | 497 ms | 555 ms | 601 ms |
+| 100 MB | dec | 341 ms | 651 ms | 596 ms |
 
 ### Key Takeaways
 
@@ -66,13 +66,13 @@ process startup overhead.
 
 | Operation | 1 KB | 64 KB | 1 MB |
 |---|---:|---:|---:|
-| Encrypt | 101 us | 296 us | 3,411 us |
-| Decrypt | 102 us | 291 us | 3,355 us |
-| Encrypt (armored) | 102 us | 360 us | 4,986 us |
-| Decrypt (armored) | 102 us | 364 us | 4,954 us |
+| Encrypt | 99 us | 300 us | 3,481 us |
+| Decrypt | 98 us | 291 us | 3,369 us |
+| Encrypt (armored) | 101 us | 358 us | 4,275 us |
+| Decrypt (armored) | 103 us | 369 us | 4,892 us |
 
 Throughput at 1 MB: ~300 MB/s for encrypt/decrypt.
-Armored adds ~45% overhead due to Base64 encoding/decoding.
+Armored adds ~30-45% overhead due to Base64 encoding/decoding.
 
 ### Key Generation
 
