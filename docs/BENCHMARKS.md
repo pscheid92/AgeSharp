@@ -66,12 +66,13 @@ process startup overhead.
 
 | Operation | 1 KB | 64 KB | 1 MB |
 |---|---:|---:|---:|
-| Encrypt | 97 us | 291 us | 3,378 us |
-| Decrypt | 99 us | 287 us | 3,330 us |
-| Encrypt (armored) | 100 us | 356 us | 4,706 us |
+| Encrypt | 101 us | 296 us | 3,411 us |
+| Decrypt | 102 us | 291 us | 3,355 us |
+| Encrypt (armored) | 102 us | 360 us | 4,986 us |
+| Decrypt (armored) | 102 us | 364 us | 4,954 us |
 
 Throughput at 1 MB: ~300 MB/s for encrypt/decrypt.
-Armored is ~30% slower due to Base64 encoding overhead.
+Armored adds ~45% overhead due to Base64 encoding/decoding.
 
 ### Key Generation
 

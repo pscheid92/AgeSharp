@@ -61,4 +61,12 @@ public class EncryptDecryptBenchmarks
         using var output = new MemoryStream();
         AgeEncrypt.Encrypt(input, output, armor: true, _recipient);
     }
+
+    [Benchmark]
+    public void DecryptArmored()
+    {
+        using var input = new MemoryStream(_armoredCiphertext);
+        using var output = new MemoryStream();
+        AgeEncrypt.Decrypt(input, output, _identity);
+    }
 }
