@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Text;
 
 namespace Age.Format;
@@ -59,90 +58,29 @@ internal static class AsciiArmor
         return total;
     }
 
-    public static MemoryStream Dearmor(Stream input)
+    public static Stream Dearmor(Stream input)
     {
-        using var ms = new MemoryStream();
-        input.CopyTo(ms);
-        var allBytes = ms.ToArray();
-        var pos = 0;
+        var reader = new StreamReader(input, Encoding.ASCII, detectEncodingFromByteOrderMarks: false,
+            bufferSize: 4096, leaveOpen: false);
 
-        // Skip leading whitespace (allowed per spec)
-        while (pos < allBytes.Length && IsWhitespace(allBytes[pos]))
-            pos++;
+        // Skip leading whitespace (allowed per spec).
+        // The old byte-level parser skipped individual whitespace bytes, so
+        // "  \n\t-----BEGIN AGE ENCRYPTED FILE-----" is valid. With line-based
+        // reading we skip blank lines, then TrimStart the marker line.
+        string? line;
 
-        var beginLine = ReadLine(allBytes, ref pos) ?? throw new AgeArmorException("empty armored data");
-        if (beginLine != BeginMarker)
-            throw new AgeArmorException($"expected begin marker, got: {beginLine}");
-
-        var bodyBytes = ReadBodyLines(allBytes, ref pos);
-
-        // Skip trailing whitespace (allowed per spec)
-        while (pos < allBytes.Length)
+        do
         {
-            if (!IsWhitespace(allBytes[pos]))
-                throw new AgeArmorException("trailing data after end marker");
+            line = reader.ReadLine();
+        } while (line != null && line.AsSpan().Trim().Length == 0);
 
-            pos++;
-        }
+        if (line == null)
+            throw new AgeArmorException("empty armored data");
 
-        return new MemoryStream(bodyBytes.ToArray());
-    }
+        if (line.TrimStart() != BeginMarker)
+            throw new AgeArmorException($"expected begin marker, got: {line}");
 
-    private static List<byte> ReadBodyLines(byte[] allBytes, ref int pos)
-    {
-        var bodyBytes = new List<byte>();
-        var lastBodyLineWasShort = false;
-
-        while (true)
-        {
-            var line = ReadLine(allBytes, ref pos) ?? throw new AgeArmorException("unexpected end of armored data");
-
-            if (line == EndMarker)
-                return bodyBytes;
-
-            ValidateBodyLine(line, ref lastBodyLineWasShort);
-            bodyBytes.AddRange(DecodeBase64Line(line));
-        }
-    }
-
-    private static void ValidateBodyLine(string line, ref bool lastBodyLineWasShort)
-    {
-        if (line.Length == 0)
-            throw new AgeArmorException("empty line in armor body");
-
-        if (line[0] is ' ' or '\t' || line[^1] is ' ' or '\t')
-            throw new AgeArmorException("whitespace in armor body line");
-
-        if (line.Length > ColumnsPerLine)
-            throw new AgeArmorException($"armor body line exceeds {ColumnsPerLine} characters");
-
-        if (lastBodyLineWasShort)
-            throw new AgeArmorException("short line in armor body is not the last line");
-
-        if (line.Length < ColumnsPerLine)
-            lastBodyLineWasShort = true;
-
-        ValidateBase64Chars(line);
-    }
-
-    private static byte[] DecodeBase64Line(string line)
-    {
-        byte[] decoded;
-
-        try
-        {
-            decoded = Convert.FromBase64String(line);
-        }
-        catch (FormatException ex)
-        {
-            throw new AgeArmorException($"invalid base64 in armor: {ex.Message}");
-        }
-
-        var reencoded = Convert.ToBase64String(decoded);
-
-        return reencoded == line
-            ? decoded
-            : throw new AgeArmorException("non-canonical base64 in armor");
+        return new DearmorStream(reader);
     }
 
     public static void Armor(Stream input, Stream output)
@@ -167,39 +105,4 @@ internal static class AsciiArmor
         writer.Flush();
     }
 
-    private static string? ReadLine(byte[] data, ref int pos)
-    {
-        if (pos >= data.Length)
-            return null;
-
-        var start = pos;
-
-        while (pos < data.Length && data[pos] != '\n')
-            pos++;
-
-        var end = pos;
-
-        if (pos < data.Length)
-            pos++; // skip the \n
-
-        // Strip trailing \r if present
-        if (end > start && data[end - 1] == '\r')
-            end--;
-
-        return Encoding.ASCII.GetString(data, start, end - start);
-    }
-
-    private static bool IsWhitespace(byte b) =>
-        b is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n';
-
-    private static readonly SearchValues<char> Base64Chars =
-        SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=");
-
-    private static void ValidateBase64Chars(string line)
-    {
-        var invalid = line.AsSpan().IndexOfAnyExcept(Base64Chars);
-
-        if (invalid >= 0)
-            throw new AgeArmorException($"invalid character in armor body: '{line[invalid]}'");
-    }
 }

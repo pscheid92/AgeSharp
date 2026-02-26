@@ -472,6 +472,13 @@ public class HeaderTests
 
 public class AsciiArmorTests
 {
+    private static byte[] ReadAllBytes(Stream stream)
+    {
+        using var ms = new MemoryStream();
+        stream.CopyTo(ms);
+        return ms.ToArray();
+    }
+
     [Fact]
     public void Armor_Dearmor_RoundTrip()
     {
@@ -484,7 +491,7 @@ public class AsciiArmorTests
 
         armored.Position = 0;
         using var dearmored = AsciiArmor.Dearmor(armored);
-        Assert.Equal(data, dearmored.ToArray());
+        Assert.Equal(data, ReadAllBytes(dearmored));
     }
 
     [Fact]
@@ -520,7 +527,7 @@ public class AsciiArmorTests
     {
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\nAAAA\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => AsciiArmor.Dearmor(stream));
+        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -534,7 +541,7 @@ public class AsciiArmorTests
         // Append trailing non-whitespace
         armored.Write("extra"u8);
         armored.Position = 0;
-        Assert.Throws<AgeArmorException>(() => AsciiArmor.Dearmor(armored));
+        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(armored); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -542,7 +549,7 @@ public class AsciiArmorTests
     {
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\n\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => AsciiArmor.Dearmor(stream));
+        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -564,7 +571,7 @@ public class AsciiArmorTests
 
         using var wsStream = new MemoryStream(withWs);
         using var dearmored = AsciiArmor.Dearmor(wsStream);
-        Assert.Equal(data, dearmored.ToArray());
+        Assert.Equal(data, ReadAllBytes(dearmored));
     }
 
     [Fact]
@@ -590,7 +597,7 @@ public class AsciiArmorTests
     {
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\n AAAA\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => AsciiArmor.Dearmor(stream));
+        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -599,7 +606,7 @@ public class AsciiArmorTests
         var longLine = new string('A', 68); // > 64
         var text = $"-----BEGIN AGE ENCRYPTED FILE-----\n{longLine}\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => AsciiArmor.Dearmor(stream));
+        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -608,7 +615,7 @@ public class AsciiArmorTests
         // Short line followed by another body line
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\nAA==\nAAAA\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => AsciiArmor.Dearmor(stream));
+        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -616,7 +623,7 @@ public class AsciiArmorTests
     {
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\n@@@@\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => AsciiArmor.Dearmor(stream));
+        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -630,7 +637,7 @@ public class AsciiArmorTests
         // Let's try: "AB==" → decodes to [0], canonical for [0] is "AA=="
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\nAB==\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => AsciiArmor.Dearmor(stream));
+        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -647,7 +654,7 @@ public class AsciiArmorTests
         var crlfStr = armoredStr.Replace("\n", "\r\n");
         using var crlfStream = new MemoryStream(Encoding.ASCII.GetBytes(crlfStr));
         using var dearmored = AsciiArmor.Dearmor(crlfStream);
-        Assert.Equal(data, dearmored.ToArray());
+        Assert.Equal(data, ReadAllBytes(dearmored));
     }
 
     [Fact]
@@ -662,7 +669,7 @@ public class AsciiArmorTests
         armored.Write("\n  \n"u8);
         armored.Position = 0;
         using var dearmored = AsciiArmor.Dearmor(armored);
-        Assert.Equal(data, dearmored.ToArray());
+        Assert.Equal(data, ReadAllBytes(dearmored));
     }
 }
 

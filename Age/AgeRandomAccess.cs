@@ -173,7 +173,14 @@ public sealed class AgeRandomAccess : IDisposable
     private static (Stream binaryInput, bool needsDispose) DeArmorInput(Stream ciphertext)
     {
         if (AsciiArmor.IsArmored(ciphertext))
-            return (AsciiArmor.Dearmor(ciphertext), true);
+        {
+            // RandomAccess needs a seekable stream, so materialize the dearmored data.
+            using var dearmored = AsciiArmor.Dearmor(ciphertext);
+            var ms = new MemoryStream();
+            dearmored.CopyTo(ms);
+            ms.Position = 0;
+            return (ms, true);
+        }
 
         ciphertext.Position = 0;
         return (ciphertext, false);
