@@ -80,6 +80,9 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         if (!isFinal)
             savedByte = _ciphertextBuffer[StreamEncryption.EncryptedChunkSize];
 
+        if (_currentPlaintext is not null)
+            CryptographicOperations.ZeroMemory(_currentPlaintext);
+
         _currentPlaintext = StreamEncryption.DecryptChunk(payloadKey, _counter, isFinal, _ciphertextBuffer.AsSpan(0, chunkLen));
         if (!isFinal)
         {
@@ -141,6 +144,8 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         if (disposing)
         {
             CryptographicOperations.ZeroMemory(payloadKey);
+            if (_currentPlaintext is not null)
+                CryptographicOperations.ZeroMemory(_currentPlaintext);
             if (ownsStream) ciphertext.Dispose();
         }
 

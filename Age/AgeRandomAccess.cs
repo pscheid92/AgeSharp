@@ -65,6 +65,8 @@ public sealed class AgeRandomAccess : IDisposable
             var toCopy = Math.Min(available, buffer.Length - totalRead);
             plaintext.AsSpan(offsetInChunk, toCopy).CopyTo(buffer[totalRead..]);
 
+            CryptographicOperations.ZeroMemory(plaintext);
+
             totalRead += toCopy;
             currentOffset += toCopy;
         }

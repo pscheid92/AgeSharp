@@ -147,6 +147,7 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         if (disposing)
         {
             CryptographicOperations.ZeroMemory(payloadKey);
+            CryptographicOperations.ZeroMemory(_plaintextBuffer);
         }
 
         base.Dispose(disposing);
