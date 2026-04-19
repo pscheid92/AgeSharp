@@ -348,6 +348,25 @@ public class RandomAccessTests
         Assert.Equal(0, read);
     }
 
+    [Fact]
+    public void Stream_SeekPastEnd_ReadReturnsZero()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = "short"u8.ToArray();
+
+        using var ciphertext = Encrypt(plaintext, identity.Recipient);
+        using var ra = new AgeRandomAccess(ciphertext, identity);
+        using var stream = ra.GetStream();
+
+        stream.Seek(1000, SeekOrigin.Begin);
+        Assert.Equal(1000, stream.Position);
+
+        var buf = new byte[10];
+        var read = stream.Read(buf);
+        Assert.Equal(0, read);
+        Assert.Equal(1000, stream.Position);
+    }
+
     private static MemoryStream Encrypt(byte[] plaintext, IRecipient recipient)
     {
         using var input = new MemoryStream(plaintext);
