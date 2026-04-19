@@ -32,11 +32,8 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
         for (var i = 0; i < stanzas.Count; i++)
         {
             var s = stanzas[i];
-            var args = new string[s.Args.Length + 2];
-            args[0] = i.ToString();
-            args[1] = s.Type;
-            Array.Copy(s.Args, 0, args, 2, s.Args.Length);
-            conn.WriteStanza("recipient-stanza", args, s.Body);
+            string[] args = [i.ToString(), s.Type, .. s.Args];
+            conn.WriteStanza("recipient-stanza", args, s.Body.ToArray());
         }
 
         conn.WriteStanza("done", [], []);

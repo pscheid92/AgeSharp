@@ -68,8 +68,8 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable
         if (stanza.Type != StanzaType)
             return null;
 
-        if (stanza.Args.Length != 1)
-            throw new AgeHeaderException($"mlkem768x25519 stanza must have exactly 1 argument, got {stanza.Args.Length}");
+        if (stanza.Args.Count != 1)
+            throw new AgeHeaderException($"mlkem768x25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");
 
         byte[] enc;
         try
@@ -85,7 +85,7 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable
             throw new AgeHeaderException($"mlkem768x25519 enc must be {XWing.EncSize} bytes, got {enc.Length}");
 
         return stanza.Body.Length == WrappedKeySize
-            ? HpkeHelper.OpenBase(enc, _seed, HpkeInfo, stanza.Body)
+            ? HpkeHelper.OpenBase(enc, _seed, HpkeInfo, stanza.Body.ToArray())
             : throw new AgeHeaderException($"mlkem768x25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
     }
 

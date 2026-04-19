@@ -206,7 +206,7 @@ public class StanzaTests
         Assert.Equal("X25519", stanza.Type);
         Assert.Single(stanza.Args);
         Assert.Equal("abc123", stanza.Args[0]);
-        Assert.Equal("test"u8.ToArray(), stanza.Body);
+        Assert.Equal("test"u8.ToArray(), stanza.Body.ToArray());
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public class StanzaTests
         var stanza = Stanza.Parse(reader);
         Assert.Equal("scrypt", stanza.Type);
         Assert.Equal(["salt", "18"], stanza.Args);
-        Assert.Empty(stanza.Body);
+        Assert.True(stanza.Body.IsEmpty);
     }
 
     [Fact]
@@ -233,7 +233,7 @@ public class StanzaTests
         var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var reader = new HeaderReader(stream);
         var stanza = Stanza.Parse(reader);
-        Assert.Equal(body, stanza.Body);
+        Assert.Equal(body, stanza.Body.ToArray());
     }
 
     [Fact]
@@ -270,7 +270,7 @@ public class StanzaTests
 
         Assert.Equal(original.Type, parsed.Type);
         Assert.Equal(original.Args, parsed.Args);
-        Assert.Equal(original.Body, parsed.Body);
+        Assert.Equal(original.Body.ToArray(), parsed.Body.ToArray());
     }
 
     [Fact]
@@ -282,7 +282,7 @@ public class StanzaTests
         ms.Position = 0;
         var reader = new HeaderReader(ms);
         var parsed = Stanza.Parse(reader);
-        Assert.Empty(parsed.Body);
+        Assert.True(parsed.Body.IsEmpty);
     }
 
     [Fact]
@@ -297,7 +297,7 @@ public class StanzaTests
         ms.Position = 0;
         var reader = new HeaderReader(ms);
         var parsed = Stanza.Parse(reader);
-        Assert.Equal(body, parsed.Body);
+        Assert.Equal(body, parsed.Body.ToArray());
     }
 
     [Fact]

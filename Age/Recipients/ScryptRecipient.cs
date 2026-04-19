@@ -35,8 +35,8 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
     {
         if (stanza.Type != StanzaType) return null;
 
-        if (stanza.Args.Length != 2)
-            throw new AgeHeaderException($"scrypt stanza must have 2 arguments, got {stanza.Args.Length}");
+        if (stanza.Args.Count != 2)
+            throw new AgeHeaderException($"scrypt stanza must have 2 arguments, got {stanza.Args.Count}");
 
         byte[] salt;
         try
@@ -64,7 +64,7 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
         var wrapKey = DeriveWrapKey(passphrase, salt, stanzaWorkFactor);
 
         var zeroNonce = new byte[NonceSize];
-        var fileKey = CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body);
+        var fileKey = CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span);
         CryptographicOperations.ZeroMemory(wrapKey);
 
         // AEAD auth failure → wrong passphrase, return null to signal no match

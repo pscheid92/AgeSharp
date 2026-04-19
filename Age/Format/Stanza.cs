@@ -2,11 +2,21 @@ using Age.Crypto;
 
 namespace Age.Format;
 
-public sealed class Stanza(string type, string[] args, byte[] body)
+public sealed class Stanza
 {
-    public string Type => type;
-    public string[] Args => args;
-    public byte[] Body => body;
+    private readonly string[] _args;
+    private readonly byte[] _body;
+
+    public Stanza(string type, string[] args, byte[] body)
+    {
+        Type = type;
+        _args = (string[])args.Clone();
+        _body = (byte[])body.Clone();
+    }
+
+    public string Type { get; }
+    public IReadOnlyList<string> Args => _args;
+    public ReadOnlyMemory<byte> Body => _body;
 
     internal void WriteTo(Stream stream)
     {
@@ -14,7 +24,7 @@ public sealed class Stanza(string type, string[] args, byte[] body)
         writer.Write("-> ");
         writer.Write(Type);
 
-        foreach (var arg in Args)
+        foreach (var arg in _args)
         {
             writer.Write(' ');
             writer.Write(arg);
@@ -23,7 +33,7 @@ public sealed class Stanza(string type, string[] args, byte[] body)
         writer.Write('\n');
         writer.Flush();
 
-        var encoded = Base64Unpadded.Encode(Body);
+        var encoded = Base64Unpadded.Encode(_body);
         var offset = 0;
 
         while (offset < encoded.Length)

@@ -45,8 +45,8 @@ public sealed class SshRsaIdentity : IIdentity, IDisposable
         if (stanza.Type != StanzaType)
             return null;
 
-        if (stanza.Args.Length != 1)
-            throw new AgeHeaderException($"ssh-rsa stanza must have exactly 1 argument, got {stanza.Args.Length}");
+        if (stanza.Args.Count != 1)
+            throw new AgeHeaderException($"ssh-rsa stanza must have exactly 1 argument, got {stanza.Args.Count}");
 
         // Check tag matches
         if (stanza.Args[0] != _tag)
@@ -57,7 +57,7 @@ public sealed class SshRsaIdentity : IIdentity, IDisposable
 
         try
         {
-            return oaep.ProcessBlock(stanza.Body, 0, stanza.Body.Length);
+            return oaep.ProcessBlock(stanza.Body.ToArray(), 0, stanza.Body.Length);
         }
         catch (InvalidCipherTextException)
         {

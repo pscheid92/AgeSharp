@@ -56,8 +56,8 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         if (stanza.Type != StanzaType)
             return null;
 
-        if (stanza.Args.Length != 2)
-            throw new AgeHeaderException($"ssh-ed25519 stanza must have exactly 2 arguments, got {stanza.Args.Length}");
+        if (stanza.Args.Count != 2)
+            throw new AgeHeaderException($"ssh-ed25519 stanza must have exactly 2 arguments, got {stanza.Args.Count}");
 
         // Check tag matches
         var stanzaTag = stanza.Args[0];
@@ -111,7 +111,7 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         try
         {
             var zeroNonce = new byte[12];
-            return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body);
+            return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span);
         }
         finally
         {

@@ -79,8 +79,8 @@ public sealed class X25519Identity : IIdentity, IDisposable
 
         if (stanza.Type != StanzaType) return null;
 
-        if (stanza.Args.Length != 1)
-            throw new AgeHeaderException($"X25519 stanza must have exactly 1 argument, got {stanza.Args.Length}");
+        if (stanza.Args.Count != 1)
+            throw new AgeHeaderException($"X25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");
 
         byte[] ephPubBytes;
         try
@@ -130,7 +130,7 @@ public sealed class X25519Identity : IIdentity, IDisposable
             var zeroNonce = new byte[12];
 
             // AEAD failure → wrong recipient, not our stanza
-            return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body);
+            return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span);
         }
         finally
         {

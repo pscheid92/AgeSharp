@@ -85,7 +85,7 @@ internal static class InspectCommand
             Version: "age-encryption.org/v1",
             Armored: header.IsArmored,
             PostQuantum: header.Recipients.Any(s => PostQuantumTypes.Contains(s.Type)),
-            Recipients: header.Recipients.Select((s, i) => new InspectRecipient(i, s.Type, s.Args)).ToArray(),
+            Recipients: header.Recipients.Select((s, i) => new InspectRecipient(i, s.Type, [.. s.Args])).ToArray(),
             Size: new InspectSize(sizes.Header, sizes.Overhead, sizes.Payload, sizes.Total)
         );
 
