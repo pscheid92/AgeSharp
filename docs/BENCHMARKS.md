@@ -12,42 +12,46 @@ All times in milliseconds (lower is better).
 
 | Size | Op | age (Go) | rage (Rust) | age-sharp (C#) |
 |---|---|---:|---:|---:|
-| 1 KB | enc | 23 ms | 22 ms | 23 ms |
-| 1 KB | dec | 23 ms | 22 ms | 23 ms |
-| 64 KB | enc | 22 ms | 22 ms | 23 ms |
-| 64 KB | dec | 22 ms | 22 ms | 29 ms |
-| 1 MB | enc | 25 ms | 24 ms | 26 ms |
-| 1 MB | dec | 23 ms | 26 ms | 26 ms |
-| 10 MB | enc | 37 ms | 49 ms | 48 ms |
-| 10 MB | dec | 36 ms | 53 ms | 48 ms |
-| 100 MB | enc | 161 ms | 287 ms | 242 ms |
-| 100 MB | dec | 148 ms | 329 ms | 259 ms |
+| 1 KB | enc | 21 ms | 22 ms | 23 ms |
+| 1 KB | dec | 22 ms | 21 ms | 22 ms |
+| 64 KB | enc | 21 ms | 21 ms | 22 ms |
+| 64 KB | dec | 21 ms | 37 ms | 23 ms |
+| 1 MB | enc | 25 ms | 24 ms | 25 ms |
+| 1 MB | dec | 23 ms | 25 ms | 26 ms |
+| 10 MB | enc | 37 ms | 48 ms | 43 ms |
+| 10 MB | dec | 35 ms | 57 ms | 55 ms |
+| 100 MB | enc | 168 ms | 304 ms | 224 ms |
+| 100 MB | dec | 154 ms | 331 ms | 250 ms |
 
 ### ASCII Armor (-a)
 
 | Size | Op | age (Go) | rage (Rust) | age-sharp (C#) |
 |---|---|---:|---:|---:|
-| 1 KB | enc | 22 ms | 22 ms | 23 ms |
-| 1 KB | dec | 22 ms | 22 ms | 23 ms |
-| 64 KB | enc | 22 ms | 23 ms | 24 ms |
-| 64 KB | dec | 23 ms | 22 ms | 23 ms |
-| 1 MB | enc | 27 ms | 25 ms | 27 ms |
-| 1 MB | dec | 25 ms | 26 ms | 27 ms |
-| 10 MB | enc | 69 ms | 58 ms | 62 ms |
-| 10 MB | dec | 53 ms | 65 ms | 63 ms |
-| 100 MB | enc | 449 ms | 365 ms | 363 ms |
-| 100 MB | dec | 330 ms | 461 ms | 453 ms |
+| 1 KB | enc | 29 ms | 22 ms | 26 ms |
+| 1 KB | dec | 23 ms | 21 ms | 29 ms |
+| 64 KB | enc | 24 ms | 28 ms | 25 ms |
+| 64 KB | dec | 27 ms | 33 ms | 35 ms |
+| 1 MB | enc | 34 ms | 33 ms | 29 ms |
+| 1 MB | dec | 30 ms | 34 ms | 31 ms |
+| 10 MB | enc | 74 ms | 59 ms | 50 ms |
+| 10 MB | dec | 55 ms | 68 ms | 62 ms |
+| 100 MB | enc | 465 ms | 359 ms | 263 ms |
+| 100 MB | dec | 324 ms | 454 ms | 418 ms |
 
 ### Key Takeaways
 
 - **Up to 1 MB**: All three implementations are within noise of each other
-  (~22-30 ms), dominated by process startup overhead.
-- **Binary 100 MB**: Go still leads at 148-161 ms thanks to assembly-optimized
-  ChaCha20-Poly1305. AgeSharp (242-259 ms) now beats rage (287-329 ms) after
+  (~22-35 ms), dominated by process startup overhead.
+- **Binary 100 MB**: Go still leads at 154-168 ms thanks to assembly-optimized
+  ChaCha20-Poly1305. AgeSharp (224-250 ms) now beats rage (304-331 ms) after
   switching to .NET's hardware-accelerated `ChaCha20Poly1305`.
-- **Armored 100 MB encrypt**: AgeSharp (363 ms) now ties rage (365 ms) and
-  beats Go (449 ms) after switching the armor path to stream ciphertext
-  directly into `AsciiArmor.Armor` without an intermediate buffer.
+- **Armored 100 MB encrypt**: AgeSharp (263 ms) now beats both rage (359 ms)
+  and Go (465 ms) after routing the push-encrypt path through `EncryptStream`
+  + `ArmorStream` without any intermediate buffer.
+- **Bounded memory**: all public push APIs (`Encrypt`, `Decrypt`,
+  `EncryptDetached`, `DecryptDetached`) now stream chunk-by-chunk. Memory
+  stays O(1) regardless of input size — a 1 GiB file uses the same working
+  set as a 1 MB file.
 - **Startup**: The AOT-compiled AgeSharp binary starts in ~22 ms,
   comparable to native Go and Rust binaries.
 
@@ -68,34 +72,34 @@ process startup overhead.
 
 | Operation | 1 KB | 64 KB | 1 MB |
 |---|---:|---:|---:|
-| Encrypt | 97 us | 200 us | 1,990 us |
-| Decrypt | 96 us | 210 us | 2,194 us |
-| Encrypt (armored) | 99 us | 251 us | 2,656 us |
-| Decrypt (armored) | 100 us | 286 us | 3,761 us |
+| Encrypt | 98 us | 203 us | 2,098 us |
+| Decrypt | 97 us | 213 us | 2,135 us |
+| Encrypt (armored) | 99 us | 231 us | 2,448 us |
+| Decrypt (armored) | 99 us | 293 us | 3,380 us |
 
-Throughput at 1 MB: ~500 MB/s encrypt, ~455 MB/s decrypt.
-Armored adds ~30-70% overhead due to Base64 encoding/decoding.
+Throughput at 1 MB: ~490 MB/s encrypt, ~480 MB/s decrypt.
+Armored adds ~15-60% overhead due to Base64 encoding/decoding.
 
 ### Key Generation
 
 | Operation | Time | Allocated |
 |---|---:|---:|
-| X25519 | 1,974 ns | 880 B |
-| ML-KEM-768-X25519 | 251 ns | 88 B |
+| X25519 | 1,979 ns | 880 B |
+| ML-KEM-768-X25519 | 255 ns | 88 B |
 
 ### Recipient Wrap / Unwrap
 
 | Operation | Time | Allocated |
 |---|---:|---:|
 | X25519 Wrap | 87 us | 3.6 KB |
-| X25519 Unwrap | 85 us | 2.9 KB |
-| ML-KEM-768-X25519 Wrap | 137 us | 46.5 KB |
-| ML-KEM-768-X25519 Unwrap | 179 us | 69.9 KB |
-| Scrypt Wrap | 1,833 us | 1,035 KB |
-| Scrypt Unwrap | 1,833 us | 1,035 KB |
+| X25519 Unwrap | 84 us | 2.9 KB |
+| ML-KEM-768-X25519 Wrap | 137 us | 46.7 KB |
+| ML-KEM-768-X25519 Unwrap | 180 us | 69.9 KB |
+| Scrypt Wrap | 1,839 us | 1,035 KB |
+| Scrypt Unwrap | 1,963 us | 1,035 KB |
 
 X25519 is the fastest at ~85 us. ML-KEM hybrid adds ~60-100% overhead
-(still sub-200 us). Scrypt is intentionally slow (~1.8 ms) due to the
+(still sub-200 us). Scrypt is intentionally slow (~1.9 ms) due to the
 password-hashing work factor.
 
 ### Random Access
