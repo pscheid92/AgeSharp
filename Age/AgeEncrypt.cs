@@ -21,10 +21,8 @@ public static class AgeEncrypt
 
         if (armor)
         {
-            using var buffer = new MemoryStream();
-            EncryptToStream(input, buffer, recipients);
-            buffer.Position = 0;
-            AsciiArmor.Armor(buffer, output);
+            using var ciphertextStream = EncryptReader(input, armor: false, recipients);
+            AsciiArmor.Armor(ciphertextStream, output);
         }
         else
         {
@@ -72,13 +70,8 @@ public static class AgeEncrypt
 
         if (armor)
         {
-            using var buffer = new MemoryStream();
-            EncryptToStream(plaintext, buffer, recipients);
-            buffer.Position = 0;
-            var armoredBuffer = new MemoryStream();
-            AsciiArmor.Armor(buffer, armoredBuffer);
-            armoredBuffer.Position = 0;
-            return armoredBuffer;
+            var ciphertextStream = EncryptReader(plaintext, armor: false, recipients);
+            return new ArmorStream(ciphertextStream);
         }
 
         var (header, fileKey) = BuildHeaderAndFileKey(recipients);
