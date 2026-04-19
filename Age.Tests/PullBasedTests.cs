@@ -204,4 +204,82 @@ public class PullBasedTests
 
         Assert.Equal(plaintext, output.ToArray());
     }
+
+    [Fact]
+    public void Armored_EncryptReader_LargePlaintext_RoundTrip()
+    {
+        // > 1 MiB forces EncryptStream to produce multiple chunks, and
+        // ArmorStream to cycle Begin → Body (many times) → End.
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[1_500_000];
+        new Random(42).NextBytes(plaintext);
+
+        using var input = new MemoryStream(plaintext);
+        using var encryptedStream = AgeEncrypt.EncryptReader(input, armor: true, identity.Recipient);
+
+        using var ciphertext = new MemoryStream();
+        encryptedStream.CopyTo(ciphertext);
+
+        ciphertext.Position = 0;
+        using var output = new MemoryStream();
+        AgeEncrypt.Decrypt(ciphertext, output, identity);
+
+        Assert.Equal(plaintext, output.ToArray());
+    }
+
+    [Fact]
+    public void Armored_EncryptReader_ByteByByteReads_RoundTrip()
+    {
+        // Stresses ArmorStream's scratch-drain loop: each Read call
+        // takes exactly one byte, crossing Begin/Body/End boundaries
+        // mid-scratch.
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[500];
+        new Random(42).NextBytes(plaintext);
+
+        using var input = new MemoryStream(plaintext);
+        using var encryptedStream = AgeEncrypt.EncryptReader(input, armor: true, identity.Recipient);
+
+        using var ciphertext = new MemoryStream();
+        var oneByte = new byte[1];
+        while (encryptedStream.Read(oneByte, 0, 1) == 1)
+            ciphertext.WriteByte(oneByte[0]);
+
+        ciphertext.Position = 0;
+        using var output = new MemoryStream();
+        AgeEncrypt.Decrypt(ciphertext, output, identity);
+
+        Assert.Equal(plaintext, output.ToArray());
+    }
+
+    [Fact]
+    public void Armored_EncryptReader_MatchesPushArmor_ByteForByte()
+    {
+        // ArmorStream (pull) and AsciiArmor.Armor (push) must produce
+        // identical wire output for the same ciphertext. Use a fixed
+        // file key / payload nonce via deterministic inputs isn't
+        // practical, so we compare two outputs from the same plaintext
+        // through each path — they differ only in the recipient stanza
+        // (random ephemeral key) and payload nonce (random). So we
+        // compare *lengths* and re-encrypt round-trip shape. The
+        // stronger invariant — that both decrypt back to the same
+        // plaintext — is implied by the other two tests passing.
+        //
+        // Here we instead check a tighter invariant: feed a fixed byte
+        // stream directly to both ArmorStream and AsciiArmor.Armor and
+        // require byte-identical output.
+        var fixedCiphertext = new byte[200_000];
+        new Random(7).NextBytes(fixedCiphertext);
+
+        using var pullSource = new MemoryStream(fixedCiphertext);
+        using var pullArmor = new Age.Format.ArmorStream(pullSource);
+        using var pullOut = new MemoryStream();
+        pullArmor.CopyTo(pullOut);
+
+        using var pushSource = new MemoryStream(fixedCiphertext);
+        using var pushOut = new MemoryStream();
+        Age.Format.AsciiArmor.Armor(pushSource, pushOut);
+
+        Assert.Equal(pushOut.ToArray(), pullOut.ToArray());
+    }
 }
