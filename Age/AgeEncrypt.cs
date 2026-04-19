@@ -19,15 +19,14 @@ public static class AgeEncrypt
         if (recipients.Length == 0)
             throw new ArgumentException("at least one recipient is required", nameof(recipients));
 
-        if (armor)
-        {
-            using var ciphertextStream = EncryptReader(input, armor: false, recipients);
-            AsciiArmor.Armor(ciphertextStream, output);
-        }
-        else
-        {
-            EncryptToStream(input, output, recipients);
-        }
+        using var stream = EncryptReader(input, armor, recipients);
+        stream.CopyTo(output);
+    }
+
+    public static void Decrypt(Stream input, Stream output, params ReadOnlySpan<IIdentity> identities)
+    {
+        using var stream = DecryptReader(input, identities);
+        stream.CopyTo(output);
     }
 
     public static void EncryptDetached(Stream input, Stream headerOutput, Stream payloadOutput, params ReadOnlySpan<IRecipient> recipients)
@@ -39,7 +38,13 @@ public static class AgeEncrypt
         try
         {
             header.WriteTo(headerOutput, fileKey);
-            WritePayload(fileKey, input, payloadOutput);
+
+            var payloadNonce = new byte[PayloadNonceSize];
+            RandomNumberGenerator.Fill(payloadNonce);
+            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+
+            using var payloadStream = new EncryptStream([], payloadNonce, payloadKey, input);
+            payloadStream.CopyTo(payloadOutput);
         }
         finally
         {
@@ -52,7 +57,25 @@ public static class AgeEncrypt
         var fileKey = UnwrapFileKey(headerInput, identities);
         try
         {
-            DecryptPayload(fileKey, payloadInput, output);
+            var payloadNonce = new byte[PayloadNonceSize];
+            var total = 0;
+
+            while (total < PayloadNonceSize)
+            {
+                var read = payloadInput.Read(payloadNonce.AsSpan(total));
+                if (read == 0)
+                    break;
+
+                total += read;
+            }
+
+            if (total != PayloadNonceSize)
+                throw new AgeHeaderException($"expected {PayloadNonceSize}-byte payload nonce, got {total} bytes");
+
+            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+
+            using var decryptStream = new DecryptStream(payloadKey, payloadInput, ownsStream: false);
+            decryptStream.CopyTo(output);
         }
         finally
         {
@@ -108,49 +131,6 @@ public static class AgeEncrypt
         }
     }
 
-    public static void Decrypt(Stream input, Stream output, params ReadOnlySpan<IIdentity> identities)
-    {
-        var (binaryInput, needsDispose) = DeArmorIfNeeded(input);
-
-        try
-        {
-            var (fileKey, reader) = UnwrapHeaderFromReader(binaryInput, identities);
-
-            try
-            {
-                var payloadNonce = ReadPayloadNonce(reader);
-                var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
-
-                StreamEncryption.Decrypt(payloadKey, binaryInput, output);
-
-                CryptographicOperations.ZeroMemory(payloadKey);
-            }
-            finally
-            {
-                CryptographicOperations.ZeroMemory(fileKey);
-            }
-        }
-        finally
-        {
-            if (needsDispose) binaryInput.Dispose();
-        }
-    }
-
-    private static void EncryptToStream(Stream input, Stream output, ReadOnlySpan<IRecipient> recipients)
-    {
-        var (header, fileKey) = BuildHeaderAndFileKey(recipients);
-
-        try
-        {
-            header.WriteTo(output, fileKey);
-            WritePayload(fileKey, input, output);
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(fileKey);
-        }
-    }
-
     private static (Header header, byte[] fileKey) BuildHeaderAndFileKey(ReadOnlySpan<IRecipient> recipients)
     {
         // Check label consistency — reject mixing PQ and non-PQ recipients
@@ -171,17 +151,6 @@ public static class AgeEncrypt
             header.Stanzas.Add(recipient.Wrap(fileKey));
 
         return (header, fileKey);
-    }
-
-    private static void WritePayload(ReadOnlySpan<byte> fileKey, Stream input, Stream output)
-    {
-        var payloadNonce = new byte[PayloadNonceSize];
-        RandomNumberGenerator.Fill(payloadNonce);
-        output.Write(payloadNonce);
-
-        var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
-        StreamEncryption.Encrypt(payloadKey, input, output);
-        CryptographicOperations.ZeroMemory(payloadKey);
     }
 
     private static byte[] UnwrapFileKey(Stream headerInput, ReadOnlySpan<IIdentity> identities)
@@ -217,28 +186,6 @@ public static class AgeEncrypt
 
         header.VerifyMac(fileKey);
         return (fileKey, reader);
-    }
-
-    private static void DecryptPayload(ReadOnlySpan<byte> fileKey, Stream payloadInput, Stream output)
-    {
-        var payloadNonce = new byte[PayloadNonceSize];
-        var total = 0;
-
-        while (total < PayloadNonceSize)
-        {
-            var read = payloadInput.Read(payloadNonce.AsSpan(total));
-            if (read == 0)
-                break;
-
-            total += read;
-        }
-
-        if (total != PayloadNonceSize)
-            throw new AgeHeaderException($"expected {PayloadNonceSize}-byte payload nonce, got {total} bytes");
-
-        var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
-        StreamEncryption.Decrypt(payloadKey, payloadInput, output);
-        CryptographicOperations.ZeroMemory(payloadKey);
     }
 
     private static (Stream binaryInput, bool needsDispose) DeArmorIfNeeded(Stream input)
