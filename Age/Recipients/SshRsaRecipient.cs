@@ -10,8 +10,6 @@ namespace Age.Recipients;
 
 public sealed class SshRsaRecipient : IRecipient
 {
-    private const string StanzaType = "ssh-rsa";
-    private const string OaepLabel = "age-encryption.org/v1/ssh-rsa";
     private const int MinKeyBits = 2048;
 
     private readonly RsaKeyParameters _publicKey;
@@ -37,12 +35,12 @@ public sealed class SshRsaRecipient : IRecipient
 
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
-        var oaep = new OaepEncoding(new RsaBlindedEngine(), new Sha256Digest(), new Sha256Digest(), Encoding.ASCII.GetBytes(OaepLabel));
+        var oaep = new OaepEncoding(new RsaBlindedEngine(), new Sha256Digest(), new Sha256Digest(), Encoding.ASCII.GetBytes(AgeProtocol.SshRsaOaepLabel));
 
         oaep.Init(true, _publicKey);
         var input = fileKey.ToArray();
         var body = oaep.ProcessBlock(input, 0, input.Length);
 
-        return new Stanza(StanzaType, [_tag], body);
+        return new Stanza(AgeProtocol.SshRsaStanzaType, [_tag], body);
     }
 }

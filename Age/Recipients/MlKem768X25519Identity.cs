@@ -6,12 +6,9 @@ namespace Age.Recipients;
 
 public sealed class MlKem768X25519Identity : IIdentity, IDisposable
 {
-    private const string StanzaType = "mlkem768x25519";
     private const string Hrp = "AGE-SECRET-KEY-PQ-";
     private const int SeedSize = 32;
     private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
-
-    private static readonly byte[] HpkeInfo = "age-encryption.org/mlkem768x25519"u8.ToArray();
 
     private readonly byte[] _seed; // 32 bytes
     private bool _disposed;
@@ -65,7 +62,7 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (stanza.Type != StanzaType)
+        if (stanza.Type != AgeProtocol.MlKemStanzaType)
             return null;
 
         if (stanza.Args.Count != 1)
@@ -85,7 +82,7 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable
             throw new AgeHeaderException($"mlkem768x25519 enc must be {XWing.EncSize} bytes, got {enc.Length}");
 
         return stanza.Body.Length == WrappedKeySize
-            ? HpkeHelper.OpenBase(enc, _seed, HpkeInfo, stanza.Body.ToArray())
+            ? HpkeHelper.OpenBase(enc, _seed, AgeProtocol.MlKemHpkeInfo, stanza.Body.ToArray())
             : throw new AgeHeaderException($"mlkem768x25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
     }
 

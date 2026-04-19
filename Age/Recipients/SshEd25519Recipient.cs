@@ -9,8 +9,6 @@ namespace Age.Recipients;
 
 public sealed class SshEd25519Recipient : IRecipient
 {
-    private const string StanzaType = "ssh-ed25519";
-    private const string HkdfLabel = "age-encryption.org/v1/ssh-ed25519";
     private const int KeySize = 32;
     private const int NonceSize = 12;
 
@@ -40,7 +38,7 @@ public sealed class SshEd25519Recipient : IRecipient
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
         // Compute tweak = HKDF(ikm=[], salt=sshWireBytes, info=label, 32)
-        var tweak = CryptoHelper.HkdfDerive([], _sshWireBytes, HkdfLabel, KeySize);
+        var tweak = CryptoHelper.HkdfDerive([], _sshWireBytes, AgeProtocol.SshEd25519HkdfLabel, KeySize);
 
         // tweakedKey = X25519.ScalarMult(tweak, _x25519PublicKey)
         var tweakPrivate = new X25519PrivateKeyParameters(tweak);
@@ -67,14 +65,14 @@ public sealed class SshEd25519Recipient : IRecipient
 
         // wrapKey = HKDF(ikm=sharedSecret, salt=ephPub||convertedKey, info=label, 32)
         var salt = (byte[])[.. ephPubBytes, .. _x25519PublicKey];
-        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, HkdfLabel, KeySize);
+        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, AgeProtocol.SshEd25519HkdfLabel, KeySize);
 
         try
         {
             var zeroNonce = new byte[NonceSize];
             var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
             var ephPubB64 = Base64Unpadded.Encode(ephPubBytes);
-            return new Stanza(StanzaType, [_tag, ephPubB64], body);
+            return new Stanza(AgeProtocol.SshEd25519StanzaType, [_tag, ephPubB64], body);
         }
         finally
         {

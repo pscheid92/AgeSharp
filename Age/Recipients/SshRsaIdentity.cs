@@ -11,9 +11,6 @@ namespace Age.Recipients;
 
 public sealed class SshRsaIdentity : IIdentity, IDisposable
 {
-    private const string StanzaType = "ssh-rsa";
-    private const string OaepLabel = "age-encryption.org/v1/ssh-rsa";
-
     private readonly RsaPrivateCrtKeyParameters _privateKey;
     private readonly byte[] _sshWireBytes;
     private readonly string _tag;
@@ -42,7 +39,7 @@ public sealed class SshRsaIdentity : IIdentity, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (stanza.Type != StanzaType)
+        if (stanza.Type != AgeProtocol.SshRsaStanzaType)
             return null;
 
         if (stanza.Args.Count != 1)
@@ -52,7 +49,7 @@ public sealed class SshRsaIdentity : IIdentity, IDisposable
         if (stanza.Args[0] != _tag)
             return null;
 
-        var oaep = new OaepEncoding(new RsaBlindedEngine(), new Sha256Digest(), new Sha256Digest(), Encoding.ASCII.GetBytes(OaepLabel));
+        var oaep = new OaepEncoding(new RsaBlindedEngine(), new Sha256Digest(), new Sha256Digest(), Encoding.ASCII.GetBytes(AgeProtocol.SshRsaOaepLabel));
         oaep.Init(false, _privateKey);
 
         try

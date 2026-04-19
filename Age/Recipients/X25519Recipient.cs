@@ -9,8 +9,6 @@ namespace Age.Recipients;
 
 public sealed class X25519Recipient : IRecipient
 {
-    private const string StanzaType = "X25519";
-    private const string HkdfLabel = "age-encryption.org/v1/X25519";
     private const string Hrp = "age";
     private const int KeySize = 32;
 
@@ -69,7 +67,7 @@ public sealed class X25519Recipient : IRecipient
         var recipientPubBytes = _publicKey.GetEncoded();
         var salt = (byte[])[.. ephPubBytes, .. recipientPubBytes];
 
-        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, HkdfLabel, KeySize);
+        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, AgeProtocol.X25519HkdfLabel, KeySize);
 
         try
         {
@@ -78,7 +76,7 @@ public sealed class X25519Recipient : IRecipient
             var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
 
             var ephPubB64 = Base64Unpadded.Encode(ephPubBytes);
-            return new Stanza(StanzaType, [ephPubB64], body);
+            return new Stanza(AgeProtocol.X25519StanzaType, [ephPubB64], body);
         }
         finally
         {

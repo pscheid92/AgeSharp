@@ -8,8 +8,6 @@ namespace Age.Recipients;
 
 public sealed class SshEd25519Identity : IIdentity, IDisposable
 {
-    private const string StanzaType = "ssh-ed25519";
-    private const string HkdfLabel = "age-encryption.org/v1/ssh-ed25519";
     private const int KeySize = 32;
     private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
 
@@ -53,7 +51,7 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (stanza.Type != StanzaType)
+        if (stanza.Type != AgeProtocol.SshEd25519StanzaType)
             return null;
 
         if (stanza.Args.Count != 2)
@@ -92,7 +90,7 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         agreement.CalculateAgreement(ephPub, rawSS, 0);
 
         // tweak = HKDF(ikm=[], salt=sshWireBytes, info=label, 32)
-        var tweak = CryptoHelper.HkdfDerive([], _sshWireBytes, HkdfLabel, KeySize);
+        var tweak = CryptoHelper.HkdfDerive([], _sshWireBytes, AgeProtocol.SshEd25519HkdfLabel, KeySize);
 
         // tweakedSS = X25519.ScalarMult(tweak, rawSS)
         var tweakPrivate = new X25519PrivateKeyParameters(tweak);
@@ -106,7 +104,7 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
 
         // wrapKey = HKDF(ikm=tweakedSS, salt=ephPub||convertedKey, info=label, 32)
         var salt = (byte[])[.. ephPubBytes, .. _x25519PublicKey];
-        var wrapKey = CryptoHelper.HkdfDerive(tweakedSS, salt, HkdfLabel, KeySize);
+        var wrapKey = CryptoHelper.HkdfDerive(tweakedSS, salt, AgeProtocol.SshEd25519HkdfLabel, KeySize);
 
         try
         {

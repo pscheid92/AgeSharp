@@ -9,8 +9,6 @@ namespace Age.Recipients;
 
 public sealed class X25519Identity : IIdentity, IDisposable
 {
-    private const string StanzaType = "X25519";
-    private const string HkdfLabel = "age-encryption.org/v1/X25519";
     private const string Hrp = "AGE-SECRET-KEY-";
     private const int KeySize = 32;
     private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
@@ -77,7 +75,7 @@ public sealed class X25519Identity : IIdentity, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (stanza.Type != StanzaType) return null;
+        if (stanza.Type != AgeProtocol.X25519StanzaType) return null;
 
         if (stanza.Args.Count != 1)
             throw new AgeHeaderException($"X25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");
@@ -122,7 +120,7 @@ public sealed class X25519Identity : IIdentity, IDisposable
         var recipientPubBytes = PublicKeyParams.GetEncoded();
         var salt = (byte[])[.. ephPubBytes, .. recipientPubBytes];
 
-        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, HkdfLabel, KeySize);
+        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, AgeProtocol.X25519HkdfLabel, KeySize);
 
         try
         {

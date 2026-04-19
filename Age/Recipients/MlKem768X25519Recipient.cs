@@ -5,10 +5,7 @@ namespace Age.Recipients;
 
 public sealed class MlKem768X25519Recipient : IRecipient
 {
-    private const string StanzaType = "mlkem768x25519";
     private const string Hrp = "age1pq";
-
-    private static readonly byte[] HpkeInfo = "age-encryption.org/mlkem768x25519"u8.ToArray();
 
     private readonly byte[] _publicKey; // 1216 bytes
 
@@ -44,8 +41,8 @@ public sealed class MlKem768X25519Recipient : IRecipient
 
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
-        var (enc, ct) = HpkeHelper.SealBase(_publicKey, HpkeInfo, fileKey.ToArray());
+        var (enc, ct) = HpkeHelper.SealBase(_publicKey, AgeProtocol.MlKemHpkeInfo, fileKey.ToArray());
         var encB64 = Base64Unpadded.Encode(enc);
-        return new Stanza(StanzaType, [encB64], ct);
+        return new Stanza(AgeProtocol.MlKemStanzaType, [encB64], ct);
     }
 }
