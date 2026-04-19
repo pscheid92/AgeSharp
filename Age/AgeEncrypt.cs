@@ -8,8 +8,8 @@ namespace Age;
 public static class AgeEncrypt
 {
     private const int FileKeySize = 16;
-    private const int PayloadNonceSize = 16;
-    private const int PayloadKeySize = 32;
+    internal const int PayloadNonceSize = 16;
+    internal const int PayloadKeySize = 32;
 
     public static void Encrypt(Stream input, Stream output, params ReadOnlySpan<IRecipient> recipients)
         => Encrypt(input, output, false, recipients);
