@@ -40,4 +40,9 @@ This policy covers the AgeSharp library (`Age/`), CLI (`Age.Cli/`), and any publ
 
 ## Security Design
 
-AgeSharp implements the [age-encryption.org/v1](https://age-encryption.org/v1) specification. It relies on [BouncyCastle.Cryptography](https://www.bouncycastle.org/csharp/) for all cryptographic primitives and does not implement custom ciphers, key exchanges, or hash functions.
+AgeSharp implements the [age-encryption.org/v1](https://age-encryption.org/v1) specification. Cryptographic primitives come from two vetted sources:
+
+- **.NET's built-in [`System.Security.Cryptography`](https://learn.microsoft.com/dotnet/api/system.security.cryptography)** — ChaCha20-Poly1305 (payload and recipient wrap AEAD), HKDF-SHA256, HMAC-SHA256, SHA-256.
+- **[BouncyCastle.Cryptography](https://www.bouncycastle.org/csharp/)** — scrypt (passphrase KDF), X25519 key agreement, Ed25519, ML-KEM-768 (post-quantum KEM), RSA-OAEP and SSH key parsing.
+
+AgeSharp does not implement custom ciphers, key exchanges, or hash functions.

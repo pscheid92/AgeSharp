@@ -1,73 +1,56 @@
+using System.Security.Cryptography;
 using System.Text;
-using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Digests;
-using Org.BouncyCastle.Crypto.Generators;
-using Org.BouncyCastle.Crypto.Macs;
-using Org.BouncyCastle.Crypto.Modes;
-using Org.BouncyCastle.Crypto.Parameters;
 
 namespace Age.Crypto;
 
 internal static class CryptoHelper
 {
-    private const int ChaChaMacSizeBits = 128;
+    private const int ChaChaTagSize = 16;
+    private const int Sha256Size = 32;
 
     public static byte[] HkdfDerive(ReadOnlySpan<byte> ikm, ReadOnlySpan<byte> salt, string info, int length)
     {
         var result = new byte[length];
-
-        var hkdf = new HkdfBytesGenerator(new Sha256Digest());
-        hkdf.Init(new HkdfParameters(ikm.ToArray(), salt.ToArray(), Encoding.ASCII.GetBytes(info)));
-        hkdf.GenerateBytes(result, 0, length);
-
+        var infoByteCount = Encoding.ASCII.GetByteCount(info);
+        Span<byte> infoBytes = stackalloc byte[infoByteCount];
+        Encoding.ASCII.GetBytes(info, infoBytes);
+        HKDF.DeriveKey(HashAlgorithmName.SHA256, ikm, result, salt, infoBytes);
         return result;
     }
 
     public static byte[] ChaChaEncrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> plaintext)
     {
-        var cipher = new ChaCha20Poly1305();
-
-        var parameters = new AeadParameters(new KeyParameter(key.ToArray()), ChaChaMacSizeBits, nonce.ToArray());
-        cipher.Init(true, parameters);
-
-        var output = new byte[cipher.GetOutputSize(plaintext.Length)];
-        var len = cipher.ProcessBytes(plaintext.ToArray(), 0, plaintext.Length, output, 0);
-
-        cipher.DoFinal(output, len);
+        var output = new byte[plaintext.Length + ChaChaTagSize];
+        using var cipher = new ChaCha20Poly1305(key);
+        cipher.Encrypt(nonce, plaintext, output.AsSpan(0, plaintext.Length), output.AsSpan(plaintext.Length, ChaChaTagSize));
         return output;
     }
 
     public static byte[]? ChaChaDecrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> ciphertext)
     {
-        var cipher = new ChaCha20Poly1305();
+        if (ciphertext.Length < ChaChaTagSize)
+            return null;
 
-        var parameters = new AeadParameters(new KeyParameter(key.ToArray()), ChaChaMacSizeBits, nonce.ToArray());
-        cipher.Init(false, parameters);
-
-        var output = new byte[cipher.GetOutputSize(ciphertext.Length)];
-        var len = cipher.ProcessBytes(ciphertext.ToArray(), 0, ciphertext.Length, output, 0);
+        var plaintextLen = ciphertext.Length - ChaChaTagSize;
+        var plaintext = new byte[plaintextLen];
+        using var cipher = new ChaCha20Poly1305(key);
 
         try
         {
-            cipher.DoFinal(output, len);
+            cipher.Decrypt(nonce, ciphertext[..plaintextLen], ciphertext[plaintextLen..], plaintext);
         }
-        catch (InvalidCipherTextException)
+        catch (AuthenticationTagMismatchException)
         {
             return null;
         }
 
-        return output;
+        return plaintext;
     }
 
     public static byte[] HmacSha256(ReadOnlySpan<byte> key, ReadOnlySpan<byte> data)
     {
-        var hmac = new HMac(new Sha256Digest());
-        hmac.Init(new KeyParameter(key.ToArray()));
-        hmac.BlockUpdate(data.ToArray(), 0, data.Length);
-
-        var result = new byte[hmac.GetMacSize()];
-        hmac.DoFinal(result, 0);
-
+        var result = new byte[Sha256Size];
+        HMACSHA256.HashData(key, data, result);
         return result;
     }
 }
