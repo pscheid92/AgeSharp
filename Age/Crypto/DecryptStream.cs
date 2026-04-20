@@ -62,12 +62,7 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
 
     private void DecryptNextChunk()
     {
-        // Zero the previous chunk's plaintext before overwriting. The new chunk
-        // will overwrite positions 0.._chunkPlainLen; zeroing the old [0.._plaintextLength)
-        // range ensures any residual plaintext beyond the new chunk's length is wiped.
-        if (_plaintextLength > 0)
-            CryptographicOperations.ZeroMemory(_plaintextBuffer.AsSpan(0, _plaintextLength));
-
+        var prevPlaintextLength = _plaintextLength;
         var bytesRead = ReadFromCiphertext();
 
         switch (bytesRead)
@@ -95,6 +90,12 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
             _plaintextBuffer);
         _plaintextLength = chunkLen - StreamEncryption.TagSize;
         _plaintextOffset = 0;
+
+        // If the new chunk is smaller than the previous one, zero the residual
+        // tail so stale plaintext from the prior chunk doesn't linger.
+        if (prevPlaintextLength > _plaintextLength)
+            CryptographicOperations.ZeroMemory(
+                _plaintextBuffer.AsSpan(_plaintextLength, prevPlaintextLength - _plaintextLength));
 
         if (!isFinal)
         {
