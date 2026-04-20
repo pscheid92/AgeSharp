@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Security.Cryptography;
 
 namespace Age.Crypto;
@@ -10,11 +11,14 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         Done
     }
 
+    private const int CiphertextBufferSize = StreamEncryption.EncryptedChunkSize + 1;
+    private const int PlaintextBufferSize = StreamEncryption.ChunkSize;
+
     private State _state = State.Chunks;
 
-    // Chunk buffering — reused across chunks, no per-chunk allocations
-    private readonly byte[] _ciphertextBuffer = new byte[StreamEncryption.EncryptedChunkSize + 1];
-    private readonly byte[] _plaintextBuffer = new byte[StreamEncryption.ChunkSize];
+    // Chunk buffering — rented from the shared pool, reused across chunks
+    private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
+    private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(PlaintextBufferSize);
     private readonly ChaCha20Poly1305 _cipher = new(payloadKey);
     private int _plaintextLength;
     private int _plaintextOffset;
@@ -147,7 +151,9 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         {
             _cipher.Dispose();
             CryptographicOperations.ZeroMemory(payloadKey);
-            CryptographicOperations.ZeroMemory(_plaintextBuffer);
+            CryptographicOperations.ZeroMemory(_plaintextBuffer.AsSpan(0, PlaintextBufferSize));
+            ArrayPool<byte>.Shared.Return(_ciphertextBuffer);
+            ArrayPool<byte>.Shared.Return(_plaintextBuffer);
             if (ownsStream) ciphertext.Dispose();
         }
 
