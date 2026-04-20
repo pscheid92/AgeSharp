@@ -24,7 +24,11 @@ and targets .NET 10.
 - **Plugin protocol** — interoperates with `age-plugin-*` binaries
 - Encrypt to multiple recipients
 - ASCII armor support
-- Pull-based streaming (`EncryptReader` / `DecryptReader`)
+- Streaming encryption and decryption across all APIs — memory is bounded
+  by a single 64 KiB chunk buffer regardless of input size (1 GiB file uses
+  the same working set as a 1 MB file)
+- Pull-based streaming (`EncryptReader` / `DecryptReader`) returns a readable
+  `Stream` for pipe-and-forget use cases
 - Detached header APIs (`EncryptDetached` / `DecryptDetached`)
 - Random-access decryption (`AgeRandomAccess`) — seek into encrypted files
 - Header inspection without decryption (`AgeHeader.Parse`)
@@ -203,9 +207,10 @@ public class MyRecipient : IRecipient
 
 public class MyIdentity : IIdentity
 {
-    public byte[]? Unwrap(IReadOnlyList<Stanza> stanzas)
+    public byte[]? Unwrap(Stanza stanza)
     {
-        // Return the file key if matched, null if not
+        // Called once per stanza in the file's header. Return the file
+        // key if this identity matches the stanza, null if not.
     }
 }
 ```
