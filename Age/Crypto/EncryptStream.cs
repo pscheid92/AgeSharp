@@ -15,15 +15,14 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
     private readonly byte[] _preamble = [..headerBytes, ..payloadNonce];
     private int _preambleOffset;
 
-    // Chunk buffering
-    private byte[]? _currentChunk;
+    // Chunk buffering — reused across chunks, no per-chunk allocations
+    private readonly byte[] _plaintextBuffer = new byte[StreamEncryption.ChunkSize + 1];
+    private readonly byte[] _ciphertextBuffer = new byte[StreamEncryption.EncryptedChunkSize];
+    private int _chunkLength;
     private int _chunkOffset;
     private long _counter;
     private bool _emittedFinal;
     private bool _pendingByte;
-
-    // Buffer for reading plaintext chunks (one extra byte for EOF detection)
-    private readonly byte[] _plaintextBuffer = new byte[StreamEncryption.ChunkSize + 1];
 
     public override bool CanRead => true;
     public override bool CanSeek => false;
@@ -70,9 +69,8 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
 
     private int EmitNextChunk(Span<byte> dest)
     {
-        // Still draining a previously encrypted chunk
-        if (_currentChunk != null && _chunkOffset < _currentChunk.Length)
-            return EmitBuffer(_currentChunk, ref _chunkOffset, dest);
+        if (_chunkOffset < _chunkLength)
+            return EmitBuffer(_ciphertextBuffer.AsSpan(0, _chunkLength), ref _chunkOffset, dest);
 
         if (_emittedFinal)
         {
@@ -81,7 +79,7 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         }
 
         EncryptNextChunk();
-        return EmitBuffer(_currentChunk!, ref _chunkOffset, dest);
+        return EmitBuffer(_ciphertextBuffer.AsSpan(0, _chunkLength), ref _chunkOffset, dest);
     }
 
     private void EncryptNextChunk()
@@ -91,7 +89,11 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         var isFinal = bytesRead <= StreamEncryption.ChunkSize;
         var chunkLen = Math.Min(bytesRead, StreamEncryption.ChunkSize);
 
-        _currentChunk = StreamEncryption.EncryptChunk(payloadKey, _counter, isFinal, _plaintextBuffer.AsSpan(0, chunkLen));
+        StreamEncryption.EncryptChunk(
+            payloadKey, _counter, isFinal,
+            _plaintextBuffer.AsSpan(0, chunkLen),
+            _ciphertextBuffer);
+        _chunkLength = chunkLen + StreamEncryption.TagSize;
         _chunkOffset = 0;
         _counter++;
 
@@ -107,12 +109,12 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         }
     }
 
-    private static int EmitBuffer(byte[] source, ref int sourceOffset, Span<byte> dest)
+    private static int EmitBuffer(ReadOnlySpan<byte> source, ref int sourceOffset, Span<byte> dest)
     {
         var available = source.Length - sourceOffset;
         var toCopy = Math.Min(available, dest.Length);
 
-        source.AsSpan(sourceOffset, toCopy).CopyTo(dest);
+        source.Slice(sourceOffset, toCopy).CopyTo(dest);
         sourceOffset += toCopy;
 
         return toCopy;

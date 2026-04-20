@@ -27,6 +27,9 @@ public static class AgeEncrypt
     {
         using var stream = DecryptReader(input, identities);
         stream.CopyTo(output);
+        // Ensure output is touched even when plaintext is empty — matters for
+        // lazy-creating writers that only materialize on first Write.
+        output.Write(ReadOnlySpan<byte>.Empty);
     }
 
     public static void EncryptDetached(Stream input, Stream headerOutput, Stream payloadOutput, params ReadOnlySpan<IRecipient> recipients)
@@ -76,6 +79,9 @@ public static class AgeEncrypt
 
             using var decryptStream = new DecryptStream(payloadKey, payloadInput, ownsStream: false);
             decryptStream.CopyTo(output);
+            // Ensure output is touched even when plaintext is empty — matters for
+            // lazy-creating writers that only materialize on first Write.
+            output.Write(ReadOnlySpan<byte>.Empty);
         }
         finally
         {

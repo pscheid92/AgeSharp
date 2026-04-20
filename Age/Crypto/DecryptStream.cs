@@ -12,13 +12,12 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
 
     private State _state = State.Chunks;
 
-    // Chunk buffering
-    private byte[]? _currentPlaintext;
+    // Chunk buffering — reused across chunks, no per-chunk allocations
+    private readonly byte[] _ciphertextBuffer = new byte[StreamEncryption.EncryptedChunkSize + 1];
+    private readonly byte[] _plaintextBuffer = new byte[StreamEncryption.ChunkSize];
+    private int _plaintextLength;
     private int _plaintextOffset;
     private long _counter;
-
-    // Buffer for reading ciphertext chunks (one extra byte for EOF detection)
-    private readonly byte[] _ciphertextBuffer = new byte[StreamEncryption.EncryptedChunkSize + 1];
     private bool _hasSavedByte;
 
     public override bool CanRead => true;
@@ -42,9 +41,13 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         while (totalRead < buffer.Length)
         {
             // Drain any buffered plaintext first
-            if (_currentPlaintext != null && _plaintextOffset < _currentPlaintext.Length)
+            if (_plaintextOffset < _plaintextLength)
             {
-                totalRead += EmitBuffer(_currentPlaintext, ref _plaintextOffset, buffer[totalRead..]);
+                var available = _plaintextLength - _plaintextOffset;
+                var toCopy = Math.Min(available, buffer.Length - totalRead);
+                _plaintextBuffer.AsSpan(_plaintextOffset, toCopy).CopyTo(buffer[totalRead..]);
+                _plaintextOffset += toCopy;
+                totalRead += toCopy;
                 continue;
             }
 
@@ -59,6 +62,12 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
 
     private void DecryptNextChunk()
     {
+        // Zero the previous chunk's plaintext before overwriting. The new chunk
+        // will overwrite positions 0.._chunkPlainLen; zeroing the old [0.._plaintextLength)
+        // range ensures any residual plaintext beyond the new chunk's length is wiped.
+        if (_plaintextLength > 0)
+            CryptographicOperations.ZeroMemory(_plaintextBuffer.AsSpan(0, _plaintextLength));
+
         var bytesRead = ReadFromCiphertext();
 
         switch (bytesRead)
@@ -75,29 +84,31 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         if (chunkLen < StreamEncryption.TagSize)
             throw new AgePayloadException("chunk too small for authentication tag");
 
-        // Save the look-ahead byte before decryption (which reads from the same buffer)
+        // Save the look-ahead byte before decryption (it sits just past the chunk in the buffer)
         byte savedByte = 0;
         if (!isFinal)
             savedByte = _ciphertextBuffer[StreamEncryption.EncryptedChunkSize];
 
-        if (_currentPlaintext is not null)
-            CryptographicOperations.ZeroMemory(_currentPlaintext);
+        StreamEncryption.DecryptChunk(
+            payloadKey, _counter, isFinal,
+            _ciphertextBuffer.AsSpan(0, chunkLen),
+            _plaintextBuffer);
+        _plaintextLength = chunkLen - StreamEncryption.TagSize;
+        _plaintextOffset = 0;
 
-        _currentPlaintext = StreamEncryption.DecryptChunk(payloadKey, _counter, isFinal, _ciphertextBuffer.AsSpan(0, chunkLen));
         if (!isFinal)
         {
             _ciphertextBuffer[0] = savedByte;
             _hasSavedByte = true;
         }
 
-        _plaintextOffset = 0;
         _counter++;
 
         if (!isFinal)
             return;
 
         // The final chunk can be empty ONLY if it's the first (and only) chunk
-        if (_currentPlaintext.Length == 0 && _counter > 1)
+        if (_plaintextLength == 0 && _counter > 1)
             throw new AgePayloadException("final STREAM chunk is empty but there were preceding chunks");
 
         _state = State.Done;
@@ -128,24 +139,12 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         return total;
     }
 
-    private static int EmitBuffer(byte[] source, ref int sourceOffset, Span<byte> dest)
-    {
-        var available = source.Length - sourceOffset;
-        var toCopy = Math.Min(available, dest.Length);
-
-        source.AsSpan(sourceOffset, toCopy).CopyTo(dest);
-        sourceOffset += toCopy;
-
-        return toCopy;
-    }
-
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
             CryptographicOperations.ZeroMemory(payloadKey);
-            if (_currentPlaintext is not null)
-                CryptographicOperations.ZeroMemory(_currentPlaintext);
+            CryptographicOperations.ZeroMemory(_plaintextBuffer);
             if (ownsStream) ciphertext.Dispose();
         }
 

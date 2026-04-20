@@ -18,12 +18,44 @@ internal static class CryptoHelper
         return result;
     }
 
+    public static void ChaChaEncrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce,
+                                      ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
+    {
+        using var cipher = new ChaCha20Poly1305(key);
+        cipher.Encrypt(nonce, plaintext,
+            ciphertextWithTag[..plaintext.Length],
+            ciphertextWithTag.Slice(plaintext.Length, ChaChaTagSize));
+    }
+
     public static byte[] ChaChaEncrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> plaintext)
     {
         var output = new byte[plaintext.Length + ChaChaTagSize];
-        using var cipher = new ChaCha20Poly1305(key);
-        cipher.Encrypt(nonce, plaintext, output.AsSpan(0, plaintext.Length), output.AsSpan(plaintext.Length, ChaChaTagSize));
+        ChaChaEncrypt(key, nonce, plaintext, output);
         return output;
+    }
+
+    public static bool ChaChaDecrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce,
+                                      ReadOnlySpan<byte> ciphertextWithTag, Span<byte> plaintext)
+    {
+        if (ciphertextWithTag.Length < ChaChaTagSize)
+            return false;
+
+        var plaintextLen = ciphertextWithTag.Length - ChaChaTagSize;
+        using var cipher = new ChaCha20Poly1305(key);
+
+        try
+        {
+            cipher.Decrypt(nonce,
+                ciphertextWithTag[..plaintextLen],
+                ciphertextWithTag[plaintextLen..],
+                plaintext[..plaintextLen]);
+        }
+        catch (AuthenticationTagMismatchException)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     public static byte[]? ChaChaDecrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> ciphertext)
@@ -31,20 +63,8 @@ internal static class CryptoHelper
         if (ciphertext.Length < ChaChaTagSize)
             return null;
 
-        var plaintextLen = ciphertext.Length - ChaChaTagSize;
-        var plaintext = new byte[plaintextLen];
-        using var cipher = new ChaCha20Poly1305(key);
-
-        try
-        {
-            cipher.Decrypt(nonce, ciphertext[..plaintextLen], ciphertext[plaintextLen..], plaintext);
-        }
-        catch (AuthenticationTagMismatchException)
-        {
-            return null;
-        }
-
-        return plaintext;
+        var plaintext = new byte[ciphertext.Length - ChaChaTagSize];
+        return ChaChaDecrypt(key, nonce, ciphertext, plaintext) ? plaintext : null;
     }
 
     public static byte[] HmacSha256(ReadOnlySpan<byte> key, ReadOnlySpan<byte> data)

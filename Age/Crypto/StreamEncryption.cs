@@ -85,21 +85,39 @@ internal static class StreamEncryption
             : throw new AgePayloadException("chunk too small for authentication tag");
     }
 
-    internal static byte[] EncryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal, ReadOnlySpan<byte> plaintext)
+    internal static void EncryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal,
+                                       ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
     {
         Span<byte> nonce = stackalloc byte[NonceSize];
         MakeNonce(counter, isFinal, nonce);
-        return CryptoHelper.ChaChaEncrypt(payloadKey, nonce, plaintext);
+        CryptoHelper.ChaChaEncrypt(payloadKey, nonce, plaintext, ciphertextWithTag);
+    }
+
+    internal static byte[] EncryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal, ReadOnlySpan<byte> plaintext)
+    {
+        var output = new byte[plaintext.Length + TagSize];
+        EncryptChunk(payloadKey, counter, isFinal, plaintext, output);
+        return output;
+    }
+
+    internal static void DecryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal,
+                                       ReadOnlySpan<byte> ciphertext, Span<byte> plaintext)
+    {
+        Span<byte> nonce = stackalloc byte[NonceSize];
+        MakeNonce(counter, isFinal, nonce);
+
+        if (!CryptoHelper.ChaChaDecrypt(payloadKey, nonce, ciphertext, plaintext))
+            throw new AgePayloadException($"chunk {counter} authentication failed (final={isFinal})");
     }
 
     internal static byte[] DecryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal, ReadOnlySpan<byte> ciphertext)
     {
-        Span<byte> nonce = stackalloc byte[NonceSize];
+        if (ciphertext.Length < TagSize)
+            throw new AgePayloadException($"chunk {counter} authentication failed (final={isFinal})");
 
-        MakeNonce(counter, isFinal, nonce);
-
-        var plaintext = CryptoHelper.ChaChaDecrypt(payloadKey, nonce, ciphertext);
-        return plaintext ?? throw new AgePayloadException($"chunk {counter} authentication failed (final={isFinal})");
+        var plaintext = new byte[ciphertext.Length - TagSize];
+        DecryptChunk(payloadKey, counter, isFinal, ciphertext, plaintext);
+        return plaintext;
     }
 
     private static void MakeNonce(long counter, bool isFinal, Span<byte> nonce)
