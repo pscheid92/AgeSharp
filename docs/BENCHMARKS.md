@@ -12,16 +12,16 @@ All times in milliseconds (lower is better).
 
 | Size | Op | age (Go) | rage (Rust) | age-sharp (C#) |
 |---|---|---:|---:|---:|
-| 1 KB | enc | 21 ms | 22 ms | 23 ms |
-| 1 KB | dec | 22 ms | 21 ms | 22 ms |
-| 64 KB | enc | 21 ms | 21 ms | 22 ms |
-| 64 KB | dec | 21 ms | 37 ms | 23 ms |
-| 1 MB | enc | 25 ms | 24 ms | 25 ms |
-| 1 MB | dec | 23 ms | 25 ms | 26 ms |
-| 10 MB | enc | 37 ms | 48 ms | 43 ms |
-| 10 MB | dec | 35 ms | 57 ms | 55 ms |
-| 100 MB | enc | 168 ms | 304 ms | 224 ms |
-| 100 MB | dec | 154 ms | 331 ms | 250 ms |
+| 1 KB | enc | 22 ms | 22 ms | 25 ms |
+| 1 KB | dec | 24 ms | 32 ms | 36 ms |
+| 64 KB | enc | 31 ms | 32 ms | 24 ms |
+| 64 KB | dec | 23 ms | 22 ms | 23 ms |
+| 1 MB | enc | 24 ms | 27 ms | 26 ms |
+| 1 MB | dec | 38 ms | 30 ms | 32 ms |
+| 10 MB | enc | 39 ms | 49 ms | 45 ms |
+| 10 MB | dec | 35 ms | 56 ms | 50 ms |
+| 100 MB | enc | 164 ms | 290 ms | 216 ms |
+| 100 MB | dec | 148 ms | 331 ms | 247 ms |
 
 ### ASCII Armor (-a)
 
@@ -41,17 +41,18 @@ All times in milliseconds (lower is better).
 ### Key Takeaways
 
 - **Up to 1 MB**: All three implementations are within noise of each other
-  (~22-35 ms), dominated by process startup overhead.
-- **Binary 100 MB**: Go still leads at 154-168 ms thanks to assembly-optimized
-  ChaCha20-Poly1305. AgeSharp (224-250 ms) now beats rage (304-331 ms) after
+  (~22-38 ms), dominated by process startup overhead.
+- **Binary 100 MB**: Go still leads at 148-164 ms thanks to assembly-optimized
+  ChaCha20-Poly1305. AgeSharp (216-247 ms) now beats rage (290-331 ms) after
   switching to .NET's hardware-accelerated `ChaCha20Poly1305`.
-- **Armored 100 MB encrypt**: AgeSharp (263 ms) now beats both rage (359 ms)
-  and Go (465 ms) after routing the push-encrypt path through `EncryptStream`
+- **Armored 100 MB encrypt**: AgeSharp (258 ms) now beats both rage (366 ms)
+  and Go (456 ms) after routing the push-encrypt path through `EncryptStream`
   + `ArmorStream` without any intermediate buffer.
 - **Bounded memory**: all public push APIs (`Encrypt`, `Decrypt`,
-  `EncryptDetached`, `DecryptDetached`) now stream chunk-by-chunk. Memory
-  stays O(1) regardless of input size — a 1 GiB file uses the same working
-  set as a 1 MB file.
+  `EncryptDetached`, `DecryptDetached`) now stream chunk-by-chunk with
+  fixed-size scratch buffers — no per-chunk heap allocations. Memory stays
+  O(1) regardless of input size; a 1 GiB file uses the same working set
+  as a 1 MB file.
 - **Startup**: The AOT-compiled AgeSharp binary starts in ~22 ms,
   comparable to native Go and Rust binaries.
 
@@ -72,13 +73,17 @@ process startup overhead.
 
 | Operation | 1 KB | 64 KB | 1 MB |
 |---|---:|---:|---:|
-| Encrypt | 98 us | 203 us | 2,098 us |
-| Decrypt | 97 us | 213 us | 2,135 us |
-| Encrypt (armored) | 99 us | 231 us | 2,448 us |
-| Decrypt (armored) | 99 us | 293 us | 3,380 us |
+| Encrypt | 101 us | 204 us | 2,087 us |
+| Decrypt | 99 us | 215 us | 2,122 us |
+| Encrypt (armored) | 102 us | 233 us | 2,438 us |
+| Decrypt (armored) | 102 us | 290 us | 3,365 us |
 
 Throughput at 1 MB: ~490 MB/s encrypt, ~480 MB/s decrypt.
 Armored adds ~15-60% overhead due to Base64 encoding/decoding.
+
+At 1 MB, `Encrypt`/`Decrypt` allocate ~4 MB / ~2 MB respectively —
+a roughly 20-30% drop from pre-zero-alloc numbers thanks to reusing
+a single scratch buffer across all chunks in the stream.
 
 ### Key Generation
 
