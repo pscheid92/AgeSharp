@@ -2,11 +2,31 @@ using Age.Crypto;
 
 namespace Age.Format;
 
+/// <summary>
+/// One entry in an age file header's recipient list. A stanza carries the
+/// wrapped file key for a single recipient, plus recipient-specific metadata.
+/// </summary>
+/// <remarks>
+/// Stanzas are the extensibility primitive used by custom <see cref="Age.Recipients.IRecipient"/>
+/// and <see cref="Age.Recipients.IIdentity"/> implementations to communicate
+/// wrapped keys through the age wire format. The <paramref name="type"/> tag
+/// identifies the recipient kind (<c>"X25519"</c>, <c>"scrypt"</c>, <c>"ssh-ed25519"</c>,
+/// <c>"ssh-rsa"</c>, <c>"mlkem768x25519"</c>, or any custom tag).
+/// </remarks>
 public sealed class Stanza
 {
     private readonly string[] _args;
     private readonly byte[] _body;
 
+    /// <summary>
+    /// Constructs a stanza with the given type, arguments, and body. The
+    /// <paramref name="args"/> and <paramref name="body"/> arrays are
+    /// defensively copied; later mutations to the caller's arrays do not
+    /// affect this stanza.
+    /// </summary>
+    /// <param name="type">The recipient type tag (e.g. "X25519"). Must be printable ASCII.</param>
+    /// <param name="args">Recipient-specific arguments (e.g. an ephemeral public key). Each argument must be printable ASCII.</param>
+    /// <param name="body">The wrapped key material and any recipient-specific binary payload.</param>
     public Stanza(string type, string[] args, byte[] body)
     {
         Type = type;
@@ -14,8 +34,13 @@ public sealed class Stanza
         _body = (byte[])body.Clone();
     }
 
+    /// <summary>The recipient type tag (e.g. <c>"X25519"</c>, <c>"scrypt"</c>).</summary>
     public string Type { get; }
+
+    /// <summary>Recipient-specific arguments, in the order they appear in the stanza.</summary>
     public IReadOnlyList<string> Args => _args;
+
+    /// <summary>The stanza body — usually the wrapped file key plus any recipient-specific binary payload.</summary>
     public ReadOnlyMemory<byte> Body => _body;
 
     internal void WriteTo(Stream stream)
