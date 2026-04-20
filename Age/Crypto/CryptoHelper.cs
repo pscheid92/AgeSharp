@@ -1,5 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
+using Org.BouncyCastle.Crypto.Digests;
+using Org.BouncyCastle.Crypto.Generators;
+using Org.BouncyCastle.Crypto.Parameters;
 
 namespace Age.Crypto;
 
@@ -10,62 +13,16 @@ internal static class CryptoHelper
 
     public static byte[] HkdfDerive(ReadOnlySpan<byte> ikm, ReadOnlySpan<byte> salt, string info, int length)
     {
-        // RFC 5869 HKDF-SHA256, implemented via HMACSHA256.HashData to work
-        // uniformly across platforms. .NET's HKDF.DeriveKey dispatches to
-        // OpenSSL on Linux, which rejects empty IKM — but the age spec uses
-        // empty IKM for the SSH-Ed25519 tweak derivation.
-
-        const int HashLen = 32;
-
-        // Extract: PRK = HMAC-SHA256(salt, IKM). Empty salt → HashLen zeros.
-        Span<byte> prk = stackalloc byte[HashLen];
-        if (salt.IsEmpty)
-        {
-            Span<byte> zeroSalt = stackalloc byte[HashLen];
-            HMACSHA256.HashData(zeroSalt, ikm, prk);
-        }
-        else
-        {
-            HMACSHA256.HashData(salt, ikm, prk);
-        }
-
-        // Expand: T(1) = HMAC(PRK, info || 0x01); T(i) = HMAC(PRK, T(i-1) || info || i); OKM = T(1) || T(2) || ...
-        var infoByteCount = Encoding.ASCII.GetByteCount(info);
-        Span<byte> infoBytes = stackalloc byte[infoByteCount];
-        Encoding.ASCII.GetBytes(info, infoBytes);
-
+        // Delegated to BouncyCastle's HkdfBytesGenerator for RFC 5869
+        // correctness across all platforms. .NET's HKDF.DeriveKey uses OpenSSL
+        // on Linux, which rejects empty IKM — but the age spec uses empty
+        // IKM for the SSH-Ed25519 tweak derivation. BouncyCastle handles
+        // this uniformly. HKDF is called once per session, not per chunk,
+        // so the ToArray() allocations here are not a hot path.
+        var hkdf = new HkdfBytesGenerator(new Sha256Digest());
+        hkdf.Init(new HkdfParameters(ikm.ToArray(), salt.ToArray(), Encoding.ASCII.GetBytes(info)));
         var result = new byte[length];
-        Span<byte> tBlock = stackalloc byte[HashLen];
-        Span<byte> inputBuffer = stackalloc byte[HashLen + infoByteCount + 1];
-        var outputOffset = 0;
-        byte counter = 1;
-
-        while (outputOffset < length)
-        {
-            int inputLen;
-            if (counter == 1)
-            {
-                infoBytes.CopyTo(inputBuffer);
-                inputBuffer[infoByteCount] = counter;
-                inputLen = infoByteCount + 1;
-            }
-            else
-            {
-                tBlock.CopyTo(inputBuffer);
-                infoBytes.CopyTo(inputBuffer[HashLen..]);
-                inputBuffer[HashLen + infoByteCount] = counter;
-                inputLen = HashLen + infoByteCount + 1;
-            }
-
-            HMACSHA256.HashData(prk, inputBuffer[..inputLen], tBlock);
-
-            var toCopy = Math.Min(HashLen, length - outputOffset);
-            tBlock[..toCopy].CopyTo(result.AsSpan(outputOffset));
-
-            outputOffset += toCopy;
-            counter++;
-        }
-
+        hkdf.GenerateBytes(result, 0, length);
         return result;
     }
 
