@@ -35,8 +35,8 @@ All times in milliseconds (lower is better).
 | 1 MB | dec | 30 ms | 34 ms | 31 ms |
 | 10 MB | enc | 74 ms | 59 ms | 50 ms |
 | 10 MB | dec | 55 ms | 68 ms | 62 ms |
-| 100 MB | enc | 465 ms | 359 ms | 263 ms |
-| 100 MB | dec | 324 ms | 454 ms | 418 ms |
+| 100 MB | enc | 456 ms | 366 ms | 258 ms |
+| 100 MB | dec | 329 ms | 461 ms | 395 ms |
 
 ### Key Takeaways
 
