@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Security.Cryptography;
 
 namespace Age.Crypto;
 
@@ -85,6 +86,14 @@ internal static class StreamEncryption
             : throw new AgePayloadException("chunk too small for authentication tag");
     }
 
+    internal static void EncryptChunk(ChaCha20Poly1305 cipher, long counter, bool isFinal,
+                                       ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
+    {
+        Span<byte> nonce = stackalloc byte[NonceSize];
+        MakeNonce(counter, isFinal, nonce);
+        CryptoHelper.ChaChaEncrypt(cipher, nonce, plaintext, ciphertextWithTag);
+    }
+
     internal static void EncryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal,
                                        ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
     {
@@ -98,6 +107,16 @@ internal static class StreamEncryption
         var output = new byte[plaintext.Length + TagSize];
         EncryptChunk(payloadKey, counter, isFinal, plaintext, output);
         return output;
+    }
+
+    internal static void DecryptChunk(ChaCha20Poly1305 cipher, long counter, bool isFinal,
+                                       ReadOnlySpan<byte> ciphertext, Span<byte> plaintext)
+    {
+        Span<byte> nonce = stackalloc byte[NonceSize];
+        MakeNonce(counter, isFinal, nonce);
+
+        if (!CryptoHelper.ChaChaDecrypt(cipher, nonce, ciphertext, plaintext))
+            throw new AgePayloadException($"chunk {counter} authentication failed (final={isFinal})");
     }
 
     internal static void DecryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal,

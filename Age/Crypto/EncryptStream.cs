@@ -18,6 +18,7 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
     // Chunk buffering — reused across chunks, no per-chunk allocations
     private readonly byte[] _plaintextBuffer = new byte[StreamEncryption.ChunkSize + 1];
     private readonly byte[] _ciphertextBuffer = new byte[StreamEncryption.EncryptedChunkSize];
+    private readonly ChaCha20Poly1305 _cipher = new(payloadKey);
     private int _chunkLength;
     private int _chunkOffset;
     private long _counter;
@@ -90,7 +91,7 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         var chunkLen = Math.Min(bytesRead, StreamEncryption.ChunkSize);
 
         StreamEncryption.EncryptChunk(
-            payloadKey, _counter, isFinal,
+            _cipher, _counter, isFinal,
             _plaintextBuffer.AsSpan(0, chunkLen),
             _ciphertextBuffer);
         _chunkLength = chunkLen + StreamEncryption.TagSize;
@@ -148,6 +149,7 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
     {
         if (disposing)
         {
+            _cipher.Dispose();
             CryptographicOperations.ZeroMemory(payloadKey);
             CryptographicOperations.ZeroMemory(_plaintextBuffer);
         }

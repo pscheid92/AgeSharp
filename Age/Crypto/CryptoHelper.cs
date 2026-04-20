@@ -18,13 +18,19 @@ internal static class CryptoHelper
         return result;
     }
 
+    public static void ChaChaEncrypt(ChaCha20Poly1305 cipher, ReadOnlySpan<byte> nonce,
+                                      ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
+    {
+        cipher.Encrypt(nonce, plaintext,
+            ciphertextWithTag[..plaintext.Length],
+            ciphertextWithTag.Slice(plaintext.Length, ChaChaTagSize));
+    }
+
     public static void ChaChaEncrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce,
                                       ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
     {
         using var cipher = new ChaCha20Poly1305(key);
-        cipher.Encrypt(nonce, plaintext,
-            ciphertextWithTag[..plaintext.Length],
-            ciphertextWithTag.Slice(plaintext.Length, ChaChaTagSize));
+        ChaChaEncrypt(cipher, nonce, plaintext, ciphertextWithTag);
     }
 
     public static byte[] ChaChaEncrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> plaintext)
@@ -34,14 +40,13 @@ internal static class CryptoHelper
         return output;
     }
 
-    public static bool ChaChaDecrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce,
+    public static bool ChaChaDecrypt(ChaCha20Poly1305 cipher, ReadOnlySpan<byte> nonce,
                                       ReadOnlySpan<byte> ciphertextWithTag, Span<byte> plaintext)
     {
         if (ciphertextWithTag.Length < ChaChaTagSize)
             return false;
 
         var plaintextLen = ciphertextWithTag.Length - ChaChaTagSize;
-        using var cipher = new ChaCha20Poly1305(key);
 
         try
         {
@@ -56,6 +61,13 @@ internal static class CryptoHelper
         }
 
         return true;
+    }
+
+    public static bool ChaChaDecrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce,
+                                      ReadOnlySpan<byte> ciphertextWithTag, Span<byte> plaintext)
+    {
+        using var cipher = new ChaCha20Poly1305(key);
+        return ChaChaDecrypt(cipher, nonce, ciphertextWithTag, plaintext);
     }
 
     public static byte[]? ChaChaDecrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> ciphertext)
