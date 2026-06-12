@@ -15,6 +15,10 @@ internal sealed class PluginConnection : IDisposable
     /// </summary>
     public PluginConnection(string pluginName, string stateMachine)
     {
+        // Defense-in-depth: never spawn a process from an unvalidated name.
+        // The name becomes part of the executable path, so a value containing
+        // path separators or "." could redirect execution to an arbitrary binary.
+        ValidatePluginName(pluginName);
         var binaryName = $"age-plugin-{pluginName}";
         var startInfo = new ProcessStartInfo
         {
@@ -47,6 +51,26 @@ internal sealed class PluginConnection : IDisposable
     {
         _reader = reader;
         _writer = writer;
+    }
+
+    /// <summary>
+    /// Validates a plugin name before it is used to build an executable path.
+    /// Per the age-plugin spec a name is a non-empty sequence of lowercase
+    /// letters, digits, and hyphens. Rejecting anything else prevents a crafted
+    /// recipient/identity string from steering process execution (e.g. a name
+    /// containing "/" or ".." resolving to an attacker-chosen binary).
+    /// </summary>
+    public static void ValidatePluginName(string pluginName)
+    {
+        if (string.IsNullOrEmpty(pluginName))
+            throw new FormatException("plugin name must not be empty");
+
+        foreach (var c in pluginName)
+        {
+            var ok = c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '-';
+            if (!ok)
+                throw new FormatException($"invalid character in plugin name '{pluginName}': 0x{(int)c:X2}");
+        }
     }
 
     public void WriteStanza(string type, string[] args, byte[] body)

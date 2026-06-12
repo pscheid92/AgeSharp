@@ -128,9 +128,12 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
         var (hrp, _) = Bech32.Decode(identity);
 
         // skip "age-plugin-" prefix and trailing "-"
-        return hrp.StartsWith("age-plugin-")
-            ? hrp[11..^1]
-            : throw new FormatException($"invalid plugin identity HRP: {hrp}");
+        if (!hrp.StartsWith("age-plugin-"))
+            throw new FormatException($"invalid plugin identity HRP: {hrp}");
+
+        var name = hrp[11..^1];
+        PluginConnection.ValidatePluginName(name);
+        return name;
     }
 
     public override string ToString() =>

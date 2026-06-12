@@ -844,6 +844,36 @@ public class PluginTests
         Assert.Throws<FormatException>(() => PluginRecipient.ExtractPluginName(badStr));
     }
 
+    [Theory]
+    [InlineData("../../evil")]
+    [InlineData("../evil")]
+    [InlineData("foo/bar")]
+    [InlineData(".")]
+    public void PluginRecipient_ExtractPluginName_PathTraversal_Throws(string maliciousName)
+    {
+        // A crafted recipient whose bech32 HRP smuggles path characters must be
+        // rejected before it can ever be turned into an executable path.
+        var malicious = Bech32.Encode($"age1{maliciousName}", new byte[] { 0x01 });
+        var ex = Assert.Throws<FormatException>(() => PluginRecipient.ExtractPluginName(malicious));
+        Assert.Contains("plugin name", ex.Message);
+    }
+
+    [Fact]
+    public void PluginIdentity_ExtractPluginName_PathTraversal_Throws()
+    {
+        var malicious = Bech32.Encode("age-plugin-../../evil-", new byte[] { 0x01 }).ToUpperInvariant();
+        var ex = Assert.Throws<FormatException>(() => PluginIdentity.ExtractPluginName(malicious));
+        Assert.Contains("plugin name", ex.Message);
+    }
+
+    [Fact]
+    public void PluginName_HyphenatedNamesAreAllowed()
+    {
+        // Real plugins use hyphens (e.g. age-plugin-fido2-hmac); these must still parse.
+        Assert.Equal("fido2-hmac", PluginRecipient.ExtractPluginName(MakePluginRecipient("fido2-hmac")));
+        Assert.Equal("fido2-hmac", PluginIdentity.ExtractPluginName(MakePluginIdentity("fido2-hmac")));
+    }
+
     // --- Additional coverage: PluginIdentity edge cases ---
 
     [Fact]
