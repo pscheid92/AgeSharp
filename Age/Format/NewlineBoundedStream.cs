@@ -42,17 +42,16 @@ internal sealed class NewlineBoundedStream(Stream inner, int maxLineBytes) : Str
         while (!bytes.IsEmpty)
         {
             var nl = bytes.IndexOfAny((byte)'\n', (byte)'\r');
+            var lineLen = nl < 0 ? bytes.Length : nl;
+
+            if (_run + lineLen > maxLineBytes)
+                throw new AgeArmorException($"armor line exceeds {maxLineBytes} bytes");
 
             if (nl < 0)
             {
                 _run += bytes.Length;
-                if (_run > maxLineBytes)
-                    throw new AgeArmorException($"armor line exceeds {maxLineBytes} bytes");
                 return;
             }
-
-            if (_run + nl > maxLineBytes)
-                throw new AgeArmorException($"armor line exceeds {maxLineBytes} bytes");
 
             _run = 0;
             bytes = bytes[(nl + 1)..];
