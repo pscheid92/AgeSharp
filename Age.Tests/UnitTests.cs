@@ -829,6 +829,28 @@ public class ScryptRecipientTests
         Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(21)]
+    [InlineData(31)]
+    [InlineData(64)]
+    public void Constructor_Rejects_OutOfRange_WorkFactor(int workFactor)
+    {
+        // Out-of-range work factors must fail fast (the high end would otherwise
+        // overflow `1 << workFactor` or produce a file this library can't read).
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ScryptRecipient("password", workFactor));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(18)]
+    [InlineData(20)]
+    public void Constructor_Accepts_InRange_WorkFactor(int workFactor)
+    {
+        _ = new ScryptRecipient("password", workFactor);
+    }
+
     [Fact]
     public void Unwrap_Rejects_Wrong_Salt_Size()
     {
