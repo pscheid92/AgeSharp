@@ -114,9 +114,6 @@ internal static class InspectCommand
         var totalChunks = fullChunks + (remainder > 0 ? 1 : 0);
         return PayloadNonceSize + totalChunks * TagSize;
     }
-
-    private static void Error(string msg) =>
-        Console.Error.WriteLine($"age-inspect: {msg}");
 }
 
 [JsonSerializable(typeof(InspectOutput))]

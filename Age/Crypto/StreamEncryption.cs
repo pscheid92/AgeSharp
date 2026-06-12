@@ -10,80 +10,21 @@ internal static class StreamEncryption
     internal const int EncryptedChunkSize = ChunkSize + TagSize;
     private const int NonceSize = 12;
 
+    // Whole-stream convenience wrappers over the chunk format. These route
+    // through EncryptStream/DecryptStream so they share the memory-bounded
+    // production path (no full-input buffering) and stay byte-for-byte
+    // identical to it. The input here carries no header/nonce preamble — just
+    // the raw STREAM chunks — so an empty preamble is passed.
     public static void Encrypt(ReadOnlySpan<byte> payloadKey, Stream input, Stream output)
     {
-        using var inputMs = new MemoryStream();
-        input.CopyTo(inputMs);
-        var inputData = inputMs.GetBuffer().AsSpan(0, (int)inputMs.Length);
-
-        var counter = 0L;
-        var offset = 0;
-
-        while (true)
-        {
-            var remaining = inputData.Length - offset;
-            var chunkLen = Math.Min(ChunkSize, remaining);
-            var isFinal = offset + chunkLen >= inputData.Length;
-
-            var plaintext = inputData.Slice(offset, chunkLen);
-            var ciphertext = EncryptChunk(payloadKey, counter, isFinal, plaintext);
-            output.Write(ciphertext);
-
-            offset += chunkLen;
-            counter++;
-
-            if (isFinal)
-                break;
-        }
+        using var stream = new EncryptStream([], [], payloadKey.ToArray(), input);
+        stream.CopyTo(output);
     }
 
     public static void Decrypt(ReadOnlySpan<byte> payloadKey, Stream input, Stream output)
     {
-        using var inputMs = new MemoryStream();
-        input.CopyTo(inputMs);
-        var inputData = inputMs.GetBuffer().AsSpan(0, (int)inputMs.Length);
-
-        if (inputData.Length == 0)
-            throw new AgePayloadException("payload is empty (no chunks)");
-
-        long counter = 0;
-        var offset = 0;
-
-        while (offset < inputData.Length)
-        {
-            var (chunkLen, isFinal) = NextChunk(inputData, offset);
-            var ciphertext = inputData.Slice(offset, chunkLen);
-            var plaintext = DecryptChunk(payloadKey, counter, isFinal, ciphertext);
-
-            if (isFinal && plaintext.Length == 0 && counter > 0)
-                throw new AgePayloadException("final STREAM chunk is empty but there were preceding chunks");
-
-            output.Write(plaintext);
-            offset += chunkLen;
-            counter++;
-
-            if (!isFinal)
-                continue;
-
-            if (offset < inputData.Length)
-                throw new AgePayloadException("data found after final chunk");
-
-            return;
-        }
-
-        throw new AgePayloadException("payload ended without a final chunk");
-    }
-
-    private static (int ChunkLen, bool IsFinal) NextChunk(ReadOnlySpan<byte> data, int offset)
-    {
-        var remaining = data.Length - offset;
-
-        var isFinal = remaining <= EncryptedChunkSize;
-        var chunkLen = isFinal ? remaining : EncryptedChunkSize;
-
-        return chunkLen >= TagSize
-            ? (chunkLen, isFinal)
-            : throw new AgePayloadException("chunk too small for authentication tag");
+        using var stream = new DecryptStream(payloadKey.ToArray(), input, ownsStream: false);
+        stream.CopyTo(output);
     }
 
     internal static void EncryptChunk(ChaCha20Poly1305 cipher, long counter, bool isFinal,
