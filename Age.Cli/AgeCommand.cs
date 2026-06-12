@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Age.Format;
 using Age.Plugin;
@@ -201,14 +202,15 @@ internal static class AgeCommand
 
     private static string GeneratePassphrase()
     {
-        var rng = new Random();
+        // This passphrase is the sole secret protecting the encrypted file, so it
+        // must come from a cryptographically secure RNG — never System.Random.
         var parts = new string[10];
 
         for (var i = 0; i < 10; i++)
         {
             var chars = new char[6];
             for (var j = 0; j < 6; j++)
-                chars[j] = (char)('a' + rng.Next(26));
+                chars[j] = (char)('a' + RandomNumberGenerator.GetInt32(26));
             parts[i] = new string(chars);
         }
 
