@@ -16,19 +16,30 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
     private const int NonceSize = 12;
     private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
 
+    // Validate eagerly so an out-of-range work factor fails at construction
+    // rather than overflowing `1 << workFactor` or producing a stanza this
+    // library (which caps decryption at MaxWorkFactor) could never read back.
+    private readonly int _workFactor = EnsureValidWorkFactor(workFactor);
+
+    private static int EnsureValidWorkFactor(int workFactor) =>
+        workFactor is >= 1 and <= MaxWorkFactor
+            ? workFactor
+            : throw new ArgumentOutOfRangeException(nameof(workFactor), workFactor,
+                $"scrypt work factor must be between 1 and {MaxWorkFactor}");
+
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
         var salt = new byte[SaltSize];
         RandomNumberGenerator.Fill(salt);
 
-        var wrapKey = DeriveWrapKey(passphrase, salt, workFactor);
+        var wrapKey = DeriveWrapKey(passphrase, salt, _workFactor);
 
         var zeroNonce = new byte[NonceSize];
         var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
         CryptographicOperations.ZeroMemory(wrapKey);
 
         var saltB64 = Base64Unpadded.Encode(salt);
-        return new Stanza(StanzaType, [saltB64, workFactor.ToString()], body);
+        return new Stanza(StanzaType, [saltB64, _workFactor.ToString()], body);
     }
 
     public byte[]? Unwrap(Stanza stanza)
