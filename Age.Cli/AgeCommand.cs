@@ -118,7 +118,13 @@ internal static class AgeCommand
             if (identityFiles.Length == 0)
                 throw new AgeException("missing identity (-i required for decryption, or use -p for passphrase)");
 
-            identities.AddRange(from file in identityFiles from id in LoadIdentities(file, callbacks) select id is ScryptRecipient ? new RejectScryptIdentity() : id);
+            // A scrypt (passphrase) file can't be opened with -i. Try this sentinel
+            // first so we surface a clear "use -p" error instead of a generic
+            // "no identity matched" — and before any plugin identity is spawned.
+            identities.Add(new RejectScryptIdentity());
+
+            foreach (var file in identityFiles)
+                identities.AddRange(LoadIdentities(file, callbacks));
         }
 
         return identities;
