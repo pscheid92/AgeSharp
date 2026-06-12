@@ -553,6 +553,36 @@ public class AsciiArmorTests
     }
 
     [Fact]
+    public void Reject_Oversized_Armor_Line()
+    {
+        // A single body line far longer than any legal armor line must be rejected
+        // without buffering the whole (potentially unbounded) line into memory.
+        var text = "-----BEGIN AGE ENCRYPTED FILE-----\n" + new string('A', AsciiArmor.MaxLineBytes + 1000) + "\n";
+        using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
+        var ex = Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Contains("exceeds", ex.Message);
+    }
+
+    [Fact]
+    public void Reject_Oversized_Line_Before_Begin_Marker()
+    {
+        // The bound must also protect the marker search before the armor body.
+        var text = new string('x', AsciiArmor.MaxLineBytes + 1000);
+        using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
+        Assert.Throws<AgeArmorException>(() => AsciiArmor.Dearmor(stream));
+    }
+
+    [Fact]
+    public void Reject_Oversized_Header_Line()
+    {
+        // A header line with no newline must be bounded before authentication.
+        var text = "age-encryption.org/v1\n" + new string('a', 100_000) + "\n";
+        using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
+        var ex = Assert.Throws<AgeHeaderException>(() => AgeHeader.Parse(stream));
+        Assert.Contains("exceeds", ex.Message);
+    }
+
+    [Fact]
     public void Dearmor_Skips_Leading_Whitespace()
     {
         var data = new byte[10];

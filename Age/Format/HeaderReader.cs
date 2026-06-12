@@ -9,6 +9,13 @@ namespace Age.Format;
 /// </summary>
 internal sealed class HeaderReader(Stream stream)
 {
+    // Defensive bounds so a malformed/hostile header can't exhaust memory before
+    // any authentication happens. Both are far above any legitimate age header:
+    // the largest built-in stanza line (an ML-KEM enc argument) is ~1.5 KiB, and
+    // real headers carry a handful of recipients.
+    private const int MaxLineLength = 64 * 1024;       // 64 KiB per line
+    private const int MaxHeaderLength = 16 * 1024 * 1024; // 16 MiB total
+
     private readonly MemoryStream _rawBytes = new();
     private string? _pushedBack;
 
@@ -58,6 +65,10 @@ internal sealed class HeaderReader(Stream stream)
                 break;
 
             ValidateByte(b);
+
+            if (lineBytes.Count >= MaxLineLength)
+                throw new AgeHeaderException($"header line exceeds {MaxLineLength} bytes");
+
             lineBytes.Add((byte)b);
         }
 
@@ -69,7 +80,12 @@ internal sealed class HeaderReader(Stream stream)
         var b = stream.ReadByte();
 
         if (b >= 0)
+        {
+            if (_rawBytes.Length >= MaxHeaderLength)
+                throw new AgeHeaderException($"header exceeds {MaxHeaderLength} bytes");
+
             _rawBytes.WriteByte((byte)b);
+        }
 
         return b;
     }
