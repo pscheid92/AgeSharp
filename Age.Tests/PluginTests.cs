@@ -306,7 +306,7 @@ public class PluginTests
     }
 
     [Fact]
-    public void PluginRecipient_Wrap_RequestSecret_NoCallbacks_Throws()
+    public void PluginRecipient_Wrap_RequestSecret_NoCallbacks_SendsFail()
     {
         var recipientStr = MakePluginRecipient("test");
         var recipient = new PluginRecipient(recipientStr); // no callbacks
@@ -314,11 +314,15 @@ public class PluginTests
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
         mockConn.WriteStanza("request-secret", [], System.Text.Encoding.UTF8.GetBytes("Enter PIN:"));
+        mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
+        mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
 
-        var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
-        Assert.Contains("no callbacks provided", ex.Message);
+        var capturedOutput = new StringWriter();
+        var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
+        recipient.WrapWithConnection(conn, new byte[16]);
+
+        Assert.Contains("-> fail", capturedOutput.ToString());
     }
 
     [Fact]
@@ -760,7 +764,7 @@ public class PluginTests
     }
 
     [Fact]
-    public void PluginRecipient_Wrap_ConfirmNoCallbacks_Throws()
+    public void PluginRecipient_Wrap_ConfirmNoCallbacks_SendsFail()
     {
         var recipientStr = MakePluginRecipient("test");
         var recipient = new PluginRecipient(recipientStr); // no callbacks
@@ -768,11 +772,15 @@ public class PluginTests
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
         mockConn.WriteStanza("confirm", [], System.Text.Encoding.UTF8.GetBytes("Allow?"));
+        mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
+        mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
 
-        var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
-        Assert.Contains("no callbacks provided", ex.Message);
+        var capturedOutput = new StringWriter();
+        var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
+        recipient.WrapWithConnection(conn, new byte[16]);
+
+        Assert.Contains("-> fail", capturedOutput.ToString());
     }
 
     // --- Additional coverage: PluginConnection edge cases ---
@@ -861,7 +869,7 @@ public class PluginTests
     }
 
     [Fact]
-    public void PluginRecipient_Wrap_MsgWithoutCallbacks_NoThrow()
+    public void PluginRecipient_Wrap_MsgWithoutCallbacks_SendsFailAndContinues()
     {
         var recipientStr = MakePluginRecipient("test");
         var recipient = new PluginRecipient(recipientStr); // no callbacks
@@ -873,9 +881,12 @@ public class PluginTests
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
 
-        var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
+        var capturedOutput = new StringWriter();
+        var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
         var result = recipient.WrapWithConnection(conn, new byte[16]);
+
         Assert.Equal("X25519", result.Type);
+        Assert.Contains("-> fail", capturedOutput.ToString());
     }
 
     [Fact]
@@ -889,7 +900,7 @@ public class PluginTests
     // --- Additional coverage: PluginIdentity edge cases ---
 
     [Fact]
-    public void PluginIdentity_Unwrap_MsgWithoutCallbacks_NoThrow()
+    public void PluginIdentity_Unwrap_MsgWithoutCallbacks_SendsFailAndContinues()
     {
         var identityStr = MakePluginIdentity("test");
         var identity = new PluginIdentity(identityStr); // no callbacks
@@ -903,13 +914,16 @@ public class PluginTests
         var pluginResponse = pluginOutput.ToString();
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
-        var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
+        var capturedOutput = new StringWriter();
+        var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
         var result = identity.UnwrapWithConnection(conn, stanzas);
+
         Assert.NotNull(result);
+        Assert.Contains("-> fail", capturedOutput.ToString());
     }
 
     [Fact]
-    public void PluginIdentity_Unwrap_RequestSecretNoCallbacks_Throws()
+    public void PluginIdentity_Unwrap_RequestSecretNoCallbacks_SendsFail()
     {
         var identityStr = MakePluginIdentity("test");
         var identity = new PluginIdentity(identityStr); // no callbacks
@@ -917,16 +931,21 @@ public class PluginTests
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
         mockConn.WriteStanza("request-secret", [], System.Text.Encoding.UTF8.GetBytes("PIN:"));
+        mockConn.WriteStanza("file-key", ["0"], new byte[16]);
+        mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
-        var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var ex = Assert.Throws<AgePluginException>(() => identity.UnwrapWithConnection(conn, stanzas));
-        Assert.Contains("no callbacks provided", ex.Message);
+        var capturedOutput = new StringWriter();
+        var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
+        var result = identity.UnwrapWithConnection(conn, stanzas);
+
+        Assert.NotNull(result);
+        Assert.Contains("-> fail", capturedOutput.ToString());
     }
 
     [Fact]
-    public void PluginIdentity_Unwrap_ConfirmNoCallbacks_Throws()
+    public void PluginIdentity_Unwrap_ConfirmNoCallbacks_SendsFail()
     {
         var identityStr = MakePluginIdentity("test");
         var identity = new PluginIdentity(identityStr); // no callbacks
@@ -934,12 +953,17 @@ public class PluginTests
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
         mockConn.WriteStanza("confirm", [], System.Text.Encoding.UTF8.GetBytes("Allow?"));
+        mockConn.WriteStanza("file-key", ["0"], new byte[16]);
+        mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
-        var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var ex = Assert.Throws<AgePluginException>(() => identity.UnwrapWithConnection(conn, stanzas));
-        Assert.Contains("no callbacks provided", ex.Message);
+        var capturedOutput = new StringWriter();
+        var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
+        var result = identity.UnwrapWithConnection(conn, stanzas);
+
+        Assert.NotNull(result);
+        Assert.Contains("-> fail", capturedOutput.ToString());
     }
 
     [Fact]

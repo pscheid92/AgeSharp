@@ -89,21 +89,23 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
     {
         switch (type)
         {
+            // Per the age-plugin spec, interactive requests are answered with
+            // fail when the client has no UI to present them
+            case "msg" or "request-secret" or "confirm" when callbacks is null:
+                conn.WriteStanza("fail", [], []);
+                break;
+
             case "msg":
-                callbacks?.DisplayMessage(Encoding.UTF8.GetString(body));
+                callbacks!.DisplayMessage(Encoding.UTF8.GetString(body));
                 conn.WriteStanza("ok", [], []);
                 break;
 
             case "request-secret":
-                if (callbacks is null)
-                    throw new AgePluginException("plugin requested secret but no callbacks provided");
-                var secret = callbacks.RequestValue(Encoding.UTF8.GetString(body), true);
+                var secret = callbacks!.RequestValue(Encoding.UTF8.GetString(body), true);
                 conn.WriteStanza("ok", [], Encoding.UTF8.GetBytes(secret));
                 break;
 
             case "confirm":
-                if (callbacks is null)
-                    throw new AgePluginException("plugin requested confirmation but no callbacks provided");
                 HandleConfirm(conn, args, body);
                 break;
 
