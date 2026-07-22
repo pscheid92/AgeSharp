@@ -17,11 +17,12 @@ public class CctvTestRunner
         if (!Directory.Exists(TestDataDir))
             yield break;
 
-        foreach (var file in Directory.EnumerateFiles(TestDataDir, "*.txt").OrderBy(f => f))
+        foreach (var file in Directory.EnumerateFiles(TestDataDir).OrderBy(f => f))
         {
-            var name = Path.GetFileNameWithoutExtension(file);
-            // Skip unsupported test vectors
-            if (name.StartsWith("p256tag_") || name.StartsWith("mlkem768p256tag_"))
+            var name = Path.GetFileName(file);
+            // Vectors are extensionless: a dot means a stray file (.DS_Store, stale
+            // pre-rename *.txt copies in the output dir). Also skip unsupported vectors.
+            if (name.Contains('.') || name.StartsWith("p256tag_") || name.StartsWith("mlkem768p256tag_"))
                 continue;
             yield return new object[] { name, file };
         }
