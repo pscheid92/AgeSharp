@@ -116,10 +116,22 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
     private void HandleConfirm(PluginConnection conn, string[] args, byte[] body)
     {
         var message = Encoding.UTF8.GetString(body);
-        var yes = args.Length > 0 ? args[0] : "yes";
-        var no = args.Length > 1 ? args[1] : null;
+        var yes = args.Length > 0 ? DecodeOptionLabel(args[0]) : "yes";
+        var no = args.Length > 1 ? DecodeOptionLabel(args[1]) : null;
         var confirmed = callbacks!.Confirm(message, yes, no);
-        conn.WriteStanza(confirmed ? "ok" : "fail", [], []);
+        conn.WriteStanza("ok", [confirmed ? "yes" : "no"], []);
+    }
+
+    private static string DecodeOptionLabel(string arg)
+    {
+        try
+        {
+            return Encoding.UTF8.GetString(Base64Unpadded.Decode(arg));
+        }
+        catch (FormatException)
+        {
+            throw new AgePluginException($"confirm option label is not valid unpadded base64: {arg}");
+        }
     }
 
     internal static string ExtractPluginName(string identity)

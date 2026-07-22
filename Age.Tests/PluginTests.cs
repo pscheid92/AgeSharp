@@ -680,7 +680,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("confirm", ["yes-btn", "no-btn"], System.Text.Encoding.UTF8.GetBytes("Allow access?"));
+        mockConn.WriteStanza("confirm", [Base64Unpadded.Encode("yes-btn"u8), Base64Unpadded.Encode("no-btn"u8)], System.Text.Encoding.UTF8.GetBytes("Allow access?"));
         mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -693,11 +693,11 @@ public class PluginTests
         Assert.Equal("Allow access?", callbacks.Confirmations[0].Message);
         Assert.Equal("yes-btn", callbacks.Confirmations[0].Yes);
         Assert.Equal("no-btn", callbacks.Confirmations[0].No);
-        Assert.Contains("-> ok", capturedOutput.ToString());
+        Assert.Contains("-> ok yes", capturedOutput.ToString());
     }
 
     [Fact]
-    public void PluginRecipient_Wrap_ConfirmDenied_SendsFail()
+    public void PluginRecipient_Wrap_ConfirmDenied_SendsOkNo()
     {
         var recipientStr = MakePluginRecipient("test");
         var callbacks = new TestCallbacks { ConfirmResponse = false };
@@ -705,7 +705,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("confirm", ["yes-btn"], System.Text.Encoding.UTF8.GetBytes("Allow?"));
+        mockConn.WriteStanza("confirm", [Base64Unpadded.Encode("yes-btn"u8)], System.Text.Encoding.UTF8.GetBytes("Allow?"));
         mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -714,7 +714,49 @@ public class PluginTests
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
         recipient.WrapWithConnection(conn, new byte[16]);
 
-        Assert.Contains("-> fail", capturedOutput.ToString());
+        Assert.Contains("-> ok no", capturedOutput.ToString());
+        Assert.DoesNotContain("-> fail", capturedOutput.ToString());
+    }
+
+    [Fact]
+    public void PluginRecipient_Wrap_ConfirmWithoutLabels_UsesDefaults()
+    {
+        var recipientStr = MakePluginRecipient("test");
+        var callbacks = new TestCallbacks { ConfirmResponse = true };
+        var recipient = new PluginRecipient(recipientStr, callbacks);
+
+        var pluginOutput = new StringWriter();
+        var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
+        mockConn.WriteStanza("confirm", [], System.Text.Encoding.UTF8.GetBytes("Allow?"));
+        mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
+        mockConn.WriteStanza("done", [], []);
+        var pluginResponse = pluginOutput.ToString();
+
+        var capturedOutput = new StringWriter();
+        var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
+        recipient.WrapWithConnection(conn, new byte[16]);
+
+        Assert.Single(callbacks.Confirmations);
+        Assert.Equal("yes", callbacks.Confirmations[0].Yes);
+        Assert.Null(callbacks.Confirmations[0].No);
+        Assert.Contains("-> ok yes", capturedOutput.ToString());
+    }
+
+    [Fact]
+    public void PluginRecipient_Wrap_ConfirmLabelNotBase64_Throws()
+    {
+        var recipientStr = MakePluginRecipient("test");
+        var callbacks = new TestCallbacks { ConfirmResponse = true };
+        var recipient = new PluginRecipient(recipientStr, callbacks);
+
+        var pluginOutput = new StringWriter();
+        var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
+        mockConn.WriteStanza("confirm", ["yes-btn"], System.Text.Encoding.UTF8.GetBytes("Allow?"));
+        var pluginResponse = pluginOutput.ToString();
+
+        var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
+        Assert.Contains("not valid unpadded base64", ex.Message);
     }
 
     [Fact]
@@ -910,7 +952,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("confirm", ["yes-btn", "no-btn"], System.Text.Encoding.UTF8.GetBytes("Allow?"));
+        mockConn.WriteStanza("confirm", [Base64Unpadded.Encode("yes-btn"u8), Base64Unpadded.Encode("no-btn"u8)], System.Text.Encoding.UTF8.GetBytes("Allow?"));
         mockConn.WriteStanza("file-key", ["0"], fileKey);
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -923,7 +965,9 @@ public class PluginTests
         Assert.NotNull(result);
         Assert.Single(callbacks.Confirmations);
         Assert.Equal("Allow?", callbacks.Confirmations[0].Message);
-        Assert.Contains("-> ok", capturedOutput.ToString());
+        Assert.Equal("yes-btn", callbacks.Confirmations[0].Yes);
+        Assert.Equal("no-btn", callbacks.Confirmations[0].No);
+        Assert.Contains("-> ok yes", capturedOutput.ToString());
     }
 
     [Fact]
