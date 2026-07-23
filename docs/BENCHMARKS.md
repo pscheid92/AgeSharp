@@ -52,7 +52,9 @@ All times in milliseconds (lower is better).
   `EncryptDetached`, `DecryptDetached`) stream chunk-by-chunk with pooled,
   fixed-size scratch buffers — no per-chunk heap allocations. Memory stays
   O(1) regardless of input size; a 1 GiB file uses the same working set
-  as a 1 MB file.
+  as a 1 MB file. This applies to the native ChaCha20-Poly1305 backend; the
+  managed BouncyCastle backend used automatically in the browser is ~2×
+  slower and allocates a small, constant amount per chunk.
 - **Startup**: The AOT-compiled AgeSharp binary starts in ~21 ms,
   comparable to native Go and Rust binaries.
 

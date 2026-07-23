@@ -9,6 +9,12 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
+  <!-- Mirror the library's FORCE_PORTABLE_AEAD switch so DefaultBackend_MatchesBuildConfiguration
+       can assert the portable pass actually selected BouncyCastle. -->
+  <PropertyGroup Condition="'$(ForcePortableAead)' == 'true'">
+    <DefineConstants>$(DefineConstants);FORCE_PORTABLE_AEAD</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="8.0.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

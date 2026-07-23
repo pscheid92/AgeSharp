@@ -65,3 +65,27 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  # Runs the whole suite + CCTV vectors through the managed BouncyCastle AEAD backend —
+  # the same path Blazor/WASM takes. Managed code is OS-independent, so one OS is enough.
+  test-portable:
+    runs-on: ubuntu-latest
+
+    env:
+      AGE_VERSION: "1.3.1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install age CLI
+        run: |
+          curl -sSL "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-linux-amd64.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/age" >> "$GITHUB_PATH"
+
+      - name: Test (portable / BouncyCastle backend)
+        run: dotnet test -c Release -p:ForcePortableAead=true
