@@ -35,6 +35,9 @@ and targets .NET 10.
 - Encrypted identity files (passphrase-protected)
 - Recipients file parsing (`-R` style files with comments)
 - Fully interoperable — files produced by AgeSharp decrypt with `age`, `rage`, and vice versa
+- **Runs in Blazor WebAssembly** — automatically uses a managed
+  ChaCha20-Poly1305 backend in the browser, where the platform cipher is
+  unavailable
 
 ## Installation
 

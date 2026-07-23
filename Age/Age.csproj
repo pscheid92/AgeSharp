@@ -16,6 +16,13 @@
     <PackageTags>age;encryption;cryptography</PackageTags>
   </PropertyGroup>
 
+  <!-- Test hook: `dotnet test -p:ForcePortableAead=true` builds the library with the managed
+       ChaCha20-Poly1305 backend as the default, so the suite exercises the browser/WASM path.
+       Never defined in a normal or packaged build. -->
+  <PropertyGroup Condition="'$(ForcePortableAead)' == 'true'">
+    <DefineConstants>$(DefineConstants);FORCE_PORTABLE_AEAD</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
   </ItemGroup>
