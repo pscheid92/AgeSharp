@@ -9,7 +9,7 @@ namespace Age.Format;
 /// <remarks>
 /// Stanzas are the extensibility primitive used by custom <see cref="Age.Recipients.IRecipient"/>
 /// and <see cref="Age.Recipients.IIdentity"/> implementations to communicate
-/// wrapped keys through the age wire format. The <paramref name="type"/> tag
+/// wrapped keys through the age wire format. The <see cref="Type"/> tag
 /// identifies the recipient kind (<c>"X25519"</c>, <c>"scrypt"</c>, <c>"ssh-ed25519"</c>,
 /// <c>"ssh-rsa"</c>, <c>"mlkem768x25519"</c>, or any custom tag).
 /// </remarks>
