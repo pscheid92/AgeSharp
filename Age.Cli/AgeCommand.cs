@@ -305,10 +305,22 @@ internal static class AgeCommand
 
         public bool Confirm(string message, string yes, string? no)
         {
-            var options = no is not null ? $"[{yes}/{no}]" : $"[{yes}]";
-            Console.Error.Write($"{message} {options} ");
-            var response = Console.ReadLine()?.Trim() ?? "";
-            return string.Equals(response, yes, StringComparison.OrdinalIgnoreCase);
+            var options = no is not null ? $"[y: {yes} / n: {no}]" : $"[y: {yes}]";
+            Console.Error.Write($"{message} {options} (y/N): ");
+
+            while (true)
+            {
+                var response = Console.ReadLine()?.Trim().ToLowerInvariant() ?? "";
+                switch (response)
+                {
+                    case "" or "n" or "no":
+                        return false;
+                    case "y" or "yes":
+                        return true;
+                }
+
+                Console.Error.Write("Please answer y or n (y/N): ");
+            }
         }
     }
 }
