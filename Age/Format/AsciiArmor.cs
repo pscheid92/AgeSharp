@@ -8,14 +8,6 @@ internal static class AsciiArmor
     private const string EndMarker = "-----END AGE ENCRYPTED FILE-----";
     private const int ColumnsPerLine = 64;
 
-    // Valid armor lines are at most 64 chars; the markers are ~40. The bound
-    // exists only to stop a hostile stream with an unterminated multi-gigabyte
-    // line from exhausting memory, so it is set generously high (matching the
-    // header reader's per-line cap). Keeping it well above the StreamReader
-    // buffer size also keeps NewlineBoundedStream on its one-scan-per-read
-    // fast path for legitimate input.
-    internal const int MaxLineBytes = 64 * 1024;
-
     public static bool IsArmored(Stream stream)
     {
         if (!stream.CanSeek)
@@ -53,7 +45,7 @@ internal static class AsciiArmor
     {
         // Bound the line length at the byte level so the reader below can keep
         // using the fast ReadLine path without risking an unbounded allocation.
-        var bounded = new NewlineBoundedStream(input, MaxLineBytes);
+        var bounded = new NewlineBoundedStream(input, AgeLimits.MaxArmorLineBytes);
         var reader = new StreamReader(bounded, Encoding.ASCII, detectEncodingFromByteOrderMarks: false,
             bufferSize: 4096, leaveOpen: false);
 

@@ -557,7 +557,7 @@ public class AsciiArmorTests
     {
         // A single body line far longer than any legal armor line must be rejected
         // without buffering the whole (potentially unbounded) line into memory.
-        var text = "-----BEGIN AGE ENCRYPTED FILE-----\n" + new string('A', AsciiArmor.MaxLineBytes + 1000) + "\n";
+        var text = "-----BEGIN AGE ENCRYPTED FILE-----\n" + new string('A', AgeLimits.MaxArmorLineBytes + 1000) + "\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var ex = Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
         Assert.Contains("exceeds", ex.Message);
@@ -567,7 +567,7 @@ public class AsciiArmorTests
     public void Reject_Oversized_Line_Before_Begin_Marker()
     {
         // The bound must also protect the marker search before the armor body.
-        var text = new string('x', AsciiArmor.MaxLineBytes + 1000);
+        var text = new string('x', AgeLimits.MaxArmorLineBytes + 1000);
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         Assert.Throws<AgeArmorException>(() => AsciiArmor.Dearmor(stream));
     }
@@ -580,6 +580,57 @@ public class AsciiArmorTests
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var ex = Assert.Throws<AgeHeaderException>(() => AgeHeader.Parse(stream));
         Assert.Contains("exceeds", ex.Message);
+    }
+
+    [Fact]
+    public void Reject_Oversized_Header_Total()
+    {
+        // Many individually-short lines — none tripping the per-line cap — must
+        // still be bounded in total, so a header padded with a huge number of
+        // small (structurally valid) stanzas can't exhaust memory before the MAC
+        // is checked. Drive HeaderReader directly with an endless run of short
+        // lines: the total-bytes cap must stop it well before it reads forever.
+        using var stream = new RepeatingLineStream(lineLength: 64);
+        var reader = new HeaderReader(stream);
+        var ex = Assert.Throws<AgeHeaderException>(() =>
+        {
+            while (reader.ReadLine() is not null) { }
+        });
+        Assert.Contains("exceeds", ex.Message);
+    }
+
+    // Emits an unbounded sequence of identical short lines ("xxx…\n"), each below
+    // the per-line cap, so only the total-header cap can terminate a read loop.
+    private sealed class RepeatingLineStream(int lineLength) : Stream
+    {
+        private readonly byte[] _line = BuildLine(lineLength);
+        private long _pos;
+
+        private static byte[] BuildLine(int length)
+        {
+            var line = new byte[length];
+            Array.Fill(line, (byte)'x');
+            line[length - 1] = (byte)'\n';
+            return line;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            for (var i = 0; i < count; i++)
+                buffer[offset + i] = _line[(_pos + i) % _line.Length];
+            _pos += count;
+            return count;
+        }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => _pos; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     [Fact]
