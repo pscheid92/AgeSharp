@@ -27,8 +27,21 @@ public sealed class Stanza
     /// <param name="type">The recipient type tag (e.g. "X25519"). Must be printable ASCII.</param>
     /// <param name="args">Recipient-specific arguments (e.g. an ephemeral public key). Each argument must be printable ASCII.</param>
     /// <param name="body">The wrapped key material and any recipient-specific binary payload.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="type"/>, <paramref name="args"/>, or <paramref name="body"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="type"/> or an argument is empty or contains a character outside
+    /// printable ASCII (0x21–0x7E) — spaces and newlines would corrupt the header framing.
+    /// </exception>
     public Stanza(string type, string[] args, byte[] body)
     {
+        ArgumentNullException.ThrowIfNull(type);
+        ArgumentNullException.ThrowIfNull(args);
+        ArgumentNullException.ThrowIfNull(body);
+
+        EnsureValidStanzaString(type, nameof(type));
+        foreach (var arg in args)
+            EnsureValidStanzaString(arg, nameof(args));
+
         Type = type;
         _args = (string[])args.Clone();
         _body = (byte[])body.Clone();
@@ -149,5 +162,18 @@ public sealed class Stanza
         var invalid = s.IndexOfAnyExceptInRange('!', '~');
         if (invalid >= 0)
             throw new AgeHeaderException($"invalid character in stanza type/argument: 0x{(int)s[invalid]:X2}");
+    }
+
+    // Same rule as ValidateStanzaString, but for caller-supplied constructor input,
+    // where ArgumentException is the idiomatic failure (the parse path keeps
+    // AgeHeaderException for malformed wire data).
+    private static void EnsureValidStanzaString(string? s, string paramName)
+    {
+        if (string.IsNullOrEmpty(s))
+            throw new ArgumentException("stanza type/argument cannot be empty", paramName);
+
+        var invalid = s.IndexOfAnyExceptInRange('!', '~');
+        if (invalid >= 0)
+            throw new ArgumentException($"invalid character in stanza type/argument: 0x{(int)s[invalid]:X2}", paramName);
     }
 }

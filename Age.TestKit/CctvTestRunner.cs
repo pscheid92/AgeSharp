@@ -53,6 +53,13 @@ public class CctvTestRunner
         if (passphrase != null)
             identities.Add(new ScryptRecipient(passphrase));
 
+        // Some failure vectors ship no identities at all: the file must be rejected
+        // while parsing the header, before identity matching. Decrypt requires at
+        // least one identity (as the Go reference does), so supply a throwaway one —
+        // it can never match, and the expected failure must occur first.
+        if (identities.Count == 0)
+            identities.Add(X25519Identity.Generate());
+
         switch (expect)
         {
             case "success":
