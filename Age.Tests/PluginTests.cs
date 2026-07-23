@@ -155,6 +155,26 @@ public class PluginTests
         Assert.Contains("invalid name", ex.Message);
     }
 
+    [Theory]
+    [InlineData("")]          // empty
+    [InlineData("pwn/pwn")]   // forward slash
+    [InlineData("pwn\\pwn")]  // backslash
+    [InlineData("a b")]       // space
+    [InlineData("a\tb")]      // tab
+    public void PluginNameValidator_RejectsInvalid(string name)
+    {
+        Assert.False(PluginNameValidator.IsValid(name));
+    }
+
+    [Theory]
+    [InlineData("yubikey")]
+    [InlineData("fido2hmac")]
+    [InlineData("se-cure_plugin.v2")]
+    public void PluginNameValidator_AcceptsValid(string name)
+    {
+        Assert.True(PluginNameValidator.IsValid(name));
+    }
+
     // --- PluginConnection stanza I/O roundtrip ---
 
     [Fact]
