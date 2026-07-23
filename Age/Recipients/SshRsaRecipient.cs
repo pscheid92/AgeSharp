@@ -29,14 +29,14 @@ public sealed class SshRsaRecipient : IRecipient
     }
 
     /// <summary>Parses an <c>ssh-rsa AAAA…</c> public key line.</summary>
-    /// <exception cref="FormatException">The line is not a valid ssh-rsa public key.</exception>
+    /// <exception cref="AgeFormatException">The line is not a valid ssh-rsa public key.</exception>
     public static SshRsaRecipient Parse(string authorizedKeysLine)
     {
         var (keyType, wireBytes, pubKey) = SshKeyParser.ParsePublicKey(authorizedKeysLine);
 
         return keyType == "ssh-rsa"
             ? new SshRsaRecipient((RsaKeyParameters)pubKey, wireBytes)
-            : throw new FormatException($"expected ssh-rsa, got {keyType}");
+            : throw new AgeFormatException($"expected ssh-rsa, got {keyType}");
     }
 
     /// <summary>Wraps the file key for this SSH key using RSA-OAEP (SHA-256).</summary>

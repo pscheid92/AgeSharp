@@ -29,21 +29,21 @@ public sealed class MlKem768X25519Recipient : IRecipient
         "postquantum";
 
     /// <summary>Parses a bech32-encoded recipient (<c>age1pq1…</c>, lowercase).</summary>
-    /// <exception cref="FormatException">The string is not a valid ML-KEM-768-X25519 recipient.</exception>
+    /// <exception cref="AgeFormatException">The string is not a valid ML-KEM-768-X25519 recipient.</exception>
     public static MlKem768X25519Recipient Parse(string s)
     {
         var (hrp, data) = Bech32.Decode(s);
 
         if (hrp != Hrp)
-            throw new FormatException($"expected HRP '{Hrp}', got '{hrp}'");
+            throw new AgeFormatException($"expected HRP '{Hrp}', got '{hrp}'");
 
         if (data.Length != XWing.PublicKeySize)
-            throw new FormatException($"ML-KEM-768-X25519 public key must be {XWing.PublicKeySize} bytes, got {data.Length}");
+            throw new AgeFormatException($"ML-KEM-768-X25519 public key must be {XWing.PublicKeySize} bytes, got {data.Length}");
 
         // Must be lowercase
         return s == s.ToLowerInvariant()
             ? new MlKem768X25519Recipient(data)
-            : throw new FormatException("age recipient must be lowercase");
+            : throw new AgeFormatException("age recipient must be lowercase");
     }
 
     /// <summary>Returns the bech32-encoded recipient string (<c>age1pq1…</c>).</summary>

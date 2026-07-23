@@ -40,8 +40,8 @@ public sealed class AgeHeader
     /// leaves the stream positioned wherever header reading stopped.
     /// </summary>
     /// <param name="input">The age-encrypted source.</param>
-    /// <exception cref="AgeHeaderException">The header is malformed or exceeds <see cref="AgeLimits"/>.</exception>
-    /// <exception cref="AgeArmorException">The input is armored and the armor is malformed.</exception>
+    /// <exception cref="AgeFormatException">The header is malformed or exceeds <see cref="AgeLimits"/>.</exception>
+    /// <exception cref="AgeFormatException">The input is armored and the armor is malformed.</exception>
     public static AgeHeader Parse(Stream input)
     {
         var isArmored = false;
@@ -68,9 +68,9 @@ public sealed class AgeHeader
             {
                 header = Header.Parse(reader);
             }
-            catch (FormatException ex)
+            catch (AgeFormatException ex)
             {
-                throw new AgeHeaderException($"header parse error: {ex.Message}", ex);
+                throw new AgeFormatException($"header parse error: {ex.Message}", ex);
             }
 
             var payloadOffset = reader.RawBytes.Length;

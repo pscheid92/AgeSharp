@@ -36,20 +36,20 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable
     }
 
     /// <summary>Parses a bech32-encoded secret seed (<c>AGE-SECRET-KEY-PQ-1…</c>, uppercase).</summary>
-    /// <exception cref="FormatException">The string is not a valid ML-KEM-768-X25519 secret key.</exception>
+    /// <exception cref="AgeFormatException">The string is not a valid ML-KEM-768-X25519 secret key.</exception>
     public static MlKem768X25519Identity Parse(string s)
     {
         // Must be uppercase
         if (s != s.ToUpperInvariant())
-            throw new FormatException("age secret key must be uppercase");
+            throw new AgeFormatException("age secret key must be uppercase");
 
         var (hrp, data) = Bech32.Decode(s);
 
         if (!string.Equals(hrp, Hrp, StringComparison.OrdinalIgnoreCase))
-            throw new FormatException($"expected HRP '{Hrp}', got '{hrp}'");
+            throw new AgeFormatException($"expected HRP '{Hrp}', got '{hrp}'");
 
         if (data.Length != SeedSize)
-            throw new FormatException($"ML-KEM-768-X25519 seed must be {SeedSize} bytes, got {data.Length}");
+            throw new AgeFormatException($"ML-KEM-768-X25519 seed must be {SeedSize} bytes, got {data.Length}");
 
         var seed = new byte[SeedSize];
         Array.Copy(data, seed, SeedSize);
@@ -84,7 +84,7 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable
     /// Attempts to unwrap the file key from an <c>mlkem768x25519</c> stanza.
     /// Returns null for stanzas of other types or wrapped for a different recipient.
     /// </summary>
-    /// <exception cref="AgeHeaderException">The stanza claims to be mlkem768x25519 but is malformed.</exception>
+    /// <exception cref="AgeFormatException">The stanza claims to be mlkem768x25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public byte[]? Unwrap(Stanza stanza)
     {
@@ -94,24 +94,24 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable
             return null;
 
         if (stanza.Args.Count != 1)
-            throw new AgeHeaderException($"mlkem768x25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");
+            throw new AgeFormatException($"mlkem768x25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");
 
         byte[] enc;
         try
         {
             enc = Base64Unpadded.Decode(stanza.Args[0]);
         }
-        catch (FormatException ex)
+        catch (AgeFormatException ex)
         {
-            throw new AgeHeaderException($"invalid mlkem768x25519 enc encoding: {ex.Message}", ex);
+            throw new AgeFormatException($"invalid mlkem768x25519 enc encoding: {ex.Message}", ex);
         }
 
         if (enc.Length != XWing.EncSize)
-            throw new AgeHeaderException($"mlkem768x25519 enc must be {XWing.EncSize} bytes, got {enc.Length}");
+            throw new AgeFormatException($"mlkem768x25519 enc must be {XWing.EncSize} bytes, got {enc.Length}");
 
         return stanza.Body.Length == WrappedKeySize
             ? HpkeHelper.OpenBase(enc, _seed, AgeProtocol.MlKemHpkeInfo, stanza.Body.ToArray())
-            : throw new AgeHeaderException($"mlkem768x25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
+            : throw new AgeFormatException($"mlkem768x25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
     }
 
     /// <summary>Zeroes the secret seed.</summary>

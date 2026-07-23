@@ -107,7 +107,7 @@ internal static class Bech32
         // BIP-173: "The last '1' in the string is the separator."
         var sepPos = bech.LastIndexOf('1');
         if (sepPos < 1 || sepPos + 7 > bech.Length)
-            throw new FormatException("invalid bech32 string: separator not found or invalid position");
+            throw new AgeFormatException("invalid bech32 string: separator not found or invalid position");
 
         // BIP-173: "Decoders MUST NOT accept strings where some characters are uppercase and some are lowercase."
         bool hasLower = false, hasUpper = false;
@@ -125,7 +125,7 @@ internal static class Bech32
         }
 
         if (hasLower && hasUpper)
-            throw new FormatException("invalid bech32 string: mixed case");
+            throw new AgeFormatException("invalid bech32 string: mixed case");
 
         var lower = bech.ToLowerInvariant();
         var hrp = lower[..sepPos];
@@ -136,13 +136,13 @@ internal static class Bech32
         {
             var idx = Charset.IndexOf(dataStr[i]);
             if (idx < 0)
-                throw new FormatException($"invalid bech32 character: {dataStr[i]}");
+                throw new AgeFormatException($"invalid bech32 character: {dataStr[i]}");
 
             data5[i] = (byte)idx;
         }
 
         if (!VerifyChecksum(hrp, data5))
-            throw new FormatException("invalid bech32 checksum");
+            throw new AgeFormatException("invalid bech32 checksum");
 
         // Strip checksum
         var data5NoCheck = data5[..^6];
@@ -163,7 +163,7 @@ internal static class Bech32
         foreach (var value in data)
         {
             if (value >> fromBits != 0)
-                throw new FormatException($"invalid value for {fromBits}-bit encoding: {value}");
+                throw new AgeFormatException($"invalid value for {fromBits}-bit encoding: {value}");
 
             acc = (acc << fromBits) | value;
             bits += fromBits;
@@ -183,9 +183,9 @@ internal static class Bech32
         else
         {
             if (bits >= fromBits)
-                throw new FormatException("excess padding in bech32 data");
+                throw new AgeFormatException("excess padding in bech32 data");
             if (((acc << (toBits - bits)) & maxv) != 0)
-                throw new FormatException("non-zero padding bits in bech32 data");
+                throw new AgeFormatException("non-zero padding bits in bech32 data");
         }
 
         return ret.ToArray();

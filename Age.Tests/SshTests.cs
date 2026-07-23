@@ -123,14 +123,14 @@ public class SshKeyParserTests
     [Fact]
     public void ParsePublicKey_RejectsUnsupportedType()
     {
-        Assert.Throws<FormatException>(() =>
+        Assert.Throws<AgeFormatException>(() =>
             SshKeyParser.ParsePublicKey("ssh-dss AAAA test@example.com"));
     }
 
     [Fact]
     public void ParsePublicKey_RejectsTooFewFields()
     {
-        Assert.Throws<FormatException>(() =>
+        Assert.Throws<AgeFormatException>(() =>
             SshKeyParser.ParsePublicKey("ssh-ed25519"));
     }
 
@@ -162,7 +162,7 @@ public class SshKeyParserTests
     [Fact]
     public void ParsePublicKey_RejectsInvalidBase64()
     {
-        var ex = Assert.Throws<FormatException>(() =>
+        var ex = Assert.Throws<AgeFormatException>(() =>
             SshKeyParser.ParsePublicKey("ssh-ed25519 @@@not-base64@@@ test"));
         Assert.Contains("invalid base64", ex.Message);
     }
@@ -223,7 +223,7 @@ public class SshKeyParserTests
         pemWriter.WriteObject(new Org.BouncyCastle.Utilities.IO.Pem.PemObject("PUBLIC KEY", pubInfo.GetEncoded()));
         var pubPem = sw.ToString();
 
-        Assert.Throws<FormatException>(() => SshKeyParser.ParsePrivateKey(pubPem));
+        Assert.Throws<AgeFormatException>(() => SshKeyParser.ParsePrivateKey(pubPem));
     }
 
     [Fact]
@@ -338,7 +338,7 @@ public class SshEd25519RecipientIdentityTests
         using var identity = SshEd25519Identity.Parse(pemText);
 
         var stanza = new Age.Format.Stanza("ssh-ed25519", ["onlyone"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
     [Fact]
@@ -390,7 +390,7 @@ public class SshEd25519RecipientIdentityTests
         var wireBytes = OpenSshPublicKeyUtilities.EncodePublicKey(kp.Public);
         var authorizedKeys = $"ssh-rsa {Convert.ToBase64String(wireBytes)} test@example.com";
 
-        Assert.Throws<FormatException>(() => SshEd25519Recipient.Parse(authorizedKeys));
+        Assert.Throws<AgeFormatException>(() => SshEd25519Recipient.Parse(authorizedKeys));
     }
 
     [Fact]
@@ -402,7 +402,7 @@ public class SshEd25519RecipientIdentityTests
         var privBlob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(kp.Private);
         var pemText = BuildOpenSshPem(privBlob);
 
-        Assert.Throws<FormatException>(() => SshEd25519Identity.Parse(pemText));
+        Assert.Throws<AgeFormatException>(() => SshEd25519Identity.Parse(pemText));
     }
 
     [Fact]
@@ -419,7 +419,7 @@ public class SshEd25519RecipientIdentityTests
 
         // Replace the ephemeral key arg with invalid base64
         var stanza = new Age.Format.Stanza("ssh-ed25519", [goodStanza.Args[0], "@@invalid@@"], goodStanza.Body.ToArray());
-        Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
     [Fact]
@@ -436,7 +436,7 @@ public class SshEd25519RecipientIdentityTests
         // Replace ephemeral key with wrong length (16 bytes instead of 32)
         var shortKeyB64 = Age.Crypto.Base64Unpadded.Encode(new byte[16]);
         var stanza = new Age.Format.Stanza("ssh-ed25519", [goodStanza.Args[0], shortKeyB64], goodStanza.Body.ToArray());
-        Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
     [Fact]
@@ -452,7 +452,7 @@ public class SshEd25519RecipientIdentityTests
 
         // Replace body with wrong length
         var stanza = new Age.Format.Stanza("ssh-ed25519", [.. goodStanza.Args], new byte[16]);
-        Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 }
 
@@ -539,7 +539,7 @@ public class SshRsaRecipientIdentityTests
         using var identity = SshRsaIdentity.Parse(pemText);
 
         var stanza = new Age.Format.Stanza("ssh-rsa", ["tag", "extra"], new byte[256]);
-        Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
     [Fact]
@@ -605,7 +605,7 @@ public class SshRsaRecipientIdentityTests
         var wireBytes = OpenSshPublicKeyUtilities.EncodePublicKey(pub);
         var authorizedKeys = $"ssh-ed25519 {Convert.ToBase64String(wireBytes)} test@example.com";
 
-        Assert.Throws<FormatException>(() => SshRsaRecipient.Parse(authorizedKeys));
+        Assert.Throws<AgeFormatException>(() => SshRsaRecipient.Parse(authorizedKeys));
     }
 
     [Fact]
@@ -617,7 +617,7 @@ public class SshRsaRecipientIdentityTests
         var privBlob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(priv);
         var pemText = BuildOpenSshPem(privBlob);
 
-        Assert.Throws<FormatException>(() => SshRsaIdentity.Parse(pemText));
+        Assert.Throws<AgeFormatException>(() => SshRsaIdentity.Parse(pemText));
     }
 
     [Fact]

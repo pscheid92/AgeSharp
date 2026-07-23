@@ -20,15 +20,15 @@ internal sealed class Header
     {
         var header = new Header();
 
-        var versionLine = reader.ReadLine() ?? throw new AgeHeaderException("empty header");
+        var versionLine = reader.ReadLine() ?? throw new AgeFormatException("empty header");
 
         if (versionLine != VersionLine)
-            throw new AgeHeaderException($"unsupported version: {versionLine}");
+            throw new AgeFormatException($"unsupported version: {versionLine}");
 
         // Read stanzas until we hit the MAC line
         while (true)
         {
-            var line = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header");
+            var line = reader.ReadLine() ?? throw new AgeFormatException("unexpected end of header");
 
             if (line.StartsWith("-> "))
             {
@@ -42,19 +42,19 @@ internal sealed class Header
             }
             else
             {
-                throw new AgeHeaderException($"unexpected line in header: {line}");
+                throw new AgeFormatException($"unexpected line in header: {line}");
             }
         }
 
         return header.Stanzas.Count > 0
             ? header
-            : throw new AgeHeaderException("header contains no stanzas");
+            : throw new AgeFormatException("header contains no stanzas");
     }
 
     private static void ParseMacLine(Header header, string line, HeaderReader reader)
     {
         if (!line.StartsWith("--- "))
-            throw new AgeHeaderException($"expected MAC line starting with '--- ', got: {line}");
+            throw new AgeFormatException($"expected MAC line starting with '--- ', got: {line}");
 
         var macB64 = line[4..];
 
@@ -62,13 +62,13 @@ internal sealed class Header
         {
             header.Mac = Base64Unpadded.Decode(macB64);
         }
-        catch (FormatException ex)
+        catch (AgeFormatException ex)
         {
-            throw new AgeHeaderException($"invalid MAC encoding: {ex.Message}", ex);
+            throw new AgeFormatException($"invalid MAC encoding: {ex.Message}", ex);
         }
 
         if (header.Mac.Length != 32)
-            throw new AgeHeaderException($"MAC must be 32 bytes, got {header.Mac.Length}");
+            throw new AgeFormatException($"MAC must be 32 bytes, got {header.Mac.Length}");
 
         // The Go reference computes MAC over everything through "---" (no trailing space).
         // The raw bytes include "--- <mac_b64>\n", so strip the suffix.
@@ -81,7 +81,7 @@ internal sealed class Header
     {
         var computedMac = ComputeMac(fileKey, HeaderBytesForMac);
         if (!CryptographicOperations.FixedTimeEquals(computedMac, Mac))
-            throw new AgeHmacException("header MAC verification failed");
+            throw new AgeAuthenticationException("header MAC verification failed");
     }
 
     public static byte[] ComputeMac(ReadOnlySpan<byte> fileKey, ReadOnlySpan<byte> headerBytes)

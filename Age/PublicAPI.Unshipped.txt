@@ -1,1 +1,17 @@
 #nullable enable
+Age.AgeAuthenticationException
+Age.AgeAuthenticationException.AgeAuthenticationException(string! message) -> void
+Age.AgeAuthenticationException.AgeAuthenticationException(string! message, System.Exception! inner) -> void
+Age.AgeFormatException
+Age.AgeFormatException.AgeFormatException(string! message) -> void
+Age.AgeFormatException.AgeFormatException(string! message, System.Exception! inner) -> void
+*REMOVED*Age.AgeArmorException
+*REMOVED*Age.AgeArmorException.AgeArmorException(string! message) -> void
+*REMOVED*Age.AgeHeaderException
+*REMOVED*Age.AgeHeaderException.AgeHeaderException(string! message) -> void
+*REMOVED*Age.AgeHeaderException.AgeHeaderException(string! message, System.Exception! inner) -> void
+*REMOVED*Age.AgeHmacException
+*REMOVED*Age.AgeHmacException.AgeHmacException(string! message) -> void
+*REMOVED*Age.AgePayloadException
+*REMOVED*Age.AgePayloadException.AgePayloadException(string! message) -> void
+*REMOVED*Age.AgePayloadException.AgePayloadException(string! message, System.Exception! inner) -> void

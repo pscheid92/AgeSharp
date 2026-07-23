@@ -17,12 +17,12 @@ public static class AgeKeygen
         X25519Identity.Generate();
 
     /// <summary>Parses an X25519 secret key (<c>AGE-SECRET-KEY-1…</c>).</summary>
-    /// <exception cref="FormatException">The string is not a valid X25519 secret key.</exception>
+    /// <exception cref="AgeFormatException">The string is not a valid X25519 secret key.</exception>
     public static X25519Identity ParseIdentity(string s) =>
         X25519Identity.Parse(s);
 
     /// <summary>Parses an X25519 recipient (<c>age1…</c>).</summary>
-    /// <exception cref="FormatException">The string is not a valid X25519 recipient.</exception>
+    /// <exception cref="AgeFormatException">The string is not a valid X25519 recipient.</exception>
     public static X25519Recipient ParseRecipient(string s) =>
         X25519Recipient.Parse(s);
 
@@ -31,12 +31,12 @@ public static class AgeKeygen
         MlKem768X25519Identity.Generate();
 
     /// <summary>Parses an ML-KEM-768-X25519 secret key (<c>AGE-SECRET-KEY-PQ-1…</c>).</summary>
-    /// <exception cref="FormatException">The string is not a valid ML-KEM-768-X25519 secret key.</exception>
+    /// <exception cref="AgeFormatException">The string is not a valid ML-KEM-768-X25519 secret key.</exception>
     public static MlKem768X25519Identity ParsePqIdentity(string s) =>
         MlKem768X25519Identity.Parse(s);
 
     /// <summary>Parses an ML-KEM-768-X25519 recipient (<c>age1pq1…</c>).</summary>
-    /// <exception cref="FormatException">The string is not a valid ML-KEM-768-X25519 recipient.</exception>
+    /// <exception cref="AgeFormatException">The string is not a valid ML-KEM-768-X25519 recipient.</exception>
     public static MlKem768X25519Recipient ParsePqRecipient(string s) =>
         MlKem768X25519Recipient.Parse(s);
 
@@ -52,7 +52,7 @@ public static class AgeKeygen
         {
             "ssh-ed25519" => SshEd25519Recipient.Parse(authorizedKeysLine),
             "ssh-rsa" => SshRsaRecipient.Parse(authorizedKeysLine),
-            _ => throw new FormatException($"unsupported SSH key type: {keyType}")
+            _ => throw new AgeFormatException($"unsupported SSH key type: {keyType}")
         };
     }
 
@@ -68,7 +68,7 @@ public static class AgeKeygen
         {
             "ssh-ed25519" => SshEd25519Identity.Parse(pemText),
             "ssh-rsa" => SshRsaIdentity.Parse(pemText),
-            _ => throw new FormatException($"unsupported SSH key type: {keyType}")
+            _ => throw new AgeFormatException($"unsupported SSH key type: {keyType}")
         };
     }
 
@@ -102,7 +102,7 @@ public static class AgeKeygen
             "age1pq" => MlKem768X25519Recipient.Parse(line),
             _ when hrp.StartsWith("age1") => new PluginRecipient(line, callbacks),
             _ when line.StartsWith("ssh-") => ParseSshRecipient(line),
-            _ => throw new FormatException($"unrecognized recipient: {line}")
+            _ => throw new AgeFormatException($"unrecognized recipient: {line}")
         };
     }
 
@@ -128,7 +128,7 @@ public static class AgeKeygen
             else if (trimmed.StartsWith("AGE-PLUGIN-"))
                 identities.Add(new PluginIdentity(trimmed, callbacks));
             else
-                throw new FormatException($"unrecognized line in identity file: {trimmed}");
+                throw new AgeFormatException($"unrecognized line in identity file: {trimmed}");
         }
 
         return [.. identities];

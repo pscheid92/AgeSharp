@@ -32,21 +32,21 @@ public sealed class SshRsaIdentity : IIdentity, IDisposable
         new(new RsaKeyParameters(false, _privateKey.Modulus, _privateKey.PublicExponent), _sshWireBytes);
 
     /// <summary>Parses an ssh-rsa private key from PEM text (OpenSSH, PKCS#1, or PKCS#8).</summary>
-    /// <exception cref="FormatException">The text is not a valid ssh-rsa private key.</exception>
+    /// <exception cref="AgeFormatException">The text is not a valid ssh-rsa private key.</exception>
     public static SshRsaIdentity Parse(string pemText)
     {
         var (keyType, publicWireBytes, privateKey) = SshKeyParser.ParsePrivateKey(pemText);
 
         return keyType == "ssh-rsa"
             ? new SshRsaIdentity((RsaPrivateCrtKeyParameters)privateKey, publicWireBytes)
-            : throw new FormatException($"expected ssh-rsa private key, got {keyType}");
+            : throw new AgeFormatException($"expected ssh-rsa private key, got {keyType}");
     }
 
     /// <summary>
     /// Attempts to unwrap the file key from an <c>ssh-rsa</c> stanza. Returns null
     /// for stanzas of other types or addressed to a different SSH key (tag mismatch).
     /// </summary>
-    /// <exception cref="AgeHeaderException">The stanza claims to be ssh-rsa but is malformed.</exception>
+    /// <exception cref="AgeFormatException">The stanza claims to be ssh-rsa but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public byte[]? Unwrap(Stanza stanza)
     {
@@ -56,7 +56,7 @@ public sealed class SshRsaIdentity : IIdentity, IDisposable
             return null;
 
         if (stanza.Args.Count != 1)
-            throw new AgeHeaderException($"ssh-rsa stanza must have exactly 1 argument, got {stanza.Args.Count}");
+            throw new AgeFormatException($"ssh-rsa stanza must have exactly 1 argument, got {stanza.Args.Count}");
 
         // Check tag matches
         if (stanza.Args[0] != _tag)

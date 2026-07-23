@@ -95,13 +95,13 @@ internal static class XWing
         }
         catch (InvalidOperationException)
         {
-            throw new AgeHeaderException("X-Wing X25519 agreement failed (low-order or identity point)");
+            throw new AgeFormatException("X-Wing X25519 agreement failed (low-order or identity point)");
         }
 
         // Check for all-zero shared secret (low-order point that BC didn't reject)
         // ss = SHA3-256(ss_M || ss_X || ct_X || pk_X || XWingLabel)
         return ssX.All(b => b == 0)
-            ? throw new AgeHeaderException("X-Wing X25519 shared secret is all-zero (low-order or identity point)")
+            ? throw new AgeFormatException("X-Wing X25519 shared secret is all-zero (low-order or identity point)")
             : CombineSharedSecret(ssM, ssX, ctX, pkX);
     }
 

@@ -18,7 +18,7 @@ public interface IIdentity
     /// The 16-byte file key if this identity can unwrap the stanza;
     /// <c>null</c> if the stanza is addressed to a different identity.
     /// </returns>
-    /// <exception cref="AgeHeaderException">The stanza is malformed.</exception>
+    /// <exception cref="AgeFormatException">The stanza is malformed.</exception>
     byte[]? Unwrap(Stanza stanza);
 
     /// <summary>

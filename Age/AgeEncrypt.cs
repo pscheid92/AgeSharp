@@ -57,10 +57,10 @@ public static class AgeEncrypt
     /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
     /// <exception cref="ArgumentException">No identities were supplied.</exception>
     /// <exception cref="NoIdentityMatchException">None of the identities matched any stanza.</exception>
-    /// <exception cref="AgeHeaderException">The header is malformed.</exception>
-    /// <exception cref="AgeHmacException">The header MAC failed verification.</exception>
-    /// <exception cref="AgeArmorException">The input is armored and the armor is malformed.</exception>
-    /// <exception cref="AgePayloadException">The payload is malformed, truncated, or authentication failed.</exception>
+    /// <exception cref="AgeFormatException">The header is malformed.</exception>
+    /// <exception cref="AgeAuthenticationException">The header MAC failed verification.</exception>
+    /// <exception cref="AgeFormatException">The input is armored and the armor is malformed.</exception>
+    /// <exception cref="AgeAuthenticationException">The payload is malformed, truncated, or authentication failed.</exception>
     public static void Decrypt(Stream input, Stream output, params ReadOnlySpan<IIdentity> identities)
     {
         using var stream = DecryptReader(input, identities);
@@ -125,7 +125,7 @@ public static class AgeEncrypt
             }
 
             if (total != PayloadNonceSize)
-                throw new AgeHeaderException($"expected {PayloadNonceSize}-byte payload nonce, got {total} bytes");
+                throw new AgeFormatException($"expected {PayloadNonceSize}-byte payload nonce, got {total} bytes");
 
             var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
 
@@ -255,7 +255,7 @@ public static class AgeEncrypt
         // Check scrypt constraint: if any stanza is scrypt, it must be the only one
         var hasScrypt = header.Stanzas.Any(s => s.Type == "scrypt");
         if (hasScrypt && header.Stanzas.Count > 1)
-            throw new AgeHeaderException("scrypt stanza must be the only stanza in the header");
+            throw new AgeFormatException("scrypt stanza must be the only stanza in the header");
 
         // Try each identity against all stanzas (batch unwrap supports plugin protocol)
         byte[]? fileKey = null;
@@ -270,7 +270,7 @@ public static class AgeEncrypt
             throw new NoIdentityMatchException();
 
         if (fileKey.Length != FileKeySize)
-            throw new AgeHeaderException($"file key must be {FileKeySize} bytes, got {fileKey.Length}");
+            throw new AgeFormatException($"file key must be {FileKeySize} bytes, got {fileKey.Length}");
 
         header.VerifyMac(fileKey);
         return (fileKey, reader);
@@ -291,7 +291,7 @@ public static class AgeEncrypt
 
         return bytesRead == PayloadNonceSize
             ? payloadNonce
-            : throw new AgeHeaderException($"expected {PayloadNonceSize}-byte payload nonce, got {bytesRead} bytes");
+            : throw new AgeFormatException($"expected {PayloadNonceSize}-byte payload nonce, got {bytesRead} bytes");
     }
 
     private static Header ParseHeader(HeaderReader reader)
@@ -300,9 +300,9 @@ public static class AgeEncrypt
         {
             return Header.Parse(reader);
         }
-        catch (FormatException ex)
+        catch (AgeFormatException ex)
         {
-            throw new AgeHeaderException($"header parse error: {ex.Message}", ex);
+            throw new AgeFormatException($"header parse error: {ex.Message}", ex);
         }
     }
 }

@@ -139,7 +139,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
         {
             return Encoding.UTF8.GetString(Base64Unpadded.Decode(arg));
         }
-        catch (FormatException)
+        catch (AgeFormatException)
         {
             throw new AgePluginException($"confirm option label is not valid unpadded base64: {arg}");
         }
@@ -154,7 +154,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
         // is always in range (a shorter HRP like "age" would otherwise throw).
         var name = hrp.StartsWith("age1")
             ? hrp[4..]
-            : throw new FormatException($"invalid plugin recipient HRP: {hrp}");
+            : throw new AgeFormatException($"invalid plugin recipient HRP: {hrp}");
 
         // The name becomes the age-plugin-<name> executable path, so reject anything
         // outside the allowed set (notably path separators) before it reaches Process.Start.

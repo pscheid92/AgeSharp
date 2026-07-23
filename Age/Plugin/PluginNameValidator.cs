@@ -26,9 +26,9 @@ internal static class PluginNameValidator
         return true;
     }
 
-    /// <summary>Returns <paramref name="name"/> if valid, otherwise throws <see cref="FormatException"/>.</summary>
+    /// <summary>Returns <paramref name="name"/> if valid, otherwise throws <see cref="AgeFormatException"/>.</summary>
     public static string Validate(string name) =>
         IsValid(name)
             ? name
-            : throw new FormatException($"invalid plugin name: '{name}'");
+            : throw new AgeFormatException($"invalid plugin name: '{name}'");
 }

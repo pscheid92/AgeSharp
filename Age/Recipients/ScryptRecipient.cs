@@ -58,36 +58,36 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
     /// Attempts to unwrap the file key from an scrypt stanza. Returns null for
     /// stanzas of other types or when the passphrase is wrong.
     /// </summary>
-    /// <exception cref="AgeHeaderException">The stanza claims to be scrypt but is malformed, or its work factor exceeds the maximum.</exception>
+    /// <exception cref="AgeFormatException">The stanza claims to be scrypt but is malformed, or its work factor exceeds the maximum.</exception>
     public byte[]? Unwrap(Stanza stanza)
     {
         if (stanza.Type != StanzaType) return null;
 
         if (stanza.Args.Count != 2)
-            throw new AgeHeaderException($"scrypt stanza must have 2 arguments, got {stanza.Args.Count}");
+            throw new AgeFormatException($"scrypt stanza must have 2 arguments, got {stanza.Args.Count}");
 
         byte[] salt;
         try
         {
             salt = Base64Unpadded.Decode(stanza.Args[0]);
         }
-        catch (FormatException ex)
+        catch (AgeFormatException ex)
         {
-            throw new AgeHeaderException($"invalid scrypt salt encoding: {ex.Message}", ex);
+            throw new AgeFormatException($"invalid scrypt salt encoding: {ex.Message}", ex);
         }
 
         if (salt.Length != SaltSize)
-            throw new AgeHeaderException($"scrypt salt must be {SaltSize} bytes, got {salt.Length}");
+            throw new AgeFormatException($"scrypt salt must be {SaltSize} bytes, got {salt.Length}");
 
         var wfStr = stanza.Args[1];
         if (!ValidateWorkFactor(wfStr, out var stanzaWorkFactor))
-            throw new AgeHeaderException($"invalid scrypt work factor: {wfStr}");
+            throw new AgeFormatException($"invalid scrypt work factor: {wfStr}");
 
         if (stanzaWorkFactor > MaxWorkFactor)
-            throw new AgeHeaderException($"scrypt work factor {stanzaWorkFactor} exceeds maximum {MaxWorkFactor}");
+            throw new AgeFormatException($"scrypt work factor {stanzaWorkFactor} exceeds maximum {MaxWorkFactor}");
 
         if (stanza.Body.Length != WrappedKeySize)
-            throw new AgeHeaderException($"scrypt stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
+            throw new AgeFormatException($"scrypt stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
 
         var wrapKey = DeriveWrapKey(passphrase, salt, stanzaWorkFactor);
 

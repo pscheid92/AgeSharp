@@ -231,7 +231,7 @@ exhaust memory. The limits are exposed as constants on `AgeLimits`:
 | `AgeLimits.MaxHeaderBytes` | 16 MiB | The whole header (all stanzas) |
 | `AgeLimits.MaxArmorLineBytes` | 64 KiB | A single ASCII-armor line |
 
-Exceeding a limit throws `AgeHeaderException` / `AgeArmorException`. The age
+Exceeding a limit throws `AgeFormatException`. The age
 [specification](https://github.com/C2SP/C2SP/blob/main/age.md) sets no such
 bounds, so these are AgeSharp's own defense; they sit far above any real file
 (the largest built-in stanza line is ~1.5 KiB, and 16 MiB still allows well over

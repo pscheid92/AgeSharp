@@ -114,7 +114,7 @@ public class CctvTestRunner
         using var input = new MemoryStream(ageFileBytes);
         using var output = new MemoryStream();
 
-        Assert.Throws<AgeHmacException>(() =>
+        Assert.Throws<AgeAuthenticationException>(() =>
             AgeEncrypt.Decrypt(input, output, identities.ToArray()));
     }
 
@@ -125,8 +125,8 @@ public class CctvTestRunner
 
         var ex = Assert.ThrowsAny<AgeException>(() =>
             AgeEncrypt.Decrypt(input, output, identities.ToArray()));
-        Assert.True(ex is AgeHeaderException or AgeHmacException,
-            $"Expected AgeHeaderException or AgeHmacException, got {ex.GetType().Name}: {ex.Message}");
+        Assert.True(ex is AgeFormatException or AgeAuthenticationException,
+            $"Expected AgeFormatException or AgeAuthenticationException, got {ex.GetType().Name}: {ex.Message}");
     }
 
     private static void RunPayloadFailureTest(byte[] ageFileBytes, List<IIdentity> identities)
@@ -134,19 +134,18 @@ public class CctvTestRunner
         using var input = new MemoryStream(ageFileBytes);
         using var output = new MemoryStream();
 
-        Assert.Throws<AgePayloadException>(() =>
+        Assert.Throws<AgeAuthenticationException>(() =>
             AgeEncrypt.Decrypt(input, output, identities.ToArray()));
     }
 
+    // Armor defects are structural by definition — a single exact type now.
     private static void RunArmorFailureTest(byte[] ageFileBytes, List<IIdentity> identities)
     {
         using var input = new MemoryStream(ageFileBytes);
         using var output = new MemoryStream();
 
-        var ex = Assert.ThrowsAny<AgeException>(() =>
+        Assert.Throws<AgeFormatException>(() =>
             AgeEncrypt.Decrypt(input, output, identities.ToArray()));
-        Assert.True(ex is AgeArmorException or AgeHeaderException,
-            $"Expected AgeArmorException or AgeHeaderException, got {ex.GetType().Name}: {ex.Message}");
     }
 
     private static (Dictionary<string, string> metadata, List<string> identityStrings, byte[] ageFileBytes) ParseTestFile(string path)

@@ -94,13 +94,13 @@ public class MlKem768X25519RecipientTests
         using var identity = MlKem768X25519Identity.Generate();
         var recipientStr = identity.Recipient.ToString().ToUpperInvariant();
 
-        Assert.Throws<FormatException>(() => MlKem768X25519Recipient.Parse(recipientStr));
+        Assert.Throws<AgeFormatException>(() => MlKem768X25519Recipient.Parse(recipientStr));
     }
 
     [Fact]
     public void Parse_RejectsWrongHrp()
     {
-        Assert.Throws<FormatException>(() => MlKem768X25519Recipient.Parse("age1qyqsqzzpj08m"));
+        Assert.Throws<AgeFormatException>(() => MlKem768X25519Recipient.Parse("age1qyqsqzzpj08m"));
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class MlKem768X25519ConstructorTests
     public void Parse_Rejects_WrongDataLength()
     {
         var encoded = Bech32.Encode("age1pq", new byte[100]);
-        var ex = Assert.Throws<FormatException>(() => MlKem768X25519Recipient.Parse(encoded));
+        var ex = Assert.Throws<AgeFormatException>(() => MlKem768X25519Recipient.Parse(encoded));
         Assert.Contains("must be", ex.Message);
     }
 }
@@ -149,7 +149,7 @@ public class MlKem768X25519IdentityTests
         using var identity = MlKem768X25519Identity.Generate();
         var identityStr = identity.ToSecretString().ToLowerInvariant();
 
-        Assert.Throws<FormatException>(() => MlKem768X25519Identity.Parse(identityStr));
+        Assert.Throws<AgeFormatException>(() => MlKem768X25519Identity.Parse(identityStr));
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public class MlKem768X25519IdentityTests
     {
         // Try parsing an X25519 identity as PQ
         using var x25519 = X25519Identity.Generate();
-        Assert.Throws<FormatException>(() => MlKem768X25519Identity.Parse(x25519.ToSecretString()));
+        Assert.Throws<AgeFormatException>(() => MlKem768X25519Identity.Parse(x25519.ToSecretString()));
     }
 
     [Fact]
