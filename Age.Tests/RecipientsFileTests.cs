@@ -80,7 +80,7 @@ public class RecipientsFileTests
     public void ParseRecipientsFile_UnrecognizedLine_Throws()
     {
         var text = "NOT-A-VALID-RECIPIENT\n";
-        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseRecipientsFile(text));
+        var ex = Assert.Throws<AgeFormatException>(() => AgeKeygen.ParseRecipientsFile(text));
         Assert.Contains("unrecognized recipient", ex.Message);
     }
 

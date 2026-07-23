@@ -125,7 +125,7 @@ public class PluginTests
     {
         // Valid bech32 (valid checksum), but the name carries a disallowed character.
         var malicious = MakePluginRecipient(name);
-        var ex = Assert.Throws<FormatException>(() => PluginRecipient.ExtractPluginName(malicious));
+        var ex = Assert.Throws<AgeFormatException>(() => PluginRecipient.ExtractPluginName(malicious));
         Assert.Contains("invalid plugin name", ex.Message);
     }
 
@@ -135,7 +135,7 @@ public class PluginTests
     public void PluginIdentity_ExtractPluginName_InvalidChars_Throws(string name)
     {
         var malicious = MakePluginIdentity(name);
-        var ex = Assert.Throws<FormatException>(() => PluginIdentity.ExtractPluginName(malicious));
+        var ex = Assert.Throws<AgeFormatException>(() => PluginIdentity.ExtractPluginName(malicious));
         Assert.Contains("invalid plugin name", ex.Message);
     }
 
@@ -143,7 +143,7 @@ public class PluginTests
     public void PluginRecipient_Constructor_PathSeparatorName_Throws()
     {
         // The separator must be rejected at construction, before any Process.Start can run.
-        Assert.Throws<FormatException>(() => new PluginRecipient(MakePluginRecipient("pwn/pwn")));
+        Assert.Throws<AgeFormatException>(() => new PluginRecipient(MakePluginRecipient("pwn/pwn")));
     }
 
     [Theory]
@@ -189,7 +189,7 @@ public class PluginTests
         // HRP decodes to just "age" (no name) — must be a clean FormatException,
         // not the ArgumentOutOfRangeException that hrp[4..] would have thrown.
         var s = Bech32.Encode("age", new byte[] { 0x01, 0x02, 0x03 });
-        Assert.Throws<FormatException>(() => PluginRecipient.ExtractPluginName(s));
+        Assert.Throws<AgeFormatException>(() => PluginRecipient.ExtractPluginName(s));
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class PluginTests
         // HRP decodes to exactly "age-plugin-" (no name) — must be a clean FormatException,
         // not the ArgumentOutOfRangeException that hrp[11..^1] would have thrown.
         var s = Bech32.Encode("age-plugin-", new byte[] { 0x01, 0x02, 0x03 });
-        Assert.Throws<FormatException>(() => PluginIdentity.ExtractPluginName(s));
+        Assert.Throws<AgeFormatException>(() => PluginIdentity.ExtractPluginName(s));
     }
 
     // --- PluginConnection stanza I/O roundtrip ---
@@ -1096,7 +1096,7 @@ public class PluginTests
     {
         // Encode with an HRP that doesn't start with "age"
         var badStr = Bech32.Encode("notage1foo", new byte[] { 0x01 });
-        Assert.Throws<FormatException>(() => PluginRecipient.ExtractPluginName(badStr));
+        Assert.Throws<AgeFormatException>(() => PluginRecipient.ExtractPluginName(badStr));
     }
 
     // --- Additional coverage: PluginIdentity edge cases ---
@@ -1228,6 +1228,6 @@ public class PluginTests
     public void PluginIdentity_ExtractPluginName_InvalidHrp_Throws()
     {
         var badStr = Bech32.Encode("not-a-plugin-", new byte[] { 0x01 });
-        Assert.Throws<FormatException>(() => PluginIdentity.ExtractPluginName(badStr));
+        Assert.Throws<AgeFormatException>(() => PluginIdentity.ExtractPluginName(badStr));
     }
 }

@@ -149,7 +149,7 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
         {
             return Encoding.UTF8.GetString(Base64Unpadded.Decode(arg));
         }
-        catch (FormatException)
+        catch (AgeFormatException)
         {
             throw new AgePluginException($"confirm option label is not valid unpadded base64: {arg}");
         }
@@ -164,7 +164,7 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
         // between them) so the hrp[11..^1] slice can't run out of range on a malformed value.
         var name = hrp.StartsWith("age-plugin-") && hrp.EndsWith("-") && hrp.Length > 11
             ? hrp[11..^1]
-            : throw new FormatException($"invalid plugin identity HRP: {hrp}");
+            : throw new AgeFormatException($"invalid plugin identity HRP: {hrp}");
 
         // The name becomes the age-plugin-<name> executable path, so reject anything
         // outside the allowed set (notably path separators) before it reaches Process.Start.

@@ -34,13 +34,13 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         new(_sshWireBytes, _x25519PublicKey);
 
     /// <summary>Parses an ssh-ed25519 private key from PEM text (OpenSSH format).</summary>
-    /// <exception cref="FormatException">The text is not a valid ssh-ed25519 private key.</exception>
+    /// <exception cref="AgeFormatException">The text is not a valid ssh-ed25519 private key.</exception>
     public static SshEd25519Identity Parse(string pemText)
     {
         var (keyType, publicWireBytes, privateKey) = SshKeyParser.ParsePrivateKey(pemText);
 
         if (keyType != "ssh-ed25519")
-            throw new FormatException($"expected ssh-ed25519 private key, got {keyType}");
+            throw new AgeFormatException($"expected ssh-ed25519 private key, got {keyType}");
 
         var ed25519Private = (Ed25519PrivateKeyParameters)privateKey;
 
@@ -58,7 +58,7 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
     /// Attempts to unwrap the file key from an <c>ssh-ed25519</c> stanza. Returns
     /// null for stanzas of other types or addressed to a different SSH key (tag mismatch).
     /// </summary>
-    /// <exception cref="AgeHeaderException">The stanza claims to be ssh-ed25519 but is malformed.</exception>
+    /// <exception cref="AgeFormatException">The stanza claims to be ssh-ed25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public byte[]? Unwrap(Stanza stanza)
     {
@@ -68,7 +68,7 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
             return null;
 
         if (stanza.Args.Count != 2)
-            throw new AgeHeaderException($"ssh-ed25519 stanza must have exactly 2 arguments, got {stanza.Args.Count}");
+            throw new AgeFormatException($"ssh-ed25519 stanza must have exactly 2 arguments, got {stanza.Args.Count}");
 
         // Check tag matches
         var stanzaTag = stanza.Args[0];
@@ -81,16 +81,16 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         {
             ephPubBytes = Base64Unpadded.Decode(stanza.Args[1]);
         }
-        catch (FormatException ex)
+        catch (AgeFormatException ex)
         {
-            throw new AgeHeaderException($"invalid ssh-ed25519 ephemeral key encoding: {ex.Message}", ex);
+            throw new AgeFormatException($"invalid ssh-ed25519 ephemeral key encoding: {ex.Message}", ex);
         }
 
         if (ephPubBytes.Length != KeySize)
-            throw new AgeHeaderException($"ssh-ed25519 ephemeral key must be {KeySize} bytes, got {ephPubBytes.Length}");
+            throw new AgeFormatException($"ssh-ed25519 ephemeral key must be {KeySize} bytes, got {ephPubBytes.Length}");
 
         if (stanza.Body.Length != WrappedKeySize)
-            throw new AgeHeaderException($"ssh-ed25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
+            throw new AgeFormatException($"ssh-ed25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
 
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
         var privateKey = new X25519PrivateKeyParameters(_x25519PrivateKey);

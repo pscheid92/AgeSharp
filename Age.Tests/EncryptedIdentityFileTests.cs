@@ -63,7 +63,7 @@ public class EncryptedIdentityFileTests
     public void ParseIdentityFile_UnrecognizedLine_Throws()
     {
         var text = "# comment\nNOT-A-VALID-KEY\n";
-        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseIdentityFile(text));
+        var ex = Assert.Throws<AgeFormatException>(() => AgeKeygen.ParseIdentityFile(text));
         Assert.Contains("unrecognized line", ex.Message);
     }
 

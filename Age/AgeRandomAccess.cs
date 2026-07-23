@@ -39,9 +39,9 @@ public sealed class AgeRandomAccess : IDisposable
     /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
     /// <exception cref="ArgumentException">The stream is not seekable, or no identities were supplied.</exception>
     /// <exception cref="NoIdentityMatchException">None of the identities matched any stanza.</exception>
-    /// <exception cref="AgeHeaderException">The header is malformed.</exception>
-    /// <exception cref="AgeHmacException">The header MAC failed verification.</exception>
-    /// <exception cref="AgePayloadException">The payload is empty or structurally impossible.</exception>
+    /// <exception cref="AgeFormatException">The header is malformed.</exception>
+    /// <exception cref="AgeAuthenticationException">The header MAC failed verification.</exception>
+    /// <exception cref="AgeAuthenticationException">The payload is empty or structurally impossible.</exception>
     public AgeRandomAccess(Stream ciphertext, params ReadOnlySpan<IIdentity> identities)
     {
         if (!ciphertext.CanSeek)
@@ -82,7 +82,7 @@ public sealed class AgeRandomAccess : IDisposable
     /// 64 KiB chunk(s) afresh; batch small reads or use a buffered
     /// <see cref="GetStream"/> wrapper for sequential access.
     /// </summary>
-    /// <exception cref="AgePayloadException">A chunk is truncated or fails authentication.</exception>
+    /// <exception cref="AgeAuthenticationException">A chunk is truncated or fails authentication.</exception>
     public int ReadAt(long plaintextOffset, Span<byte> buffer)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -151,7 +151,7 @@ public sealed class AgeRandomAccess : IDisposable
             var totalEncrypted = binaryInput.Length - payloadStart;
 
             if (totalEncrypted == 0)
-                throw new AgePayloadException("payload is empty (no chunks)");
+                throw new AgeAuthenticationException("payload is empty (no chunks)");
 
             var plaintextLength = ComputePlaintextLength(totalEncrypted);
             return new PayloadInfo(payloadKey, payloadStart, totalEncrypted, plaintextLength);
@@ -179,7 +179,7 @@ public sealed class AgeRandomAccess : IDisposable
         var plaintext = StreamEncryption.DecryptChunk(_payloadKey, chunkIndex, isFinal, encChunk);
 
         if (isFinal && plaintext.Length == 0 && chunkIndex > 0)
-            throw new AgePayloadException("final STREAM chunk is empty but there were preceding chunks");
+            throw new AgeAuthenticationException("final STREAM chunk is empty but there were preceding chunks");
 
         return plaintext;
     }
@@ -202,7 +202,7 @@ public sealed class AgeRandomAccess : IDisposable
 
         return bytesRead == encChunkSize
             ? encChunk
-            : throw new AgePayloadException($"could not read full chunk at offset {ciphertextPos}");
+            : throw new AgeAuthenticationException($"could not read full chunk at offset {ciphertextPos}");
     }
 
     private static byte[] ReadPayloadNonce(HeaderReader reader)
@@ -212,7 +212,7 @@ public sealed class AgeRandomAccess : IDisposable
 
         return nonceRead == AgeEncrypt.PayloadNonceSize
             ? payloadNonce
-            : throw new AgeHeaderException($"expected {AgeEncrypt.PayloadNonceSize}-byte payload nonce, got {nonceRead} bytes");
+            : throw new AgeFormatException($"expected {AgeEncrypt.PayloadNonceSize}-byte payload nonce, got {nonceRead} bytes");
     }
 
     private static (Stream binaryInput, bool needsDispose) DeArmorInput(Stream ciphertext)
@@ -239,7 +239,7 @@ public sealed class AgeRandomAccess : IDisposable
         var lastChunkPlainSize = lastChunkEncSize - StreamEncryption.TagSize;
 
         if (lastChunkPlainSize < 0)
-            throw new AgePayloadException("chunk too small for authentication tag");
+            throw new AgeAuthenticationException("chunk too small for authentication tag");
 
         return fullChunks * StreamEncryption.ChunkSize + lastChunkPlainSize;
     }

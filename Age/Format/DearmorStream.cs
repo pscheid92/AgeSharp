@@ -84,7 +84,7 @@ internal sealed class DearmorStream : Stream
     private bool DecodeNextLine()
     {
         var line = _reader.ReadLine()
-            ?? throw new AgeArmorException("unexpected end of armored data");
+            ?? throw new AgeFormatException("unexpected end of armored data");
 
         if (line == EndMarker)
         {
@@ -96,12 +96,12 @@ internal sealed class DearmorStream : Stream
         ValidateBodyLine(line);
 
         if (!Convert.TryFromBase64Chars(line.AsSpan(), _decodeBuffer, out var bytesWritten))
-            throw new AgeArmorException("invalid base64 in armor");
+            throw new AgeFormatException("invalid base64 in armor");
 
         // Full-length lines (64 chars) encode exactly 48 bytes with no padding.
         // If padding is present on a full line, the decode succeeds but is non-canonical.
         if (line.Length == ColumnsPerLine && bytesWritten != MaxDecodedPerLine)
-            throw new AgeArmorException("non-canonical base64 in armor");
+            throw new AgeFormatException("non-canonical base64 in armor");
 
         // Short lines may have padding — validate the trailing bits are zero.
         if (line.Length < ColumnsPerLine)
@@ -122,23 +122,23 @@ internal sealed class DearmorStream : Stream
                 break;
 
             if (ch is not (' ' or '\t' or '\r' or '\n'))
-                throw new AgeArmorException("trailing data after end marker");
+                throw new AgeFormatException("trailing data after end marker");
         }
     }
 
     private void ValidateBodyLine(string line)
     {
         if (line.Length == 0)
-            throw new AgeArmorException("empty line in armor body");
+            throw new AgeFormatException("empty line in armor body");
 
         if (line[0] is ' ' or '\t' || line[^1] is ' ' or '\t')
-            throw new AgeArmorException("whitespace in armor body line");
+            throw new AgeFormatException("whitespace in armor body line");
 
         if (line.Length > ColumnsPerLine)
-            throw new AgeArmorException($"armor body line exceeds {ColumnsPerLine} characters");
+            throw new AgeFormatException($"armor body line exceeds {ColumnsPerLine} characters");
 
         if (_lastLineWasShort)
-            throw new AgeArmorException("short line in armor body is not the last line");
+            throw new AgeFormatException("short line in armor body is not the last line");
 
         if (line.Length < ColumnsPerLine)
             _lastLineWasShort = true;
@@ -146,7 +146,7 @@ internal sealed class DearmorStream : Stream
         var invalid = line.AsSpan().IndexOfAnyExcept(Base64Chars);
 
         if (invalid >= 0)
-            throw new AgeArmorException($"invalid character in armor body: '{line[invalid]}'");
+            throw new AgeFormatException($"invalid character in armor body: '{line[invalid]}'");
     }
 
     private static void ValidateCanonicalPadding(ReadOnlySpan<char> line)
@@ -173,7 +173,7 @@ internal sealed class DearmorStream : Stream
         var mask = (1 << unusedBits) - 1;
 
         if ((value & mask) != 0)
-            throw new AgeArmorException("non-canonical base64 in armor");
+            throw new AgeFormatException("non-canonical base64 in armor");
     }
 
     private static int Base64Value(char c) => c switch
@@ -183,7 +183,7 @@ internal sealed class DearmorStream : Stream
         >= '0' and <= '9' => c - '0' + 52,
         '+' => 62,
         '/' => 63,
-        _ => throw new AgeArmorException($"invalid base64 character: '{c}'"),
+        _ => throw new AgeFormatException($"invalid base64 character: '{c}'"),
     };
 
     protected override void Dispose(bool disposing)

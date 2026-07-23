@@ -91,15 +91,15 @@ public sealed class Stanza
 
     internal static Stanza Parse(HeaderReader reader)
     {
-        var line = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header while reading stanza");
+        var line = reader.ReadLine() ?? throw new AgeFormatException("unexpected end of header while reading stanza");
 
         if (!line.StartsWith("-> "))
-            throw new AgeHeaderException($"expected stanza prefix '-> ', got: {line}");
+            throw new AgeFormatException($"expected stanza prefix '-> ', got: {line}");
 
         var parts = line[3..].Split(' ');
 
         if (parts.Length < 1 || string.IsNullOrEmpty(parts[0]))
-            throw new AgeHeaderException("stanza must have at least a type");
+            throw new AgeFormatException("stanza must have at least a type");
 
         var stanzaType = parts[0];
         var stanzaArgs = parts.Length > 1 ? parts[1..] : [];
@@ -120,12 +120,12 @@ public sealed class Stanza
 
         while (true)
         {
-            var bodyLine = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header while reading stanza body");
+            var bodyLine = reader.ReadLine() ?? throw new AgeFormatException("unexpected end of header while reading stanza body");
 
             switch (bodyLine.Length)
             {
                 case > 64:
-                    throw new AgeHeaderException("stanza body line exceeds 64 characters");
+                    throw new AgeFormatException("stanza body line exceeds 64 characters");
                 case > 0:
                     bodyChunks.Add(Base64Unpadded.Decode(bodyLine));
                     break;
@@ -157,16 +157,16 @@ public sealed class Stanza
     private static void ValidateStanzaString(string s)
     {
         if (string.IsNullOrEmpty(s))
-            throw new AgeHeaderException("stanza type/argument cannot be empty");
+            throw new AgeFormatException("stanza type/argument cannot be empty");
 
         var invalid = s.IndexOfAnyExceptInRange('!', '~');
         if (invalid >= 0)
-            throw new AgeHeaderException($"invalid character in stanza type/argument: 0x{(int)s[invalid]:X2}");
+            throw new AgeFormatException($"invalid character in stanza type/argument: 0x{(int)s[invalid]:X2}");
     }
 
     // Same rule as ValidateStanzaString, but for caller-supplied constructor input,
     // where ArgumentException is the idiomatic failure (the parse path keeps
-    // AgeHeaderException for malformed wire data).
+    // AgeFormatException for malformed wire data).
     private static void EnsureValidStanzaString(string? s, string paramName)
     {
         if (string.IsNullOrEmpty(s))

@@ -28,13 +28,13 @@ public sealed class SshEd25519Recipient : IRecipient
     }
 
     /// <summary>Parses an <c>ssh-ed25519 AAAA…</c> public key line.</summary>
-    /// <exception cref="FormatException">The line is not a valid ssh-ed25519 public key.</exception>
+    /// <exception cref="AgeFormatException">The line is not a valid ssh-ed25519 public key.</exception>
     public static SshEd25519Recipient Parse(string authorizedKeysLine)
     {
         var (keyType, wireBytes, pubKey) = SshKeyParser.ParsePublicKey(authorizedKeysLine);
 
         if (keyType != "ssh-ed25519")
-            throw new FormatException($"expected ssh-ed25519, got {keyType}");
+            throw new AgeFormatException($"expected ssh-ed25519, got {keyType}");
 
         var ed25519Pub = (Ed25519PublicKeyParameters)pubKey;
         var x25519Pub = Ed25519Converter.PublicKeyToX25519(ed25519Pub.GetEncoded());

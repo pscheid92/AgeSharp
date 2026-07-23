@@ -1,10 +1,12 @@
 name: Test
 
+# next-version is the v0.3 integration branch — it gets the same CI as main
+# until it merges back (drop it from these filters at that point).
 on:
   push:
-    branches: [main]
+    branches: [main, next-version]
   pull_request:
-    branches: [main]
+    branches: [main, next-version]
 
 jobs:
   test:

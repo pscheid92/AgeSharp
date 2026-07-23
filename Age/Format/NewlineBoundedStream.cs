@@ -45,7 +45,7 @@ internal sealed class NewlineBoundedStream(Stream inner, int maxLineBytes) : Str
             var lineLen = nl < 0 ? bytes.Length : nl;
 
             if (_run + lineLen > maxLineBytes)
-                throw new AgeArmorException($"armor line exceeds {maxLineBytes} bytes");
+                throw new AgeFormatException($"armor line exceeds {maxLineBytes} bytes");
 
             if (nl < 0)
             {

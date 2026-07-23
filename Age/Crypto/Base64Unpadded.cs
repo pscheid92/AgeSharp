@@ -26,7 +26,7 @@ internal static class Base64Unpadded
             return [];
 
         if (chars.Contains('='))
-            throw new FormatException("base64 input must not contain padding");
+            throw new AgeFormatException("base64 input must not contain padding");
 
         var decoded = DecodeWithPadding(chars);
         VerifyCanonical(decoded, chars);
@@ -49,7 +49,7 @@ internal static class Base64Unpadded
 
         return Convert.TryFromBase64Chars(padded, result, out var bytesWritten)
             ? result[..bytesWritten]
-            : throw new FormatException("invalid base64 input");
+            : throw new AgeFormatException("invalid base64 input");
     }
 
     private static void VerifyCanonical(ReadOnlySpan<byte> decoded, ReadOnlySpan<char> originalChars)
@@ -61,10 +61,10 @@ internal static class Base64Unpadded
             : new char[maxLen];
 
         if (!Convert.TryToBase64Chars(decoded, reencoded, out var written))
-            throw new FormatException("canonicality check failed");
+            throw new AgeFormatException("canonicality check failed");
 
         var trimmed = reencoded[..written].TrimEnd('=');
         if (!trimmed.SequenceEqual(originalChars))
-            throw new FormatException("non-canonical base64 encoding");
+            throw new AgeFormatException("non-canonical base64 encoding");
     }
 }

@@ -61,10 +61,10 @@ internal static class AsciiArmor
         } while (line != null && line.AsSpan().Trim().Length == 0);
 
         if (line == null)
-            throw new AgeArmorException("empty armored data");
+            throw new AgeFormatException("empty armored data");
 
         if (line.TrimStart() != BeginMarker)
-            throw new AgeArmorException($"expected begin marker, got: {line}");
+            throw new AgeFormatException($"expected begin marker, got: {line}");
 
         return new DearmorStream(reader);
     }

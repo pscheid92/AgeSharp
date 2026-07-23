@@ -52,7 +52,7 @@ internal sealed class HeaderReader(Stream stream)
             if (b < 0)
                 return lineBytes.Count == 0
                     ? null
-                    : throw new AgeHeaderException("unexpected end of stream (no trailing newline)");
+                    : throw new AgeFormatException("unexpected end of stream (no trailing newline)");
 
             if (b == '\n')
                 break;
@@ -60,7 +60,7 @@ internal sealed class HeaderReader(Stream stream)
             ValidateByte(b);
 
             if (lineBytes.Count >= AgeLimits.MaxHeaderLineBytes)
-                throw new AgeHeaderException($"header line exceeds {AgeLimits.MaxHeaderLineBytes} bytes");
+                throw new AgeFormatException($"header line exceeds {AgeLimits.MaxHeaderLineBytes} bytes");
 
             lineBytes.Add((byte)b);
         }
@@ -75,7 +75,7 @@ internal sealed class HeaderReader(Stream stream)
         if (b >= 0)
         {
             if (_rawBytes.Length >= AgeLimits.MaxHeaderBytes)
-                throw new AgeHeaderException($"header exceeds {AgeLimits.MaxHeaderBytes} bytes");
+                throw new AgeFormatException($"header exceeds {AgeLimits.MaxHeaderBytes} bytes");
 
             _rawBytes.WriteByte((byte)b);
         }
@@ -88,9 +88,9 @@ internal sealed class HeaderReader(Stream stream)
         switch (b)
         {
             case '\r':
-                throw new AgeHeaderException("CR characters are not allowed in age headers");
+                throw new AgeFormatException("CR characters are not allowed in age headers");
             case > 127:
-                throw new AgeHeaderException($"non-ASCII byte 0x{b:X2} in header");
+                throw new AgeFormatException($"non-ASCII byte 0x{b:X2} in header");
         }
     }
 

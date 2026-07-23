@@ -19,20 +19,20 @@ internal static class SshKeyParser
     {
         var parts = authorizedKeysLine.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 2)
-            throw new FormatException("invalid authorized_keys line: expected at least 2 fields");
+            throw new AgeFormatException("invalid authorized_keys line: expected at least 2 fields");
 
         var keyType = parts[0];
         if (keyType != "ssh-ed25519" && keyType != "ssh-rsa")
-            throw new FormatException($"unsupported SSH key type: {keyType}");
+            throw new AgeFormatException($"unsupported SSH key type: {keyType}");
 
         byte[] wireBytes;
         try
         {
             wireBytes = Convert.FromBase64String(parts[1]);
         }
-        catch (FormatException ex)
+        catch (FormatException ex) // BCL type: thrown by Convert.FromBase64String
         {
-            throw new FormatException("invalid base64 in authorized_keys line", ex);
+            throw new AgeFormatException("invalid base64 in authorized_keys line", ex);
         }
 
         var publicKey = OpenSshPublicKeyUtilities.ParsePublicKey(wireBytes);
@@ -54,7 +54,7 @@ internal static class SshKeyParser
             var pemReader = new PemReader(new StringReader(pemText));
             var pemObject = pemReader.ReadPemObject();
             if (pemObject == null)
-                throw new FormatException("failed to read PEM object");
+                throw new AgeFormatException("failed to read PEM object");
 
             privateKey = OpenSshPrivateKeyUtilities.ParsePrivateKeyBlob(pemObject.Content);
         }
@@ -68,7 +68,7 @@ internal static class SshKeyParser
             {
                 AsymmetricCipherKeyPair kp => kp.Private,
                 AsymmetricKeyParameter { IsPrivate: true } akp => akp,
-                _ => throw new FormatException("PEM does not contain a private key")
+                _ => throw new AgeFormatException("PEM does not contain a private key")
             };
         }
 
@@ -87,7 +87,7 @@ internal static class SshKeyParser
                 keyType = "ssh-rsa";
                 break;
             default:
-                throw new FormatException($"unsupported private key type: {privateKey.GetType().Name}");
+                throw new AgeFormatException($"unsupported private key type: {privateKey.GetType().Name}");
         }
 
         var publicWireBytes = OpenSshPublicKeyUtilities.EncodePublicKey(publicKey);
