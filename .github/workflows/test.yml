@@ -53,8 +53,13 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
+      # -p:TreatWarningsAsErrors turns compiler and analyzer warnings (CS1591 doc
+      # gaps, RS0016 undeclared public API, ...) into errors. CI is the reliable
+      # gate for these: local incremental builds don't re-emit warnings from
+      # unchanged files. publish.yml is deliberately not gated so AOT/trim
+      # warnings can never block a release.
       - name: Build
-        run: dotnet build --no-restore
+        run: dotnet build --no-restore -p:TreatWarningsAsErrors=true
 
       - name: Test
         run: dotnet test --no-build --collect:"XPlat Code Coverage"
@@ -88,4 +93,4 @@ jobs:
           echo "$RUNNER_TEMP/age" >> "$GITHUB_PATH"
 
       - name: Test (portable / BouncyCastle backend)
-        run: dotnet test -c Release -p:ForcePortableAead=true
+        run: dotnet test -c Release -p:ForcePortableAead=true -p:TreatWarningsAsErrors=true
