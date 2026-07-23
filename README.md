@@ -259,3 +259,10 @@ with the Go reference implementation and Rust's `rage`.
 - [age](https://github.com/FiloSottile/age) — the reference Go implementation and CLI
 - [rage](https://github.com/str4d/rage) — a Rust implementation of age
 - [awesome-age](https://github.com/FiloSottile/awesome-age) — age plugins, tools, and integrations
+
+AgeSharp targets .NET 10. If you need an older runtime, there is a community port
+to .NET Standard 2.0 / .NET Framework 4.8:
+
+- [AgeSharpNetStandard](https://github.com/davidmatson/AgeSharpNetStandard) — third-party,
+  **not maintained or audited by this project**. It is a point-in-time port that may lag
+  behind AgeSharp (including security fixes), so review it yourself before relying on it.
