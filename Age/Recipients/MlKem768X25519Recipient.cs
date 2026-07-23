@@ -3,6 +3,10 @@ using Age.Format;
 
 namespace Age.Recipients;
 
+/// <summary>
+/// A post-quantum ML-KEM-768-X25519 hybrid recipient (<c>age1pq1…</c>), used to
+/// encrypt. Instances are immutable and safe to share.
+/// </summary>
 public sealed class MlKem768X25519Recipient : IRecipient
 {
     private const string Hrp = "age1pq";
@@ -17,9 +21,15 @@ public sealed class MlKem768X25519Recipient : IRecipient
         _publicKey = publicKey;
     }
 
+    /// <summary>
+    /// The <c>postquantum</c> security label: prevents mixing this recipient with
+    /// classical recipients, which would silently void the post-quantum guarantee.
+    /// </summary>
     public string Label =>
         "postquantum";
 
+    /// <summary>Parses a bech32-encoded recipient (<c>age1pq1…</c>, lowercase).</summary>
+    /// <exception cref="FormatException">The string is not a valid ML-KEM-768-X25519 recipient.</exception>
     public static MlKem768X25519Recipient Parse(string s)
     {
         var (hrp, data) = Bech32.Decode(s);
@@ -36,9 +46,11 @@ public sealed class MlKem768X25519Recipient : IRecipient
             : throw new FormatException("age recipient must be lowercase");
     }
 
+    /// <summary>Returns the bech32-encoded recipient string (<c>age1pq1…</c>).</summary>
     public override string ToString() =>
         Bech32.Encode(Hrp, _publicKey);
 
+    /// <summary>Wraps the file key for this recipient via X-Wing HPKE (ML-KEM-768 + X25519).</summary>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
         var (enc, ct) = HpkeHelper.SealBase(_publicKey, AgeProtocol.MlKemHpkeInfo, fileKey.ToArray());

@@ -1022,12 +1022,20 @@ public class X25519RecipientIdentityTests
     }
 
     [Fact]
-    public void Identity_Parse_ToString_RoundTrip()
+    public void Identity_Parse_ToSecretString_RoundTrip()
     {
         using var identity = X25519Identity.Generate();
-        var identityStr = identity.ToString();
+        var identityStr = identity.ToSecretString();
         using var parsed = X25519Identity.Parse(identityStr);
-        Assert.Equal(identityStr, parsed.ToString());
+        Assert.Equal(identityStr, parsed.ToSecretString());
+    }
+
+    [Fact]
+    public void Identity_ToString_IsRedacted()
+    {
+        using var identity = X25519Identity.Generate();
+        Assert.StartsWith("X25519Identity(age1", identity.ToString());
+        Assert.DoesNotContain(identity.ToSecretString(), identity.ToString());
     }
 
     [Fact]
@@ -1042,7 +1050,7 @@ public class X25519RecipientIdentityTests
     public void Identity_Reject_NonUppercase()
     {
         using var identity = X25519Identity.Generate();
-        var identityStr = identity.ToString().ToLowerInvariant();
+        var identityStr = identity.ToSecretString().ToLowerInvariant();
         Assert.Throws<FormatException>(() => X25519Identity.Parse(identityStr));
     }
 
@@ -1366,7 +1374,7 @@ public class AgeKeygenTests
     public void Generate_Returns_Valid_Identity()
     {
         using var identity = AgeKeygen.Generate();
-        var str = identity.ToString();
+        var str = identity.ToSecretString();
         Assert.StartsWith("AGE-SECRET-KEY-1", str);
     }
 }

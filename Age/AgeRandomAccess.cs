@@ -5,6 +5,19 @@ using Age.Recipients;
 
 namespace Age;
 
+/// <summary>
+/// Random-access decryption over a seekable age ciphertext: decrypt arbitrary
+/// plaintext ranges without reading the whole file. Not thread-safe — the
+/// instance (and streams from <see cref="GetStream"/>) reposition the underlying
+/// ciphertext stream, so use one reader per thread.
+/// </summary>
+/// <remarks>
+/// Construction parses the header, verifies its MAC, and derives the payload key.
+/// Armored input is supported by materializing the dearmored ciphertext in memory,
+/// so very large armored files cost their full size in memory; binary input is
+/// read in place. Truncation of the final chunk is only detectable when a read
+/// actually reaches it.
+/// </remarks>
 public sealed class AgeRandomAccess : IDisposable
 {
     private readonly byte[] _payloadKey;
@@ -13,8 +26,22 @@ public sealed class AgeRandomAccess : IDisposable
     private readonly MemoryStream? _armoredBinaryInput;
     private bool _disposed;
 
+    /// <summary>Total plaintext length in bytes, computed from the ciphertext layout.</summary>
     public long PlaintextLength { get; }
 
+    /// <summary>
+    /// Opens an age ciphertext for random-access decryption: parses the header,
+    /// unwraps the file key with the given identities, and verifies the header MAC.
+    /// The stream is rewound to position 0 first and must contain nothing but the
+    /// age file. The caller retains ownership of the stream.
+    /// </summary>
+    /// <param name="ciphertext">Seekable age ciphertext (binary or armored).</param>
+    /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
+    /// <exception cref="ArgumentException">The stream is not seekable, or no identities were supplied.</exception>
+    /// <exception cref="NoIdentityMatchException">None of the identities matched any stanza.</exception>
+    /// <exception cref="AgeHeaderException">The header is malformed.</exception>
+    /// <exception cref="AgeHmacException">The header MAC failed verification.</exception>
+    /// <exception cref="AgePayloadException">The payload is empty or structurally impossible.</exception>
     public AgeRandomAccess(Stream ciphertext, params ReadOnlySpan<IIdentity> identities)
     {
         if (!ciphertext.CanSeek)
@@ -47,6 +74,15 @@ public sealed class AgeRandomAccess : IDisposable
         }
     }
 
+    /// <summary>
+    /// Decrypts plaintext starting at <paramref name="plaintextOffset"/> into
+    /// <paramref name="buffer"/>. Returns the number of bytes written — the full
+    /// buffer unless the plaintext ends first; 0 when the offset is negative or
+    /// at/past <see cref="PlaintextLength"/>. Each call decrypts the touched
+    /// 64 KiB chunk(s) afresh; batch small reads or use a buffered
+    /// <see cref="GetStream"/> wrapper for sequential access.
+    /// </summary>
+    /// <exception cref="AgePayloadException">A chunk is truncated or fails authentication.</exception>
     public int ReadAt(long plaintextOffset, Span<byte> buffer)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -74,12 +110,19 @@ public sealed class AgeRandomAccess : IDisposable
         return totalRead;
     }
 
+    /// <summary>
+    /// Returns a readable, seekable plaintext <see cref="Stream"/> view over this
+    /// reader, starting at <paramref name="plaintextOffset"/>. The stream shares
+    /// this instance's state: streams from multiple calls must not be used
+    /// concurrently, and disposing this reader invalidates them.
+    /// </summary>
     public Stream GetStream(long plaintextOffset = 0)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         return new RandomAccessDecryptStream(this, plaintextOffset);
     }
 
+    /// <summary>Zeroes the payload key and releases any dearmored buffer.</summary>
     public void Dispose()
     {
         if (_disposed)

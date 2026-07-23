@@ -5,15 +5,28 @@ using Age.Plugin;
 
 namespace Age.Recipients;
 
+/// <summary>
+/// A recipient handled by an external <c>age-plugin-*</c> binary. Wrapping spawns
+/// the plugin found on <c>PATH</c> for the recipient's HRP (e.g. <c>age1yubikey1…</c>
+/// runs <c>age-plugin-yubikey</c>) and drives the recipient-v1 protocol.
+/// </summary>
+/// <param name="recipient">The plugin recipient string (<c>age1&lt;name&gt;1…</c>).</param>
+/// <param name="callbacks">
+/// Optional UI callbacks for interactive plugins; when null, interactive
+/// requests are answered with failure per the plugin protocol.
+/// </param>
 public sealed class PluginRecipient(string recipient, IPluginCallbacks? callbacks = null) : IRecipient
 {
     internal string PluginName { get; } =
         ExtractPluginName(recipient);
 
+    /// <summary>Plugin recipients declare no security label.</summary>
     public string? Label =>
         null;
 
 
+    /// <summary>Wraps the file key by running the plugin binary (recipient-v1 protocol).</summary>
+    /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an error.</exception>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
         using var conn = new PluginConnection(PluginName, "recipient-v1");
@@ -148,6 +161,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
         return PluginNameValidator.Validate(name);
     }
 
+    /// <summary>Returns the plugin recipient string (public data).</summary>
     public override string ToString() =>
         recipient;
 }

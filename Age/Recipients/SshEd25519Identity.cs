@@ -6,6 +6,10 @@ using Org.BouncyCastle.Crypto.Parameters;
 
 namespace Age.Recipients;
 
+/// <summary>
+/// An identity backed by an ssh-ed25519 private key, converted to X25519 for the
+/// age <c>ssh-ed25519</c> recipient type. Disposing zeroes the converted key.
+/// </summary>
 public sealed class SshEd25519Identity : IIdentity, IDisposable
 {
     private const int KeySize = 32;
@@ -25,9 +29,12 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         _tag = SshKeyParser.ComputeTag(sshWireBytes);
     }
 
+    /// <summary>The matching recipient, derived from the SSH public key.</summary>
     public SshEd25519Recipient Recipient =>
         new(_sshWireBytes, _x25519PublicKey);
 
+    /// <summary>Parses an ssh-ed25519 private key from PEM text (OpenSSH format).</summary>
+    /// <exception cref="FormatException">The text is not a valid ssh-ed25519 private key.</exception>
     public static SshEd25519Identity Parse(string pemText)
     {
         var (keyType, publicWireBytes, privateKey) = SshKeyParser.ParsePrivateKey(pemText);
@@ -47,6 +54,12 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         return new SshEd25519Identity(x25519Private, x25519Pub, publicWireBytes);
     }
 
+    /// <summary>
+    /// Attempts to unwrap the file key from an <c>ssh-ed25519</c> stanza. Returns
+    /// null for stanzas of other types or addressed to a different SSH key (tag mismatch).
+    /// </summary>
+    /// <exception cref="AgeHeaderException">The stanza claims to be ssh-ed25519 but is malformed.</exception>
+    /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public byte[]? Unwrap(Stanza stanza)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -120,6 +133,7 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         }
     }
 
+    /// <summary>Zeroes the converted private key material.</summary>
     public void Dispose()
     {
         if (_disposed)

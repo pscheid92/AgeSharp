@@ -62,7 +62,7 @@ public class InteropTests
         var plaintext = MakePlaintext(size);
 
         var ciphertext = EncryptWithCSharp(plaintext, armored, identity.Recipient);
-        var result = AgeCli.Decrypt(identity.ToString(), ciphertext);
+        var result = AgeCli.Decrypt(identity.ToSecretString(), ciphertext);
 
         Assert.Equal(plaintext, result);
     }
@@ -110,7 +110,7 @@ public class InteropTests
         var ciphertext = EncryptWithCSharp(plaintext, armored: false, a.Recipient, b.Recipient, c.Recipient);
 
         foreach (var identity in new[] { a, b, c })
-            Assert.Equal(plaintext, AgeCli.Decrypt(identity.ToString(), ciphertext));
+            Assert.Equal(plaintext, AgeCli.Decrypt(identity.ToSecretString(), ciphertext));
     }
 
     [SkippableFact]
@@ -164,7 +164,7 @@ public class InteropTests
         var plaintext = MakePlaintext(131072);
 
         var ciphertext = EncryptWithCSharp(plaintext, armored, identity.Recipient);
-        var result = AgeCli.Decrypt(identity.ToString(), ciphertext);
+        var result = AgeCli.Decrypt(identity.ToSecretString(), ciphertext);
 
         Assert.Equal(plaintext, result);
     }
@@ -203,7 +203,7 @@ public class InteropTests
         // The detached streams are a standard age file split at the payload boundary;
         // concatenating them must yield bytes age accepts unchanged.
         var recombined = header.ToArray().Concat(payload.ToArray()).ToArray();
-        var result = AgeCli.Decrypt(identity.ToString(), recombined);
+        var result = AgeCli.Decrypt(identity.ToSecretString(), recombined);
 
         Assert.Equal(plaintext, result);
     }

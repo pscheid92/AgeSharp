@@ -5,14 +5,31 @@ using Age.Plugin;
 
 namespace Age.Recipients;
 
+/// <summary>
+/// An identity handled by an external <c>age-plugin-*</c> binary. Unwrapping
+/// spawns the plugin named in the identity's HRP (e.g. <c>AGE-PLUGIN-YUBIKEY-1…</c>
+/// runs <c>age-plugin-yubikey</c>) and drives the identity-v1 protocol.
+/// </summary>
+/// <param name="identity">The plugin identity string (<c>AGE-PLUGIN-&lt;NAME&gt;-1…</c>).</param>
+/// <param name="callbacks">
+/// Optional UI callbacks for interactive plugins (PIN prompts, touch
+/// confirmation); when null, interactive requests are answered with failure.
+/// </param>
 public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks = null) : IIdentity
 {
     internal string PluginName { get; } =
         ExtractPluginName(identity);
 
+    /// <summary>Attempts to unwrap a single stanza by running the plugin binary.</summary>
+    /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an internal error.</exception>
     public byte[]? Unwrap(Stanza stanza) =>
         Unwrap([stanza]);
 
+    /// <summary>
+    /// Attempts to unwrap any of the stanzas in a single plugin session — one
+    /// process launch for the whole header, as the plugin protocol intends.
+    /// </summary>
+    /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an internal error.</exception>
     public byte[]? Unwrap(IReadOnlyList<Stanza> stanzas)
     {
         using var conn = new PluginConnection(PluginName, "identity-v1");
@@ -154,6 +171,19 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
         return PluginNameValidator.Validate(name);
     }
 
-    public override string ToString() =>
+    /// <summary>
+    /// Returns the raw <c>AGE-PLUGIN-…</c> identity string, e.g. for writing to an
+    /// identity file. Treat it as a secret: depending on the plugin it may encode
+    /// key material rather than just a hardware handle.
+    /// </summary>
+    public string ToSecretString() =>
         identity;
+
+    /// <summary>
+    /// Returns a redacted representation naming only the plugin, so accidental
+    /// logging cannot leak the identity string. Use <see cref="ToSecretString"/>
+    /// to export it.
+    /// </summary>
+    public override string ToString() =>
+        $"PluginIdentity({PluginName})";
 }

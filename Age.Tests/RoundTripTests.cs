@@ -134,13 +134,13 @@ public class RoundTripTests
     public void X25519_KeyRoundTrip()
     {
         using var identity = X25519Identity.Generate();
-        var identityStr = identity.ToString();
+        var identityStr = identity.ToSecretString();
         var recipientStr = identity.Recipient.ToString();
 
         using var parsed = AgeKeygen.ParseIdentity(identityStr);
         var parsedRecipient = AgeKeygen.ParseRecipient(recipientStr);
 
-        Assert.Equal(identityStr, parsed.ToString());
+        Assert.Equal(identityStr, parsed.ToSecretString());
         Assert.Equal(recipientStr, parsedRecipient.ToString());
     }
 }
