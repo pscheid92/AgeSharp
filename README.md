@@ -105,7 +105,7 @@ AgeEncrypt.Decrypt(encrypted, decrypted, bob);
 
 ```csharp
 var recipient = SshEd25519Recipient.Parse("ssh-ed25519 AAAA...");
-var identity = SshEd25519Identity.CreateFromFile("/path/to/id_ed25519");
+var identity = SshEd25519Identity.Parse(File.ReadAllText("/path/to/id_ed25519"));
 
 AgeEncrypt.Encrypt(input, encrypted, recipient);
 

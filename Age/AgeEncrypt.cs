@@ -24,7 +24,10 @@ public static class AgeEncrypt
     /// <param name="output">The ciphertext destination.</param>
     /// <param name="recipients">One or more recipients. Must all share the same <see cref="IRecipient.Label"/>.</param>
     /// <exception cref="ArgumentException">No recipients were supplied.</exception>
-    /// <exception cref="AgeException">Recipients have mismatched security labels.</exception>
+    /// <exception cref="AgeException">
+    /// Recipients have mismatched security labels, or a passphrase (scrypt)
+    /// recipient was combined with other recipients.
+    /// </exception>
     public static void Encrypt(Stream input, Stream output, params ReadOnlySpan<IRecipient> recipients)
         => Encrypt(input, output, false, recipients);
 
@@ -52,8 +55,11 @@ public static class AgeEncrypt
     /// <param name="input">The age-encrypted source (binary or ASCII-armored).</param>
     /// <param name="output">The plaintext destination.</param>
     /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
+    /// <exception cref="ArgumentException">No identities were supplied.</exception>
     /// <exception cref="NoIdentityMatchException">None of the identities matched any stanza.</exception>
-    /// <exception cref="AgeHeaderException">The header is malformed or the MAC failed verification.</exception>
+    /// <exception cref="AgeHeaderException">The header is malformed.</exception>
+    /// <exception cref="AgeHmacException">The header MAC failed verification.</exception>
+    /// <exception cref="AgeArmorException">The input is armored and the armor is malformed.</exception>
     /// <exception cref="AgePayloadException">The payload is malformed, truncated, or authentication failed.</exception>
     public static void Decrypt(Stream input, Stream output, params ReadOnlySpan<IIdentity> identities)
     {
@@ -100,6 +106,9 @@ public static class AgeEncrypt
     /// </summary>
     public static void DecryptDetached(Stream headerInput, Stream payloadInput, Stream output, params ReadOnlySpan<IIdentity> identities)
     {
+        if (identities.Length == 0)
+            throw new ArgumentException("at least one identity is required", nameof(identities));
+
         var fileKey = UnwrapFileKey(headerInput, identities);
         try
         {
@@ -180,6 +189,9 @@ public static class AgeEncrypt
     /// </summary>
     public static Stream DecryptReader(Stream ciphertext, params ReadOnlySpan<IIdentity> identities)
     {
+        if (identities.Length == 0)
+            throw new ArgumentException("at least one identity is required", nameof(identities));
+
         var (binaryInput, needsDispose) = DeArmorIfNeeded(ciphertext);
 
         try
@@ -216,6 +228,15 @@ public static class AgeEncrypt
 
         foreach (var recipient in recipients)
             header.Stanzas.Add(recipient.Wrap(fileKey));
+
+        // A scrypt stanza must be the only stanza in the header — the same rule
+        // decryption enforces. Checked post-Wrap so custom recipients that emit
+        // scrypt stanzas are caught too.
+        if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
+        {
+            CryptographicOperations.ZeroMemory(fileKey);
+            throw new AgeException("a passphrase (scrypt) recipient must be the only recipient");
+        }
 
         return (header, fileKey);
     }
