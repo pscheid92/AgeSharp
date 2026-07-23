@@ -19,7 +19,7 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
     // Chunk buffering — rented from the shared pool, reused across chunks
     private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
     private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(PlaintextBufferSize);
-    private readonly ChaCha20Poly1305 _cipher = new(payloadKey);
+    private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
     private int _plaintextLength;
     private int _plaintextOffset;
     private long _counter;

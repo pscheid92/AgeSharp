@@ -22,7 +22,7 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
     // Chunk buffering — rented from the shared pool, reused across chunks
     private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(PlaintextBufferSize);
     private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
-    private readonly ChaCha20Poly1305 _cipher = new(payloadKey);
+    private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
     private int _chunkLength;
     private int _chunkOffset;
     private long _counter;

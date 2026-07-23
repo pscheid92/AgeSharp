@@ -26,7 +26,7 @@ internal static class CryptoHelper
         return result;
     }
 
-    public static void ChaChaEncrypt(ChaCha20Poly1305 cipher, ReadOnlySpan<byte> nonce,
+    public static void ChaChaEncrypt(IAeadCipher cipher, ReadOnlySpan<byte> nonce,
                                       ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
     {
         cipher.Encrypt(nonce, plaintext,
@@ -37,7 +37,7 @@ internal static class CryptoHelper
     public static void ChaChaEncrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce,
                                       ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
     {
-        using var cipher = new ChaCha20Poly1305(key);
+        using var cipher = AeadCipher.Create(key);
         ChaChaEncrypt(cipher, nonce, plaintext, ciphertextWithTag);
     }
 
@@ -48,7 +48,7 @@ internal static class CryptoHelper
         return output;
     }
 
-    public static bool ChaChaDecrypt(ChaCha20Poly1305 cipher, ReadOnlySpan<byte> nonce,
+    public static bool ChaChaDecrypt(IAeadCipher cipher, ReadOnlySpan<byte> nonce,
                                       ReadOnlySpan<byte> ciphertextWithTag, Span<byte> plaintext)
     {
         if (ciphertextWithTag.Length < ChaChaTagSize)
@@ -74,7 +74,7 @@ internal static class CryptoHelper
     public static bool ChaChaDecrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce,
                                       ReadOnlySpan<byte> ciphertextWithTag, Span<byte> plaintext)
     {
-        using var cipher = new ChaCha20Poly1305(key);
+        using var cipher = AeadCipher.Create(key);
         return ChaChaDecrypt(cipher, nonce, ciphertextWithTag, plaintext);
     }
 
