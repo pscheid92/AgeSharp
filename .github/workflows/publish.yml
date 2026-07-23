@@ -60,7 +60,7 @@ jobs:
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Publish AOT binary
-        run: dotnet publish Age.Cli/Age.Cli.csproj -r ${{ matrix.rid }} -p:PublishAot=true -c Release
+        run: dotnet publish Age.Cli/Age.Cli.csproj -r ${{ matrix.rid }} -p:PublishAot=true -p:Version=${{ steps.version.outputs.VERSION }} -c Release
 
       - name: Package binary (Linux/macOS)
         if: runner.os != 'Windows'
