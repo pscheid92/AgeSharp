@@ -7,6 +7,10 @@ using Org.BouncyCastle.Security;
 
 namespace Age.Recipients;
 
+/// <summary>
+/// A recipient backed by an ssh-ed25519 public key (an <c>authorized_keys</c>
+/// line), encrypting via the age <c>ssh-ed25519</c> recipient type.
+/// </summary>
 public sealed class SshEd25519Recipient : IRecipient
 {
     private const int KeySize = 32;
@@ -23,6 +27,8 @@ public sealed class SshEd25519Recipient : IRecipient
         _tag = SshKeyParser.ComputeTag(sshWireBytes);
     }
 
+    /// <summary>Parses an <c>ssh-ed25519 AAAA…</c> public key line.</summary>
+    /// <exception cref="FormatException">The line is not a valid ssh-ed25519 public key.</exception>
     public static SshEd25519Recipient Parse(string authorizedKeysLine)
     {
         var (keyType, wireBytes, pubKey) = SshKeyParser.ParsePublicKey(authorizedKeysLine);
@@ -35,6 +41,7 @@ public sealed class SshEd25519Recipient : IRecipient
         return new SshEd25519Recipient(wireBytes, x25519Pub);
     }
 
+    /// <summary>Wraps the file key for this SSH key via tweaked X25519 + ChaCha20-Poly1305.</summary>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
         // Compute tweak = HKDF(ikm=[], salt=sshWireBytes, info=label, 32)

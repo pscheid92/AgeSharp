@@ -5,23 +5,38 @@ using Age.Recipients;
 
 namespace Age;
 
+/// <summary>
+/// Key generation and key/identity-file parsing: single keys, recipients files
+/// (<c>-R</c> style), plaintext identity files (<c>-i</c> style), and
+/// passphrase-protected identity files.
+/// </summary>
 public static class AgeKeygen
 {
+    /// <summary>Generates a new X25519 identity (the <c>age-keygen</c> default).</summary>
     public static X25519Identity Generate() =>
         X25519Identity.Generate();
 
+    /// <summary>Parses an X25519 secret key (<c>AGE-SECRET-KEY-1…</c>).</summary>
+    /// <exception cref="FormatException">The string is not a valid X25519 secret key.</exception>
     public static X25519Identity ParseIdentity(string s) =>
         X25519Identity.Parse(s);
 
+    /// <summary>Parses an X25519 recipient (<c>age1…</c>).</summary>
+    /// <exception cref="FormatException">The string is not a valid X25519 recipient.</exception>
     public static X25519Recipient ParseRecipient(string s) =>
         X25519Recipient.Parse(s);
 
+    /// <summary>Generates a new post-quantum ML-KEM-768-X25519 identity.</summary>
     public static MlKem768X25519Identity GeneratePq() =>
         MlKem768X25519Identity.Generate();
 
+    /// <summary>Parses an ML-KEM-768-X25519 secret key (<c>AGE-SECRET-KEY-PQ-1…</c>).</summary>
+    /// <exception cref="FormatException">The string is not a valid ML-KEM-768-X25519 secret key.</exception>
     public static MlKem768X25519Identity ParsePqIdentity(string s) =>
         MlKem768X25519Identity.Parse(s);
 
+    /// <summary>Parses an ML-KEM-768-X25519 recipient (<c>age1pq1…</c>).</summary>
+    /// <exception cref="FormatException">The string is not a valid ML-KEM-768-X25519 recipient.</exception>
     public static MlKem768X25519Recipient ParsePqRecipient(string s) =>
         MlKem768X25519Recipient.Parse(s);
 
@@ -60,13 +75,15 @@ public static class AgeKeygen
     /// <summary>
     /// Parses a recipients file containing public keys, comments, and blank lines.
     /// Supports age X25519 (age1...), ML-KEM-768 (age1pq...), plugin (age1name1...), and SSH public keys.
+    /// The returned array converts implicitly to the <c>ReadOnlySpan&lt;IRecipient&gt;</c>
+    /// that <see cref="AgeEncrypt.Encrypt(Stream, Stream, ReadOnlySpan{IRecipient})"/> accepts.
     /// </summary>
-    public static IReadOnlyList<IRecipient> ParseRecipientsFile(string text, IPluginCallbacks? callbacks = null) =>
+    public static IRecipient[] ParseRecipientsFile(string text, IPluginCallbacks? callbacks = null) =>
         text.Split('\n')
             .Select(line => line.TrimEnd('\r'))
             .Where(line => line.Length > 0 && !line.StartsWith('#'))
             .Select(line => ParseRecipientLine(line, callbacks))
-            .ToList();
+            .ToArray();
 
     /// <summary>
     /// Parses a single recipient string: age X25519, ML-KEM-768, plugin, or SSH public key.
@@ -91,8 +108,10 @@ public static class AgeKeygen
 
     /// <summary>
     /// Parses a plaintext identity file containing AGE-SECRET-KEY lines, plugin identities, comments, and blank lines.
+    /// The returned array converts implicitly to the <c>ReadOnlySpan&lt;IIdentity&gt;</c>
+    /// that <see cref="AgeEncrypt.Decrypt(Stream, Stream, ReadOnlySpan{IIdentity})"/> accepts.
     /// </summary>
-    public static IReadOnlyList<IIdentity> ParseIdentityFile(string text, IPluginCallbacks? callbacks = null)
+    public static IIdentity[] ParseIdentityFile(string text, IPluginCallbacks? callbacks = null)
     {
         var identities = new List<IIdentity>();
 
@@ -112,13 +131,13 @@ public static class AgeKeygen
                 throw new FormatException($"unrecognized line in identity file: {trimmed}");
         }
 
-        return identities;
+        return [.. identities];
     }
 
     /// <summary>
     /// Decrypts an encrypted (passphrase-protected) identity file and parses the contained identities.
     /// </summary>
-    public static IReadOnlyList<IIdentity> DecryptIdentityFile(byte[] data, string passphrase)
+    public static IIdentity[] DecryptIdentityFile(byte[] data, string passphrase)
     {
         using var input = new MemoryStream(data);
         using var output = new MemoryStream();

@@ -63,7 +63,7 @@ public class RecipientsFileTests
             """;
 
         var parsed = AgeKeygen.ParseRecipientsFile(text);
-        Assert.Equal(3, parsed.Count);
+        Assert.Equal(3, parsed.Length);
     }
 
     [Fact]

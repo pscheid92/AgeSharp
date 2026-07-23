@@ -100,11 +100,19 @@ public class PluginTests
     }
 
     [Fact]
-    public void PluginIdentity_ToString_ReturnsOriginalString()
+    public void PluginIdentity_ToSecretString_ReturnsOriginalString()
     {
         var str = MakePluginIdentity("yubikey");
         var identity = new PluginIdentity(str);
-        Assert.Equal(str, identity.ToString());
+        Assert.Equal(str, identity.ToSecretString());
+    }
+
+    [Fact]
+    public void PluginIdentity_ToString_IsRedacted()
+    {
+        var str = MakePluginIdentity("yubikey");
+        var identity = new PluginIdentity(str);
+        Assert.Equal("PluginIdentity(yubikey)", identity.ToString());
     }
 
     // --- Plugin name validation (security: prevents arbitrary executable paths) ---
@@ -744,7 +752,7 @@ public class PluginTests
         var text = $"{x25519.Recipient}\n{pluginRecip}\n";
 
         var parsed = AgeKeygen.ParseRecipientsFile(text);
-        Assert.Equal(2, parsed.Count);
+        Assert.Equal(2, parsed.Length);
         Assert.IsType<X25519Recipient>(parsed[0]);
         Assert.IsType<PluginRecipient>(parsed[1]);
     }
@@ -757,8 +765,8 @@ public class PluginTests
 
         var parsed = AgeKeygen.ParseIdentityFile(text);
         Assert.Single(parsed);
-        Assert.IsType<PluginIdentity>(parsed[0]);
-        Assert.Equal(pluginId, parsed[0].ToString());
+        var parsedPlugin = Assert.IsType<PluginIdentity>(parsed[0]);
+        Assert.Equal(pluginId, parsedPlugin.ToSecretString());
     }
 
     [Fact]
@@ -766,10 +774,10 @@ public class PluginTests
     {
         using var x25519 = X25519Identity.Generate();
         var pluginId = MakePluginIdentity("yubikey");
-        var text = $"{x25519}\n{pluginId}\n";
+        var text = $"{x25519.ToSecretString()}\n{pluginId}\n";
 
         var parsed = AgeKeygen.ParseIdentityFile(text);
-        Assert.Equal(2, parsed.Count);
+        Assert.Equal(2, parsed.Length);
         Assert.IsType<X25519Identity>(parsed[0]);
         Assert.IsType<PluginIdentity>(parsed[1]);
     }

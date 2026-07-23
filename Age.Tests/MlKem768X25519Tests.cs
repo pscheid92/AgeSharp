@@ -134,20 +134,20 @@ public class MlKem768X25519ConstructorTests
 public class MlKem768X25519IdentityTests
 {
     [Fact]
-    public void Parse_ToString_RoundTrip()
+    public void Parse_ToSecretString_RoundTrip()
     {
         using var identity = MlKem768X25519Identity.Generate();
-        var identityStr = identity.ToString();
+        var identityStr = identity.ToSecretString();
 
         using var parsed = MlKem768X25519Identity.Parse(identityStr);
-        Assert.Equal(identityStr, parsed.ToString());
+        Assert.Equal(identityStr, parsed.ToSecretString());
     }
 
     [Fact]
     public void Parse_RejectsLowercase()
     {
         using var identity = MlKem768X25519Identity.Generate();
-        var identityStr = identity.ToString().ToLowerInvariant();
+        var identityStr = identity.ToSecretString().ToLowerInvariant();
 
         Assert.Throws<FormatException>(() => MlKem768X25519Identity.Parse(identityStr));
     }
@@ -157,14 +157,22 @@ public class MlKem768X25519IdentityTests
     {
         // Try parsing an X25519 identity as PQ
         using var x25519 = X25519Identity.Generate();
-        Assert.Throws<FormatException>(() => MlKem768X25519Identity.Parse(x25519.ToString()));
+        Assert.Throws<FormatException>(() => MlKem768X25519Identity.Parse(x25519.ToSecretString()));
     }
 
     [Fact]
-    public void ToString_IsUppercase()
+    public void ToString_IsRedacted()
     {
         using var identity = MlKem768X25519Identity.Generate();
-        var identityStr = identity.ToString();
+        Assert.StartsWith("MlKem768X25519Identity(age1pq1", identity.ToString());
+        Assert.DoesNotContain(identity.ToSecretString(), identity.ToString());
+    }
+
+    [Fact]
+    public void ToSecretString_IsUppercase()
+    {
+        using var identity = MlKem768X25519Identity.Generate();
+        var identityStr = identity.ToSecretString();
 
         Assert.Equal(identityStr, identityStr.ToUpperInvariant());
         Assert.StartsWith("AGE-SECRET-KEY-PQ-1", identityStr);
@@ -343,13 +351,13 @@ public class PqRoundTripTests
     public void RoundTrip_PQ_KeyRoundTrip()
     {
         using var identity = MlKem768X25519Identity.Generate();
-        var identityStr = identity.ToString();
+        var identityStr = identity.ToSecretString();
         var recipientStr = identity.Recipient.ToString();
 
         using var parsed = AgeKeygen.ParsePqIdentity(identityStr);
         var parsedRecipient = AgeKeygen.ParsePqRecipient(recipientStr);
 
-        Assert.Equal(identityStr, parsed.ToString());
+        Assert.Equal(identityStr, parsed.ToSecretString());
         Assert.Equal(recipientStr, parsedRecipient.ToString());
     }
 

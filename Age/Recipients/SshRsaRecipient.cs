@@ -8,6 +8,10 @@ using Org.BouncyCastle.Crypto.Parameters;
 
 namespace Age.Recipients;
 
+/// <summary>
+/// A recipient backed by an ssh-rsa public key (an <c>authorized_keys</c> line,
+/// at least 2048 bits), encrypting via the age <c>ssh-rsa</c> recipient type (RSA-OAEP).
+/// </summary>
 public sealed class SshRsaRecipient : IRecipient
 {
     private const int MinKeyBits = 2048;
@@ -24,6 +28,8 @@ public sealed class SshRsaRecipient : IRecipient
         _tag = SshKeyParser.ComputeTag(sshWireBytes);
     }
 
+    /// <summary>Parses an <c>ssh-rsa AAAA…</c> public key line.</summary>
+    /// <exception cref="FormatException">The line is not a valid ssh-rsa public key.</exception>
     public static SshRsaRecipient Parse(string authorizedKeysLine)
     {
         var (keyType, wireBytes, pubKey) = SshKeyParser.ParsePublicKey(authorizedKeysLine);
@@ -33,6 +39,7 @@ public sealed class SshRsaRecipient : IRecipient
             : throw new FormatException($"expected ssh-rsa, got {keyType}");
     }
 
+    /// <summary>Wraps the file key for this SSH key using RSA-OAEP (SHA-256).</summary>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
         var oaep = new OaepEncoding(new RsaBlindedEngine(), new Sha256Digest(), new Sha256Digest(), Encoding.ASCII.GetBytes(AgeProtocol.SshRsaOaepLabel));

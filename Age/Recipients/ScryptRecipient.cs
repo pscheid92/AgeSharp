@@ -6,6 +6,17 @@ using Org.BouncyCastle.Crypto.Generators;
 
 namespace Age.Recipients;
 
+/// <summary>
+/// Passphrase-based encryption via scrypt. Implements both <see cref="IRecipient"/>
+/// and <see cref="IIdentity"/>: the same passphrase encrypts and decrypts, so pass
+/// the same instance to <c>Encrypt</c> and <c>Decrypt</c>. An scrypt recipient must
+/// be the only recipient of a file (enforced on both encrypt and decrypt).
+/// </summary>
+/// <param name="passphrase">The passphrase; used as UTF-8 bytes.</param>
+/// <param name="workFactor">
+/// The scrypt cost as log2(N), 1–20 (default 18, matching the age CLI).
+/// Decryption refuses stanzas whose work factor exceeds 20.
+/// </param>
 public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IRecipient, IIdentity
 {
     private const string StanzaType = "scrypt";
@@ -27,6 +38,7 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
             : throw new ArgumentOutOfRangeException(nameof(workFactor), workFactor,
                 $"scrypt work factor must be between 1 and {MaxWorkFactor}");
 
+    /// <summary>Wraps the file key under a key derived from the passphrase with a fresh salt.</summary>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
         var salt = new byte[SaltSize];
@@ -42,6 +54,11 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
         return new Stanza(StanzaType, [saltB64, _workFactor.ToString()], body);
     }
 
+    /// <summary>
+    /// Attempts to unwrap the file key from an scrypt stanza. Returns null for
+    /// stanzas of other types or when the passphrase is wrong.
+    /// </summary>
+    /// <exception cref="AgeHeaderException">The stanza claims to be scrypt but is malformed, or its work factor exceeds the maximum.</exception>
     public byte[]? Unwrap(Stanza stanza)
     {
         if (stanza.Type != StanzaType) return null;

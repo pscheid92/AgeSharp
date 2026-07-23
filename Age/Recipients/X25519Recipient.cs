@@ -7,6 +7,10 @@ using Org.BouncyCastle.Security;
 
 namespace Age.Recipients;
 
+/// <summary>
+/// A native age X25519 recipient — the public half of an age key pair
+/// (<c>age1…</c>), used to encrypt. Instances are immutable and safe to share.
+/// </summary>
 public sealed class X25519Recipient : IRecipient
 {
     private const string Hrp = "age";
@@ -19,6 +23,8 @@ public sealed class X25519Recipient : IRecipient
         _publicKey = publicKey;
     }
 
+    /// <summary>Parses a bech32-encoded recipient (<c>age1…</c>, lowercase).</summary>
+    /// <exception cref="FormatException">The string is not a valid X25519 recipient.</exception>
     public static X25519Recipient Parse(string s)
     {
         var (hrp, data) = Bech32.Decode(s);
@@ -36,9 +42,11 @@ public sealed class X25519Recipient : IRecipient
         return new X25519Recipient(new X25519PublicKeyParameters(data));
     }
 
+    /// <summary>Returns the bech32-encoded recipient string (<c>age1…</c>).</summary>
     public override string ToString() =>
         Bech32.Encode(Hrp, _publicKey.GetEncoded());
 
+    /// <summary>Wraps the file key for this recipient using ephemeral X25519 + ChaCha20-Poly1305.</summary>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
         // Generate ephemeral X25519 key pair

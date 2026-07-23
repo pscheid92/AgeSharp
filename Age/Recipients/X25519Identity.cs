@@ -7,6 +7,11 @@ using Org.BouncyCastle.Security;
 
 namespace Age.Recipients;
 
+/// <summary>
+/// A native age X25519 identity — the secret half of an age key pair
+/// (<c>AGE-SECRET-KEY-1…</c>). Disposing zeroes the key material; instances are
+/// safe for concurrent <see cref="Unwrap"/> calls.
+/// </summary>
 public sealed class X25519Identity : IIdentity, IDisposable
 {
     private const string Hrp = "AGE-SECRET-KEY-";
@@ -21,6 +26,7 @@ public sealed class X25519Identity : IIdentity, IDisposable
         _rawPrivateKey = rawPrivateKey;
     }
 
+    /// <summary>The matching public recipient (<c>age1…</c>), derived from the secret key.</summary>
     public X25519Recipient Recipient => new(PublicKeyParams);
 
     private X25519PublicKeyParameters PublicKeyParams
@@ -32,6 +38,7 @@ public sealed class X25519Identity : IIdentity, IDisposable
         }
     }
 
+    /// <summary>Generates a new identity from a cryptographically secure random key.</summary>
     public static X25519Identity Generate()
     {
         var privateKeyParams = new X25519PrivateKeyParameters(new SecureRandom());
@@ -40,6 +47,8 @@ public sealed class X25519Identity : IIdentity, IDisposable
         return new X25519Identity(raw);
     }
 
+    /// <summary>Parses a bech32-encoded secret key (<c>AGE-SECRET-KEY-1…</c>, uppercase).</summary>
+    /// <exception cref="FormatException">The string is not a valid X25519 secret key.</exception>
     public static X25519Identity Parse(string s)
     {
         // Must be uppercase
@@ -60,7 +69,11 @@ public sealed class X25519Identity : IIdentity, IDisposable
         return new X25519Identity(raw);
     }
 
-    public override string ToString()
+    /// <summary>
+    /// Returns the bech32-encoded secret key (<c>AGE-SECRET-KEY-1…</c>), e.g. for
+    /// writing to an identity file. Handle the result as a secret.
+    /// </summary>
+    public string ToSecretString()
     {
         var rawCopy = new byte[KeySize];
         Array.Copy(_rawPrivateKey, rawCopy, KeySize);
@@ -71,6 +84,20 @@ public sealed class X25519Identity : IIdentity, IDisposable
         return result;
     }
 
+    /// <summary>
+    /// Returns a redacted representation containing only the public recipient, so
+    /// accidental logging or string interpolation cannot leak the secret key.
+    /// Use <see cref="ToSecretString"/> to export the secret key.
+    /// </summary>
+    public override string ToString() =>
+        $"X25519Identity({Recipient})";
+
+    /// <summary>
+    /// Attempts to unwrap the file key from an X25519 stanza. Returns null for
+    /// stanzas of other types or wrapped for a different recipient.
+    /// </summary>
+    /// <exception cref="AgeHeaderException">The stanza claims to be X25519 but is malformed.</exception>
+    /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public byte[]? Unwrap(Stanza stanza)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -137,6 +164,7 @@ public sealed class X25519Identity : IIdentity, IDisposable
         }
     }
 
+    /// <summary>Zeroes the secret key material.</summary>
     public void Dispose()
     {
         if (_disposed)

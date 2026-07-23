@@ -24,11 +24,11 @@ internal static class KeygenCommand
         if (postQuantum)
         {
             using var identity = AgeKeygen.GeneratePq();
-            return (identity.Recipient.ToString(), identity.ToString());
+            return (identity.Recipient.ToString(), identity.ToSecretString());
         }
 
         using var x = AgeKeygen.Generate();
-        return (x.Recipient.ToString(), x.ToString());
+        return (x.Recipient.ToString(), x.ToSecretString());
     }
 
     private static int WriteKeyOutput(string output, string publicKey, string? outputPath)
