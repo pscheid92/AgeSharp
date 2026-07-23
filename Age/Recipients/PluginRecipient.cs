@@ -85,7 +85,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
         {
             // Per the age-plugin spec, interactive requests are answered with
             // fail when the client has no UI to present them
-            case "msg" or "request-secret" or "confirm" when callbacks is null:
+            case "msg" or "request-secret" or "request-public" or "confirm" when callbacks is null:
                 conn.WriteStanza("fail", [], []);
                 break;
 
@@ -94,9 +94,11 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
                 conn.WriteStanza("ok", [], []);
                 break;
 
+            // request-secret masks the input; request-public does not. Same flow otherwise.
             case "request-secret":
-                var secret = callbacks!.RequestValue(Encoding.UTF8.GetString(body), true);
-                conn.WriteStanza("ok", [], Encoding.UTF8.GetBytes(secret));
+            case "request-public":
+                var value = callbacks!.RequestValue(Encoding.UTF8.GetString(body), secret: type == "request-secret");
+                conn.WriteStanza("ok", [], Encoding.UTF8.GetBytes(value));
                 break;
 
             case "confirm":
