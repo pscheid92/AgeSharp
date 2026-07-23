@@ -15,6 +15,9 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
+    env:
+      AGE_VERSION: "1.3.1"
+
     steps:
       - uses: actions/checkout@v4
 
@@ -22,6 +25,30 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+
+      # Install the reference age CLI so the Interop_* tests actually run (they skip when it is absent).
+      # Extract to RUNNER_TEMP, not the workspace: the archive's lowercase "age/" dir would collide with
+      # the repo's "Age/" directory on case-insensitive macOS/Windows filesystems.
+      - name: Install age CLI (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          curl -sSL "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-linux-amd64.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/age" >> "$GITHUB_PATH"
+
+      - name: Install age CLI (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          curl -sSL "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-darwin-arm64.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/age" >> "$GITHUB_PATH"
+
+      - name: Install age CLI (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $url = "https://github.com/FiloSottile/age/releases/download/v$env:AGE_VERSION/age-v$env:AGE_VERSION-windows-amd64.zip"
+          Invoke-WebRequest $url -OutFile "$env:RUNNER_TEMP\age.zip"
+          Expand-Archive "$env:RUNNER_TEMP\age.zip" -DestinationPath "$env:RUNNER_TEMP" -Force
+          "$env:RUNNER_TEMP\age" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
       - name: Restore dependencies
         run: dotnet restore

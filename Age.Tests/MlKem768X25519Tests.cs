@@ -383,11 +383,10 @@ public class PqRoundTripTests
         Assert.Contains("different security labels", ex.Message);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Interop_PQ_EncryptWithCSharp_DecryptWithAgeCli()
     {
-        if (!File.Exists("/opt/homebrew/bin/age"))
-            return; // Skip if age CLI not available
+        Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
         using var identity = MlKem768X25519Identity.Generate();
         var recipient = identity.Recipient;
@@ -406,7 +405,7 @@ public class PqRoundTripTests
             File.WriteAllBytes(tempCipher, ciphertext);
             File.WriteAllText(tempKey, identity.ToString());
 
-            var psi = new System.Diagnostics.ProcessStartInfo("/opt/homebrew/bin/age", $"-d -i {tempKey} {tempCipher}")
+            var psi = new System.Diagnostics.ProcessStartInfo(AgeCli.AgePath!, $"-d -i {tempKey} {tempCipher}")
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -426,11 +425,10 @@ public class PqRoundTripTests
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public void Interop_PQ_EncryptWithAgeCli_DecryptWithCSharp()
     {
-        if (!File.Exists("/opt/homebrew/bin/age"))
-            return; // Skip if age CLI not available
+        Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
         using var identity = MlKem768X25519Identity.Generate();
         var recipientStr = identity.Recipient.ToString();
@@ -439,7 +437,7 @@ public class PqRoundTripTests
         try
         {
             // Encrypt with age CLI
-            var psi = new System.Diagnostics.ProcessStartInfo("/opt/homebrew/bin/age", $"-r {recipientStr} -o {tempCipher}")
+            var psi = new System.Diagnostics.ProcessStartInfo(AgeCli.AgePath!, $"-r {recipientStr} -o {tempCipher}")
             {
                 RedirectStandardInput = true,
                 RedirectStandardError = true,
