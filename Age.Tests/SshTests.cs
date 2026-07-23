@@ -1041,4 +1041,78 @@ public class SshRoundTripTests
             Directory.Delete(tmpDir, true);
         }
     }
+
+    [SkippableFact]
+    public void Interop_SshEd25519_Armored_EncryptWithCSharp_DecryptWithAgeCli()
+    {
+        Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
+
+        var tmpDir = Path.Combine(Path.GetTempPath(), $"agesharp_test_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmpDir);
+        var keyPath = Path.Combine(tmpDir, "id_ed25519");
+
+        try
+        {
+            var keygenPsi = new ProcessStartInfo("ssh-keygen", $"-t ed25519 -f {keyPath} -N \"\" -q")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            };
+            using var keygenProc = Process.Start(keygenPsi)!;
+            keygenProc.WaitForExit();
+            Skip.If(keygenProc.ExitCode != 0, "ssh-keygen not available");
+
+            var recipient = SshEd25519Recipient.Parse(File.ReadAllText(keyPath + ".pub").Trim());
+            var plaintext = "Armored SSH Ed25519 interop"u8.ToArray();
+
+            using var encInput = new MemoryStream(plaintext);
+            using var encOutput = new MemoryStream();
+            AgeEncrypt.Encrypt(encInput, encOutput, armor: true, recipient);
+
+            var result = AgeCli.Decrypt(File.ReadAllText(keyPath), encOutput.ToArray());
+            Assert.Equal(plaintext, result);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, true);
+        }
+    }
+
+    [SkippableFact]
+    public void Interop_SshRsa_Armored_EncryptWithCSharp_DecryptWithAgeCli()
+    {
+        Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
+
+        var tmpDir = Path.Combine(Path.GetTempPath(), $"agesharp_test_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmpDir);
+        var keyPath = Path.Combine(tmpDir, "id_rsa");
+
+        try
+        {
+            var keygenPsi = new ProcessStartInfo("ssh-keygen", $"-t rsa -b 2048 -f {keyPath} -N \"\" -q")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            };
+            using var keygenProc = Process.Start(keygenPsi)!;
+            keygenProc.WaitForExit();
+            Skip.If(keygenProc.ExitCode != 0, "ssh-keygen not available");
+
+            var recipient = SshRsaRecipient.Parse(File.ReadAllText(keyPath + ".pub").Trim());
+            var plaintext = "Armored SSH RSA interop"u8.ToArray();
+
+            using var encInput = new MemoryStream(plaintext);
+            using var encOutput = new MemoryStream();
+            AgeEncrypt.Encrypt(encInput, encOutput, armor: true, recipient);
+
+            var result = AgeCli.Decrypt(File.ReadAllText(keyPath), encOutput.ToArray());
+            Assert.Equal(plaintext, result);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, true);
+        }
+    }
 }
