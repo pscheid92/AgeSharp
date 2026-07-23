@@ -1,0 +1,10 @@
+# Allow trivial coverage fluctuations (e.g. an unexercised defensive branch)
+# to pass rather than failing the PR on a fraction-of-a-percent change.
+coverage:
+  status:
+    project:
+      default:
+        threshold: 1%
+    patch:
+      default:
+        threshold: 1%

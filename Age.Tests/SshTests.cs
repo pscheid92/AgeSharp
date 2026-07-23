@@ -825,11 +825,10 @@ public class SshRoundTripTests
         Assert.IsType<SshRsaIdentity>(identity);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Interop_SshEd25519_EncryptWithCSharp_DecryptWithAgeCli()
     {
-        if (!File.Exists("/opt/homebrew/bin/age"))
-            return;
+        Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
         // Generate key pair using ssh-keygen
         var tmpDir = Path.Combine(Path.GetTempPath(), $"agesharp_test_{Guid.NewGuid():N}");
@@ -847,7 +846,7 @@ public class SshRoundTripTests
             };
             using var keygenProc = Process.Start(keygenPsi)!;
             keygenProc.WaitForExit();
-            if (keygenProc.ExitCode != 0) return; // skip if ssh-keygen not available
+            Skip.If(keygenProc.ExitCode != 0, "ssh-keygen not available");
 
             var pubKeyLine = File.ReadAllText(keyPath + ".pub").Trim();
             var privKeyPem = File.ReadAllText(keyPath);
@@ -864,7 +863,7 @@ public class SshRoundTripTests
             File.WriteAllBytes(cipherPath, encOutput.ToArray());
 
             // Decrypt with age CLI using SSH key
-            var psi = new ProcessStartInfo("/opt/homebrew/bin/age", $"-d -i {keyPath} {cipherPath}")
+            var psi = new ProcessStartInfo(AgeCli.AgePath!, $"-d -i {keyPath} {cipherPath}")
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -883,11 +882,10 @@ public class SshRoundTripTests
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public void Interop_SshEd25519_EncryptWithAgeCli_DecryptWithCSharp()
     {
-        if (!File.Exists("/opt/homebrew/bin/age"))
-            return;
+        Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
         var tmpDir = Path.Combine(Path.GetTempPath(), $"agesharp_test_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tmpDir);
@@ -904,14 +902,14 @@ public class SshRoundTripTests
             };
             using var keygenProc = Process.Start(keygenPsi)!;
             keygenProc.WaitForExit();
-            if (keygenProc.ExitCode != 0) return;
+            Skip.If(keygenProc.ExitCode != 0, "ssh-keygen not available");
 
             var pubKeyLine = File.ReadAllText(keyPath + ".pub").Trim();
             var privKeyPem = File.ReadAllText(keyPath);
 
             // Encrypt with age CLI using SSH public key
             var cipherPath = Path.Combine(tmpDir, "encrypted.age");
-            var psi = new ProcessStartInfo("/opt/homebrew/bin/age", $"-R {keyPath}.pub -o {cipherPath}")
+            var psi = new ProcessStartInfo(AgeCli.AgePath!, $"-R {keyPath}.pub -o {cipherPath}")
             {
                 RedirectStandardInput = true,
                 RedirectStandardError = true,
@@ -921,7 +919,7 @@ public class SshRoundTripTests
             proc.StandardInput.Write("Hello from age CLI SSH!");
             proc.StandardInput.Close();
             proc.WaitForExit();
-            if (proc.ExitCode != 0) return;
+            Assert.Equal(0, proc.ExitCode);
 
             // Decrypt with C#
             using var identity = SshEd25519Identity.Parse(privKeyPem);
@@ -939,11 +937,10 @@ public class SshRoundTripTests
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public void Interop_SshRsa_EncryptWithCSharp_DecryptWithAgeCli()
     {
-        if (!File.Exists("/opt/homebrew/bin/age"))
-            return;
+        Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
         var tmpDir = Path.Combine(Path.GetTempPath(), $"agesharp_test_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tmpDir);
@@ -959,7 +956,7 @@ public class SshRoundTripTests
             };
             using var keygenProc = Process.Start(keygenPsi)!;
             keygenProc.WaitForExit();
-            if (keygenProc.ExitCode != 0) return;
+            Skip.If(keygenProc.ExitCode != 0, "ssh-keygen not available");
 
             var pubKeyLine = File.ReadAllText(keyPath + ".pub").Trim();
 
@@ -974,7 +971,7 @@ public class SshRoundTripTests
             var cipherPath = Path.Combine(tmpDir, "encrypted.age");
             File.WriteAllBytes(cipherPath, encOutput.ToArray());
 
-            var psi = new ProcessStartInfo("/opt/homebrew/bin/age", $"-d -i {keyPath} {cipherPath}")
+            var psi = new ProcessStartInfo(AgeCli.AgePath!, $"-d -i {keyPath} {cipherPath}")
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -993,11 +990,10 @@ public class SshRoundTripTests
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public void Interop_SshRsa_EncryptWithAgeCli_DecryptWithCSharp()
     {
-        if (!File.Exists("/opt/homebrew/bin/age"))
-            return;
+        Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
         var tmpDir = Path.Combine(Path.GetTempPath(), $"agesharp_test_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tmpDir);
@@ -1013,13 +1009,13 @@ public class SshRoundTripTests
             };
             using var keygenProc = Process.Start(keygenPsi)!;
             keygenProc.WaitForExit();
-            if (keygenProc.ExitCode != 0) return;
+            Skip.If(keygenProc.ExitCode != 0, "ssh-keygen not available");
 
             var pubKeyLine = File.ReadAllText(keyPath + ".pub").Trim();
             var privKeyPem = File.ReadAllText(keyPath);
 
             var cipherPath = Path.Combine(tmpDir, "encrypted.age");
-            var psi = new ProcessStartInfo("/opt/homebrew/bin/age", $"-R {keyPath}.pub -o {cipherPath}")
+            var psi = new ProcessStartInfo(AgeCli.AgePath!, $"-R {keyPath}.pub -o {cipherPath}")
             {
                 RedirectStandardInput = true,
                 RedirectStandardError = true,
@@ -1029,7 +1025,7 @@ public class SshRoundTripTests
             proc.StandardInput.Write("Hello from age CLI RSA!");
             proc.StandardInput.Close();
             proc.WaitForExit();
-            if (proc.ExitCode != 0) return;
+            Assert.Equal(0, proc.ExitCode);
 
             using var identity = SshRsaIdentity.Parse(privKeyPem);
             var ciphertext = File.ReadAllBytes(cipherPath);

@@ -139,11 +139,10 @@ public class EncryptedIdentityFileTests
         Assert.Equal(pq.ToString(), parsed[1].ToString());
     }
 
-    [Fact]
+    [SkippableFact]
     public void Interop_EncryptWithAgeCli_DecryptWithAgeSharp()
     {
-        if (!File.Exists("/opt/homebrew/bin/age") || !File.Exists("/opt/homebrew/bin/age-keygen"))
-            return;
+        Skip.IfNot(AgeCli.Available && AgeCli.KeygenAvailable, "age/age-keygen CLI not found on PATH");
 
         // Use AgeSharp to encrypt (since age CLI -p requires a terminal for encryption),
         // then verify CLI can decrypt it, then re-encrypt with CLI using a recipient key,
@@ -154,7 +153,7 @@ public class EncryptedIdentityFileTests
         try
         {
             // Generate key with age-keygen (tests parsing its output format)
-            var keygenPsi = new ProcessStartInfo("/opt/homebrew/bin/age-keygen", $"-o {tempKey}")
+            var keygenPsi = new ProcessStartInfo(AgeCli.AgeKeygenPath!, $"-o {tempKey}")
             {
                 RedirectStandardError = true,
                 UseShellExecute = false
@@ -183,11 +182,10 @@ public class EncryptedIdentityFileTests
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public void Interop_DecryptedIdentity_WorksWithAgeCli()
     {
-        if (!File.Exists("/opt/homebrew/bin/age"))
-            return;
+        Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
         // Encrypt identity file with AgeSharp, decrypt it, then verify the
         // recovered key works with the age CLI for a regular encrypt/decrypt.
@@ -202,7 +200,7 @@ public class EncryptedIdentityFileTests
         var tempCipher = Path.GetTempFileName();
         try
         {
-            var psi = new ProcessStartInfo("/opt/homebrew/bin/age", $"-r {recipientStr} -o {tempCipher}")
+            var psi = new ProcessStartInfo(AgeCli.AgePath!, $"-r {recipientStr} -o {tempCipher}")
             {
                 RedirectStandardInput = true,
                 RedirectStandardError = true,

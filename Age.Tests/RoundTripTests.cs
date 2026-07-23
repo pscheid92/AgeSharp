@@ -145,11 +145,10 @@ public class RoundTripTests
         Assert.Equal(recipientStr, parsedRecipient.ToString());
     }
 
-    [Fact]
+    [SkippableFact]
     public void Interop_EncryptWithCSharp_DecryptWithAgeCli()
     {
-        if (!File.Exists("/opt/homebrew/bin/age"))
-            return; // Skip if age CLI not available
+        Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
         using var identity = X25519Identity.Generate();
         var recipient = identity.Recipient;
@@ -168,7 +167,7 @@ public class RoundTripTests
             File.WriteAllBytes(tempCipher, ciphertext);
             File.WriteAllText(tempKey, identity.ToString());
 
-            var psi = new ProcessStartInfo("/opt/homebrew/bin/age", $"-d -i {tempKey} {tempCipher}")
+            var psi = new ProcessStartInfo(AgeCli.AgePath!, $"-d -i {tempKey} {tempCipher}")
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -188,11 +187,10 @@ public class RoundTripTests
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public void Interop_EncryptWithAgeCli_DecryptWithCSharp()
     {
-        if (!File.Exists("/opt/homebrew/bin/age"))
-            return; // Skip if age CLI not available
+        Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
         using var identity = X25519Identity.Generate();
         var recipientStr = identity.Recipient.ToString();
@@ -201,7 +199,7 @@ public class RoundTripTests
         try
         {
             // Encrypt with age CLI
-            var psi = new ProcessStartInfo("/opt/homebrew/bin/age", $"-r {recipientStr} -o {tempCipher}")
+            var psi = new ProcessStartInfo(AgeCli.AgePath!, $"-r {recipientStr} -o {tempCipher}")
             {
                 RedirectStandardInput = true,
                 RedirectStandardError = true,
