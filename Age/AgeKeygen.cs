@@ -68,14 +68,26 @@ public static class AgeKeygen
             .Select(line => ParseRecipientLine(line, callbacks))
             .ToList();
 
-    private static IRecipient ParseRecipientLine(string line, IPluginCallbacks? callbacks) => line switch
+    /// <summary>
+    /// Parses a single recipient string: age X25519, ML-KEM-768, plugin, or SSH public key.
+    /// </summary>
+    internal static IRecipient ParseRecipientLine(string line, IPluginCallbacks? callbacks)
     {
-        _ when line.StartsWith("age1pq") => MlKem768X25519Recipient.Parse(line),
-        _ when line.StartsWith("age1") && line.IndexOf('1', 4) > 0 => new PluginRecipient(line, callbacks),
-        _ when line.StartsWith("age1") => X25519Recipient.Parse(line),
-        _ when line.StartsWith("ssh-") => ParseSshRecipient(line),
-        _ => throw new FormatException($"unrecognized line in recipients file: {line}")
-    };
+        // Dispatch on the true bech32 HRP — everything before the LAST '1' (BIP-173), since
+        // data never contains '1'. String prefixes are ambiguous here: 'p' and 'q' are data
+        // characters, so an X25519 recipient's data can itself start with "pq" ("age1pq...").
+        var sep = line.LastIndexOf('1');
+        var hrp = sep > 0 ? line[..sep] : "";
+
+        return hrp switch
+        {
+            "age" => X25519Recipient.Parse(line),
+            "age1pq" => MlKem768X25519Recipient.Parse(line),
+            _ when hrp.StartsWith("age1") => new PluginRecipient(line, callbacks),
+            _ when line.StartsWith("ssh-") => ParseSshRecipient(line),
+            _ => throw new FormatException($"unrecognized recipient: {line}")
+        };
+    }
 
     /// <summary>
     /// Parses a plaintext identity file containing AGE-SECRET-KEY lines, plugin identities, comments, and blank lines.

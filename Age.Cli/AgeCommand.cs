@@ -132,21 +132,8 @@ internal static class AgeCommand
         _ => null
     };
 
-    private static IRecipient ParseRecipient(string s)
-    {
-        var callbacks = new CliPluginCallbacks();
-
-        if (s.StartsWith("age1pq"))
-            return MlKem768X25519Recipient.Parse(s);
-        if (s.StartsWith("age1") && s.IndexOf('1', 4) > 0)
-            return new PluginRecipient(s, callbacks);
-        if (s.StartsWith("age1"))
-            return X25519Recipient.Parse(s);
-        if (s.StartsWith("ssh-"))
-            return AgeKeygen.ParseSshRecipient(s);
-
-        throw new FormatException($"unknown recipient type: {s}");
-    }
+    private static IRecipient ParseRecipient(string s) =>
+        AgeKeygen.ParseRecipientLine(s, new CliPluginCallbacks());
 
     private static List<IIdentity> LoadIdentities(string path, IPluginCallbacks callbacks)
     {
