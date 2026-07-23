@@ -132,6 +132,35 @@ public class ExceptionContractTests
         Assert.Contains("final STREAM chunk is empty", ex.Message);
     }
 
+    [Fact]
+    public void Header_TruncatedAfterVersionLine_ThrowsFormat()
+    {
+        using var identity = X25519Identity.Generate();
+        using var input = new MemoryStream("age-encryption.org/v1\n"u8.ToArray());
+
+        var ex = Assert.Throws<AgeFormatException>(() =>
+            AgeEncrypt.Decrypt(input, new MemoryStream(), identity));
+        Assert.Contains("unexpected end of header", ex.Message);
+    }
+
+    [Fact]
+    public void Stanza_Parse_AtEndOfStream_ThrowsFormat()
+    {
+        var reader = new HeaderReader(new MemoryStream());
+        var ex = Assert.Throws<AgeFormatException>(() => Stanza.Parse(reader));
+        Assert.Contains("while reading stanza", ex.Message);
+    }
+
+    [Fact]
+    public void DecryptChunk_ShorterThanTag_ThrowsAuthentication()
+    {
+        // The internal API's own guard: a chunk that cannot even hold its tag is
+        // rejected before any cipher work.
+        var key = new byte[32];
+        Assert.Throws<AgeAuthenticationException>(() =>
+            StreamEncryption.DecryptChunk(key, 0, isFinal: true, new byte[5]));
+    }
+
     // --- Format: armor defects ---
 
     [Fact]
