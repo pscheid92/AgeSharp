@@ -142,9 +142,13 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
         var (hrp, _) = Bech32.Decode(identity);
 
         // skip "age-plugin-" prefix and trailing "-"
-        return hrp.StartsWith("age-plugin-")
+        var name = hrp.StartsWith("age-plugin-")
             ? hrp[11..^1]
             : throw new FormatException($"invalid plugin identity HRP: {hrp}");
+
+        // The name becomes the age-plugin-<name> executable path, so reject anything
+        // outside the allowed set (notably path separators) before it reaches Process.Start.
+        return PluginNameValidator.Validate(name);
     }
 
     public override string ToString() =>

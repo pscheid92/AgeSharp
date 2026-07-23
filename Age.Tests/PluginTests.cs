@@ -107,6 +107,54 @@ public class PluginTests
         Assert.Equal(str, identity.ToString());
     }
 
+    // --- Plugin name validation (security: prevents arbitrary executable paths) ---
+
+    [Theory]
+    [InlineData("pwn/pwn")]   // forward slash -> relative path to Process.Start
+    [InlineData("pwn\\pwn")]  // backslash (Windows separator)
+    [InlineData("a b")]       // space
+    public void PluginRecipient_ExtractPluginName_InvalidChars_Throws(string name)
+    {
+        // Valid bech32 (valid checksum), but the name carries a disallowed character.
+        var malicious = MakePluginRecipient(name);
+        var ex = Assert.Throws<FormatException>(() => PluginRecipient.ExtractPluginName(malicious));
+        Assert.Contains("invalid plugin name", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("pwn/pwn")]
+    [InlineData("pwn\\pwn")]
+    public void PluginIdentity_ExtractPluginName_InvalidChars_Throws(string name)
+    {
+        var malicious = MakePluginIdentity(name);
+        var ex = Assert.Throws<FormatException>(() => PluginIdentity.ExtractPluginName(malicious));
+        Assert.Contains("invalid plugin name", ex.Message);
+    }
+
+    [Fact]
+    public void PluginRecipient_Constructor_PathSeparatorName_Throws()
+    {
+        // The separator must be rejected at construction, before any Process.Start can run.
+        Assert.Throws<FormatException>(() => new PluginRecipient(MakePluginRecipient("pwn/pwn")));
+    }
+
+    [Theory]
+    [InlineData("yubikey")]
+    [InlineData("fido2hmac")]
+    [InlineData("se-cure_plugin.v2")]  // hyphen, underscore, dot, digit are all allowed
+    public void ExtractPluginName_ValidNames_Accepted(string name)
+    {
+        Assert.Equal(name, PluginRecipient.ExtractPluginName(MakePluginRecipient(name)));
+    }
+
+    [Fact]
+    public void PluginConnection_InvalidName_RefusesToLaunch()
+    {
+        // Defense in depth at the process sink itself.
+        var ex = Assert.Throws<AgePluginException>(() => new PluginConnection("pwn/pwn", "recipient-v1"));
+        Assert.Contains("invalid name", ex.Message);
+    }
+
     // --- PluginConnection stanza I/O roundtrip ---
 
     [Fact]

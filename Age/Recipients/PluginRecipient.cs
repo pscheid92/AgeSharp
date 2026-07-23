@@ -136,9 +136,13 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
         var (hrp, _) = Bech32.Decode(recipient);
 
         // skip "age" + the "1" separator character encoded in hrp after "age"
-        return hrp.StartsWith("age")
+        var name = hrp.StartsWith("age")
             ? hrp[4..]
             : throw new FormatException($"invalid plugin recipient HRP: {hrp}");
+
+        // The name becomes the age-plugin-<name> executable path, so reject anything
+        // outside the allowed set (notably path separators) before it reaches Process.Start.
+        return PluginNameValidator.Validate(name);
     }
 
     public override string ToString() =>

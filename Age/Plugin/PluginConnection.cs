@@ -15,6 +15,11 @@ internal sealed class PluginConnection : IDisposable
     /// </summary>
     public PluginConnection(string pluginName, string stateMachine)
     {
+        // Defense in depth: the caller should already have validated the name, but this is
+        // the sink that turns it into an executable path, so never launch an invalid one.
+        if (!PluginNameValidator.IsValid(pluginName))
+            throw new AgePluginException($"refusing to launch plugin with invalid name: '{pluginName}'");
+
         var binaryName = $"age-plugin-{pluginName}";
         var startInfo = new ProcessStartInfo
         {
