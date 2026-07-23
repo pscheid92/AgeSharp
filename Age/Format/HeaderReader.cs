@@ -58,6 +58,10 @@ internal sealed class HeaderReader(Stream stream)
                 break;
 
             ValidateByte(b);
+
+            if (lineBytes.Count >= AgeLimits.MaxHeaderLineBytes)
+                throw new AgeHeaderException($"header line exceeds {AgeLimits.MaxHeaderLineBytes} bytes");
+
             lineBytes.Add((byte)b);
         }
 
@@ -69,7 +73,12 @@ internal sealed class HeaderReader(Stream stream)
         var b = stream.ReadByte();
 
         if (b >= 0)
+        {
+            if (_rawBytes.Length >= AgeLimits.MaxHeaderBytes)
+                throw new AgeHeaderException($"header exceeds {AgeLimits.MaxHeaderBytes} bytes");
+
             _rawBytes.WriteByte((byte)b);
+        }
 
         return b;
     }

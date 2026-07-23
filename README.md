@@ -218,6 +218,25 @@ public class MyIdentity : IIdentity
 }
 ```
 
+### Parsing limits
+
+An age header must be buffered in full before its MAC can be verified, so
+AgeSharp caps how much it will read before authentication — otherwise a hostile
+or truncated stream with an unterminated (or endlessly repeated) line could
+exhaust memory. The limits are exposed as constants on `AgeLimits`:
+
+| Constant | Default | Bounds |
+| --- | --- | --- |
+| `AgeLimits.MaxHeaderLineBytes` | 64 KiB | A single header line |
+| `AgeLimits.MaxHeaderBytes` | 16 MiB | The whole header (all stanzas) |
+| `AgeLimits.MaxArmorLineBytes` | 64 KiB | A single ASCII-armor line |
+
+Exceeding a limit throws `AgeHeaderException` / `AgeArmorException`. The age
+[specification](https://github.com/C2SP/C2SP/blob/main/age.md) sets no such
+bounds, so these are AgeSharp's own defense; they sit far above any real file
+(the largest built-in stanza line is ~1.5 KiB, and 16 MiB still allows well over
+100,000 recipients), so legitimate input never trips them.
+
 ## CLI
 
 `AgeSharp` ships a CLI compatible with the `age` command.
