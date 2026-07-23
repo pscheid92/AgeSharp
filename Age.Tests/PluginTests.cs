@@ -658,6 +658,46 @@ public class PluginTests
         Assert.False(callbacks.SecretRequests[0].Secret);   // public value is not masked
     }
 
+    [Fact]
+    public void PluginIdentity_Unwrap_MsgStanza_CallsDisplayMessage()
+    {
+        var identityStr = MakePluginIdentity("test");
+        var callbacks = new TestCallbacks();
+        var identity = new PluginIdentity(identityStr, callbacks);
+
+        var pluginOutput = new StringWriter();
+        var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
+        mockConn.WriteStanza("msg", [], System.Text.Encoding.UTF8.GetBytes("Touch your YubiKey"));
+        mockConn.WriteStanza("file-key", ["0"], new byte[16]);
+        mockConn.WriteStanza("done", [], []);
+        var pluginResponse = pluginOutput.ToString();
+
+        var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
+        var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
+        identity.UnwrapWithConnection(conn, stanzas);
+
+        Assert.Single(callbacks.Messages);
+        Assert.Equal("Touch your YubiKey", callbacks.Messages[0]);
+    }
+
+    [Fact]
+    public void PluginIdentity_Unwrap_ConfirmLabelNotBase64_Throws()
+    {
+        var identityStr = MakePluginIdentity("test");
+        var callbacks = new TestCallbacks { ConfirmResponse = true };
+        var identity = new PluginIdentity(identityStr, callbacks);
+
+        var pluginOutput = new StringWriter();
+        var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
+        mockConn.WriteStanza("confirm", ["yes-btn"], System.Text.Encoding.UTF8.GetBytes("Allow?"));
+        var pluginResponse = pluginOutput.ToString();
+
+        var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
+        var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
+        var ex = Assert.Throws<AgePluginException>(() => identity.UnwrapWithConnection(conn, stanzas));
+        Assert.Contains("not valid unpadded base64", ex.Message);
+    }
+
     // --- Parsing tests ---
 
     [Fact]
