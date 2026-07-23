@@ -48,6 +48,20 @@ public class AeadCipherTests
         }
     }
 
+    // Guards the portable CI pass: proves the compile switch actually flips the *default*
+    // backend, so a whole-suite "portable" run can never silently execute on native and pass
+    // anyway. Without this, that job trusts the build machinery with nothing asserting it.
+    [Fact]
+    public void DefaultBackend_MatchesBuildConfiguration()
+    {
+        using var cipher = AeadCipher.Create(new byte[32]);
+#if FORCE_PORTABLE_AEAD
+        Assert.IsType<BouncyCastleAeadCipher>(cipher);
+#else
+        Assert.IsType(ChaCha20Poly1305.IsSupported ? typeof(BclAeadCipher) : typeof(BouncyCastleAeadCipher), cipher);
+#endif
+    }
+
     // The highest-value test: the two backends must be wire-identical. If this passes, every
     // code path that works with the native cipher works with BouncyCastle. It also pins the
     // MAC-size-in-bits constant (a wrong value produces a different tag).
