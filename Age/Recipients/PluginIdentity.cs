@@ -141,8 +141,9 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
         // Bech32-decode to get HRP. For "AGE-PLUGIN-YUBIKEY-1...", HRP = "age-plugin-yubikey-", name = HRP[11..^1] = "yubikey"
         var (hrp, _) = Bech32.Decode(identity);
 
-        // skip "age-plugin-" prefix and trailing "-"
-        var name = hrp.StartsWith("age-plugin-")
+        // A plugin identity HRP is "age-plugin-<name>-"; require both affixes (with room
+        // between them) so the hrp[11..^1] slice can't run out of range on a malformed value.
+        var name = hrp.StartsWith("age-plugin-") && hrp.EndsWith("-") && hrp.Length > 11
             ? hrp[11..^1]
             : throw new FormatException($"invalid plugin identity HRP: {hrp}");
 

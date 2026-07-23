@@ -175,6 +175,24 @@ public class PluginTests
         Assert.True(PluginNameValidator.IsValid(name));
     }
 
+    [Fact]
+    public void PluginRecipient_ExtractPluginName_DegenerateHrp_ThrowsFormatException()
+    {
+        // HRP decodes to just "age" (no name) — must be a clean FormatException,
+        // not the ArgumentOutOfRangeException that hrp[4..] would have thrown.
+        var s = Bech32.Encode("age", new byte[] { 0x01, 0x02, 0x03 });
+        Assert.Throws<FormatException>(() => PluginRecipient.ExtractPluginName(s));
+    }
+
+    [Fact]
+    public void PluginIdentity_ExtractPluginName_DegenerateHrp_ThrowsFormatException()
+    {
+        // HRP decodes to exactly "age-plugin-" (no name) — must be a clean FormatException,
+        // not the ArgumentOutOfRangeException that hrp[11..^1] would have thrown.
+        var s = Bech32.Encode("age-plugin-", new byte[] { 0x01, 0x02, 0x03 });
+        Assert.Throws<FormatException>(() => PluginIdentity.ExtractPluginName(s));
+    }
+
     // --- PluginConnection stanza I/O roundtrip ---
 
     [Fact]
