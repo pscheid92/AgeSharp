@@ -16,7 +16,7 @@ public class EncryptedIdentityFileTests
     {
         using var input = new MemoryStream(Encoding.UTF8.GetBytes(text));
         using var output = new MemoryStream();
-        Age.Encrypt(input, output, armor, new ScryptRecipient(passphrase, workFactor));
+        Age.Encrypt(input, output, new AgeOptions { Armor = armor }, new ScryptRecipient(passphrase, workFactor));
         return output.ToArray();
     }
 

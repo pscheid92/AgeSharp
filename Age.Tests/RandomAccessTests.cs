@@ -263,7 +263,7 @@ public class RandomAccessTests
 
         using var input = new MemoryStream(plaintext);
         var ciphertext = new MemoryStream();
-        Age.Encrypt(input, ciphertext, armor: true, identity.Recipient);
+        Age.Encrypt(input, ciphertext, new AgeOptions { Armor = true }, identity.Recipient);
         ciphertext.Position = 0;
 
         using var ra = new AgeRandomAccess(ciphertext, identity);

@@ -39,10 +39,12 @@ public sealed class AgeHeader
     /// leaves the stream positioned wherever header reading stopped.
     /// </summary>
     /// <param name="input">The age-encrypted source.</param>
-    /// <exception cref="AgeFormatException">The header is malformed or exceeds <see cref="AgeLimits"/>.</exception>
+    /// <param name="options">Parsing options (the header-size limits); defaults are used when null.</param>
+    /// <exception cref="AgeFormatException">The header is malformed.</exception>
     /// <exception cref="AgeFormatException">The input is armored and the armor is malformed.</exception>
-    public static AgeHeader Parse(Stream input)
+    public static AgeHeader Parse(Stream input, AgeOptions? options = null)
     {
+        options ??= AgeOptions.Default;
         var isArmored = false;
         Stream binaryInput;
         var needsDispose = false;
@@ -50,7 +52,7 @@ public sealed class AgeHeader
         if (input.CanSeek && AsciiArmor.IsArmored(input))
         {
             isArmored = true;
-            binaryInput = AsciiArmor.Dearmor(input);
+            binaryInput = AsciiArmor.Dearmor(input, options.MaxArmorLineBytes);
             needsDispose = true;
         }
         else
@@ -60,7 +62,7 @@ public sealed class AgeHeader
 
         try
         {
-            var reader = new HeaderReader(binaryInput);
+            var reader = new HeaderReader(binaryInput, options.MaxHeaderLineBytes, options.MaxHeaderBytes);
 
             Header header;
             try

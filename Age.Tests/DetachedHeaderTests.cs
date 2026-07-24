@@ -106,7 +106,7 @@ public class DetachedHeaderTests
 
         using var input = new MemoryStream(plaintext);
         using var ciphertext = new MemoryStream();
-        Age.Encrypt(input, ciphertext, true, identity.Recipient);
+        Age.Encrypt(input, ciphertext, new AgeOptions { Armor = true }, identity.Recipient);
 
         ciphertext.Position = 0;
         var header = AgeHeader.Parse(ciphertext);

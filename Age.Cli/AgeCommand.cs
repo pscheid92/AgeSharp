@@ -40,7 +40,7 @@ internal static class AgeCommand
         using var input = OpenInput(inputPath);
         using var output = OpenOutput(outputPath);
 
-        Age.Encrypt(input, output, armor, [.. recipients]);
+        Age.Encrypt(input, output, new AgeOptions { Armor = armor }, [.. recipients]);
         return 0;
     }
 

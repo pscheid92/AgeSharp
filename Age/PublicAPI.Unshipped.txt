@@ -36,3 +36,19 @@ static AgeSharp.Age.ParseRecipient(string! s, AgeSharp.IPluginCallbacks? plugins
 static AgeSharp.Age.ParseRecipients(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IRecipient![]!
 static AgeSharp.Age.TryParseIdentity(string? s, out AgeSharp.IIdentity! result) -> bool
 static AgeSharp.Age.TryParseRecipient(string? s, out AgeSharp.IRecipient! result) -> bool
+AgeSharp.AgeOptions
+AgeSharp.AgeOptions.AgeOptions() -> void
+AgeSharp.AgeOptions.Armor.get -> bool
+AgeSharp.AgeOptions.Armor.init -> void
+AgeSharp.AgeOptions.MaxArmorLineBytes.get -> int
+AgeSharp.AgeOptions.MaxArmorLineBytes.init -> void
+AgeSharp.AgeOptions.MaxHeaderBytes.get -> int
+AgeSharp.AgeOptions.MaxHeaderBytes.init -> void
+AgeSharp.AgeOptions.MaxHeaderLineBytes.get -> int
+AgeSharp.AgeOptions.MaxHeaderLineBytes.init -> void
+AgeSharp.AgeRandomAccess.AgeRandomAccess(System.IO.Stream! ciphertext, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
+static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
+static AgeSharp.Age.DecryptReader(System.IO.Stream! ciphertext, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> System.IO.Stream!
+static AgeSharp.Age.Encrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
+static AgeSharp.Age.EncryptReader(System.IO.Stream! plaintext, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
+static AgeSharp.AgeHeader.Parse(System.IO.Stream! input, AgeSharp.AgeOptions? options = null) -> AgeSharp.AgeHeader!

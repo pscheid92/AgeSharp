@@ -338,7 +338,7 @@ public class PqRoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, armor: true, recipient);
+        Age.Encrypt(encInput, encOutput, new AgeOptions { Armor = true }, recipient);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();

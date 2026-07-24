@@ -142,7 +142,7 @@ public class PullBasedTests
         var plaintext = "armored pull test"u8.ToArray();
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = Age.EncryptReader(input, true, identity.Recipient);
+        using var encryptedStream = Age.EncryptReader(input, new AgeOptions { Armor = true }, identity.Recipient);
 
         using var ciphertext = new MemoryStream();
         encryptedStream.CopyTo(ciphertext);
@@ -214,7 +214,7 @@ public class PullBasedTests
         new Random(42).NextBytes(plaintext);
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = Age.EncryptReader(input, armor: true, identity.Recipient);
+        using var encryptedStream = Age.EncryptReader(input, new AgeOptions { Armor = true }, identity.Recipient);
 
         using var ciphertext = new MemoryStream();
         encryptedStream.CopyTo(ciphertext);
@@ -237,7 +237,7 @@ public class PullBasedTests
         new Random(42).NextBytes(plaintext);
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = Age.EncryptReader(input, armor: true, identity.Recipient);
+        using var encryptedStream = Age.EncryptReader(input, new AgeOptions { Armor = true }, identity.Recipient);
 
         using var ciphertext = new MemoryStream();
         var oneByte = new byte[1];

@@ -25,7 +25,7 @@ public class InteropTests
     {
         using var input = new MemoryStream(plaintext);
         using var output = new MemoryStream();
-        Age.Encrypt(input, output, armored, recipients);
+        Age.Encrypt(input, output, new AgeOptions { Armor = armored }, recipients);
         return output.ToArray();
     }
 

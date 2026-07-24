@@ -7,7 +7,7 @@ namespace AgeSharp;
 /// tracking all raw bytes read for MAC computation.
 /// This avoids StreamReader buffering that would consume payload bytes.
 /// </summary>
-internal sealed class HeaderReader(Stream stream)
+internal sealed class HeaderReader(Stream stream, int maxLineBytes = 64 * 1024, int maxHeaderBytes = 16 * 1024 * 1024)
 {
     private readonly MemoryStream _rawBytes = new();
     private string? _pushedBack;
@@ -59,8 +59,8 @@ internal sealed class HeaderReader(Stream stream)
 
             ValidateByte(b);
 
-            if (lineBytes.Count >= AgeLimits.MaxHeaderLineBytes)
-                throw new AgeFormatException($"header line exceeds {AgeLimits.MaxHeaderLineBytes} bytes");
+            if (lineBytes.Count >= maxLineBytes)
+                throw new AgeFormatException($"header line exceeds {maxLineBytes} bytes");
 
             lineBytes.Add((byte)b);
         }
@@ -74,8 +74,8 @@ internal sealed class HeaderReader(Stream stream)
 
         if (b >= 0)
         {
-            if (_rawBytes.Length >= AgeLimits.MaxHeaderBytes)
-                throw new AgeFormatException($"header exceeds {AgeLimits.MaxHeaderBytes} bytes");
+            if (_rawBytes.Length >= maxHeaderBytes)
+                throw new AgeFormatException($"header exceeds {maxHeaderBytes} bytes");
 
             _rawBytes.WriteByte((byte)b);
         }

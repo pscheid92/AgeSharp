@@ -41,11 +41,11 @@ internal static class AsciiArmor
         }
     }
 
-    public static Stream Dearmor(Stream input)
+    public static Stream Dearmor(Stream input, int maxArmorLineBytes = 64 * 1024)
     {
         // Bound the line length at the byte level so the reader below can keep
         // using the fast ReadLine path without risking an unbounded allocation.
-        var bounded = new NewlineBoundedStream(input, AgeLimits.MaxArmorLineBytes);
+        var bounded = new NewlineBoundedStream(input, maxArmorLineBytes);
         var reader = new StreamReader(bounded, Encoding.ASCII, detectEncodingFromByteOrderMarks: false,
             bufferSize: 4096, leaveOpen: false);
 

@@ -30,7 +30,7 @@ public class EncryptDecryptBenchmarks
         _ciphertext = encOut.ToArray();
 
         using var armorOut = new MemoryStream();
-        Age.Encrypt(new MemoryStream(_plaintext), armorOut, armor: true, _recipient);
+        Age.Encrypt(new MemoryStream(_plaintext), armorOut, new AgeOptions { Armor = true }, _recipient);
         _armoredCiphertext = armorOut.ToArray();
     }
 
@@ -58,7 +58,7 @@ public class EncryptDecryptBenchmarks
     {
         using var input = new MemoryStream(_plaintext);
         using var output = new MemoryStream();
-        Age.Encrypt(input, output, armor: true, _recipient);
+        Age.Encrypt(input, output, new AgeOptions { Armor = true }, _recipient);
     }
 
     [Benchmark]
