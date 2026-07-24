@@ -187,6 +187,51 @@ public static partial class Age
     }
 
     /// <summary>
+    /// Returns a writable <see cref="Stream"/> that encrypts the plaintext written
+    /// to it and forwards age ciphertext to <paramref name="destination"/>
+    /// (<see cref="System.IO.Compression.GZipStream"/>-style push encryption).
+    /// Recipient wrapping and the label/scrypt checks run eagerly; the header write
+    /// is deferred to the first write (or to <c>Dispose</c> when nothing is written,
+    /// which produces a valid empty-plaintext file). Disposing the returned stream
+    /// finalizes the age payload; <paramref name="destination"/> is never disposed.
+    /// </summary>
+    /// <param name="destination">The ciphertext destination. Left open when the returned stream is disposed.</param>
+    /// <param name="recipients">One or more recipients.</param>
+    /// <exception cref="ArgumentException">No recipients were supplied.</exception>
+    public static Stream OpenWrite(Stream destination, params ReadOnlySpan<IRecipient> recipients)
+        => OpenWrite(destination, AgeOptions.Default, recipients);
+
+    /// <summary>
+    /// Returns a writable <see cref="Stream"/> that encrypts the plaintext written
+    /// to it and forwards age ciphertext — optionally ASCII-armored per
+    /// <paramref name="options"/> — to <paramref name="destination"/>.
+    /// See <see cref="OpenWrite(Stream, ReadOnlySpan{IRecipient})"/> for the
+    /// lifecycle and stream-ownership contract.
+    /// </summary>
+    public static Stream OpenWrite(Stream destination, AgeOptions options, params ReadOnlySpan<IRecipient> recipients)
+    {
+        if (recipients.Length == 0)
+            throw new ArgumentException("at least one recipient is required", nameof(recipients));
+
+        var (header, fileKey) = BuildHeaderAndFileKey(recipients);
+
+        using var headerMs = new MemoryStream();
+        header.WriteTo(headerMs, fileKey);
+        var headerBytes = headerMs.ToArray();
+
+        var payloadNonce = new byte[PayloadNonceSize];
+        RandomNumberGenerator.Fill(payloadNonce);
+        var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+        CryptographicOperations.ZeroMemory(fileKey);
+
+        // When armoring, ciphertext flows through a push-side armor writer that
+        // wraps the caller's destination. The encrypt writer owns (and disposes,
+        // to emit the footer) that wrapper but never the caller's destination.
+        var inner = options.Armor ? new ArmorWriterStream(destination) : destination;
+        return new EncryptWriterStream(headerBytes, payloadNonce, payloadKey, inner, ownsDestination: options.Armor);
+    }
+
+    /// <summary>
     /// Returns a readable <see cref="Stream"/> that yields plaintext as the
     /// caller reads from it. Header parsing and MAC verification happen
     /// eagerly; payload decryption is lazy. Armored input is auto-detected
