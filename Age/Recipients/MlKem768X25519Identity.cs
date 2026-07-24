@@ -38,25 +38,8 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable, IParsable<M
 
     /// <summary>Parses a bech32-encoded secret seed (<c>AGE-SECRET-KEY-PQ-1…</c>, uppercase).</summary>
     /// <exception cref="AgeFormatException">The string is not a valid ML-KEM-768-X25519 secret key.</exception>
-    public static MlKem768X25519Identity Parse(string s)
-    {
-        // Must be uppercase
-        if (s != s.ToUpperInvariant())
-            throw new AgeFormatException("age secret key must be uppercase");
-
-        var (hrp, data) = Bech32.Decode(s);
-
-        if (!string.Equals(hrp, Hrp, StringComparison.OrdinalIgnoreCase))
-            throw new AgeFormatException($"expected HRP '{Hrp}', got '{hrp}'");
-
-        if (data.Length != SeedSize)
-            throw new AgeFormatException($"ML-KEM-768-X25519 seed must be {SeedSize} bytes, got {data.Length}");
-
-        var seed = new byte[SeedSize];
-        Array.Copy(data, seed, SeedSize);
-        CryptographicOperations.ZeroMemory(data);
-        return new MlKem768X25519Identity(seed);
-    }
+    public static MlKem768X25519Identity Parse(string s) =>
+        new(ParseHelpers.DecodeSecretKey(s, Hrp, SeedSize, "ML-KEM-768-X25519 seed"));
 
     /// <summary>
     /// Tries to parse a bech32-encoded secret seed (<c>AGE-SECRET-KEY-PQ-1…</c>).

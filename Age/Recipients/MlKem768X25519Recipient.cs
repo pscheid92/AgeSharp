@@ -39,21 +39,8 @@ public sealed class MlKem768X25519Recipient : IRecipientWithLabels, IParsable<Ml
 
     /// <summary>Parses a bech32-encoded recipient (<c>age1pq1…</c>, lowercase).</summary>
     /// <exception cref="AgeFormatException">The string is not a valid ML-KEM-768-X25519 recipient.</exception>
-    public static MlKem768X25519Recipient Parse(string s)
-    {
-        var (hrp, data) = Bech32.Decode(s);
-
-        if (hrp != Hrp)
-            throw new AgeFormatException($"expected HRP '{Hrp}', got '{hrp}'");
-
-        if (data.Length != XWing.PublicKeySize)
-            throw new AgeFormatException($"ML-KEM-768-X25519 public key must be {XWing.PublicKeySize} bytes, got {data.Length}");
-
-        // Must be lowercase
-        return s == s.ToLowerInvariant()
-            ? new MlKem768X25519Recipient(data)
-            : throw new AgeFormatException("age recipient must be lowercase");
-    }
+    public static MlKem768X25519Recipient Parse(string s) =>
+        new(ParseHelpers.DecodeRecipientKey(s, Hrp, XWing.PublicKeySize, "ML-KEM-768-X25519 public key"));
 
     /// <summary>
     /// Tries to parse a bech32-encoded recipient (<c>age1pq1…</c>). Returns false
