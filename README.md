@@ -48,6 +48,12 @@ dotnet add package AgeSharp
 
 ## Usage
 
+> **Recipients vs. identities.** A **recipient** (`IRecipient`) is a public key
+> you encrypt *to*; an **identity** (`IIdentity`) is the secret key you decrypt
+> *with*. `X25519Identity.Generate()` gives you an identity, and
+> `identity.Recipient` is its public half. A `Passphrase` is both at once. Every
+> `Encrypt` overload takes recipients; every `Decrypt` overload takes identities.
+
 ### Encrypt and decrypt
 
 ```csharp
@@ -63,6 +69,14 @@ Age.Encrypt(input, encrypted, recipient);
 encrypted.Position = 0;
 using var decrypted = new MemoryStream();
 Age.Decrypt(encrypted, decrypted, identity);
+```
+
+For small payloads — secrets, database fields — there are buffer-in, buffer-out
+overloads that skip the `MemoryStream` ceremony (`Encrypt` zeroes its plaintext copy):
+
+```csharp
+byte[] ciphertext = Age.Encrypt("secret"u8, recipient);
+byte[] plaintext  = Age.Decrypt(ciphertext, identity);
 ```
 
 ### Passphrase encryption
@@ -122,6 +136,18 @@ var recipient = identity.Recipient;
 Age.Encrypt(input, encrypted, recipient);
 ```
 
+### Push-based streaming
+
+`Age.OpenWrite` returns a writable `Stream` (GZipStream-style): write plaintext to
+it, and ciphertext is written to the destination. Recipient wrapping runs eagerly;
+the header write is deferred to the first write; disposing finalizes the age file.
+
+```csharp
+// Write plaintext in; ciphertext flows to destination as you write.
+using (var stream = Age.OpenWrite(destination, recipient))
+    inputStream.CopyTo(stream);   // Dispose finalizes the file (empty input → valid empty file)
+```
+
 ### Pull-based streaming
 
 Returns a readable `Stream` — header and key setup is eager, payload encryption/decryption is lazy (chunk-by-chunk on `Read()`).
@@ -135,6 +161,14 @@ encryptedStream.CopyTo(networkStream);
 using var decryptedStream = Age.OpenRead(ciphertext, identity);
 decryptedStream.CopyTo(outputStream);
 ```
+
+> **Stream ownership.** The streaming APIs never dispose the streams you pass in —
+> you own the destination/source and dispose it yourself. Disposing the stream
+> returned by `OpenWrite`/`OpenRead`/`EncryptReader` releases only that wrapper
+> (and, for `OpenWrite`, finalizes the age file); the underlying stream stays open.
+>
+> **Thread-safety.** Recipients and identities are safe for concurrent use across
+> threads. The returned streams are not — like any `Stream`, use one per thread.
 
 ### Async
 
@@ -283,6 +317,35 @@ Exceeding a limit throws `AgeFormatException`. The age
 bounds, so these are AgeSharp's own defense; they sit far above any real file
 (the largest built-in stanza line is ~1.5 KiB, and 16 MiB still allows well over
 100,000 recipients), so legitimate input never trips them.
+
+## Errors
+
+Every error thrown by AgeSharp derives from `AgeException`, split by one rule: if
+the input's *structure* can't be parsed it's an `AgeFormatException`; if the
+structure parsed but a *cryptographic check* failed it's an
+`AgeAuthenticationException`.
+
+| Exception | Thrown when |
+| --- | --- |
+| `AgeException` | base type — catch this to handle any AgeSharp error |
+| `AgeFormatException` | malformed header, stanza, or ASCII armor; a parsing limit exceeded; a bad key/recipient/identity string |
+| `AgeAuthenticationException` | the header MAC failed, a payload chunk failed authentication, or the STREAM was truncated/extended/reordered |
+| `NoIdentityMatchException` | none of the supplied identities matched any recipient stanza |
+| `AgePluginException` | an `age-plugin-*` binary failed to start or misbehaved |
+
+`Parse` methods throw `AgeFormatException` on bad input; the `TryParse` variants
+never throw. Empty recipients/identities on any entry point throw
+`ArgumentException`.
+
+```csharp
+try
+{
+    Age.Decrypt(input, output, identity);
+}
+catch (NoIdentityMatchException)      { /* wrong key */ }
+catch (AgeAuthenticationException)    { /* tampered or corrupted */ }
+catch (AgeFormatException)            { /* not a well-formed age file */ }
+```
 
 ## CLI
 
