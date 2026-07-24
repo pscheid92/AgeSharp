@@ -20,10 +20,11 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
     internal string PluginName { get; } =
         ExtractPluginName(recipient);
 
-    /// <summary>Plugin recipients declare no security label.</summary>
-    public string? Label =>
-        null;
-
+    // No WrapWithLabels override: plugin-declared labels (the "labels" command
+    // of recipient-v1) are not supported yet, so we inherit the empty-label
+    // default. Correspondingly we do NOT advertise "extension-labels" to the
+    // plugin — the spec requires a client that offers it to enforce the labels
+    // it gets back (age-plugin.md), which we cannot do until this is wired up.
 
     /// <summary>Wraps the file key by running the plugin binary (recipient-v1 protocol).</summary>
     /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an error.</exception>
@@ -43,7 +44,6 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
     {
         conn.WriteStanza("add-recipient", [recipient], []);
         conn.WriteStanza("wrap-file-key", [], fileKey.ToArray());
-        conn.WriteStanza("extension-labels", [], []);
         conn.WriteStanza("done", [], []);
     }
 

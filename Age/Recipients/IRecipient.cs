@@ -19,11 +19,4 @@ public interface IRecipient
     /// <c>Body</c> carry any recipient-specific data needed to unwrap.
     /// </returns>
     Stanza Wrap(ReadOnlySpan<byte> fileKey);
-
-    /// <summary>
-    /// Optional security label. Recipients with different labels cannot be
-    /// mixed in a single encryption (e.g. to prevent mixing post-quantum and
-    /// classical recipients). <c>null</c> means "no label."
-    /// </summary>
-    string? Label => null;
 }

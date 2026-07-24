@@ -22,7 +22,7 @@ public static class AgeEncrypt
     /// </summary>
     /// <param name="input">The plaintext source. Read once, start to end.</param>
     /// <param name="output">The ciphertext destination.</param>
-    /// <param name="recipients">One or more recipients. Must all share the same <see cref="IRecipient.Label"/>.</param>
+    /// <param name="recipients">One or more recipients. Must all produce the same label set (see <see cref="IRecipientWithLabels"/>).</param>
     /// <exception cref="ArgumentException">No recipients were supplied.</exception>
     /// <exception cref="AgeException">
     /// Recipients have mismatched security labels, or a passphrase (scrypt)
@@ -38,7 +38,7 @@ public static class AgeEncrypt
     /// <param name="input">The plaintext source.</param>
     /// <param name="output">The ciphertext destination.</param>
     /// <param name="armor">If <c>true</c>, output is a PEM-like armored text block; otherwise raw binary.</param>
-    /// <param name="recipients">One or more recipients. Must all share the same <see cref="IRecipient.Label"/>.</param>
+    /// <param name="recipients">One or more recipients. Must all produce the same label set (see <see cref="IRecipientWithLabels"/>).</param>
     public static void Encrypt(Stream input, Stream output, bool armor, params ReadOnlySpan<IRecipient> recipients)
     {
         if (recipients.Length == 0)
@@ -210,35 +210,68 @@ public static class AgeEncrypt
         }
     }
 
+    // Wrap a recipient and get its label set. Recipients that don't implement
+    // IRecipientWithLabels are treated as having an empty set (mirrors the
+    // reference implementation's wrapWithLabels helper).
+    private static (Stanza stanza, IReadOnlyCollection<string> labels) WrapWithLabels(IRecipient recipient, ReadOnlySpan<byte> fileKey)
+    {
+        if (recipient is IRecipientWithLabels labelled)
+            return labelled.WrapWithLabels(fileKey);
+
+        return (recipient.Wrap(fileKey), []);
+    }
+
+    private static bool LabelSetsEqual(IReadOnlyCollection<string> a, IReadOnlyCollection<string> b)
+    {
+        if (a.Count == 0 && b.Count == 0)
+            return true;
+
+        // Set semantics: order-insensitive, duplicates collapse
+        var set = new HashSet<string>(a, StringComparer.Ordinal);
+        return set.SetEquals(b);
+    }
+
     private static (Header header, byte[] fileKey) BuildHeaderAndFileKey(ReadOnlySpan<IRecipient> recipients)
     {
-        // Check label consistency — reject mixing PQ and non-PQ recipients
-        var firstLabel = recipients[0].Label;
-
-        for (var i = 1; i < recipients.Length; i++)
-        {
-            if (recipients[i].Label != firstLabel)
-                throw new AgeException("cannot mix recipients with different security labels");
-        }
-
         var fileKey = new byte[FileKeySize];
         RandomNumberGenerator.Fill(fileKey);
 
-        var header = new Header();
+        try
+        {
+            var header = new Header();
 
-        foreach (var recipient in recipients)
-            header.Stanzas.Add(recipient.Wrap(fileKey));
+            // Wrap each recipient and collect its label set from the same call —
+            // labels can be dynamic (a fresh random label, or plugin-provided),
+            // so they must come from the wrap that produced the stanza, not a
+            // separately-read property. All label sets must match, compared as
+            // unordered sets (age-plugin.md: "treat them as an unordered set").
+            IReadOnlyCollection<string>? firstLabels = null;
 
-        // A scrypt stanza must be the only stanza in the header — the same rule
-        // decryption enforces. Checked post-Wrap so custom recipients that emit
-        // scrypt stanzas are caught too.
-        if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
+            for (var i = 0; i < recipients.Length; i++)
+            {
+                var (stanza, labels) = WrapWithLabels(recipients[i], fileKey);
+
+                if (i == 0)
+                    firstLabels = labels;
+                else if (!LabelSetsEqual(firstLabels!, labels))
+                    throw new AgeException("cannot mix recipients with different security labels");
+
+                header.Stanzas.Add(stanza);
+            }
+
+            // A scrypt stanza must be the only stanza in the header — the same rule
+            // decryption enforces. Checked post-wrap so custom recipients that emit
+            // scrypt stanzas are caught too.
+            if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
+                throw new AgeException("a passphrase (scrypt) recipient must be the only recipient");
+
+            return (header, fileKey);
+        }
+        catch
         {
             CryptographicOperations.ZeroMemory(fileKey);
-            throw new AgeException("a passphrase (scrypt) recipient must be the only recipient");
+            throw;
         }
-
-        return (header, fileKey);
     }
 
     private static byte[] UnwrapFileKey(Stream headerInput, ReadOnlySpan<IIdentity> identities)

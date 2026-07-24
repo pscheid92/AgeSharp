@@ -374,11 +374,11 @@ public class SshEd25519RecipientIdentityTests
     }
 
     [Fact]
-    public void Label_IsNull()
+    public void IsNotLabelled()
     {
         var (authorizedKeys, _) = GenerateEd25519KeyPair();
-        var recipient = SshEd25519Recipient.Parse(authorizedKeys);
-        Assert.Null(((IRecipient)recipient).Label);
+        IRecipient recipient = SshEd25519Recipient.Parse(authorizedKeys);
+        Assert.False(recipient is IRecipientWithLabels);
     }
 
     [Fact]
@@ -588,11 +588,11 @@ public class SshRsaRecipientIdentityTests
     }
 
     [Fact]
-    public void Label_IsNull()
+    public void IsNotLabelled()
     {
         var (authorizedKeys, _) = GenerateRsaKeyPair();
-        var recipient = SshRsaRecipient.Parse(authorizedKeys);
-        Assert.Null(((IRecipient)recipient).Label);
+        IRecipient recipient = SshRsaRecipient.Parse(authorizedKeys);
+        Assert.False(recipient is IRecipientWithLabels);
     }
 
     [Fact]

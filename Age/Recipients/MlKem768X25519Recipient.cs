@@ -8,7 +8,7 @@ namespace Age.Recipients;
 /// A post-quantum ML-KEM-768-X25519 hybrid recipient (<c>age1pq1…</c>), used to
 /// encrypt. Instances are immutable and safe to share.
 /// </summary>
-public sealed class MlKem768X25519Recipient : IRecipient, IParsable<MlKem768X25519Recipient>
+public sealed class MlKem768X25519Recipient : IRecipientWithLabels, IParsable<MlKem768X25519Recipient>
 {
     private const string Hrp = "age1pq";
 
@@ -26,8 +26,16 @@ public sealed class MlKem768X25519Recipient : IRecipient, IParsable<MlKem768X255
     /// The <c>postquantum</c> security label: prevents mixing this recipient with
     /// classical recipients, which would silently void the post-quantum guarantee.
     /// </summary>
-    public string Label =>
-        "postquantum";
+    private static readonly string[] PostQuantumLabels = ["postquantum"];
+
+    /// <summary>
+    /// Wraps the file key and attaches the <c>postquantum</c> label, so this
+    /// recipient can only be combined with other post-quantum-secure recipients
+    /// (mixing with a classical recipient would leave the file vulnerable to a
+    /// quantum attacker who breaks the classical stanza).
+    /// </summary>
+    public (Stanza stanza, IReadOnlyCollection<string> labels) WrapWithLabels(ReadOnlySpan<byte> fileKey) =>
+        (Wrap(fileKey), PostQuantumLabels);
 
     /// <summary>Parses a bech32-encoded recipient (<c>age1pq1…</c>, lowercase).</summary>
     /// <exception cref="AgeFormatException">The string is not a valid ML-KEM-768-X25519 recipient.</exception>

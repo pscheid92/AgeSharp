@@ -199,7 +199,7 @@ remote secrets managers, or age plugins.
 ```csharp
 public class MyRecipient : IRecipient
 {
-    public string? Label => null; // or a security label to prevent mixing
+    public IReadOnlyCollection<string> Labels => []; // or security labels to prevent mixing
 
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
