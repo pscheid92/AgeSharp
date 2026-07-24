@@ -1,8 +1,16 @@
 # Benchmarks
 
 Measured on Apple M2 (8 cores, 16 GB), macOS 26, .NET 10, on 2026-07-23.
-Numbers are refreshed against `main` at the current release (includes the
-`IAeadCipher` backend seam and the pre-authentication parser bounds).
+
+> **⚠️ Refresh pending for v0.3.** The numbers below were measured against the
+> pre-v0.3 `main` (the `IAeadCipher` backend seam + pre-auth parser bounds). The
+> v0.3 API adds a one-chunk cache to seekable `OpenRead` (#31) and a full async
+> surface (#34), which change the random-access numbers in particular — the
+> **Random Access** table's per-read allocations reflect the *old* re-decrypt-per-`Read`
+> behavior and will drop sharply once re-measured. New `Async`, `PushPull`, and
+> small-read cache benchmarks (see [Reproducing](#reproducing)) have been added but
+> not yet measured. Run `make bench` on a quiet machine before the release tag and
+> replace the tables below.
 
 ## CLI Comparison: age (Go) vs rage (Rust) vs age-sharp (C#/.NET)
 
@@ -125,6 +133,21 @@ password-hashing work factor.
 
 Random reads are only ~6% slower than sequential thanks to the
 chunk-based design.
+
+### v0.3 surface (pending measurement)
+
+Three benchmark groups were added for the v0.3 API. Numbers land with the next
+clean `make bench` run:
+
+- **`AsyncBenchmarks`** — `Encrypt`/`Decrypt` sync vs `EncryptAsync`/`DecryptAsync`
+  over in-memory streams, isolating the async state-machine + header-prefill
+  overhead from any real I/O latency.
+- **`PushPullBenchmarks`** — the three encryption shapes over the same plaintext:
+  one-shot `Encrypt`, push `OpenWrite`, and pull `EncryptReader`. All run the same
+  chunked STREAM path, so the delta is per-shape buffering.
+- **`RandomAccessBenchmarks.SmallSequentialReads`** — 64-byte reads across the whole
+  plaintext. With the one-chunk cache each 64 KiB chunk decrypts once regardless of
+  how many small reads land in it; before the cache this re-decrypted per `Read`.
 
 ## Reproducing
 
