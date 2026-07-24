@@ -135,7 +135,9 @@ public class AsyncTests
         using var identity = X25519Identity.Generate();
         var ciphertext = Age.Encrypt("data"u8.ToArray(), identity.Recipient);
 
-        await using var stream = await Age.OpenReadAsync(new MemoryStream(ciphertext), [identity]);
+        // A non-seekable source is what yields the forward-only stream now.
+        await using var stream = await Age.OpenReadAsync(
+            new NonSeekableStream(new MemoryStream(ciphertext)), [identity]);
 
         Assert.Throws<NotSupportedException>(() => _ = stream.Length);
         Assert.Throws<NotSupportedException>(() => _ = stream.Position);
@@ -193,15 +195,32 @@ public class AsyncTests
     // --- OpenReadAsync shape and validation ---
 
     [Fact]
-    public async Task OpenReadAsync_IsForwardOnly()
+    public async Task OpenReadAsync_MirrorsTheSourcesSeekability()
     {
+        // OpenReadAsync used to return a forward-only stream unconditionally, so the
+        // same source seeked synchronously but not asynchronously. It now runs the
+        // same dispatch as OpenRead.
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt("data"u8.ToArray(), identity.Recipient);
+        var plaintext = new byte[100_000];
+        new Random(5).NextBytes(plaintext);
+        var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
 
-        await using var stream = await Age.OpenReadAsync(new MemoryStream(ciphertext), [identity]);
+        await using (var seekable = await Age.OpenReadAsync(new MemoryStream(ciphertext), [identity]))
+        {
+            Assert.True(seekable.CanSeek);
+            Assert.Equal(plaintext.Length, seekable.Length);
 
-        Assert.True(stream.CanRead);
-        Assert.False(stream.CanSeek);
+            seekable.Seek(60_000, SeekOrigin.Begin);
+            var buffer = new byte[64];
+            await seekable.ReadExactlyAsync(buffer);
+            Assert.Equal(plaintext.AsSpan(60_000, 64).ToArray(), buffer);
+        }
+
+        await using var forwardOnly = await Age.OpenReadAsync(
+            new NonSeekableStream(new MemoryStream(ciphertext)), [identity]);
+
+        Assert.True(forwardOnly.CanRead);
+        Assert.False(forwardOnly.CanSeek);
     }
 
     [Fact]

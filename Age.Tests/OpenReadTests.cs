@@ -325,8 +325,12 @@ public class OpenReadTests
     // --- Truncation is only detectable once a read reaches the affected chunk ---
 
     [Fact]
-    public void Truncation_OnlyDetectedAtFinalChunk()
+    public void FinalChunkTampering_IsDetectedAtOpen()
     {
+        // The final chunk is decrypted as a final chunk while opening, which is what
+        // authenticates the plaintext length. Tampering with it is therefore caught
+        // before any read, not on reaching it — earlier this opened cleanly and only
+        // failed once a read touched the last chunk.
         using var identity = X25519Identity.Generate();
         var plaintext = new byte[65536 * 2 + 500]; // three chunks
         new Random(42).NextBytes(plaintext);
@@ -336,13 +340,23 @@ public class OpenReadTests
         // Corrupt the final byte (part of the last chunk's tag).
         ciphertextBytes[^1] ^= 0x01;
 
-        // Reading an earlier chunk succeeds — the tampering is not yet observed.
-        using (var stream = Age.OpenRead(new MemoryStream(ciphertextBytes), identity))
-            Assert.Equal(plaintext.AsSpan(0, 100).ToArray(), ReadAt(stream, 0, 100));
+        Assert.Throws<AgeAuthenticationException>(() =>
+            Age.OpenRead(new MemoryStream(ciphertextBytes), identity));
+    }
 
-        // Reading the final chunk surfaces the authentication failure.
-        using (var stream = Age.OpenRead(new MemoryStream(ciphertextBytes), identity))
-            Assert.Throws<AgeAuthenticationException>(() => ReadAt(stream, plaintext.Length - 100, 100));
+    [Fact]
+    public void EarlierChunksStillReadIndependently()
+    {
+        // Authenticating the length must not turn every read into a whole-file check:
+        // a chunk in the middle is still decrypted on its own.
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[65536 * 2 + 500];
+        new Random(7).NextBytes(plaintext);
+
+        using var ciphertext = Encrypt(plaintext, identity.Recipient);
+        using var stream = Age.OpenRead(ciphertext, identity);
+
+        Assert.Equal(plaintext.AsSpan(70_000, 100).ToArray(), ReadAt(stream, 70_000, 100));
     }
 
     // --- Read after dispose throws ---
@@ -365,12 +379,12 @@ public class OpenReadTests
         var ciphertextBytes = Encrypt("payload"u8.ToArray(), identity.Recipient).ToArray();
 
         // A seekable source that claims more bytes than it can actually deliver: the
-        // chunk math trusts Length, so reading the (over-sized) final chunk hits the
-        // "could not read full chunk" guard.
+        // chunk math trusts Length, so loading the (over-sized) final chunk hits the
+        // "could not read full chunk" guard — now while opening, since that is when
+        // the final chunk is read to authenticate the length.
         using var lying = new InflatedLengthStream(new MemoryStream(ciphertextBytes), extra: 64);
-        using var stream = Age.OpenRead(lying, identity);
 
-        Assert.Throws<AgeAuthenticationException>(() => stream.Read(new byte[8], 0, 8));
+        Assert.Throws<AgeAuthenticationException>(() => Age.OpenRead(lying, identity));
     }
 
     [Fact]

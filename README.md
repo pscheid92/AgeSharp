@@ -188,10 +188,20 @@ await using var stream = await Age.OpenReadAsync(source, [identity], cancellatio
 await stream.CopyToAsync(outputStream, cancellationToken);
 ```
 
-`OpenReadAsync` returns a forward-only stream (the seekable random-access path is
-synchronous `OpenRead`). One limitation: a plugin recipient/identity still performs
-**synchronous** child-process I/O while wrapping or unwrapping, even on the async
-paths — the plugin interfaces are synchronous, matching the reference implementation.
+The async methods are not simple overloads of their synchronous counterparts — they
+differ in shape, though no longer in capability:
+
+| | sync | async |
+| --- | --- | --- |
+| Recipients / identities | `params ReadOnlySpan<>` | `IReadOnlyList<>` (spans can't cross an `await`) |
+| `AgeOptions` | positional, before the params span | optional, after the collection — so a `CancellationToken` needs a named argument |
+| Seekability | `CanSeek` mirrors the source | same |
+| `byte[]` overloads | yes | no equivalent |
+| Detached header | yes | no equivalent |
+
+One limitation: a plugin recipient/identity still performs **synchronous**
+child-process I/O while wrapping or unwrapping, even on the async paths — the plugin
+interfaces are synchronous, matching the reference implementation.
 
 ### Detached headers
 
@@ -212,8 +222,14 @@ When the ciphertext source is seekable, `Age.OpenRead` returns a seekable
 plaintext `Stream`: `Length` is the plaintext length, `Seek` maps to the
 containing 64 KiB chunk, and the last-read chunk is cached. This decrypts
 individual regions without reading the whole file — useful for encrypted
-archives, databases, and large files. (A non-seekable source yields a
-forward-only stream; a seekable armored source is materialized in memory.)
+archives, databases, and large files. `Age.OpenReadAsync` does the same. (A
+non-seekable source yields a forward-only stream, as does an armored one —
+ASCII armor is decoded a line at a time, which gives up seeking rather than
+buying it with the file's size in memory.)
+
+Opening a seekable source decrypts the final chunk to authenticate the plaintext
+length, so a truncated file is rejected before the first read rather than
+reporting a plausible wrong `Length`.
 
 ```csharp
 using var stream = Age.OpenRead(ciphertext, identity);
