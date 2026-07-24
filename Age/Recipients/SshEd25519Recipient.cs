@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using Age.Crypto;
 using Age.Format;
@@ -36,10 +37,19 @@ public sealed class SshEd25519Recipient : IRecipient
         if (keyType != "ssh-ed25519")
             throw new AgeFormatException($"expected ssh-ed25519, got {keyType}");
 
-        var ed25519Pub = (Ed25519PublicKeyParameters)pubKey;
+        if (pubKey is not Ed25519PublicKeyParameters ed25519Pub)
+            throw new AgeFormatException("declared ssh-ed25519 but the key data is a different type");
+
         var x25519Pub = Ed25519Converter.PublicKeyToX25519(ed25519Pub.GetEncoded());
         return new SshEd25519Recipient(wireBytes, x25519Pub);
     }
+
+    /// <summary>
+    /// Tries to parse an <c>ssh-ed25519 AAAA…</c> public key line. Returns false
+    /// instead of throwing when the input is null or malformed.
+    /// </summary>
+    public static bool TryParse([NotNullWhen(true)] string? authorizedKeysLine, [MaybeNullWhen(false)] out SshEd25519Recipient result) =>
+        ParseHelpers.TryParse(authorizedKeysLine, Parse, out result);
 
     /// <summary>Wraps the file key for this SSH key via tweaked X25519 + ChaCha20-Poly1305.</summary>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)

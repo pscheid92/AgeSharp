@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Age.Crypto;
 using Age.Format;
@@ -34,10 +35,24 @@ public sealed class SshRsaRecipient : IRecipient
     {
         var (keyType, wireBytes, pubKey) = SshKeyParser.ParsePublicKey(authorizedKeysLine);
 
-        return keyType == "ssh-rsa"
-            ? new SshRsaRecipient((RsaKeyParameters)pubKey, wireBytes)
-            : throw new AgeFormatException($"expected ssh-rsa, got {keyType}");
+        if (keyType != "ssh-rsa")
+            throw new AgeFormatException($"expected ssh-rsa, got {keyType}");
+
+        if (pubKey is not RsaKeyParameters rsa)
+            throw new AgeFormatException("declared ssh-rsa but the key data is a different type");
+
+        if (rsa.Modulus.BitLength < MinKeyBits)
+            throw new AgeFormatException($"RSA key must be at least {MinKeyBits} bits, got {rsa.Modulus.BitLength}");
+
+        return new SshRsaRecipient(rsa, wireBytes);
     }
+
+    /// <summary>
+    /// Tries to parse an <c>ssh-rsa AAAA…</c> public key line. Returns false
+    /// instead of throwing when the input is null, malformed, or a weak key.
+    /// </summary>
+    public static bool TryParse([NotNullWhen(true)] string? authorizedKeysLine, [MaybeNullWhen(false)] out SshRsaRecipient result) =>
+        ParseHelpers.TryParse(authorizedKeysLine, Parse, out result);
 
     /// <summary>Wraps the file key for this SSH key using RSA-OAEP (SHA-256).</summary>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)

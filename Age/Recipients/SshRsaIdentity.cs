@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Age.Crypto;
 using Age.Format;
@@ -37,10 +38,21 @@ public sealed class SshRsaIdentity : IIdentity, IDisposable
     {
         var (keyType, publicWireBytes, privateKey) = SshKeyParser.ParsePrivateKey(pemText);
 
-        return keyType == "ssh-rsa"
-            ? new SshRsaIdentity((RsaPrivateCrtKeyParameters)privateKey, publicWireBytes)
-            : throw new AgeFormatException($"expected ssh-rsa private key, got {keyType}");
+        if (keyType != "ssh-rsa")
+            throw new AgeFormatException($"expected ssh-rsa private key, got {keyType}");
+
+        if (privateKey is not RsaPrivateCrtKeyParameters rsaPrivate)
+            throw new AgeFormatException("declared ssh-rsa but the key data is a different type");
+
+        return new SshRsaIdentity(rsaPrivate, publicWireBytes);
     }
+
+    /// <summary>
+    /// Tries to parse an ssh-rsa private key from PEM text. Returns false
+    /// instead of throwing when the input is null or malformed.
+    /// </summary>
+    public static bool TryParse([NotNullWhen(true)] string? pemText, [MaybeNullWhen(false)] out SshRsaIdentity result) =>
+        ParseHelpers.TryParse(pemText, Parse, out result);
 
     /// <summary>
     /// Attempts to unwrap the file key from an <c>ssh-rsa</c> stanza. Returns null

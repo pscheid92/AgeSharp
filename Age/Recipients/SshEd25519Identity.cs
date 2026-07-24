@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using Age.Crypto;
 using Age.Format;
@@ -42,7 +43,8 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         if (keyType != "ssh-ed25519")
             throw new AgeFormatException($"expected ssh-ed25519 private key, got {keyType}");
 
-        var ed25519Private = (Ed25519PrivateKeyParameters)privateKey;
+        if (privateKey is not Ed25519PrivateKeyParameters ed25519Private)
+            throw new AgeFormatException("declared ssh-ed25519 but the key data is a different type");
 
         // Convert Ed25519 private key seed → X25519 private key
         var x25519Private = Ed25519Converter.PrivateKeyToX25519(ed25519Private.GetEncoded());
@@ -53,6 +55,13 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
 
         return new SshEd25519Identity(x25519Private, x25519Pub, publicWireBytes);
     }
+
+    /// <summary>
+    /// Tries to parse an ssh-ed25519 private key from PEM text. Returns false
+    /// instead of throwing when the input is null or malformed.
+    /// </summary>
+    public static bool TryParse([NotNullWhen(true)] string? pemText, [MaybeNullWhen(false)] out SshEd25519Identity result) =>
+        ParseHelpers.TryParse(pemText, Parse, out result);
 
     /// <summary>
     /// Attempts to unwrap the file key from an <c>ssh-ed25519</c> stanza. Returns
