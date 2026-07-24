@@ -1047,6 +1047,17 @@ public class X25519RecipientIdentityTests
     }
 
     [Fact]
+    public void Unwrap_LowOrderEphemeral_ThrowsFormatException()
+    {
+        // An all-zero (low-order/identity) ephemeral yields an all-zero shared
+        // secret. The guard must surface AgeFormatException, not a raw
+        // BouncyCastle InvalidOperationException.
+        using var identity = X25519Identity.Generate();
+        var stanza = new Stanza("X25519", [Base64Unpadded.Encode(new byte[32])], new byte[32]);
+        Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
+    }
+
+    [Fact]
     public void Identity_Reject_NonUppercase()
     {
         using var identity = X25519Identity.Generate();

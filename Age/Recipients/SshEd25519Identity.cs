@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using Age.Crypto;
 using Age.Format;
-using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.Parameters;
 
 namespace Age.Recipients;
@@ -104,12 +103,10 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
         var privateKey = new X25519PrivateKeyParameters(_x25519PrivateKey);
 
-        // rawSS = X25519.ScalarMult(_x25519PrivateKey, ephPub)
-        var agreement = new X25519Agreement();
-        agreement.Init(privateKey);
-
-        var rawSS = new byte[agreement.AgreementSize];
-        agreement.CalculateAgreement(ephPub, rawSS, 0);
+        // rawSS = X25519.ScalarMult(_x25519PrivateKey, ephPub) — guarded against
+        // a low-order/identity ephemeral so a crafted stanza can't leak a raw
+        // BouncyCastle exception through Decrypt.
+        var rawSS = CryptoHelper.X25519Agree(privateKey, ephPub);
 
         // tweak = HKDF(ikm=[], salt=sshWireBytes, info=label, 32)
         var tweak = CryptoHelper.HkdfDerive([], _sshWireBytes, AgeProtocol.SshEd25519HkdfLabel, KeySize);
@@ -118,11 +115,7 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         var tweakPrivate = new X25519PrivateKeyParameters(tweak);
         var rawSSPub = new X25519PublicKeyParameters(rawSS);
 
-        var tweakAgreement = new X25519Agreement();
-        tweakAgreement.Init(tweakPrivate);
-
-        var tweakedSS = new byte[tweakAgreement.AgreementSize];
-        tweakAgreement.CalculateAgreement(rawSSPub, tweakedSS, 0);
+        var tweakedSS = CryptoHelper.X25519Agree(tweakPrivate, rawSSPub);
 
         // wrapKey = HKDF(ikm=tweakedSS, salt=ephPub||convertedKey, info=label, 32)
         var salt = (byte[])[.. ephPubBytes, .. _x25519PublicKey];

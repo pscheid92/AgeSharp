@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using Age.Crypto;
 using Age.Format;
-using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 
@@ -60,25 +59,16 @@ public sealed class SshEd25519Recipient : IRecipient
         // tweakedKey = X25519.ScalarMult(tweak, _x25519PublicKey)
         var tweakPrivate = new X25519PrivateKeyParameters(tweak);
         var recipientPub = new X25519PublicKeyParameters(_x25519PublicKey);
-        var agreement = new X25519Agreement();
-        
-        agreement.Init(tweakPrivate);
-        var tweakedKey = new byte[agreement.AgreementSize];
-        
-        agreement.CalculateAgreement(recipientPub, tweakedKey, 0);
+        var tweakedKey = CryptoHelper.X25519Agree(tweakPrivate, recipientPub);
 
         // Generate ephemeral X25519 key pair
         var ephemeral = new X25519PrivateKeyParameters(new SecureRandom());
         var ephPubBytes = ephemeral.GeneratePublicKey().GetEncoded();
 
         // sharedSecret = X25519.ScalarMult(ephSecret, tweakedKey)
-        // We need to do DH(ephemeral, tweakedKey) but tweakedKey is a point, not a public key parameter
-        // Use the tweakedKey as a public key for the agreement
+        // tweakedKey is a point; use it as a public key for the agreement.
         var tweakedPub = new X25519PublicKeyParameters(tweakedKey);
-        var ephAgreement = new X25519Agreement();
-        ephAgreement.Init(ephemeral);
-        var sharedSecret = new byte[ephAgreement.AgreementSize];
-        ephAgreement.CalculateAgreement(tweakedPub, sharedSecret, 0);
+        var sharedSecret = CryptoHelper.X25519Agree(ephemeral, tweakedPub);
 
         // wrapKey = HKDF(ikm=sharedSecret, salt=ephPub||convertedKey, info=label, 32)
         var salt = (byte[])[.. ephPubBytes, .. _x25519PublicKey];

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
@@ -10,6 +11,33 @@ internal static class CryptoHelper
 {
     private const int ChaChaTagSize = 16;
     private const int Sha256Size = 32;
+
+    /// <summary>
+    /// Computes an X25519 shared secret. A low-order or identity public point
+    /// yields an all-zero shared secret, which BouncyCastle's
+    /// <c>CalculateAgreement</c> rejects by throwing
+    /// <see cref="InvalidOperationException"/>; that is normalized into an
+    /// <see cref="AgeFormatException"/> so a crafted stanza can't leak a raw BCL
+    /// exception through decryption. The caller owns the returned secret and
+    /// must zero it after use.
+    /// </summary>
+    public static byte[] X25519Agree(X25519PrivateKeyParameters privateKey, X25519PublicKeyParameters publicKey)
+    {
+        var agreement = new X25519Agreement();
+        agreement.Init(privateKey);
+        var sharedSecret = new byte[agreement.AgreementSize];
+
+        try
+        {
+            agreement.CalculateAgreement(publicKey, sharedSecret, 0);
+        }
+        catch (InvalidOperationException)
+        {
+            throw new AgeFormatException("X25519 shared secret is all-zero (low-order or identity point)");
+        }
+
+        return sharedSecret;
+    }
 
     public static byte[] HkdfDerive(ReadOnlySpan<byte> ikm, ReadOnlySpan<byte> salt, string info, int length)
     {

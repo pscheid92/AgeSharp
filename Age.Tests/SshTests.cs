@@ -454,6 +454,23 @@ public class SshEd25519RecipientIdentityTests
         var stanza = new Age.Format.Stanza("ssh-ed25519", [.. goodStanza.Args], new byte[16]);
         Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
+
+    [Fact]
+    public void Unwrap_LowOrderEphemeral_ThrowsFormatException()
+    {
+        var (_, pemText) = GenerateEd25519KeyPair();
+        using var identity = SshEd25519Identity.Parse(pemText);
+
+        // Real wrap gives the correct tag (Args[0]) for this identity.
+        var goodStanza = identity.Recipient.Wrap(new byte[16]);
+
+        // All-zero (low-order/identity) ephemeral → all-zero shared secret.
+        // Before the guard this leaked BouncyCastle's InvalidOperationException
+        // straight through Decrypt, escaping the AgeException contract.
+        var lowOrderEph = Age.Crypto.Base64Unpadded.Encode(new byte[32]);
+        var stanza = new Age.Format.Stanza("ssh-ed25519", [goodStanza.Args[0], lowOrderEph], new byte[32]);
+        Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
+    }
 }
 
 public class SshRsaRecipientIdentityTests
