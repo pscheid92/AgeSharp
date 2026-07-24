@@ -25,27 +25,11 @@ internal static class SshKeyParser
         if (keyType != "ssh-ed25519" && keyType != "ssh-rsa")
             throw new AgeFormatException($"unsupported SSH key type: {keyType}");
 
-        byte[] wireBytes;
-        try
-        {
-            wireBytes = Convert.FromBase64String(parts[1]);
-        }
-        catch (FormatException ex) // BCL type: thrown by Convert.FromBase64String
-        {
-            throw new AgeFormatException("invalid base64 in authorized_keys line", ex);
-        }
+        var wireBytes = Guard("invalid base64 in authorized_keys line",
+            () => Convert.FromBase64String(parts[1]));
 
-        AsymmetricKeyParameter publicKey;
-        try
-        {
-            publicKey = OpenSshPublicKeyUtilities.ParsePublicKey(wireBytes);
-        }
-        catch (Exception ex) when (ex is not AgeFormatException)
-        {
-            // BouncyCastle throws a zoo of exception types on malformed key
-            // blobs; to a caller they are all one thing: unparseable input.
-            throw new AgeFormatException("invalid SSH public key data", ex);
-        }
+        var publicKey = Guard("invalid SSH public key data",
+            () => OpenSshPublicKeyUtilities.ParsePublicKey(wireBytes));
 
         return (keyType, wireBytes, publicKey);
     }
@@ -63,26 +47,18 @@ internal static class SshKeyParser
         {
             // OpenSSH format: extract the base64 blob and parse
             var pemReader = new PemReader(new StringReader(pemText));
-            var pemObject = ReadPem(pemReader.ReadPemObject);
-            if (pemObject == null)
-                throw new AgeFormatException("failed to read PEM object");
+            var pemObject = Guard("invalid PEM structure", pemReader.ReadPemObject)
+                ?? throw new AgeFormatException("failed to read PEM object");
 
-            try
-            {
-                privateKey = OpenSshPrivateKeyUtilities.ParsePrivateKeyBlob(pemObject.Content);
-            }
-            catch (Exception ex) when (ex is not AgeFormatException)
-            {
-                // Covers malformed blobs and passphrase-protected keys, which
-                // BouncyCastle rejects with assorted exception types.
-                throw new AgeFormatException("invalid OpenSSH private key", ex);
-            }
+            // Also covers passphrase-protected keys, which BouncyCastle rejects
+            privateKey = Guard("invalid OpenSSH private key",
+                () => OpenSshPrivateKeyUtilities.ParsePrivateKeyBlob(pemObject.Content));
         }
         else
         {
             // PKCS#1 or PKCS#8 format
             var pemReader = new PemReader(new StringReader(pemText));
-            var obj = ReadPem(pemReader.ReadObject);
+            var obj = Guard("invalid PEM structure", pemReader.ReadObject);
 
             privateKey = obj switch
             {
@@ -95,8 +71,6 @@ internal static class SshKeyParser
         // Derive public key and encode to SSH wire format
         AsymmetricKeyParameter publicKey;
         string keyType;
-
-
         switch (privateKey)
         {
             case Ed25519PrivateKeyParameters ed25519Private:
@@ -125,17 +99,18 @@ internal static class SshKeyParser
         return Base64Unpadded.Encode(hash.AsSpan(0, FingerprintLength));
     }
 
-    // PemReader throws IOException/PemException on structurally broken input;
-    // normalize them to the parsing contract.
-    private static T ReadPem<T>(Func<T> read)
+    // BouncyCastle and the BCL throw a zoo of exception types on malformed
+    // input (FormatException, IOException, PemException, Asn1 errors, ...);
+    // inside this parser they are all one thing: unparseable input.
+    private static T Guard<T>(string error, Func<T> parse)
     {
         try
         {
-            return read();
+            return parse();
         }
         catch (Exception ex) when (ex is not AgeFormatException)
         {
-            throw new AgeFormatException("invalid PEM structure", ex);
+            throw new AgeFormatException(error, ex);
         }
     }
 }
