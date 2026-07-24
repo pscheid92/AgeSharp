@@ -11,7 +11,7 @@ namespace AgeSharp;
 /// (<c>AGE-SECRET-KEY-1…</c>). Disposing zeroes the key material; instances are
 /// safe for concurrent <see cref="Unwrap"/> calls.
 /// </summary>
-public sealed class X25519Identity : IIdentity, IDisposable, IParsable<X25519Identity>
+public sealed class X25519Identity : IIdentityWithRecipient, IDisposable, IParsable<X25519Identity>
 {
     private const string Hrp = "AGE-SECRET-KEY-";
     private const int KeySize = 32;
@@ -35,6 +35,11 @@ public sealed class X25519Identity : IIdentity, IDisposable, IParsable<X25519Ide
             return new(PublicKeyParams);
         }
     }
+
+    // Bridges the strongly-typed property above to IIdentityWithRecipient. C# has no
+    // covariant returns for interface implementations, so the interface member is
+    // implemented explicitly rather than widening the public property to IRecipient.
+    IRecipient IIdentityWithRecipient.Recipient => Recipient;
 
     private X25519PublicKeyParameters PublicKeyParams
     {

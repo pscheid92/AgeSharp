@@ -69,3 +69,5 @@ static AgeSharp.Age.Decrypt(System.ReadOnlySpan<byte> ciphertext, AgeSharp.AgeOp
 *REMOVED*AgeSharp.AgeRandomAccess.PlaintextLength.get -> long
 *REMOVED*AgeSharp.AgeRandomAccess.ReadAt(long plaintextOffset, System.Span<byte> buffer) -> int
 *REMOVED*static AgeSharp.Age.DecryptReader(System.IO.Stream! ciphertext, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> System.IO.Stream!
+AgeSharp.IIdentityWithRecipient
+AgeSharp.IIdentityWithRecipient.Recipient.get -> AgeSharp.IRecipient!

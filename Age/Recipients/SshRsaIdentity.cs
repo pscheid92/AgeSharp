@@ -13,7 +13,7 @@ namespace AgeSharp;
 /// An identity backed by an ssh-rsa private key, decrypting the age
 /// <c>ssh-rsa</c> recipient type (RSA-OAEP).
 /// </summary>
-public sealed class SshRsaIdentity : IIdentity, IDisposable
+public sealed class SshRsaIdentity : IIdentityWithRecipient, IDisposable
 {
     private readonly RsaPrivateCrtKeyParameters _privateKey;
     private readonly byte[] _sshWireBytes;
@@ -41,6 +41,10 @@ public sealed class SshRsaIdentity : IIdentity, IDisposable
             return new(new RsaKeyParameters(false, _privateKey.Modulus, _privateKey.PublicExponent), _sshWireBytes);
         }
     }
+
+    // See X25519Identity: explicit implementation because C# has no covariant returns
+    // for interface members.
+    IRecipient IIdentityWithRecipient.Recipient => Recipient;
 
     /// <summary>Parses an ssh-rsa private key from PEM text (OpenSSH, PKCS#1, or PKCS#8).</summary>
     /// <exception cref="AgeFormatException">The text is not a valid ssh-rsa private key.</exception>
