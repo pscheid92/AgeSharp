@@ -4,10 +4,8 @@ using Xunit;
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Contracts of the two internal read-only wrappers the armor path is built on:
-/// <c>PeekableStream</c> (lookahead that can be replayed, which is what lets armor
-/// detection work without seeking) and <c>NewlineBoundedStream</c> (caps how many
-/// bytes may pass without a line terminator).
+/// Contract of <c>PeekableStream</c>: lookahead that can be replayed, which is what
+/// lets armor detection work without seeking.
 /// </summary>
 public class StreamWrapperTests
 {
@@ -126,104 +124,5 @@ public class StreamWrapperTests
         Assert.Throws<NotSupportedException>(() => peekable.Seek(0, SeekOrigin.Begin));
         Assert.Throws<NotSupportedException>(() => peekable.SetLength(1));
         Assert.Throws<NotSupportedException>(() => peekable.Write(new byte[1], 0, 1));
-    }
-
-    // --- NewlineBoundedStream ---
-
-    [Fact]
-    public void LinesWithinTheBound_PassThroughUnchanged()
-    {
-        var source = "aaaa\nbbbb\ncccc"u8.ToArray();
-        using var bounded = new NewlineBoundedStream(new MemoryStream(source), maxLineBytes: 8);
-
-        using var drained = new MemoryStream();
-        bounded.CopyTo(drained);
-        Assert.Equal(source, drained.ToArray());
-    }
-
-    [Fact]
-    public void SpanRead_AlsoPassesThrough_AndEnforcesTheBound()
-    {
-        // The span overload is the one StreamReader actually drives, so it needs the
-        // same scan as the byte[] path rather than inheriting the base implementation.
-        var source = "aaaa\nbbbb\n"u8.ToArray();
-        using var ok = new NewlineBoundedStream(new MemoryStream(source), maxLineBytes: 8);
-
-        Span<byte> buffer = stackalloc byte[4];
-        var total = 0;
-        int n;
-        while ((n = ok.Read(buffer)) > 0)
-            total += n;
-
-        Assert.Equal(source.Length, total);
-
-        var unterminated = new byte[256];
-        Array.Fill(unterminated, (byte)'A');
-        using var tooLong = new NewlineBoundedStream(new MemoryStream(unterminated), maxLineBytes: 32);
-
-        Assert.Throws<AgeFormatException>(() =>
-        {
-            Span<byte> b = stackalloc byte[64];
-            while (tooLong.Read(b) > 0) { }
-        });
-    }
-
-    [Fact]
-    public void ALineLongerThanTheBound_Throws()
-    {
-        var source = new byte[4096];             // no newline anywhere
-        Array.Fill(source, (byte)'A');
-        using var bounded = new NewlineBoundedStream(new MemoryStream(source), maxLineBytes: 64);
-
-        Assert.Throws<AgeFormatException>(() =>
-        {
-            using var drained = new MemoryStream();
-            bounded.CopyTo(drained);
-        });
-    }
-
-    [Fact]
-    public void ALineSplitAcrossReads_StillTripsTheBound()
-    {
-        // The run has to be carried between reads, or a long line slips through
-        // whenever it straddles a buffer boundary.
-        var source = new byte[300];
-        Array.Fill(source, (byte)'A');
-        using var bounded = new NewlineBoundedStream(new MemoryStream(source), maxLineBytes: 100);
-
-        var buffer = new byte[64];
-        Assert.Throws<AgeFormatException>(() =>
-        {
-            while (bounded.Read(buffer, 0, buffer.Length) > 0) { }
-        });
-    }
-
-    [Fact]
-    public void NewlineBoundedStream_IsForwardOnlyAndReadOnly()
-    {
-        using var bounded = new NewlineBoundedStream(new MemoryStream([1]), maxLineBytes: 8);
-
-        Assert.True(bounded.CanRead);
-        Assert.False(bounded.CanSeek);
-        Assert.False(bounded.CanWrite);
-        bounded.Flush();
-
-        Assert.Throws<NotSupportedException>(() => bounded.Length);
-        Assert.Throws<NotSupportedException>(() => bounded.Position);
-        Assert.Throws<NotSupportedException>(() => bounded.Position = 0);
-        Assert.Throws<NotSupportedException>(() => bounded.Seek(0, SeekOrigin.Begin));
-        Assert.Throws<NotSupportedException>(() => bounded.SetLength(1));
-        Assert.Throws<NotSupportedException>(() => bounded.Write(new byte[1], 0, 1));
-    }
-
-    [Fact]
-    public void NewlineBoundedStream_DoesNotDisposeTheWrappedStream()
-    {
-        var inner = new MemoryStream([1, 2, 3]);
-        using (var bounded = new NewlineBoundedStream(inner, maxLineBytes: 8))
-            bounded.CopyTo(Stream.Null);
-
-        Assert.True(inner.CanRead);
-        inner.Position = 0;
     }
 }

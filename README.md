@@ -26,7 +26,8 @@ and targets .NET 10.
 - ASCII armor support
 - Streaming encryption and decryption across all APIs — memory is bounded
   by a single 64 KiB chunk buffer regardless of input size (1 GiB file uses
-  the same working set as a 1 MB file)
+  the same working set as a 1 MB file), on the synchronous and asynchronous
+  paths alike, and for ASCII-armored input as well as binary
 - Push- and pull-based streaming (`OpenWrite` / `EncryptReader` / `OpenRead`)
   return a readable or writable `Stream` for pipe-and-forget use cases
 - Detached header APIs (`EncryptDetached` / `DecryptDetached`)

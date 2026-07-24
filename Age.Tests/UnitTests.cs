@@ -515,9 +515,11 @@ public class AsciiArmorTests
     [Fact]
     public void Reject_Missing_Begin_Marker()
     {
+        // Dearmor is lazy — the begin marker is validated on the first read, not at
+        // construction, so that nothing does blocking I/O on an async caller's stream.
         var text = "not a marker\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeFormatException>(() => AsciiArmor.Dearmor(stream));
+        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -567,7 +569,7 @@ public class AsciiArmorTests
         // The bound must also protect the marker search before the armor body.
         var text = new string('x', new AgeOptions().MaxArmorLineBytes + 1000);
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeFormatException>(() => AsciiArmor.Dearmor(stream));
+        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]

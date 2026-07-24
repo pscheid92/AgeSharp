@@ -130,24 +130,13 @@ public static partial class Age
 
     private static async ValueTask<(Stream binaryInput, bool needsDispose)> DeArmorIfNeededAsync(Stream input, AgeOptions options, CancellationToken cancellationToken)
     {
+        // Identical to the synchronous DeArmorIfNeeded apart from the awaits: the
+        // dearmor is sans-I/O, so armored input streams here too — no buffering, and
+        // no blocking read on the caller's stream.
         var (source, isArmored) = await AsciiArmor.DetectAsync(input, cancellationToken).ConfigureAwait(false);
 
-        if (!isArmored)
-            return (source, false);
-
-        // DearmorStream's line reader is synchronous, so armored input is still read
-        // into memory here to keep blocking I/O off the caller's stream — the
-        // AllowSynchronousIO = false contract. Detection is now shared with the sync
-        // path, so this is one buffered copy rather than the two it used to make.
-        // Removing it entirely needs a sans-I/O dearmor (#55).
-        //
-        // The buffer is deliberately not disposed here: the returned stream decodes
-        // from it lazily. A MemoryStream holds no unmanaged resources, so it simply
-        // becomes garbage once the returned stream is dropped.
-        var armored = new MemoryStream();
-        await source.CopyToAsync(armored, cancellationToken).ConfigureAwait(false);
-        armored.Position = 0;
-
-        return (AsciiArmor.Dearmor(armored, options.MaxArmorLineBytes), true);
+        return isArmored
+            ? (AsciiArmor.Dearmor(source, options.MaxArmorLineBytes), true)
+            : (source, false);
     }
 }
