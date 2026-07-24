@@ -27,7 +27,7 @@
 
 | Feature | Go | Rust | AgeSharp | Notes |
 |---|:---:|:---:|:---:|---|
-| Random-access decryption (`DecryptReaderAt`) | ✅ | ❌ | ✅ | Seek into encrypted files (e.g. ZIP in age) |
+| Seekable decryption (`Age.OpenRead`) | ✅ | ❌ | ✅ | Seek into encrypted files (e.g. ZIP in age) |
 | Detached header APIs | ✅ | ❌ | ✅ | Extract/decrypt header separately |
 | `age-inspect` | ✅ | ❌ | ✅ | Metadata inspection without decryption |
 | Pull-based encryption (`EncryptReader`) | ✅ | ✅ | ✅ | Stream-returning API, lazy payload encryption/decryption |

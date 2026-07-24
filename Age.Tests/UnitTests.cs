@@ -1306,7 +1306,7 @@ public class AgeTests
 public class DecryptStreamTests
 {
     [Fact]
-    public void DecryptReader_Rejects_Truncated_Payload_NoFinalChunk()
+    public void ForwardOnly_Rejects_Truncated_Payload_NoFinalChunk()
     {
         using var identity = X25519Identity.Generate();
         // Encrypt >64KB so we get at least 2 chunks
@@ -1331,12 +1331,12 @@ public class DecryptStreamTests
 
         var truncated = ciphertextBytes[..truncateAt];
 
-        using var truncatedStream = new MemoryStream(truncated);
-        using var reader = Age.DecryptReader(truncatedStream, identity);
+        // A non-seekable source forces the forward-only decrypt path, which detects
+        // the missing final chunk as it reads rather than from the stream length.
+        using var truncatedStream = new NonSeekableStream(new MemoryStream(truncated));
+        using var reader = Age.OpenRead(truncatedStream, identity);
 
         var buf = new byte[plaintext.Length];
-        // Truncating removes the final chunk, so DecryptStream will detect
-        // either an authentication failure or a missing final chunk
         Assert.Throws<AgeAuthenticationException>(() =>
         {
             var totalRead = 0;
@@ -1350,7 +1350,7 @@ public class DecryptStreamTests
     }
 
     [Fact]
-    public void DecryptReader_Rejects_Chunk_TooSmallForTag()
+    public void ForwardOnly_Rejects_Chunk_TooSmallForTag()
     {
         using var identity = X25519Identity.Generate();
         var plaintext = "small payload"u8.ToArray();
@@ -1369,8 +1369,8 @@ public class DecryptStreamTests
         var truncateAt = payloadOffset + 16 + 5; // nonce + 5 bytes
         var truncated = ciphertextBytes[..truncateAt];
 
-        using var truncatedStream = new MemoryStream(truncated);
-        using var reader = Age.DecryptReader(truncatedStream, identity);
+        using var truncatedStream = new NonSeekableStream(new MemoryStream(truncated));
+        using var reader = Age.OpenRead(truncatedStream, identity);
 
         var buf = new byte[100];
         Assert.Throws<AgeAuthenticationException>(() => reader.Read(buf, 0, buf.Length));

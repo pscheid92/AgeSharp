@@ -11,8 +11,10 @@ public class RandomAccessBenchmarks
 
     private X25519Identity _identity = null!;
     private byte[] _ciphertext = null!;
-    private AgeRandomAccess _randomAccess = null!;
+    private Stream _reader = null!;
+    private long _plaintextLength;
     private long[] _randomOffsets = null!;
+    private long _sink; // consumes Read results so they aren't optimized away
 
     [GlobalSetup]
     public void Setup()
@@ -27,11 +29,12 @@ public class RandomAccessBenchmarks
         Age.Encrypt(new MemoryStream(plaintext), encOut, recipient);
         _ciphertext = encOut.ToArray();
 
-        _randomAccess = new AgeRandomAccess(new MemoryStream(_ciphertext), _identity);
+        _reader = Age.OpenRead(new MemoryStream(_ciphertext), _identity);
+        _plaintextLength = _reader.Length;
 
         // Pre-generate random offsets with fixed seed for reproducibility
         var rng = new Random(42);
-        var maxOffset = _randomAccess.PlaintextLength - ReadSize;
+        var maxOffset = _plaintextLength - ReadSize;
         _randomOffsets = new long[256];
         for (var i = 0; i < _randomOffsets.Length; i++)
             _randomOffsets[i] = rng.NextInt64(0, maxOffset);
@@ -40,7 +43,7 @@ public class RandomAccessBenchmarks
     [GlobalCleanup]
     public void Cleanup()
     {
-        _randomAccess.Dispose();
+        _reader.Dispose();
         _identity.Dispose();
     }
 
@@ -48,12 +51,10 @@ public class RandomAccessBenchmarks
     public void SequentialRead()
     {
         Span<byte> buffer = stackalloc byte[ReadSize];
-        long offset = 0;
-        while (offset < _randomAccess.PlaintextLength)
-        {
-            _randomAccess.ReadAt(offset, buffer);
-            offset += ReadSize;
-        }
+        _reader.Position = 0;
+        int read;
+        while ((read = _reader.Read(buffer)) > 0)
+            _sink += read;
     }
 
     [Benchmark]
@@ -61,6 +62,9 @@ public class RandomAccessBenchmarks
     {
         Span<byte> buffer = stackalloc byte[ReadSize];
         foreach (var offset in _randomOffsets)
-            _randomAccess.ReadAt(offset, buffer);
+        {
+            _reader.Position = offset;
+            _sink += _reader.Read(buffer);
+        }
     }
 }

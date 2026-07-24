@@ -75,28 +75,28 @@ public class ExceptionContractTests
     // --- Authentication: defects in the payload region ---
 
     [Fact]
-    public void RandomAccess_EmptyPayload_ThrowsAuthentication()
+    public void SeekableOpenRead_EmptyPayload_ThrowsAuthentication()
     {
         using var identity = X25519Identity.Generate();
         var (header, payload) = EncryptDetached(identity);
 
-        // header + nonce, zero chunks
+        // header + nonce, zero chunks — a seekable source rejects this eagerly.
         using var file = new MemoryStream([.. header, .. payload[..16]]);
 
-        var ex = Assert.Throws<AgeAuthenticationException>(() => new AgeRandomAccess(file, identity));
+        var ex = Assert.Throws<AgeAuthenticationException>(() => Age.OpenRead(file, identity));
         Assert.Contains("payload is empty", ex.Message);
     }
 
     [Fact]
-    public void RandomAccess_PayloadShorterThanTag_ThrowsAuthentication()
+    public void SeekableOpenRead_PayloadShorterThanTag_ThrowsAuthentication()
     {
         using var identity = X25519Identity.Generate();
         var (header, payload) = EncryptDetached(identity);
 
-        // header + nonce + 5 bytes: a chunk cannot even hold its tag
+        // header + nonce + 5 bytes: a chunk cannot even hold its tag.
         using var file = new MemoryStream([.. header, .. payload[..21]]);
 
-        var ex = Assert.Throws<AgeAuthenticationException>(() => new AgeRandomAccess(file, identity));
+        var ex = Assert.Throws<AgeAuthenticationException>(() => Age.OpenRead(file, identity));
         Assert.Contains("chunk too small", ex.Message);
     }
 

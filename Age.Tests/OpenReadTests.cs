@@ -1,0 +1,409 @@
+using AgeSharp;
+using Xunit;
+
+namespace AgeSharp.Tests;
+
+/// <summary>
+/// Tests for the unified <see cref="Age.OpenRead(System.IO.Stream, System.ReadOnlySpan{IIdentity})"/>
+/// decrypt stream: seekable random access over a seekable source (ported from the old
+/// <c>AgeRandomAccess</c> suite), the one-chunk cache, forward-only behavior over a
+/// non-seekable source, and truncation-detection semantics.
+/// </summary>
+public class OpenReadTests
+{
+    private static MemoryStream Encrypt(byte[] plaintext, IRecipient recipient, bool armor = false)
+    {
+        using var input = new MemoryStream(plaintext);
+        var output = new MemoryStream();
+        Age.Encrypt(input, output, new AgeOptions { Armor = armor }, recipient);
+        output.Position = 0;
+        return output;
+    }
+
+    private static byte[] ReadAt(Stream stream, long offset, int count)
+    {
+        stream.Position = offset;
+        var buf = new byte[count];
+        var total = 0;
+        while (total < count)
+        {
+            var read = stream.Read(buf.AsSpan(total));
+            if (read == 0) break;
+            total += read;
+        }
+        return total == count ? buf : buf[..total];
+    }
+
+    // --- Seekable capabilities and plaintext length ---
+
+    [Fact]
+    public void SeekableSource_ReportsCapabilitiesAndLength()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[100_000];
+        new Random(42).NextBytes(plaintext);
+
+        using var ciphertext = Encrypt(plaintext, identity.Recipient);
+        using var stream = Age.OpenRead(ciphertext, identity);
+
+        Assert.True(stream.CanRead);
+        Assert.True(stream.CanSeek);
+        Assert.False(stream.CanWrite);
+        Assert.Equal(plaintext.Length, stream.Length);
+    }
+
+    [Fact]
+    public void PlaintextLength_Correct_AcrossSizes()
+    {
+        using var identity = X25519Identity.Generate();
+
+        foreach (var size in new[] { 0, 1, 100, 65535, 65536, 65537, 100_000, 131072, 196608 })
+        {
+            var plaintext = new byte[size];
+            if (size > 0) new Random(42).NextBytes(plaintext);
+
+            using var ciphertext = Encrypt(plaintext, identity.Recipient);
+            using var stream = Age.OpenRead(ciphertext, identity);
+
+            Assert.Equal(size, stream.Length);
+        }
+    }
+
+    // --- Sequential read matches a full decrypt, byte-for-byte ---
+
+    [Fact]
+    public void Sequential_Read_MatchesFullDecrypt()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[100_000];
+        new Random(42).NextBytes(plaintext);
+
+        using var ciphertext = Encrypt(plaintext, identity.Recipient);
+        using var stream = Age.OpenRead(ciphertext, identity);
+
+        using var output = new MemoryStream();
+        stream.CopyTo(output);
+        Assert.Equal(plaintext, output.ToArray());
+    }
+
+    // --- The seekable path and the forward-only path agree byte-for-byte ---
+
+    [Fact]
+    public void SeekablePath_And_ForwardOnlyPath_ByteIdentical()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[200_000];
+        new Random(7).NextBytes(plaintext);
+
+        var ciphertextBytes = Encrypt(plaintext, identity.Recipient).ToArray();
+
+        using var seekableStream = Age.OpenRead(new MemoryStream(ciphertextBytes), identity);
+        using var seekableOut = new MemoryStream();
+        seekableStream.CopyTo(seekableOut);
+
+        using var forwardStream = Age.OpenRead(new NonSeekableStream(new MemoryStream(ciphertextBytes)), identity);
+        using var forwardOut = new MemoryStream();
+        forwardStream.CopyTo(forwardOut);
+
+        Assert.False(forwardStream.CanSeek);
+        Assert.Equal(seekableOut.ToArray(), forwardOut.ToArray());
+        Assert.Equal(plaintext, seekableOut.ToArray());
+    }
+
+    // --- Offsets: mid-chunk, cross-chunk, first/last byte, chunk edges ---
+
+    [Fact]
+    public void MidChunk_And_CrossChunk_Offsets()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[200_000];
+        new Random(42).NextBytes(plaintext);
+
+        using var ciphertext = Encrypt(plaintext, identity.Recipient);
+        using var stream = Age.OpenRead(ciphertext, identity);
+
+        Assert.Equal(plaintext.AsSpan(32768, 100).ToArray(), ReadAt(stream, 32768, 100));   // mid first chunk
+        Assert.Equal(plaintext.AsSpan(65530, 100).ToArray(), ReadAt(stream, 65530, 100));   // across chunk 0/1
+        Assert.Equal(plaintext[..1], ReadAt(stream, 0, 1));                                  // first byte
+        Assert.Equal(plaintext[^1..], ReadAt(stream, plaintext.Length - 1, 1));             // last byte
+    }
+
+    [Fact]
+    public void ChunkBoundary_Reads()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[65536 * 2 + 1000];
+        new Random(42).NextBytes(plaintext);
+
+        using var ciphertext = Encrypt(plaintext, identity.Recipient);
+        using var stream = Age.OpenRead(ciphertext, identity);
+
+        Assert.Equal(plaintext[65535], ReadAt(stream, 65535, 1)[0]); // last byte of chunk 0
+        Assert.Equal(plaintext[65536], ReadAt(stream, 65536, 1)[0]); // first byte of chunk 1
+    }
+
+    [Fact]
+    public void MultiChunk_Span_CrossesTwoBoundaries()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[200_000];
+        new Random(42).NextBytes(plaintext);
+
+        using var ciphertext = Encrypt(plaintext, identity.Recipient);
+        using var stream = Age.OpenRead(ciphertext, identity);
+
+        const int offset = 65000;
+        const int length = 70000; // chunk 0 → chunk 1 → chunk 2
+        Assert.Equal(plaintext.AsSpan(offset, length).ToArray(), ReadAt(stream, offset, length));
+    }
+
+    // --- Empty and single-chunk plaintext ---
+
+    [Fact]
+    public void EmptyPlaintext_LengthZero_ReadReturnsZero()
+    {
+        using var identity = X25519Identity.Generate();
+
+        using var ciphertext = Encrypt([], identity.Recipient);
+        using var stream = Age.OpenRead(ciphertext, identity);
+
+        Assert.Equal(0, stream.Length);
+        Assert.Equal(0, stream.Read(new byte[10], 0, 10));
+    }
+
+    [Fact]
+    public void SingleChunk_ExactSize()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[64 * 1024];
+        new Random(42).NextBytes(plaintext);
+
+        using var ciphertext = Encrypt(plaintext, identity.Recipient);
+        using var stream = Age.OpenRead(ciphertext, identity);
+
+        Assert.Equal(plaintext.Length, stream.Length);
+        Assert.Equal(plaintext[^1..], ReadAt(stream, plaintext.Length - 1, 1));
+    }
+
+    // --- Seeking: origins, past-end, backward, exact boundaries ---
+
+    [Fact]
+    public void Seek_Origins()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[100_000];
+        new Random(42).NextBytes(plaintext);
+
+        using var ciphertext = Encrypt(plaintext, identity.Recipient);
+        using var stream = Age.OpenRead(ciphertext, identity);
+
+        stream.Seek(10000, SeekOrigin.Begin);
+        Assert.Equal(10000, stream.Position);
+        stream.Seek(5000, SeekOrigin.Current);
+        Assert.Equal(15000, stream.Position);
+        Assert.Equal(plaintext.AsSpan(15000, 100).ToArray(), ReadAt(stream, 15000, 100));
+
+        stream.Seek(-10, SeekOrigin.End);
+        Assert.Equal(plaintext.Length - 10, stream.Position);
+        Assert.Equal(plaintext.AsSpan(plaintext.Length - 10, 10).ToArray(), ReadAt(stream, plaintext.Length - 10, 10));
+    }
+
+    [Fact]
+    public void Seek_PastEnd_ReadReturnsZero_PositionUnchanged()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = "short"u8.ToArray();
+
+        using var ciphertext = Encrypt(plaintext, identity.Recipient);
+        using var stream = Age.OpenRead(ciphertext, identity);
+
+        stream.Seek(1000, SeekOrigin.Begin);
+        Assert.Equal(1000, stream.Position);
+
+        var buf = new byte[10];
+        Assert.Equal(0, stream.Read(buf, 0, buf.Length));
+        Assert.Equal(1000, stream.Position);
+    }
+
+    [Fact]
+    public void Seek_Backward_RereadsCorrectly()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[200_000];
+        new Random(42).NextBytes(plaintext);
+
+        using var ciphertext = Encrypt(plaintext, identity.Recipient);
+        using var stream = Age.OpenRead(ciphertext, identity);
+
+        // Read forward into chunk 2, then seek back into chunk 0 and re-read.
+        Assert.Equal(plaintext.AsSpan(150000, 50).ToArray(), ReadAt(stream, 150000, 50));
+        Assert.Equal(plaintext.AsSpan(10, 50).ToArray(), ReadAt(stream, 10, 50));
+    }
+
+    [Fact]
+    public void Seek_NegativeAbsolute_Throws()
+    {
+        using var identity = X25519Identity.Generate();
+        using var ciphertext = Encrypt("data"u8.ToArray(), identity.Recipient);
+        using var stream = Age.OpenRead(ciphertext, identity);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => stream.Seek(-1, SeekOrigin.Begin));
+        Assert.Throws<ArgumentOutOfRangeException>(() => stream.Position = -1);
+    }
+
+    // --- One-chunk cache: byte-by-byte reads decrypt each chunk exactly once ---
+
+    [Fact]
+    public void ChunkCache_ByteByByte_DecryptsEachChunkOnce()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[65536 * 2 + 5000]; // three chunks
+        new Random(42).NextBytes(plaintext);
+
+        var ciphertextBytes = Encrypt(plaintext, identity.Recipient).ToArray();
+        var payloadOffset = (int)Age.ReadHeader(new MemoryStream(ciphertextBytes)).PayloadOffset;
+        var totalEncryptedPayload = ciphertextBytes.Length - payloadOffset - 16; // minus the 16-byte nonce
+
+        var counting = new CountingStream(new MemoryStream(ciphertextBytes));
+        using var stream = Age.OpenRead(counting, identity);
+
+        // Reset after the header/nonce read so only payload reads are counted.
+        counting.Reset();
+
+        var output = new byte[plaintext.Length];
+        for (var i = 0; i < output.Length; i++)
+            Assert.Equal(1, stream.Read(output.AsSpan(i, 1)));
+
+        Assert.Equal(plaintext, output);
+        // With the cache, each chunk's ciphertext is read exactly once despite ~135k reads.
+        Assert.Equal(totalEncryptedPayload, counting.TotalBytesRead);
+    }
+
+    // --- Armored + seekable materializes into a seekable stream ---
+
+    [Fact]
+    public void ArmoredSeekableSource_IsSeekable_AndRoundTrips()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[100_000];
+        new Random(42).NextBytes(plaintext);
+
+        using var ciphertext = Encrypt(plaintext, identity.Recipient, armor: true);
+        using var stream = Age.OpenRead(ciphertext, identity);
+
+        Assert.True(stream.CanSeek);
+        Assert.Equal(plaintext.Length, stream.Length);
+        Assert.Equal(plaintext.AsSpan(50000, 100).ToArray(), ReadAt(stream, 50000, 100));
+
+        using var output = new MemoryStream();
+        stream.Position = 0;
+        stream.CopyTo(output);
+        Assert.Equal(plaintext, output.ToArray());
+    }
+
+    // --- Non-seekable source stays forward-only ---
+
+    [Fact]
+    public void NonSeekableSource_IsForwardOnly()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = "forward only"u8.ToArray();
+
+        var ciphertextBytes = Encrypt(plaintext, identity.Recipient).ToArray();
+        using var stream = Age.OpenRead(new NonSeekableStream(new MemoryStream(ciphertextBytes)), identity);
+
+        Assert.True(stream.CanRead);
+        Assert.False(stream.CanSeek);
+
+        using var output = new MemoryStream();
+        stream.CopyTo(output);
+        Assert.Equal(plaintext, output.ToArray());
+    }
+
+    // --- Truncation is only detectable once a read reaches the affected chunk ---
+
+    [Fact]
+    public void Truncation_OnlyDetectedAtFinalChunk()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[65536 * 2 + 500]; // three chunks
+        new Random(42).NextBytes(plaintext);
+
+        var ciphertextBytes = Encrypt(plaintext, identity.Recipient).ToArray();
+
+        // Corrupt the final byte (part of the last chunk's tag).
+        ciphertextBytes[^1] ^= 0x01;
+
+        // Reading an earlier chunk succeeds — the tampering is not yet observed.
+        using (var stream = Age.OpenRead(new MemoryStream(ciphertextBytes), identity))
+            Assert.Equal(plaintext.AsSpan(0, 100).ToArray(), ReadAt(stream, 0, 100));
+
+        // Reading the final chunk surfaces the authentication failure.
+        using (var stream = Age.OpenRead(new MemoryStream(ciphertextBytes), identity))
+            Assert.Throws<AgeAuthenticationException>(() => ReadAt(stream, plaintext.Length - 100, 100));
+    }
+
+    // --- Read after dispose throws ---
+
+    [Fact]
+    public void ReadAfterDispose_Throws()
+    {
+        using var identity = X25519Identity.Generate();
+        using var ciphertext = Encrypt("data"u8.ToArray(), identity.Recipient);
+        var stream = Age.OpenRead(ciphertext, identity);
+        stream.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => stream.Read(new byte[4], 0, 4));
+    }
+
+    [Fact]
+    public void SeekableStream_ContractMembers()
+    {
+        using var identity = X25519Identity.Generate();
+        using var ciphertext = Encrypt("data"u8.ToArray(), identity.Recipient);
+        using var stream = Age.OpenRead(ciphertext, identity);
+
+        stream.Flush(); // no-op, must not throw
+        Assert.Throws<ArgumentOutOfRangeException>(() => stream.Seek(0, (SeekOrigin)999));
+        Assert.Throws<NotSupportedException>(() => stream.SetLength(10));
+        Assert.Throws<NotSupportedException>(() => stream.Write(new byte[1], 0, 1));
+    }
+
+    /// <summary>Counts payload bytes actually read from the ciphertext, to prove the chunk cache works.</summary>
+    private sealed class CountingStream(MemoryStream inner) : Stream
+    {
+        public long TotalBytesRead { get; private set; }
+
+        public void Reset() => TotalBytesRead = 0;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => true;
+        public override bool CanWrite => false;
+        public override long Length => inner.Length;
+
+        public override long Position
+        {
+            get => inner.Position;
+            set => inner.Position = value;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var n = inner.Read(buffer, offset, count);
+            TotalBytesRead += n;
+            return n;
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            var n = inner.Read(buffer);
+            TotalBytesRead += n;
+            return n;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+        public override void Flush() { }
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+}

@@ -68,7 +68,7 @@ public static partial class Age
     /// </summary>
     public static void Decrypt(Stream input, Stream output, AgeOptions options, params ReadOnlySpan<IIdentity> identities)
     {
-        using var stream = DecryptReader(input, options, identities);
+        using var stream = OpenRead(input, options, identities);
         stream.CopyTo(output);
         // Ensure output is touched even when plaintext is empty — matters for
         // lazy-creating writers that only materialize on first Write.
@@ -232,36 +232,60 @@ public static partial class Age
     }
 
     /// <summary>
-    /// Returns a readable <see cref="Stream"/> that yields plaintext as the
-    /// caller reads from it. Header parsing and MAC verification happen
-    /// eagerly; payload decryption is lazy. Armored input is auto-detected
-    /// when the stream is seekable. Dispose the returned stream when done.
+    /// Returns a readable plaintext <see cref="Stream"/> over an age-encrypted
+    /// <paramref name="source"/>. Header parsing and MAC verification happen
+    /// eagerly; payload decryption is lazy. Armored input is auto-detected when
+    /// the source is seekable. Dispose the returned stream when done.
     /// </summary>
-    public static Stream DecryptReader(Stream ciphertext, params ReadOnlySpan<IIdentity> identities)
-        => DecryptReader(ciphertext, AgeOptions.Default, identities);
+    /// <remarks>
+    /// <see cref="Stream.CanSeek"/> mirrors the source: a seekable source yields a
+    /// seekable stream whose <see cref="Stream.Length"/> is the plaintext length
+    /// and whose <see cref="Stream.Seek"/> maps to the containing 64 KiB chunk,
+    /// with the last-read chunk cached; a non-seekable source yields a forward-only
+    /// stream. A seekable armored source is materialized (its dearmored bytes are
+    /// buffered in memory) so it can seek. Payload truncation is only detected once
+    /// a read reaches the affected chunk, so a seek-and-read that never touches the
+    /// final chunk cannot observe a truncated tail.
+    /// </remarks>
+    /// <param name="source">The age-encrypted source (binary or ASCII-armored).</param>
+    /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
+    /// <exception cref="ArgumentException">No identities were supplied.</exception>
+    /// <exception cref="NoIdentityMatchException">None of the identities matched any stanza.</exception>
+    /// <exception cref="AgeFormatException">The header (or armor) is malformed.</exception>
+    /// <exception cref="AgeAuthenticationException">The header MAC failed, or a seekable source's payload is structurally impossible.</exception>
+    public static Stream OpenRead(Stream source, params ReadOnlySpan<IIdentity> identities)
+        => OpenRead(source, AgeOptions.Default, identities);
 
     /// <summary>
     /// Returns a readable plaintext <see cref="Stream"/>, applying
     /// <paramref name="options"/> (the header-size limits) while parsing.
+    /// See <see cref="OpenRead(Stream, ReadOnlySpan{IIdentity})"/> for the
+    /// seekability and truncation-detection contract.
     /// </summary>
-    public static Stream DecryptReader(Stream ciphertext, AgeOptions options, params ReadOnlySpan<IIdentity> identities)
+    public static Stream OpenRead(Stream source, AgeOptions options, params ReadOnlySpan<IIdentity> identities)
     {
         if (identities.Length == 0)
             throw new ArgumentException("at least one identity is required", nameof(identities));
 
-        var (binaryInput, needsDispose) = DeArmorIfNeeded(ciphertext, options);
+        var (binaryInput, needsDispose) = DeArmorIfNeeded(source, options);
+        byte[]? payloadKey = null;
 
         try
         {
             var (fileKey, reader) = UnwrapHeaderFromReader(binaryInput, identities, options);
             var payloadNonce = ReadPayloadNonce(reader);
-            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+            payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
             CryptographicOperations.ZeroMemory(fileKey);
 
-            return new DecryptStream(payloadKey, binaryInput, needsDispose);
+            // CanSeek mirrors the (possibly dearmored) source: a seekable input
+            // gets random-access decryption; anything else stays forward-only.
+            return binaryInput.CanSeek
+                ? new SeekableDecryptStream(payloadKey, binaryInput, binaryInput.Position, needsDispose)
+                : new DecryptStream(payloadKey, binaryInput, needsDispose);
         }
         catch
         {
+            if (payloadKey is not null) CryptographicOperations.ZeroMemory(payloadKey);
             if (needsDispose) binaryInput.Dispose();
             throw;
         }
@@ -378,8 +402,17 @@ public static partial class Age
 
     private static (Stream binaryInput, bool needsDispose) DeArmorIfNeeded(Stream input, AgeOptions options)
     {
+        // Armor is only detectable on a seekable source. Materialize the dearmored
+        // bytes into a seekable MemoryStream so the decrypt stream mirrors the
+        // source's seekability (armored files therefore cost their size in memory).
         if (input.CanSeek && AsciiArmor.IsArmored(input))
-            return (AsciiArmor.Dearmor(input, options.MaxArmorLineBytes), true);
+        {
+            using var dearmored = AsciiArmor.Dearmor(input, options.MaxArmorLineBytes);
+            var buffer = new MemoryStream();
+            dearmored.CopyTo(buffer);
+            buffer.Position = 0;
+            return (buffer, true);
+        }
 
         return (input, false);
     }
