@@ -8,8 +8,6 @@ AgeSharp.AgeException.AgeException(string! message, System.Exception! inner) -> 
 AgeSharp.AgeHeader
 AgeSharp.AgeHeader.IsArmored.get -> bool
 AgeSharp.AgeHeader.PayloadOffset.get -> long
-AgeSharp.AgeHeader.RecipientCount.get -> int
-AgeSharp.AgeHeader.Recipients.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.AgeHeaderException
 AgeSharp.AgeHeaderException.AgeHeaderException(string! message) -> void
 AgeSharp.AgeHeaderException.AgeHeaderException(string! message, System.Exception! inner) -> void

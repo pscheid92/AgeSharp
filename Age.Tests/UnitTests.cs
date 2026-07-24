@@ -576,7 +576,7 @@ public class AsciiArmorTests
         // A header line with no newline must be bounded before authentication.
         var text = "age-encryption.org/v1\n" + new string('a', 100_000) + "\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        var ex = Assert.Throws<AgeFormatException>(() => AgeHeader.Parse(stream));
+        var ex = Assert.Throws<AgeFormatException>(() => Age.ReadHeader(stream));
         Assert.Contains("exceeds", ex.Message);
     }
 
@@ -1320,7 +1320,7 @@ public class DecryptStreamTests
 
         // Parse header to find payload offset
         encOutput.Position = 0;
-        var header = AgeHeader.Parse(encOutput);
+        var header = Age.ReadHeader(encOutput);
         var payloadOffset = (int)header.PayloadOffset;
 
         // Payload: 16-byte nonce + encrypted chunks
@@ -1362,7 +1362,7 @@ public class DecryptStreamTests
 
         // Parse header to find payload offset
         encOutput.Position = 0;
-        var header = AgeHeader.Parse(encOutput);
+        var header = Age.ReadHeader(encOutput);
         var payloadOffset = (int)header.PayloadOffset;
 
         // Keep header + nonce + only a few bytes of payload (< TagSize = 16)

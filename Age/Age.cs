@@ -222,6 +222,16 @@ public static partial class Age
         }
     }
 
+    /// <summary>
+    /// Parses the header of an age file without decrypting it (and without
+    /// verifying the header MAC, which requires an identity). Armored input is
+    /// auto-detected when the stream is seekable.
+    /// </summary>
+    /// <param name="source">The age-encrypted source.</param>
+    /// <param name="options">Parsing options (the header-size limits); defaults are used when null.</param>
+    public static AgeHeader ReadHeader(Stream source, AgeOptions? options = null) =>
+        AgeHeader.Parse(source, options);
+
     // Wrap a recipient and get its label set. Recipients that don't implement
     // IRecipientWithLabels are treated as having an empty set (mirrors the
     // reference implementation's wrapWithLabels helper).

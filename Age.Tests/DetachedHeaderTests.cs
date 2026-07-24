@@ -38,7 +38,7 @@ public class DetachedHeaderTests
 
         // Parse header to find payload offset
         ciphertext.Position = 0;
-        var header = AgeHeader.Parse(ciphertext);
+        var header = Age.ReadHeader(ciphertext);
 
         // Split at payload offset
         var headerBytes = ciphertextBytes[..(int)header.PayloadOffset];
@@ -89,11 +89,10 @@ public class DetachedHeaderTests
         Age.Encrypt(input, ciphertext, id1.Recipient, id2.Recipient);
 
         ciphertext.Position = 0;
-        var header = AgeHeader.Parse(ciphertext);
+        var header = Age.ReadHeader(ciphertext);
 
-        Assert.Equal(2, header.RecipientCount);
-        Assert.Equal(2, header.Recipients.Count);
-        Assert.All(header.Recipients, s => Assert.Equal("X25519", s.Type));
+        Assert.Equal(2, header.Stanzas.Count);
+        Assert.All(header.Stanzas, s => Assert.Equal("X25519", s.Type));
         Assert.True(header.PayloadOffset > 0);
         Assert.False(header.IsArmored);
     }
@@ -109,9 +108,9 @@ public class DetachedHeaderTests
         Age.Encrypt(input, ciphertext, new AgeOptions { Armor = true }, identity.Recipient);
 
         ciphertext.Position = 0;
-        var header = AgeHeader.Parse(ciphertext);
+        var header = Age.ReadHeader(ciphertext);
 
-        Assert.Equal(1, header.RecipientCount);
+        Assert.Single(header.Stanzas);
         Assert.True(header.IsArmored);
     }
 
@@ -186,10 +185,10 @@ public class DetachedHeaderTests
         Age.Encrypt(input, ciphertext, recipient);
 
         ciphertext.Position = 0;
-        var header = AgeHeader.Parse(ciphertext);
+        var header = Age.ReadHeader(ciphertext);
 
-        Assert.Equal(1, header.RecipientCount);
-        Assert.Equal("scrypt", header.Recipients[0].Type);
+        Assert.Single(header.Stanzas);
+        Assert.Equal("scrypt", header.Stanzas[0].Type);
     }
 
     [Fact]
@@ -205,10 +204,10 @@ public class DetachedHeaderTests
         ciphertext.Position = 0;
         using var nonSeekable = new NonSeekableStream(ciphertext);
 
-        var header = AgeHeader.Parse(nonSeekable);
+        var header = Age.ReadHeader(nonSeekable);
 
         Assert.False(header.IsArmored);
-        Assert.True(header.RecipientCount > 0);
+        Assert.True(header.Stanzas.Count > 0);
     }
 
     [Fact]
@@ -217,7 +216,7 @@ public class DetachedHeaderTests
         var text = "age-encryption.org/v1\n-> test\n@@@@\n\n--- AAAA\n";
         using var stream = new MemoryStream(System.Text.Encoding.ASCII.GetBytes(text));
 
-        var ex = Assert.Throws<AgeFormatException>(() => AgeHeader.Parse(stream));
+        var ex = Assert.Throws<AgeFormatException>(() => Age.ReadHeader(stream));
         Assert.Contains("header parse error", ex.Message);
     }
 

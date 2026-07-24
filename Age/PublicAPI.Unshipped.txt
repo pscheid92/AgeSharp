@@ -51,4 +51,5 @@ static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, A
 static AgeSharp.Age.DecryptReader(System.IO.Stream! ciphertext, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> System.IO.Stream!
 static AgeSharp.Age.Encrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
 static AgeSharp.Age.EncryptReader(System.IO.Stream! plaintext, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
-static AgeSharp.AgeHeader.Parse(System.IO.Stream! input, AgeSharp.AgeOptions? options = null) -> AgeSharp.AgeHeader!
+AgeSharp.AgeHeader.Stanzas.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+static AgeSharp.Age.ReadHeader(System.IO.Stream! source, AgeSharp.AgeOptions? options = null) -> AgeSharp.AgeHeader!
