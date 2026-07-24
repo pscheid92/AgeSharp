@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using Age.Crypto;
 using Age.Format;
@@ -11,7 +12,7 @@ namespace Age.Recipients;
 /// A native age X25519 recipient — the public half of an age key pair
 /// (<c>age1…</c>), used to encrypt. Instances are immutable and safe to share.
 /// </summary>
-public sealed class X25519Recipient : IRecipient
+public sealed class X25519Recipient : IRecipient, IParsable<X25519Recipient>
 {
     private const string Hrp = "age";
     private const int KeySize = 32;
@@ -41,6 +42,34 @@ public sealed class X25519Recipient : IRecipient
 
         return new X25519Recipient(new X25519PublicKeyParameters(data));
     }
+
+    /// <summary>
+    /// Tries to parse a bech32-encoded recipient (<c>age1…</c>). Returns false
+    /// instead of throwing when the input is null or malformed.
+    /// </summary>
+    public static bool TryParse([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out X25519Recipient result)
+    {
+        if (s is not null)
+        {
+            try
+            {
+                result = Parse(s);
+                return true;
+            }
+            catch (AgeFormatException)
+            {
+            }
+        }
+
+        result = null;
+        return false;
+    }
+
+    static X25519Recipient IParsable<X25519Recipient>.Parse(string s, IFormatProvider? provider) =>
+        Parse(s);
+
+    static bool IParsable<X25519Recipient>.TryParse(string? s, IFormatProvider? provider, [MaybeNullWhen(false)] out X25519Recipient result) =>
+        TryParse(s, out result);
 
     /// <summary>Returns the bech32-encoded recipient string (<c>age1…</c>).</summary>
     public override string ToString() =>

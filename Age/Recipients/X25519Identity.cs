@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using Age.Crypto;
 using Age.Format;
@@ -12,7 +13,7 @@ namespace Age.Recipients;
 /// (<c>AGE-SECRET-KEY-1…</c>). Disposing zeroes the key material; instances are
 /// safe for concurrent <see cref="Unwrap"/> calls.
 /// </summary>
-public sealed class X25519Identity : IIdentity, IDisposable
+public sealed class X25519Identity : IIdentity, IDisposable, IParsable<X25519Identity>
 {
     private const string Hrp = "AGE-SECRET-KEY-";
     private const int KeySize = 32;
@@ -68,6 +69,34 @@ public sealed class X25519Identity : IIdentity, IDisposable
         CryptographicOperations.ZeroMemory(data);
         return new X25519Identity(raw);
     }
+
+    /// <summary>
+    /// Tries to parse a bech32-encoded secret key (<c>AGE-SECRET-KEY-1…</c>).
+    /// Returns false instead of throwing when the input is null or malformed.
+    /// </summary>
+    public static bool TryParse([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out X25519Identity result)
+    {
+        if (s is not null)
+        {
+            try
+            {
+                result = Parse(s);
+                return true;
+            }
+            catch (AgeFormatException)
+            {
+            }
+        }
+
+        result = null;
+        return false;
+    }
+
+    static X25519Identity IParsable<X25519Identity>.Parse(string s, IFormatProvider? provider) =>
+        Parse(s);
+
+    static bool IParsable<X25519Identity>.TryParse(string? s, IFormatProvider? provider, [MaybeNullWhen(false)] out X25519Identity result) =>
+        TryParse(s, out result);
 
     /// <summary>
     /// Returns the bech32-encoded secret key (<c>AGE-SECRET-KEY-1…</c>), e.g. for

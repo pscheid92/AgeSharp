@@ -5,6 +5,14 @@ Age.AgeAuthenticationException.AgeAuthenticationException(string! message, Syste
 Age.AgeFormatException
 Age.AgeFormatException.AgeFormatException(string! message) -> void
 Age.AgeFormatException.AgeFormatException(string! message, System.Exception! inner) -> void
+static Age.Recipients.MlKem768X25519Identity.TryParse(string? s, out Age.Recipients.MlKem768X25519Identity! result) -> bool
+static Age.Recipients.MlKem768X25519Recipient.TryParse(string? s, out Age.Recipients.MlKem768X25519Recipient! result) -> bool
+static Age.Recipients.SshEd25519Identity.TryParse(string? pemText, out Age.Recipients.SshEd25519Identity! result) -> bool
+static Age.Recipients.SshEd25519Recipient.TryParse(string? authorizedKeysLine, out Age.Recipients.SshEd25519Recipient! result) -> bool
+static Age.Recipients.SshRsaIdentity.TryParse(string? pemText, out Age.Recipients.SshRsaIdentity! result) -> bool
+static Age.Recipients.SshRsaRecipient.TryParse(string? authorizedKeysLine, out Age.Recipients.SshRsaRecipient! result) -> bool
+static Age.Recipients.X25519Identity.TryParse(string? s, out Age.Recipients.X25519Identity! result) -> bool
+static Age.Recipients.X25519Recipient.TryParse(string? s, out Age.Recipients.X25519Recipient! result) -> bool
 *REMOVED*Age.AgeArmorException
 *REMOVED*Age.AgeArmorException.AgeArmorException(string! message) -> void
 *REMOVED*Age.AgeHeaderException

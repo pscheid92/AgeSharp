@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using Age.Crypto;
 using Age.Format;
@@ -9,7 +10,7 @@ namespace Age.Recipients;
 /// stored as its 32-byte generation seed. Disposing zeroes the seed; instances
 /// are safe for concurrent <see cref="Unwrap"/> calls.
 /// </summary>
-public sealed class MlKem768X25519Identity : IIdentity, IDisposable
+public sealed class MlKem768X25519Identity : IIdentity, IDisposable, IParsable<MlKem768X25519Identity>
 {
     private const string Hrp = "AGE-SECRET-KEY-PQ-";
     private const int SeedSize = 32;
@@ -56,6 +57,34 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable
         CryptographicOperations.ZeroMemory(data);
         return new MlKem768X25519Identity(seed);
     }
+
+    /// <summary>
+    /// Tries to parse a bech32-encoded secret seed (<c>AGE-SECRET-KEY-PQ-1…</c>).
+    /// Returns false instead of throwing when the input is null or malformed.
+    /// </summary>
+    public static bool TryParse([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out MlKem768X25519Identity result)
+    {
+        if (s is not null)
+        {
+            try
+            {
+                result = Parse(s);
+                return true;
+            }
+            catch (AgeFormatException)
+            {
+            }
+        }
+
+        result = null;
+        return false;
+    }
+
+    static MlKem768X25519Identity IParsable<MlKem768X25519Identity>.Parse(string s, IFormatProvider? provider) =>
+        Parse(s);
+
+    static bool IParsable<MlKem768X25519Identity>.TryParse(string? s, IFormatProvider? provider, [MaybeNullWhen(false)] out MlKem768X25519Identity result) =>
+        TryParse(s, out result);
 
     /// <summary>
     /// Returns the bech32-encoded secret seed (<c>AGE-SECRET-KEY-PQ-1…</c>), e.g. for
