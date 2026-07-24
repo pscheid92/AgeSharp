@@ -93,18 +93,7 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable, IParsable<M
         if (stanza.Args.Count != 1)
             throw new AgeFormatException($"mlkem768x25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");
 
-        byte[] enc;
-        try
-        {
-            enc = Base64Unpadded.Decode(stanza.Args[0]);
-        }
-        catch (AgeFormatException ex)
-        {
-            throw new AgeFormatException($"invalid mlkem768x25519 enc encoding: {ex.Message}", ex);
-        }
-
-        if (enc.Length != XWing.EncSize)
-            throw new AgeFormatException($"mlkem768x25519 enc must be {XWing.EncSize} bytes, got {enc.Length}");
+        var enc = ParseHelpers.DecodeArg(stanza.Args[0], XWing.EncSize, "mlkem768x25519 enc");
 
         return stanza.Body.Length == WrappedKeySize
             ? HpkeHelper.OpenBase(enc, _seed, AgeProtocol.MlKemHpkeInfo, stanza.Body.ToArray())

@@ -103,18 +103,7 @@ public sealed class X25519Identity : IIdentity, IDisposable, IParsable<X25519Ide
         if (stanza.Args.Count != 1)
             throw new AgeFormatException($"X25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");
 
-        byte[] ephPubBytes;
-        try
-        {
-            ephPubBytes = Base64Unpadded.Decode(stanza.Args[0]);
-        }
-        catch (AgeFormatException ex)
-        {
-            throw new AgeFormatException($"invalid X25519 ephemeral key encoding: {ex.Message}", ex);
-        }
-
-        if (ephPubBytes.Length != KeySize)
-            throw new AgeFormatException($"X25519 ephemeral key must be {KeySize} bytes, got {ephPubBytes.Length}");
+        var ephPubBytes = ParseHelpers.DecodeArg(stanza.Args[0], KeySize, "X25519 ephemeral key");
 
         if (stanza.Body.Length != WrappedKeySize)
             throw new AgeFormatException($"X25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");

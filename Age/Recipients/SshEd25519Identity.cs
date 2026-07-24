@@ -84,18 +84,7 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
             return null;
 
         // Decode ephemeral public key
-        byte[] ephPubBytes;
-        try
-        {
-            ephPubBytes = Base64Unpadded.Decode(stanza.Args[1]);
-        }
-        catch (AgeFormatException ex)
-        {
-            throw new AgeFormatException($"invalid ssh-ed25519 ephemeral key encoding: {ex.Message}", ex);
-        }
-
-        if (ephPubBytes.Length != KeySize)
-            throw new AgeFormatException($"ssh-ed25519 ephemeral key must be {KeySize} bytes, got {ephPubBytes.Length}");
+        var ephPubBytes = ParseHelpers.DecodeArg(stanza.Args[1], KeySize, "ssh-ed25519 ephemeral key");
 
         if (stanza.Body.Length != WrappedKeySize)
             throw new AgeFormatException($"ssh-ed25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
