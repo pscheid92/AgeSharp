@@ -149,25 +149,6 @@ internal static class AsciiArmor
         return total;
     }
 
-    private static async ValueTask SkipLeadingWhitespaceAsync(Stream stream, CancellationToken cancellationToken)
-    {
-        var one = new byte[1];
-
-        while (true)
-        {
-            var read = await stream.ReadAsync(one.AsMemory(0, 1), cancellationToken).ConfigureAwait(false);
-
-            if (read == 0)
-                break;
-
-            if (one[0] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
-                continue;
-
-            stream.Position--;
-            break;
-        }
-    }
-
     private static async ValueTask<int> ReadChunkAsync(Stream stream, byte[] buffer, CancellationToken cancellationToken)
     {
         var total = 0;

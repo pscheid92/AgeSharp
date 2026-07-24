@@ -43,7 +43,7 @@ internal sealed class PeekableStream(Stream inner) : Stream
     }
 
     /// <summary>Asynchronous counterpart to <see cref="Peek"/>.</summary>
-    public async ValueTask<int> PeekAsync(Memory<byte> destination, CancellationToken cancellationToken)
+    public async ValueTask<int> PeekAsync(Memory<byte> destination, CancellationToken cancellationToken = default)
     {
         var buffer = new byte[destination.Length];
         var total = 0;
