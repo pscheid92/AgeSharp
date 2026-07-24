@@ -279,11 +279,15 @@ public class OpenReadTests
         Assert.Equal(totalEncryptedPayload, counting.TotalBytesRead);
     }
 
-    // --- Armored + seekable materializes into a seekable stream ---
+    // --- Armored sources are forward-only, whatever the transport ---
 
     [Fact]
-    public void ArmoredSeekableSource_IsSeekable_AndRoundTrips()
+    public void ArmoredSeekableSource_IsForwardOnly_AndRoundTrips()
     {
+        // Armor used to be materialized into memory so the decrypt stream could
+        // mirror a seekable source. It now streams instead, so seeking is given up
+        // rather than bought with the file's size in RAM — the same position Go
+        // takes (its armor package exposes only a forward reader).
         using var identity = X25519Identity.Generate();
         var plaintext = new byte[100_000];
         new Random(42).NextBytes(plaintext);
@@ -291,12 +295,10 @@ public class OpenReadTests
         using var ciphertext = Encrypt(plaintext, identity.Recipient, armor: true);
         using var stream = Age.OpenRead(ciphertext, identity);
 
-        Assert.True(stream.CanSeek);
-        Assert.Equal(plaintext.Length, stream.Length);
-        Assert.Equal(plaintext.AsSpan(50000, 100).ToArray(), ReadAt(stream, 50000, 100));
+        Assert.False(stream.CanSeek);
+        Assert.Throws<NotSupportedException>(() => stream.Length);
 
         using var output = new MemoryStream();
-        stream.Position = 0;
         stream.CopyTo(output);
         Assert.Equal(plaintext, output.ToArray());
     }

@@ -470,21 +470,18 @@ public static partial class Age
         return fileKey;
     }
 
+    // Detects armor by lookahead and, when present, layers a streaming dearmor over
+    // the source. Armored input is therefore forward-only and costs one chunk of
+    // memory rather than the file's size; binary input passes straight through with
+    // its seekability intact. needsDispose refers to the wrapper only — the caller's
+    // stream is never disposed.
     private static (Stream binaryInput, bool needsDispose) DeArmorIfNeeded(Stream input, AgeOptions options)
     {
-        // Armor is only detectable on a seekable source. Materialize the dearmored
-        // bytes into a seekable MemoryStream so the decrypt stream mirrors the
-        // source's seekability (armored files therefore cost their size in memory).
-        if (input.CanSeek && AsciiArmor.IsArmored(input))
-        {
-            using var dearmored = AsciiArmor.Dearmor(input, options.MaxArmorLineBytes);
-            var buffer = new MemoryStream();
-            dearmored.CopyTo(buffer);
-            buffer.Position = 0;
-            return (buffer, true);
-        }
+        var (source, isArmored) = AsciiArmor.Detect(input);
 
-        return (input, false);
+        return isArmored
+            ? (AsciiArmor.Dearmor(source, options.MaxArmorLineBytes), true)
+            : (source, false);
     }
 
     private static byte[] ReadPayloadNonce(HeaderReader reader)

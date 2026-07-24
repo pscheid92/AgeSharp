@@ -8,69 +8,84 @@ internal static class AsciiArmor
     private const string EndMarker = "-----END AGE ENCRYPTED FILE-----";
     private const int ColumnsPerLine = 64;
 
-    public static bool IsArmored(Stream stream)
+    /// <summary>
+    /// Maximum leading whitespace tolerated before the begin marker. The spec allows
+    /// leading whitespace but sets no bound; this matches the age CLI's own limit and
+    /// keeps the detection probe a fixed size, so detection needs no seeking.
+    /// </summary>
+    private const int MaxLeadingWhitespace = 1024;
+
+    private static int ProbeSize => MaxLeadingWhitespace + BeginMarker.Length;
+
+    /// <summary>
+    /// Decides whether <paramref name="input"/> is ASCII-armored, returning the stream
+    /// to read from afterwards. Detection uses lookahead rather than seeking, so it
+    /// works on pipes and sockets: a seekable source is probed and rewound (keeping its
+    /// seekability intact for the binary path), and any other source is wrapped in a
+    /// <see cref="PeekableStream"/> that replays the probed bytes.
+    /// </summary>
+    public static (Stream source, bool isArmored) Detect(Stream input)
     {
-        if (!stream.CanSeek)
-            return false;
+        var probe = new byte[ProbeSize];
 
-        var pos = stream.Position;
-        SkipLeadingWhitespace(stream);
+        if (input.CanSeek)
+        {
+            var pos = input.Position;
+            var read = ReadChunk(input, probe);
+            input.Position = pos;
+            return (input, StartsWithMarker(probe.AsSpan(0, read)));
+        }
 
+        var peekable = new PeekableStream(input);
+        var peeked = peekable.Peek(probe);
+        return (peekable, StartsWithMarker(probe.AsSpan(0, peeked)));
+    }
+
+    /// <summary>Asynchronous, purity-safe counterpart to <see cref="Detect"/>.</summary>
+    public static async ValueTask<(Stream source, bool isArmored)> DetectAsync(Stream input, CancellationToken cancellationToken)
+    {
+        var probe = new byte[ProbeSize];
+
+        if (input.CanSeek)
+        {
+            var pos = input.Position;
+            var read = await ReadChunkAsync(input, probe, cancellationToken).ConfigureAwait(false);
+            input.Position = pos;
+            return (input, StartsWithMarker(probe.AsSpan(0, read)));
+        }
+
+        var peekable = new PeekableStream(input);
+        var peeked = await peekable.PeekAsync(probe, cancellationToken).ConfigureAwait(false);
+        return (peekable, StartsWithMarker(probe.AsSpan(0, peeked)));
+    }
+
+    // Pure: does the probe begin (after allowed whitespace) with the armor marker?
+    private static bool StartsWithMarker(ReadOnlySpan<byte> probe)
+    {
+        var start = 0;
+        while (start < probe.Length && probe[start] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
+            start++;
+
+        // All whitespace within the probe means either an empty stream or more
+        // leading whitespace than we accept — neither is armor we can read.
+        var rest = probe[start..];
         var marker = Encoding.ASCII.GetBytes(BeginMarker);
-        var buf = new byte[marker.Length];
-        var read = ReadChunk(stream, buf);
 
-        stream.Position = pos;
-        return read == marker.Length && buf.AsSpan().SequenceEqual(marker);
+        return rest.Length >= marker.Length && rest[..marker.Length].SequenceEqual(marker);
     }
 
-    /// <summary>Asynchronous, purity-safe counterpart to <see cref="IsArmored"/>.</summary>
-    public static async ValueTask<bool> IsArmoredAsync(Stream stream, CancellationToken cancellationToken)
-    {
-        if (!stream.CanSeek)
-            return false;
-
-        var pos = stream.Position;
-        try
-        {
-            await SkipLeadingWhitespaceAsync(stream, cancellationToken).ConfigureAwait(false);
-
-            var marker = Encoding.ASCII.GetBytes(BeginMarker);
-            var buf = new byte[marker.Length];
-            var read = await ReadChunkAsync(stream, buf, cancellationToken).ConfigureAwait(false);
-
-            return read == marker.Length && buf.AsSpan().SequenceEqual(marker);
-        }
-        finally
-        {
-            stream.Position = pos;
-        }
-    }
-
-    private static void SkipLeadingWhitespace(Stream stream)
-    {
-        while (true)
-        {
-            var b = stream.ReadByte();
-
-            if (b < 0)
-                break;
-
-            if (b is ' ' or '\t' or '\r' or '\n')
-                continue;
-
-            stream.Position--;
-            break;
-        }
-    }
-
+    /// <summary>
+    /// Wraps an armored source in a stream that yields the decoded binary bytes.
+    /// The returned stream never disposes <paramref name="input"/> — ownership of the
+    /// source stays with the caller, as everywhere else in the library.
+    /// </summary>
     public static Stream Dearmor(Stream input, int maxArmorLineBytes = 64 * 1024)
     {
         // Bound the line length at the byte level so the reader below can keep
         // using the fast ReadLine path without risking an unbounded allocation.
         var bounded = new NewlineBoundedStream(input, maxArmorLineBytes);
         var reader = new StreamReader(bounded, Encoding.ASCII, detectEncodingFromByteOrderMarks: false,
-            bufferSize: 4096, leaveOpen: false);
+            bufferSize: 4096, leaveOpen: true);
 
         // Skip leading whitespace (allowed per spec).
         // The old byte-level parser skipped individual whitespace bytes, so
@@ -132,25 +147,6 @@ internal static class AsciiArmor
         }
 
         return total;
-    }
-
-    private static async ValueTask SkipLeadingWhitespaceAsync(Stream stream, CancellationToken cancellationToken)
-    {
-        var one = new byte[1];
-
-        while (true)
-        {
-            var read = await stream.ReadAsync(one.AsMemory(0, 1), cancellationToken).ConfigureAwait(false);
-
-            if (read == 0)
-                break;
-
-            if (one[0] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
-                continue;
-
-            stream.Position--;
-            break;
-        }
     }
 
     private static async ValueTask<int> ReadChunkAsync(Stream stream, byte[] buffer, CancellationToken cancellationToken)
