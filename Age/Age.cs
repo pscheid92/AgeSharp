@@ -434,6 +434,16 @@ public static partial class Age
     internal static (byte[] fileKey, HeaderReader reader) UnwrapHeaderFromReader(Stream binaryInput, ReadOnlySpan<IIdentity> identities, AgeOptions options)
     {
         var reader = new HeaderReader(binaryInput, options.MaxHeaderLineBytes, options.MaxHeaderBytes);
+        var fileKey = UnwrapHeader(reader, identities);
+        return (fileKey, reader);
+    }
+
+    // Parses the already-read (sync or async-prefilled) header from the reader,
+    // enforces the scrypt-alone rule, unwraps the file key with the identities,
+    // and verifies the header MAC. No I/O — the reader serves buffered lines, so
+    // this is shared verbatim by the sync and async decrypt paths.
+    internal static byte[] UnwrapHeader(HeaderReader reader, ReadOnlySpan<IIdentity> identities)
+    {
         var header = ParseHeader(reader);
 
         // Check scrypt constraint: if any stanza is scrypt, it must be the only one
@@ -457,7 +467,7 @@ public static partial class Age
             throw new AgeFormatException($"file key must be {FileKeySize} bytes, got {fileKey.Length}");
 
         header.VerifyMac(fileKey);
-        return (fileKey, reader);
+        return fileKey;
     }
 
     private static (Stream binaryInput, bool needsDispose) DeArmorIfNeeded(Stream input, AgeOptions options)

@@ -56,7 +56,27 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
             buffer = buffer[take..];
 
             if (_lineLength == BytesPerLine)
-                FlushLine();
+                destination.Write(_encoded.AsSpan(0, EncodeLine()));
+        }
+    }
+
+    public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        => WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+    public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        await EnsureBegunAsync(cancellationToken).ConfigureAwait(false);
+
+        while (!buffer.IsEmpty)
+        {
+            var take = Math.Min(BytesPerLine - _lineLength, buffer.Length);
+            buffer.Span[..take].CopyTo(_lineBuffer.AsSpan(_lineLength));
+            _lineLength += take;
+            buffer = buffer[take..];
+
+            if (_lineLength == BytesPerLine)
+                await destination.WriteAsync(_encoded.AsMemory(0, EncodeLine()), cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -69,12 +89,23 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
         _begun = true;
     }
 
-    private void FlushLine()
+    private ValueTask EnsureBegunAsync(CancellationToken cancellationToken)
+    {
+        if (_begun)
+            return ValueTask.CompletedTask;
+
+        _begun = true;
+        return destination.WriteAsync(BeginBytes, cancellationToken);
+    }
+
+    // CPU-only: base64-encode the buffered line into _encoded (newline included),
+    // reset the line buffer, and return the encoded length to write.
+    private int EncodeLine()
     {
         Base64.EncodeToUtf8(_lineBuffer.AsSpan(0, _lineLength), _encoded, out _, out var bytesWritten);
         _encoded[bytesWritten] = (byte)'\n';
-        destination.Write(_encoded.AsSpan(0, bytesWritten + 1));
         _lineLength = 0;
+        return bytesWritten + 1;
     }
 
     protected override void Dispose(bool disposing)
@@ -85,7 +116,7 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
 
             EnsureBegun();
             if (_lineLength > 0)
-                FlushLine();   // final short (or exactly-64) line, newline included
+                destination.Write(_encoded.AsSpan(0, EncodeLine()));   // final short (or exactly-64) line
             destination.Write(EndBytes);
             // The destination is caller-owned and is deliberately left open.
         }
@@ -93,7 +124,24 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
         base.Dispose(disposing);
     }
 
+    public override async ValueTask DisposeAsync()
+    {
+        if (!_disposed)
+        {
+            _disposed = true;
+
+            await EnsureBegunAsync(default).ConfigureAwait(false);
+            if (_lineLength > 0)
+                await destination.WriteAsync(_encoded.AsMemory(0, EncodeLine()), default).ConfigureAwait(false);
+            await destination.WriteAsync(EndBytes, default).ConfigureAwait(false);
+            // The destination is caller-owned and is deliberately left open.
+        }
+
+        await base.DisposeAsync().ConfigureAwait(false);
+    }
+
     public override void Flush() => destination.Flush();
+    public override Task FlushAsync(CancellationToken cancellationToken) => destination.FlushAsync(cancellationToken);
     public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
     public override void SetLength(long value) => throw new NotSupportedException();

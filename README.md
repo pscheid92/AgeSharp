@@ -136,6 +136,28 @@ using var decryptedStream = Age.OpenRead(ciphertext, identity);
 decryptedStream.CopyTo(outputStream);
 ```
 
+### Async
+
+`EncryptAsync`, `DecryptAsync`, and `OpenReadAsync` run with no blocking I/O on
+either stream — safe under ASP.NET Core's `AllowSynchronousIO = false`. The
+returned decrypt streams (and the push/pull streams above) implement
+`ReadAsync`/`WriteAsync`/`DisposeAsync`, and a `CancellationToken` is threaded
+through every operation. Async methods take `IReadOnlyList<>` rather than a
+`params` span (spans can't cross an `await`).
+
+```csharp
+await Age.EncryptAsync(input, output, [recipient], new AgeOptions { Armor = true }, cancellationToken);
+await Age.DecryptAsync(ciphertext, output, [identity], cancellationToken: cancellationToken);
+
+await using var stream = await Age.OpenReadAsync(source, [identity], cancellationToken: cancellationToken);
+await stream.CopyToAsync(outputStream, cancellationToken);
+```
+
+`OpenReadAsync` returns a forward-only stream (the seekable random-access path is
+synchronous `OpenRead`). One limitation: a plugin recipient/identity still performs
+**synchronous** child-process I/O while wrapping or unwrapping, even on the async
+paths — the plugin interfaces are synchronous, matching the reference implementation.
+
 ### Detached headers
 
 Splits the age header and payload into separate streams — useful for storing
