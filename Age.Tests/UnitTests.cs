@@ -1207,8 +1207,8 @@ public class AgeTests
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
 
-        var scryptRecipient = new Passphrase("pass", workFactor: 10);
-        var scryptStanza = scryptRecipient.Wrap(fileKey);
+        var passphrase = new Passphrase("pass", workFactor: 10);
+        var scryptStanza = passphrase.Wrap(fileKey);
         var x25519Stanza = id.Recipient.Wrap(fileKey);
 
         var header = new Header();
@@ -1226,7 +1226,7 @@ public class AgeTests
 
         ms.Position = 0;
         using var output = new MemoryStream();
-        Assert.Throws<AgeFormatException>(() => Age.Decrypt(ms, output, scryptRecipient));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(ms, output, passphrase));
     }
 
     [Fact]

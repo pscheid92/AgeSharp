@@ -28,10 +28,10 @@ public class ValidationTests
     public void Encrypt_ScryptMixedWithX25519_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var scrypt = new Passphrase("pw", LowWorkFactor);
+        var passphrase = new Passphrase("pw", LowWorkFactor);
 
         var ex = Assert.Throws<AgeException>(() =>
-            Age.Encrypt(Plaintext(), new MemoryStream(), scrypt, identity.Recipient));
+            Age.Encrypt(Plaintext(), new MemoryStream(), passphrase, identity.Recipient));
 
         Assert.Contains("only recipient", ex.Message);
     }
@@ -50,30 +50,30 @@ public class ValidationTests
     public void EncryptDetached_ScryptMixedWithX25519_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var scrypt = new Passphrase("pw", LowWorkFactor);
+        var passphrase = new Passphrase("pw", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
-            Age.EncryptDetached(Plaintext(), new MemoryStream(), new MemoryStream(), scrypt, identity.Recipient));
+            Age.EncryptDetached(Plaintext(), new MemoryStream(), new MemoryStream(), passphrase, identity.Recipient));
     }
 
     [Fact]
     public void EncryptReader_ScryptMixedWithX25519_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var scrypt = new Passphrase("pw", LowWorkFactor);
+        var passphrase = new Passphrase("pw", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
-            Age.EncryptReader(Plaintext(), scrypt, identity.Recipient));
+            Age.EncryptReader(Plaintext(), passphrase, identity.Recipient));
     }
 
     [Fact]
     public void Encrypt_ScryptAlone_StillRoundTrips()
     {
-        var scrypt = new Passphrase("pw", LowWorkFactor);
-        using var encrypted = EncryptTo(scrypt);
+        var passphrase = new Passphrase("pw", LowWorkFactor);
+        using var encrypted = EncryptTo(passphrase);
 
         using var decrypted = new MemoryStream();
-        Age.Decrypt(encrypted, decrypted, scrypt);
+        Age.Decrypt(encrypted, decrypted, passphrase);
 
         Assert.Equal("hello"u8.ToArray(), decrypted.ToArray());
     }
