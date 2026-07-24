@@ -501,7 +501,7 @@ public class AsciiArmorTests
         AsciiArmor.Armor(input, armored);
 
         armored.Position = 0;
-        Assert.True(AsciiArmor.IsArmored(armored));
+        Assert.True(AsciiArmor.Detect(armored).isArmored);
     }
 
     [Fact]
@@ -509,7 +509,7 @@ public class AsciiArmorTests
     {
         byte[] data = [0x00, 0x01, 0x02, 0x03];
         using var stream = new MemoryStream(data);
-        Assert.False(AsciiArmor.IsArmored(stream));
+        Assert.False(AsciiArmor.Detect(stream).isArmored);
     }
 
     [Fact]
@@ -668,7 +668,7 @@ public class AsciiArmorTests
         armoredBytes.CopyTo(withWs, 2);
 
         using var wsStream = new MemoryStream(withWs);
-        Assert.True(AsciiArmor.IsArmored(wsStream));
+        Assert.True(AsciiArmor.Detect(wsStream).isArmored);
     }
 
     [Fact]
@@ -1174,7 +1174,7 @@ public class AgeTests
 
         // Verify it's actually armored
         encOutput.Position = 0;
-        Assert.True(AsciiArmor.IsArmored(encOutput));
+        Assert.True(AsciiArmor.Detect(encOutput).isArmored);
 
         // Decrypt
         encOutput.Position = 0;

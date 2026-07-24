@@ -130,23 +130,24 @@ public static partial class Age
 
     private static async ValueTask<(Stream binaryInput, bool needsDispose)> DeArmorIfNeededAsync(Stream input, AgeOptions options, CancellationToken cancellationToken)
     {
-        // Armor is only detectable on a seekable source. Read the armored bytes into
-        // memory asynchronously, then dearmor them in memory (synchronously) so no
-        // blocking I/O ever touches the caller's stream — mirroring the sync path's
-        // materialization.
-        if (input.CanSeek && await AsciiArmor.IsArmoredAsync(input, cancellationToken).ConfigureAwait(false))
-        {
-            using var armored = new MemoryStream();
-            await input.CopyToAsync(armored, cancellationToken).ConfigureAwait(false);
-            armored.Position = 0;
+        var (source, isArmored) = await AsciiArmor.DetectAsync(input, cancellationToken).ConfigureAwait(false);
 
-            using var dearmored = AsciiArmor.Dearmor(armored, options.MaxArmorLineBytes);
-            var buffer = new MemoryStream();
-            dearmored.CopyTo(buffer);
-            buffer.Position = 0;
-            return (buffer, true);
-        }
+        if (!isArmored)
+            return (source, false);
 
-        return (input, false);
+        // DearmorStream's line reader is synchronous, so armored input is still read
+        // into memory here to keep blocking I/O off the caller's stream — the
+        // AllowSynchronousIO = false contract. Detection is now shared with the sync
+        // path, so this is one buffered copy rather than the two it used to make.
+        // Removing it entirely needs a sans-I/O dearmor (#55).
+        //
+        // The buffer is deliberately not disposed here: the returned stream decodes
+        // from it lazily. A MemoryStream holds no unmanaged resources, so it simply
+        // becomes garbage once the returned stream is dropped.
+        var armored = new MemoryStream();
+        await source.CopyToAsync(armored, cancellationToken).ConfigureAwait(false);
+        armored.Position = 0;
+
+        return (AsciiArmor.Dearmor(armored, options.MaxArmorLineBytes), true);
     }
 }

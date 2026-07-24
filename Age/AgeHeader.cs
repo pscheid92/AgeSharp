@@ -34,20 +34,13 @@ public sealed class AgeHeader
     internal static AgeHeader Parse(Stream input, AgeOptions? options = null)
     {
         options ??= AgeOptions.Default;
-        var isArmored = false;
-        Stream binaryInput;
-        var needsDispose = false;
 
-        if (input.CanSeek && AsciiArmor.IsArmored(input))
-        {
-            isArmored = true;
-            binaryInput = AsciiArmor.Dearmor(input, options.MaxArmorLineBytes);
-            needsDispose = true;
-        }
-        else
-        {
-            binaryInput = input;
-        }
+        // Lookahead-based detection, shared with the decrypt paths: armored input is
+        // recognised on any stream, seekable or not. The dearmor wrapper is disposed
+        // below; `input` itself is never disposed.
+        var (source, isArmored) = AsciiArmor.Detect(input);
+        var binaryInput = isArmored ? AsciiArmor.Dearmor(source, options.MaxArmorLineBytes) : source;
+        var needsDispose = isArmored;
 
         try
         {

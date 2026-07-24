@@ -7,6 +7,10 @@ namespace AgeSharp;
 /// a hostile stream with a multi-gigabyte line cannot be buffered, because the
 /// limit trips during the underlying read instead.
 /// </summary>
+/// <remarks>
+/// Never disposes the stream it wraps. The dearmor chain is built over a
+/// caller-supplied source, and the library does not dispose caller streams.
+/// </remarks>
 internal sealed class NewlineBoundedStream(Stream inner, int maxLineBytes) : Stream
 {
     private int _run; // bytes seen since the last CR/LF
@@ -56,14 +60,6 @@ internal sealed class NewlineBoundedStream(Stream inner, int maxLineBytes) : Str
             _run = 0;
             bytes = bytes[(nl + 1)..];
         }
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-            inner.Dispose();
-
-        base.Dispose(disposing);
     }
 
     public override bool CanRead => true;
