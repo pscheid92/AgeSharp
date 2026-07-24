@@ -145,6 +145,14 @@ public static partial class Age
     /// need to live in separate locations (e.g. a metadata store and a
     /// blob store).
     /// </summary>
+    /// <remarks>
+    /// This is the one entry point with no <see cref="AgeOptions"/> overload, and
+    /// deliberately so: ASCII armor is a container around a whole age file, which a
+    /// detached header and payload are not, and the size limits apply only to
+    /// parsing. There is nothing an options object could configure here.
+    /// <see cref="DecryptDetached(Stream, Stream, Stream, AgeOptions, ReadOnlySpan{IIdentity})"/>
+    /// does take one, because it parses a header.
+    /// </remarks>
     public static void EncryptDetached(Stream input, Stream headerOutput, Stream payloadOutput, params ReadOnlySpan<IRecipient> recipients)
     {
         if (recipients.Length == 0)
@@ -173,11 +181,20 @@ public static partial class Age
     /// (the inverse of <see cref="EncryptDetached"/>).
     /// </summary>
     public static void DecryptDetached(Stream headerInput, Stream payloadInput, Stream output, params ReadOnlySpan<IIdentity> identities)
+        => DecryptDetached(headerInput, payloadInput, output, AgeOptions.Default, identities);
+
+    /// <summary>
+    /// Decrypts an age file whose header and payload are stored separately,
+    /// applying <paramref name="options"/> (the header-size limits) while parsing
+    /// the detached header.
+    /// </summary>
+    public static void DecryptDetached(Stream headerInput, Stream payloadInput, Stream output, AgeOptions options,
+                                       params ReadOnlySpan<IIdentity> identities)
     {
         if (identities.Length == 0)
             throw new ArgumentException("at least one identity is required", nameof(identities));
 
-        var fileKey = UnwrapFileKey(headerInput, identities);
+        var fileKey = UnwrapFileKey(headerInput, identities, options);
         try
         {
             var payloadNonce = new byte[PayloadNonceSize];
@@ -361,8 +378,16 @@ public static partial class Age
     /// auto-detected on any stream, seekable or not.
     /// </summary>
     /// <param name="source">The age-encrypted source.</param>
-    /// <param name="options">Parsing options (the header-size limits); defaults are used when null.</param>
-    public static AgeHeader ReadHeader(Stream source, AgeOptions? options = null) =>
+    public static AgeHeader ReadHeader(Stream source) =>
+        ReadHeader(source, AgeOptions.Default);
+
+    /// <summary>
+    /// Parses the header of an age file without decrypting it, applying
+    /// <paramref name="options"/> (the header-size limits) while parsing.
+    /// </summary>
+    /// <param name="source">The age-encrypted source.</param>
+    /// <param name="options">Parsing options (the header-size limits).</param>
+    public static AgeHeader ReadHeader(Stream source, AgeOptions options) =>
         AgeHeader.Parse(source, options);
 
     // Wrap a recipient and get its label set. Recipients that don't implement
@@ -429,9 +454,9 @@ public static partial class Age
         }
     }
 
-    private static byte[] UnwrapFileKey(Stream headerInput, ReadOnlySpan<IIdentity> identities)
+    private static byte[] UnwrapFileKey(Stream headerInput, ReadOnlySpan<IIdentity> identities, AgeOptions options)
     {
-        var (fileKey, _) = UnwrapHeaderFromReader(headerInput, identities, AgeOptions.Default);
+        var (fileKey, _) = UnwrapHeaderFromReader(headerInput, identities, options);
         return fileKey;
     }
 

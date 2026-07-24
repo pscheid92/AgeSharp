@@ -329,6 +329,15 @@ var options = new AgeOptions { MaxHeaderBytes = 1024 * 1024 };
 Age.Decrypt(input, output, options, identity);
 ```
 
+> **Where `AgeOptions` goes.** Every synchronous method that can act on options takes
+> it the same way — a second overload with `options` positional, immediately before
+> the `params` recipients or identities. The async methods take it as a trailing
+> optional argument instead, because `params` and optional arguments cannot coexist;
+> that is the one difference, and it is why a `CancellationToken` needs a named
+> argument there. `EncryptDetached` is the sole entry point with no options overload:
+> armor wraps a whole age file, which a detached header and payload are not, and the
+> size limits apply only to parsing — there is nothing to configure.
+
 Exceeding a limit throws `AgeFormatException`. The age
 [specification](https://github.com/C2SP/C2SP/blob/main/age.md) sets no such
 bounds, so these are AgeSharp's own defense; they sit far above any real file

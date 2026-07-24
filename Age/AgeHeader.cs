@@ -3,7 +3,7 @@ namespace AgeSharp;
 
 /// <summary>
 /// The parsed header of an age file: its recipient stanzas and layout facts.
-/// Obtained via <see cref="Age.ReadHeader"/> without decrypting (and without
+/// Obtained via <see cref="Age.ReadHeader(System.IO.Stream)"/> without decrypting (and without
 /// verifying the header MAC, which requires an identity).
 /// </summary>
 public sealed class AgeHeader
