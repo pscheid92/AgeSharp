@@ -27,5 +27,7 @@ BenchmarkDotNet.Artifacts/
 Thumbs.db
 dist/
 /go-age/
+/rust-age/
 /docs/API_REVIEW.md
+/docs/API_REVIEW_0.3.md
 /docs/V0.3.0_PLAN.md
