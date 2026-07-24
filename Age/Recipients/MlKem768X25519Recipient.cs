@@ -1,8 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
-using Age.Crypto;
-using Age.Format;
+using AgeSharp.Crypto;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// A post-quantum ML-KEM-768-X25519 hybrid recipient (<c>age1pq1…</c>), used to

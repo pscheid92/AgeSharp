@@ -1,8 +1,7 @@
-using Age;
-using Age.Recipients;
+using AgeSharp;
 using BenchmarkDotNet.Attributes;
 
-namespace Age.Benchmarks;
+namespace AgeSharp.Benchmarks;
 
 [MemoryDiagnoser]
 public class EncryptDecryptBenchmarks
@@ -27,11 +26,11 @@ public class EncryptDecryptBenchmarks
 
         // Pre-encrypt for decrypt benchmarks
         using var encOut = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(_plaintext), encOut, _recipient);
+        Age.Encrypt(new MemoryStream(_plaintext), encOut, _recipient);
         _ciphertext = encOut.ToArray();
 
         using var armorOut = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(_plaintext), armorOut, armor: true, _recipient);
+        Age.Encrypt(new MemoryStream(_plaintext), armorOut, new AgeOptions { Armor = true }, _recipient);
         _armoredCiphertext = armorOut.ToArray();
     }
 
@@ -43,7 +42,7 @@ public class EncryptDecryptBenchmarks
     {
         using var input = new MemoryStream(_plaintext);
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, _recipient);
+        Age.Encrypt(input, output, _recipient);
     }
 
     [Benchmark]
@@ -51,7 +50,7 @@ public class EncryptDecryptBenchmarks
     {
         using var input = new MemoryStream(_ciphertext);
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(input, output, _identity);
+        Age.Decrypt(input, output, _identity);
     }
 
     [Benchmark]
@@ -59,7 +58,7 @@ public class EncryptDecryptBenchmarks
     {
         using var input = new MemoryStream(_plaintext);
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, armor: true, _recipient);
+        Age.Encrypt(input, output, new AgeOptions { Armor = true }, _recipient);
     }
 
     [Benchmark]
@@ -67,6 +66,6 @@ public class EncryptDecryptBenchmarks
     {
         using var input = new MemoryStream(_armoredCiphertext);
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(input, output, _identity);
+        Age.Decrypt(input, output, _identity);
     }
 }

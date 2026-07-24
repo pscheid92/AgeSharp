@@ -1,8 +1,8 @@
 using System.Linq;
-using Age.Recipients;
+using AgeSharp;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 /// <summary>
 /// Cross-implementation interop tests against the reference <c>age</c> CLI, driven through the
@@ -25,7 +25,7 @@ public class InteropTests
     {
         using var input = new MemoryStream(plaintext);
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, armored, recipients);
+        Age.Encrypt(input, output, new AgeOptions { Armor = armored }, recipients);
         return output.ToArray();
     }
 
@@ -33,7 +33,7 @@ public class InteropTests
     {
         using var input = new MemoryStream(ciphertext);
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(input, output, identities);
+        Age.Decrypt(input, output, identities);
         return output.ToArray();
     }
 
@@ -198,7 +198,7 @@ public class InteropTests
         using var input = new MemoryStream(plaintext);
         using var header = new MemoryStream();
         using var payload = new MemoryStream();
-        AgeEncrypt.EncryptDetached(input, header, payload, identity.Recipient);
+        Age.EncryptDetached(input, header, payload, identity.Recipient);
 
         // The detached streams are a standard age file split at the payload boundary;
         // concatenating them must yield bytes age accepts unchanged.

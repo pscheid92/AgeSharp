@@ -1,11 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
-using Age.Crypto;
-using Age.Format;
+using AgeSharp.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// A recipient backed by an ssh-ed25519 public key (an <c>authorized_keys</c>

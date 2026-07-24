@@ -1,9 +1,7 @@
 using System.Security.Cryptography;
-using Age.Crypto;
-using Age.Format;
-using Age.Recipients;
+using AgeSharp.Crypto;
 
-namespace Age;
+namespace AgeSharp;
 
 /// <summary>
 /// Random-access decryption over a seekable age ciphertext: decrypt arbitrary
@@ -43,6 +41,13 @@ public sealed class AgeRandomAccess : IDisposable
     /// <exception cref="AgeAuthenticationException">The header MAC failed verification.</exception>
     /// <exception cref="AgeAuthenticationException">The payload is empty or structurally impossible.</exception>
     public AgeRandomAccess(Stream ciphertext, params ReadOnlySpan<IIdentity> identities)
+        : this(ciphertext, AgeOptions.Default, identities) { }
+
+    /// <summary>
+    /// Opens an age ciphertext for random-access decryption, applying
+    /// <paramref name="options"/> (the header-size limits) while parsing.
+    /// </summary>
+    public AgeRandomAccess(Stream ciphertext, AgeOptions options, params ReadOnlySpan<IIdentity> identities)
     {
         if (!ciphertext.CanSeek)
             throw new ArgumentException("ciphertext stream must be seekable", nameof(ciphertext));
@@ -51,11 +56,11 @@ public sealed class AgeRandomAccess : IDisposable
             throw new ArgumentException("at least one identity is required", nameof(identities));
 
         BinaryStream = ciphertext;
-        var (binaryInput, needsDispose) = DeArmorInput(ciphertext);
+        var (binaryInput, needsDispose) = DeArmorInput(ciphertext, options);
 
         try
         {
-            var info = InitializeFromStream(binaryInput, identities);
+            var info = InitializeFromStream(binaryInput, identities, options);
             _payloadKey = info.PayloadKey;
             _payloadStart = info.PayloadStart;
             _totalEncryptedPayload = info.TotalEncrypted;
@@ -139,14 +144,14 @@ public sealed class AgeRandomAccess : IDisposable
     private readonly record struct PayloadInfo(
         byte[] PayloadKey, long PayloadStart, long TotalEncrypted, long PlaintextLength);
 
-    private static PayloadInfo InitializeFromStream(Stream binaryInput, ReadOnlySpan<IIdentity> identities)
+    private static PayloadInfo InitializeFromStream(Stream binaryInput, ReadOnlySpan<IIdentity> identities, AgeOptions options)
     {
-        var (fileKey, reader) = AgeEncrypt.UnwrapHeaderFromReader(binaryInput, identities);
+        var (fileKey, reader) = Age.UnwrapHeaderFromReader(binaryInput, identities, options);
 
         try
         {
             var payloadNonce = ReadPayloadNonce(reader);
-            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", AgeEncrypt.PayloadKeySize);
+            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", Age.PayloadKeySize);
             var payloadStart = binaryInput.Position;
             var totalEncrypted = binaryInput.Length - payloadStart;
 
@@ -207,20 +212,20 @@ public sealed class AgeRandomAccess : IDisposable
 
     private static byte[] ReadPayloadNonce(HeaderReader reader)
     {
-        var payloadNonce = new byte[AgeEncrypt.PayloadNonceSize];
+        var payloadNonce = new byte[Age.PayloadNonceSize];
         var nonceRead = reader.ReadPayloadBytes(payloadNonce);
 
-        return nonceRead == AgeEncrypt.PayloadNonceSize
+        return nonceRead == Age.PayloadNonceSize
             ? payloadNonce
-            : throw new AgeFormatException($"expected {AgeEncrypt.PayloadNonceSize}-byte payload nonce, got {nonceRead} bytes");
+            : throw new AgeFormatException($"expected {Age.PayloadNonceSize}-byte payload nonce, got {nonceRead} bytes");
     }
 
-    private static (Stream binaryInput, bool needsDispose) DeArmorInput(Stream ciphertext)
+    private static (Stream binaryInput, bool needsDispose) DeArmorInput(Stream ciphertext, AgeOptions options)
     {
         if (AsciiArmor.IsArmored(ciphertext))
         {
             // RandomAccess needs a seekable stream, so materialize the dearmored data.
-            using var dearmored = AsciiArmor.Dearmor(ciphertext);
+            using var dearmored = AsciiArmor.Dearmor(ciphertext, options.MaxArmorLineBytes);
             var ms = new MemoryStream();
             dearmored.CopyTo(ms);
             ms.Position = 0;

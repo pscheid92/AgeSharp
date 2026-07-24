@@ -1,8 +1,7 @@
-using Age.Format;
-using Age.Recipients;
+using AgeSharp;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 /// <summary>
 /// Argument and invariant validation on the public entry points: the encrypt-side
@@ -18,7 +17,7 @@ public class ValidationTests
     private static MemoryStream EncryptTo(IRecipient recipient)
     {
         var encrypted = new MemoryStream();
-        AgeEncrypt.Encrypt(Plaintext(), encrypted, recipient);
+        Age.Encrypt(Plaintext(), encrypted, recipient);
         encrypted.Position = 0;
         return encrypted;
     }
@@ -29,52 +28,52 @@ public class ValidationTests
     public void Encrypt_ScryptMixedWithX25519_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var scrypt = new ScryptRecipient("pw", LowWorkFactor);
+        var passphrase = new Passphrase("pw", LowWorkFactor);
 
         var ex = Assert.Throws<AgeException>(() =>
-            AgeEncrypt.Encrypt(Plaintext(), new MemoryStream(), scrypt, identity.Recipient));
+            Age.Encrypt(Plaintext(), new MemoryStream(), passphrase, identity.Recipient));
 
         Assert.Contains("only recipient", ex.Message);
     }
 
     [Fact]
-    public void Encrypt_TwoScryptRecipients_Throws()
+    public void Encrypt_TwoPassphrases_Throws()
     {
-        var first = new ScryptRecipient("pw1", LowWorkFactor);
-        var second = new ScryptRecipient("pw2", LowWorkFactor);
+        var first = new Passphrase("pw1", LowWorkFactor);
+        var second = new Passphrase("pw2", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
-            AgeEncrypt.Encrypt(Plaintext(), new MemoryStream(), first, second));
+            Age.Encrypt(Plaintext(), new MemoryStream(), first, second));
     }
 
     [Fact]
     public void EncryptDetached_ScryptMixedWithX25519_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var scrypt = new ScryptRecipient("pw", LowWorkFactor);
+        var passphrase = new Passphrase("pw", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
-            AgeEncrypt.EncryptDetached(Plaintext(), new MemoryStream(), new MemoryStream(), scrypt, identity.Recipient));
+            Age.EncryptDetached(Plaintext(), new MemoryStream(), new MemoryStream(), passphrase, identity.Recipient));
     }
 
     [Fact]
     public void EncryptReader_ScryptMixedWithX25519_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var scrypt = new ScryptRecipient("pw", LowWorkFactor);
+        var passphrase = new Passphrase("pw", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
-            AgeEncrypt.EncryptReader(Plaintext(), scrypt, identity.Recipient));
+            Age.EncryptReader(Plaintext(), passphrase, identity.Recipient));
     }
 
     [Fact]
     public void Encrypt_ScryptAlone_StillRoundTrips()
     {
-        var scrypt = new ScryptRecipient("pw", LowWorkFactor);
-        using var encrypted = EncryptTo(scrypt);
+        var passphrase = new Passphrase("pw", LowWorkFactor);
+        using var encrypted = EncryptTo(passphrase);
 
         using var decrypted = new MemoryStream();
-        AgeEncrypt.Decrypt(encrypted, decrypted, scrypt);
+        Age.Decrypt(encrypted, decrypted, passphrase);
 
         Assert.Equal("hello"u8.ToArray(), decrypted.ToArray());
     }
@@ -88,7 +87,7 @@ public class ValidationTests
         using var encrypted = EncryptTo(identity.Recipient);
 
         var ex = Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.Decrypt(encrypted, new MemoryStream()));
+            Age.Decrypt(encrypted, new MemoryStream()));
 
         Assert.Equal("identities", ex.ParamName);
     }
@@ -99,14 +98,14 @@ public class ValidationTests
         using var identity = X25519Identity.Generate();
         using var encrypted = EncryptTo(identity.Recipient);
 
-        Assert.Throws<ArgumentException>(() => AgeEncrypt.DecryptReader(encrypted));
+        Assert.Throws<ArgumentException>(() => Age.DecryptReader(encrypted));
     }
 
     [Fact]
     public void DecryptDetached_NoIdentities_ThrowsArgumentException()
     {
         Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.DecryptDetached(new MemoryStream(), new MemoryStream(), new MemoryStream()));
+            Age.DecryptDetached(new MemoryStream(), new MemoryStream(), new MemoryStream()));
     }
 
     [Fact]

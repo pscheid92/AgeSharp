@@ -1,8 +1,7 @@
-using Age;
-using Age.Recipients;
+using AgeSharp;
 using BenchmarkDotNet.Attributes;
 
-namespace Age.Benchmarks;
+namespace AgeSharp.Benchmarks;
 
 [MemoryDiagnoser]
 public class RandomAccessBenchmarks
@@ -25,7 +24,7 @@ public class RandomAccessBenchmarks
         Random.Shared.NextBytes(plaintext);
 
         using var encOut = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(plaintext), encOut, recipient);
+        Age.Encrypt(new MemoryStream(plaintext), encOut, recipient);
         _ciphertext = encOut.ToArray();
 
         _randomAccess = new AgeRandomAccess(new MemoryStream(_ciphertext), _identity);

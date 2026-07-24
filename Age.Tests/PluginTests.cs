@@ -1,11 +1,8 @@
-using Age;
-using Age.Crypto;
-using Age.Format;
-using Age.Plugin;
-using Age.Recipients;
+using AgeSharp;
+using AgeSharp.Crypto;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 public class PluginTests
 {
@@ -725,7 +722,7 @@ public class PluginTests
         var pluginRecip = MakePluginRecipient("yubikey");
         var text = $"# plugin key\n{pluginRecip}\n";
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text);
+        var parsed = Age.ParseRecipients(text);
         Assert.Single(parsed);
         Assert.IsType<PluginRecipient>(parsed[0]);
         Assert.Equal(pluginRecip, parsed[0].ToString());
@@ -738,7 +735,7 @@ public class PluginTests
         using var pq = MlKem768X25519Identity.Generate();
         var text = $"{pq.Recipient}\n";
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text);
+        var parsed = Age.ParseRecipients(text);
         Assert.Single(parsed);
         Assert.IsType<MlKem768X25519Recipient>(parsed[0]);
     }
@@ -750,7 +747,7 @@ public class PluginTests
         using var x25519 = X25519Identity.Generate();
         var text = $"{x25519.Recipient}\n";
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text);
+        var parsed = Age.ParseRecipients(text);
         Assert.Single(parsed);
         Assert.IsType<X25519Recipient>(parsed[0]);
     }
@@ -762,7 +759,7 @@ public class PluginTests
         var pluginRecip = MakePluginRecipient("yubikey");
         var text = $"{x25519.Recipient}\n{pluginRecip}\n";
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text);
+        var parsed = Age.ParseRecipients(text);
         Assert.Equal(2, parsed.Length);
         Assert.IsType<X25519Recipient>(parsed[0]);
         Assert.IsType<PluginRecipient>(parsed[1]);
@@ -774,7 +771,7 @@ public class PluginTests
         var pluginId = MakePluginIdentity("yubikey");
         var text = $"# plugin identity\n{pluginId}\n";
 
-        var parsed = AgeKeygen.ParseIdentityFile(text);
+        var parsed = Age.ParseIdentities(text);
         Assert.Single(parsed);
         var parsedPlugin = Assert.IsType<PluginIdentity>(parsed[0]);
         Assert.Equal(pluginId, parsedPlugin.ToSecretString());
@@ -787,7 +784,7 @@ public class PluginTests
         var pluginId = MakePluginIdentity("yubikey");
         var text = $"{x25519.ToSecretString()}\n{pluginId}\n";
 
-        var parsed = AgeKeygen.ParseIdentityFile(text);
+        var parsed = Age.ParseIdentities(text);
         Assert.Equal(2, parsed.Length);
         Assert.IsType<X25519Identity>(parsed[0]);
         Assert.IsType<PluginIdentity>(parsed[1]);
@@ -800,7 +797,7 @@ public class PluginTests
         var callbacks = new TestCallbacks();
         var text = $"{pluginRecip}\n";
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text, callbacks);
+        var parsed = Age.ParseRecipients(text, callbacks);
         Assert.Single(parsed);
         Assert.IsType<PluginRecipient>(parsed[0]);
     }
@@ -812,7 +809,7 @@ public class PluginTests
         var callbacks = new TestCallbacks();
         var text = $"{pluginId}\n";
 
-        var parsed = AgeKeygen.ParseIdentityFile(text, callbacks);
+        var parsed = Age.ParseIdentities(text, callbacks);
         Assert.Single(parsed);
         Assert.IsType<PluginIdentity>(parsed[0]);
     }
@@ -852,37 +849,37 @@ public class PluginTests
         Assert.Null(result);
     }
 
-    // --- AgeEncrypt.Decrypt still works with existing identities ---
+    // --- Age.Decrypt still works with existing identities ---
 
     [Fact]
-    public void AgeEncrypt_Decrypt_X25519_StillWorks()
+    public void Age_Decrypt_X25519_StillWorks()
     {
         using var identity = X25519Identity.Generate();
         var plaintext = "Hello, batch unwrap!"u8.ToArray();
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, identity.Recipient);
+        Age.Encrypt(encInput, encOutput, identity.Recipient);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, identity);
         Assert.Equal(plaintext, decOutput.ToArray());
     }
 
     [Fact]
-    public void AgeEncrypt_Decrypt_Scrypt_StillWorks()
+    public void Age_Decrypt_Scrypt_StillWorks()
     {
         var plaintext = "Hello, scrypt!"u8.ToArray();
         var passphrase = "test-passphrase";
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, new ScryptRecipient(passphrase, 10));
+        Age.Encrypt(encInput, encOutput, new Passphrase(passphrase, 10));
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, new ScryptRecipient(passphrase));
+        Age.Decrypt(encOutput, decOutput, new Passphrase(passphrase));
         Assert.Equal(plaintext, decOutput.ToArray());
     }
 

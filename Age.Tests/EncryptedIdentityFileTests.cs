@@ -1,14 +1,27 @@
 using System.Diagnostics;
-using Age;
-using Age.Recipients;
+using System.Text;
+using AgeSharp;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 public class EncryptedIdentityFileTests
 {
     private const string Passphrase = "correct horse battery staple";
     private const int LowWorkFactor = 10; // fast for tests
+
+    // The library no longer ships an EncryptIdentityFile helper (the recipe is
+    // Encrypt to a Passphrase); these keep the tests concise.
+    private static byte[] EncryptIdentityFile(string text, string passphrase, bool armor = false, int workFactor = 18)
+    {
+        using var input = new MemoryStream(Encoding.UTF8.GetBytes(text));
+        using var output = new MemoryStream();
+        Age.Encrypt(input, output, new AgeOptions { Armor = armor }, new Passphrase(passphrase, workFactor));
+        return output.ToArray();
+    }
+
+    private static IIdentity[] DecryptIdentityFile(byte[] data, string passphrase) =>
+        Age.DecryptIdentities(new MemoryStream(data), passphrase);
 
     // ToString() on identities is redacted; comparisons need the secret form,
     // which only exists on the concrete types.
@@ -30,7 +43,7 @@ public class EncryptedIdentityFileTests
             {identity.ToSecretString()}
             """;
 
-        var parsed = AgeKeygen.ParseIdentityFile(text);
+        var parsed = Age.ParseIdentities(text);
         Assert.Single(parsed);
         Assert.Equal(identity.ToSecretString(), Secret(parsed[0]));
     }
@@ -41,7 +54,7 @@ public class EncryptedIdentityFileTests
         using var identity = X25519Identity.Generate();
         var text = $"# comment\n\n{identity.ToSecretString()}\n\n# another comment\n";
 
-        var parsed = AgeKeygen.ParseIdentityFile(text);
+        var parsed = Age.ParseIdentities(text);
         Assert.Single(parsed);
         Assert.Equal(identity.ToSecretString(), Secret(parsed[0]));
     }
@@ -53,7 +66,7 @@ public class EncryptedIdentityFileTests
         using var pq = MlKem768X25519Identity.Generate();
         var text = $"# X25519 key\n{x25519.ToSecretString()}\n# PQ key\n{pq.ToSecretString()}\n";
 
-        var parsed = AgeKeygen.ParseIdentityFile(text);
+        var parsed = Age.ParseIdentities(text);
         Assert.Equal(2, parsed.Length);
         Assert.Equal(x25519.ToSecretString(), Secret(parsed[0]));
         Assert.Equal(pq.ToSecretString(), Secret(parsed[1]));
@@ -63,21 +76,21 @@ public class EncryptedIdentityFileTests
     public void ParseIdentityFile_UnrecognizedLine_Throws()
     {
         var text = "# comment\nNOT-A-VALID-KEY\n";
-        var ex = Assert.Throws<AgeFormatException>(() => AgeKeygen.ParseIdentityFile(text));
-        Assert.Contains("unrecognized line", ex.Message);
+        var ex = Assert.Throws<AgeFormatException>(() => Age.ParseIdentities(text));
+        Assert.Contains("unrecognized", ex.Message);
     }
 
     [Fact]
     public void ParseIdentityFile_Empty_ReturnsEmpty()
     {
-        var parsed = AgeKeygen.ParseIdentityFile("");
+        var parsed = Age.ParseIdentities("");
         Assert.Empty(parsed);
     }
 
     [Fact]
     public void ParseIdentityFile_OnlyComments_ReturnsEmpty()
     {
-        var parsed = AgeKeygen.ParseIdentityFile("# just a comment\n# another\n");
+        var parsed = Age.ParseIdentities("# just a comment\n# another\n");
         Assert.Empty(parsed);
     }
 
@@ -87,8 +100,8 @@ public class EncryptedIdentityFileTests
         using var identity = X25519Identity.Generate();
         var text = $"# created: 2024-01-01\n{identity.ToSecretString()}\n";
 
-        var encrypted = AgeKeygen.EncryptIdentityFile(text, Passphrase, workFactor: LowWorkFactor);
-        var parsed = AgeKeygen.DecryptIdentityFile(encrypted, Passphrase);
+        var encrypted = EncryptIdentityFile(text, Passphrase, workFactor: LowWorkFactor);
+        var parsed = DecryptIdentityFile(encrypted, Passphrase);
 
         Assert.Single(parsed);
         Assert.Equal(identity.ToSecretString(), Secret(parsed[0]));
@@ -100,13 +113,13 @@ public class EncryptedIdentityFileTests
         using var identity = X25519Identity.Generate();
         var text = $"{identity.ToSecretString()}\n";
 
-        var encrypted = AgeKeygen.EncryptIdentityFile(text, Passphrase, armor: true, workFactor: LowWorkFactor);
+        var encrypted = EncryptIdentityFile(text, Passphrase, armor: true, workFactor: LowWorkFactor);
 
         // Verify it's armored (starts with the armor header)
         var armoredText = System.Text.Encoding.UTF8.GetString(encrypted);
         Assert.StartsWith("-----BEGIN AGE ENCRYPTED FILE-----", armoredText);
 
-        var parsed = AgeKeygen.DecryptIdentityFile(encrypted, Passphrase);
+        var parsed = DecryptIdentityFile(encrypted, Passphrase);
         Assert.Single(parsed);
         Assert.Equal(identity.ToSecretString(), Secret(parsed[0]));
     }
@@ -116,9 +129,9 @@ public class EncryptedIdentityFileTests
     {
         using var identity = X25519Identity.Generate();
         var text = $"{identity.ToSecretString()}\n";
-        var encrypted = AgeKeygen.EncryptIdentityFile(text, Passphrase, workFactor: LowWorkFactor);
+        var encrypted = EncryptIdentityFile(text, Passphrase, workFactor: LowWorkFactor);
 
-        Assert.ThrowsAny<Exception>(() => AgeKeygen.DecryptIdentityFile(encrypted, "wrong passphrase"));
+        Assert.ThrowsAny<Exception>(() => DecryptIdentityFile(encrypted, "wrong passphrase"));
     }
 
     [Fact]
@@ -127,8 +140,8 @@ public class EncryptedIdentityFileTests
         using var identity = MlKem768X25519Identity.Generate();
         var text = $"# PQ identity\n{identity.ToSecretString()}\n";
 
-        var encrypted = AgeKeygen.EncryptIdentityFile(text, Passphrase, workFactor: LowWorkFactor);
-        var parsed = AgeKeygen.DecryptIdentityFile(encrypted, Passphrase);
+        var encrypted = EncryptIdentityFile(text, Passphrase, workFactor: LowWorkFactor);
+        var parsed = DecryptIdentityFile(encrypted, Passphrase);
 
         Assert.Single(parsed);
         Assert.Equal(identity.ToSecretString(), Secret(parsed[0]));
@@ -141,8 +154,8 @@ public class EncryptedIdentityFileTests
         using var pq = MlKem768X25519Identity.Generate();
         var text = $"# X25519\n{x25519.ToSecretString()}\n# PQ\n{pq.ToSecretString()}\n";
 
-        var encrypted = AgeKeygen.EncryptIdentityFile(text, Passphrase, workFactor: LowWorkFactor);
-        var parsed = AgeKeygen.DecryptIdentityFile(encrypted, Passphrase);
+        var encrypted = EncryptIdentityFile(text, Passphrase, workFactor: LowWorkFactor);
+        var parsed = DecryptIdentityFile(encrypted, Passphrase);
 
         Assert.Equal(2, parsed.Length);
         Assert.Equal(x25519.ToSecretString(), Secret(parsed[0]));
@@ -176,14 +189,14 @@ public class EncryptedIdentityFileTests
 
             // Parse the age-keygen output with AgeSharp
             var keyText = File.ReadAllText(tempKey);
-            var parsed = AgeKeygen.ParseIdentityFile(keyText);
+            var parsed = Age.ParseIdentities(keyText);
 
             Assert.Single(parsed);
             Assert.StartsWith("AGE-SECRET-KEY-1", Secret(parsed[0]));
 
             // Roundtrip: encrypt with AgeSharp, decrypt with AgeSharp
-            var encrypted = AgeKeygen.EncryptIdentityFile(keyText, Passphrase, workFactor: LowWorkFactor);
-            var decrypted = AgeKeygen.DecryptIdentityFile(encrypted, Passphrase);
+            var encrypted = EncryptIdentityFile(keyText, Passphrase, workFactor: LowWorkFactor);
+            var decrypted = DecryptIdentityFile(encrypted, Passphrase);
             Assert.Equal(Secret(parsed[0]), Secret(decrypted[0]));
         }
         finally
@@ -202,8 +215,8 @@ public class EncryptedIdentityFileTests
         using var identity = X25519Identity.Generate();
         var identityText = $"# test key\n{identity.ToSecretString()}\n";
 
-        var encrypted = AgeKeygen.EncryptIdentityFile(identityText, Passphrase, workFactor: LowWorkFactor);
-        var parsed = AgeKeygen.DecryptIdentityFile(encrypted, Passphrase);
+        var encrypted = EncryptIdentityFile(identityText, Passphrase, workFactor: LowWorkFactor);
+        var parsed = DecryptIdentityFile(encrypted, Passphrase);
 
         // Use the decrypted identity to decrypt data encrypted by the age CLI
         var recipientStr = identity.Recipient.ToString();
@@ -225,7 +238,7 @@ public class EncryptedIdentityFileTests
             var ciphertext = File.ReadAllBytes(tempCipher);
             using var decInput = new MemoryStream(ciphertext);
             using var decOutput = new MemoryStream();
-            AgeEncrypt.Decrypt(decInput, decOutput, parsed.ToArray());
+            Age.Decrypt(decInput, decOutput, parsed.ToArray());
 
             var result = System.Text.Encoding.UTF8.GetString(decOutput.ToArray());
             Assert.Equal("secret from age CLI", result);

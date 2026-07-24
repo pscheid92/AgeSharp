@@ -4,7 +4,7 @@ using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
 using BcChaCha20Poly1305 = Org.BouncyCastle.Crypto.Modes.ChaCha20Poly1305;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// <see cref="IAeadCipher"/> backed by BouncyCastle's managed ChaCha20-Poly1305. Works on

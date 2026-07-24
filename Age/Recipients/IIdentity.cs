@@ -1,6 +1,5 @@
-using Age.Format;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// Attempts to recover a file key from stanzas in an age header. Implement

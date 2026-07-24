@@ -1,8 +1,8 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using Age.Crypto;
+using AgeSharp.Crypto;
 
-namespace Age.Plugin;
+namespace AgeSharp;
 
 internal sealed class PluginConnection : IDisposable
 {

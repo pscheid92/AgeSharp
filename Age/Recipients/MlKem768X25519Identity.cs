@@ -1,9 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
-using Age.Crypto;
-using Age.Format;
+using AgeSharp.Crypto;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// A post-quantum ML-KEM-768-X25519 hybrid identity (<c>AGE-SECRET-KEY-PQ-1…</c>),

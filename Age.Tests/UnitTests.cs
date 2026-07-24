@@ -1,11 +1,9 @@
 using System.Text;
-using Age;
-using Age.Crypto;
-using Age.Format;
-using Age.Recipients;
+using AgeSharp;
+using AgeSharp.Crypto;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 public class Base64UnpaddedTests
 {
@@ -557,7 +555,7 @@ public class AsciiArmorTests
     {
         // A single body line far longer than any legal armor line must be rejected
         // without buffering the whole (potentially unbounded) line into memory.
-        var text = "-----BEGIN AGE ENCRYPTED FILE-----\n" + new string('A', AgeLimits.MaxArmorLineBytes + 1000) + "\n";
+        var text = "-----BEGIN AGE ENCRYPTED FILE-----\n" + new string('A', new AgeOptions().MaxArmorLineBytes + 1000) + "\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var ex = Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
         Assert.Contains("exceeds", ex.Message);
@@ -567,7 +565,7 @@ public class AsciiArmorTests
     public void Reject_Oversized_Line_Before_Begin_Marker()
     {
         // The bound must also protect the marker search before the armor body.
-        var text = new string('x', AgeLimits.MaxArmorLineBytes + 1000);
+        var text = new string('x', new AgeOptions().MaxArmorLineBytes + 1000);
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         Assert.Throws<AgeFormatException>(() => AsciiArmor.Dearmor(stream));
     }
@@ -578,7 +576,7 @@ public class AsciiArmorTests
         // A header line with no newline must be bounded before authentication.
         var text = "age-encryption.org/v1\n" + new string('a', 100_000) + "\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        var ex = Assert.Throws<AgeFormatException>(() => AgeHeader.Parse(stream));
+        var ex = Assert.Throws<AgeFormatException>(() => Age.ReadHeader(stream));
         Assert.Contains("exceeds", ex.Message);
     }
 
@@ -876,7 +874,7 @@ public class StreamEncryptionTests
     }
 }
 
-public class ScryptRecipientTests
+public class PassphraseTests
 {
     [Theory]
     [InlineData("1", true, 1)]
@@ -884,7 +882,7 @@ public class ScryptRecipientTests
     [InlineData("20", true, 20)]
     public void ValidateWorkFactor_Valid_Values(string input, bool expectedValid, int expectedValue)
     {
-        var result = ScryptRecipient.ValidateWorkFactor(input, out int workFactor);
+        var result = Passphrase.ValidateWorkFactor(input, out int workFactor);
         Assert.Equal(expectedValid, result);
         Assert.Equal(expectedValue, workFactor);
     }
@@ -897,13 +895,13 @@ public class ScryptRecipientTests
     [InlineData("abc")]
     public void ValidateWorkFactor_Invalid_Values(string input)
     {
-        Assert.False(ScryptRecipient.ValidateWorkFactor(input, out _));
+        Assert.False(Passphrase.ValidateWorkFactor(input, out _));
     }
 
     [Fact]
     public void Unwrap_Rejects_WorkFactor_Over_20()
     {
-        var recipient = new ScryptRecipient("password");
+        var recipient = new Passphrase("password");
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "21"], new byte[32]);
@@ -920,7 +918,7 @@ public class ScryptRecipientTests
     {
         // Out-of-range work factors must fail fast (the high end would otherwise
         // overflow `1 << workFactor` or produce a file this library can't read).
-        Assert.Throws<ArgumentOutOfRangeException>(() => new ScryptRecipient("password", workFactor));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Passphrase("password", workFactor));
     }
 
     [Theory]
@@ -929,13 +927,13 @@ public class ScryptRecipientTests
     [InlineData(20)]
     public void Constructor_Accepts_InRange_WorkFactor(int workFactor)
     {
-        _ = new ScryptRecipient("password", workFactor);
+        _ = new Passphrase("password", workFactor);
     }
 
     [Fact]
     public void Unwrap_Rejects_Wrong_Salt_Size()
     {
-        var recipient = new ScryptRecipient("password");
+        var recipient = new Passphrase("password");
         var wrongSalt = new byte[10];
         var saltB64 = Base64Unpadded.Encode(wrongSalt);
         var stanza = new Stanza("scrypt", [saltB64, "10"], new byte[32]);
@@ -945,7 +943,7 @@ public class ScryptRecipientTests
     [Fact]
     public void Unwrap_Rejects_Wrong_Body_Size()
     {
-        var recipient = new ScryptRecipient("password");
+        var recipient = new Passphrase("password");
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "10"], new byte[16]);
@@ -955,7 +953,7 @@ public class ScryptRecipientTests
     [Fact]
     public void Unwrap_Rejects_Wrong_Arg_Count()
     {
-        var recipient = new ScryptRecipient("password");
+        var recipient = new Passphrase("password");
         var stanza = new Stanza("scrypt", ["onlyone"], new byte[32]);
         Assert.Throws<AgeFormatException>(() => recipient.Unwrap(stanza));
     }
@@ -963,7 +961,7 @@ public class ScryptRecipientTests
     [Fact]
     public void Unwrap_Rejects_Invalid_Salt_Encoding()
     {
-        var recipient = new ScryptRecipient("password");
+        var recipient = new Passphrase("password");
         var stanza = new Stanza("scrypt", ["@@invalid@@", "10"], new byte[32]);
         Assert.Throws<AgeFormatException>(() => recipient.Unwrap(stanza));
     }
@@ -971,7 +969,7 @@ public class ScryptRecipientTests
     [Fact]
     public void Unwrap_Rejects_Invalid_WorkFactor_String()
     {
-        var recipient = new ScryptRecipient("password");
+        var recipient = new Passphrase("password");
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "abc"], new byte[32]);
@@ -982,12 +980,12 @@ public class ScryptRecipientTests
     public void Unwrap_With_Wrong_Passphrase()
     {
         // Encrypt with one passphrase, try to decrypt with another
-        var correct = new ScryptRecipient("correct", workFactor: 10);
+        var correct = new Passphrase("correct", workFactor: 10);
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
         var stanza = correct.Wrap(fileKey);
 
-        var wrong = new ScryptRecipient("wrong", workFactor: 10);
+        var wrong = new Passphrase("wrong", workFactor: 10);
         // Wrong passphrase causes AEAD failure — either throws AgeException or returns null
         try
         {
@@ -1004,7 +1002,7 @@ public class ScryptRecipientTests
     [Fact]
     public void Unwrap_Returns_Null_For_NonMatching_Type()
     {
-        var recipient = new ScryptRecipient("password");
+        var recipient = new Passphrase("password");
         var stanza = new Stanza("X25519", ["arg"], new byte[32]);
         Assert.Null(recipient.Unwrap(stanza));
     }
@@ -1154,14 +1152,14 @@ public class X25519RecipientIdentityTests
     }
 }
 
-public class AgeEncryptTests
+public class AgeTests
 {
     [Fact]
     public void Encrypt_Rejects_No_Recipients()
     {
         using var input = new MemoryStream("test"u8.ToArray());
         using var output = new MemoryStream();
-        Assert.Throws<ArgumentException>(() => AgeEncrypt.Encrypt(input, output));
+        Assert.Throws<ArgumentException>(() => Age.Encrypt(input, output));
     }
 
     [Fact]
@@ -1172,7 +1170,7 @@ public class AgeEncryptTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, armor: true, identity.Recipient);
+        Age.Encrypt(encInput, encOutput, new AgeOptions { Armor = true }, identity.Recipient);
 
         // Verify it's actually armored
         encOutput.Position = 0;
@@ -1181,7 +1179,7 @@ public class AgeEncryptTests
         // Decrypt
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, identity);
         Assert.Equal(plaintext, decOutput.ToArray());
     }
 
@@ -1194,11 +1192,11 @@ public class AgeEncryptTests
         var plaintext = "test"u8.ToArray();
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, id1.Recipient);
+        Age.Encrypt(encInput, encOutput, id1.Recipient);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Assert.Throws<NoIdentityMatchException>(() => AgeEncrypt.Decrypt(encOutput, decOutput, id2));
+        Assert.Throws<NoIdentityMatchException>(() => Age.Decrypt(encOutput, decOutput, id2));
     }
 
     [Fact]
@@ -1209,8 +1207,8 @@ public class AgeEncryptTests
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
 
-        var scryptRecipient = new ScryptRecipient("pass", workFactor: 10);
-        var scryptStanza = scryptRecipient.Wrap(fileKey);
+        var passphrase = new Passphrase("pass", workFactor: 10);
+        var scryptStanza = passphrase.Wrap(fileKey);
         var x25519Stanza = id.Recipient.Wrap(fileKey);
 
         var header = new Header();
@@ -1228,7 +1226,7 @@ public class AgeEncryptTests
 
         ms.Position = 0;
         using var output = new MemoryStream();
-        Assert.Throws<AgeFormatException>(() => AgeEncrypt.Decrypt(ms, output, scryptRecipient));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(ms, output, passphrase));
     }
 
     [Fact]
@@ -1241,7 +1239,7 @@ public class AgeEncryptTests
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         using var output = new MemoryStream();
         using var id = X25519Identity.Generate();
-        var ex = Assert.Throws<AgeFormatException>(() => AgeEncrypt.Decrypt(stream, output, id));
+        var ex = Assert.Throws<AgeFormatException>(() => Age.Decrypt(stream, output, id));
         Assert.Contains("header parse error", ex.Message);
     }
 
@@ -1253,7 +1251,7 @@ public class AgeEncryptTests
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         using var output = new MemoryStream();
         using var id = X25519Identity.Generate();
-        Assert.Throws<AgeFormatException>(() => AgeEncrypt.Decrypt(stream, output, id));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(stream, output, id));
     }
 
     [Fact]
@@ -1279,7 +1277,7 @@ public class AgeEncryptTests
         ms.Position = 0;
         using var output = new MemoryStream();
         using var id = X25519Identity.Generate();
-        Assert.Throws<AgeFormatException>(() => AgeEncrypt.Decrypt(ms, output, id));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(ms, output, id));
     }
 
     [Fact]
@@ -1301,7 +1299,7 @@ public class AgeEncryptTests
 
         ms.Position = 0;
         using var output = new MemoryStream();
-        Assert.Throws<AgeFormatException>(() => AgeEncrypt.Decrypt(ms, output, id));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(ms, output, id));
     }
 }
 
@@ -1317,12 +1315,12 @@ public class DecryptStreamTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, identity.Recipient);
+        Age.Encrypt(encInput, encOutput, identity.Recipient);
         var ciphertextBytes = encOutput.ToArray();
 
         // Parse header to find payload offset
         encOutput.Position = 0;
-        var header = AgeHeader.Parse(encOutput);
+        var header = Age.ReadHeader(encOutput);
         var payloadOffset = (int)header.PayloadOffset;
 
         // Payload: 16-byte nonce + encrypted chunks
@@ -1334,7 +1332,7 @@ public class DecryptStreamTests
         var truncated = ciphertextBytes[..truncateAt];
 
         using var truncatedStream = new MemoryStream(truncated);
-        using var reader = AgeEncrypt.DecryptReader(truncatedStream, identity);
+        using var reader = Age.DecryptReader(truncatedStream, identity);
 
         var buf = new byte[plaintext.Length];
         // Truncating removes the final chunk, so DecryptStream will detect
@@ -1359,12 +1357,12 @@ public class DecryptStreamTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, identity.Recipient);
+        Age.Encrypt(encInput, encOutput, identity.Recipient);
         var ciphertextBytes = encOutput.ToArray();
 
         // Parse header to find payload offset
         encOutput.Position = 0;
-        var header = AgeHeader.Parse(encOutput);
+        var header = Age.ReadHeader(encOutput);
         var payloadOffset = (int)header.PayloadOffset;
 
         // Keep header + nonce + only a few bytes of payload (< TagSize = 16)
@@ -1372,19 +1370,19 @@ public class DecryptStreamTests
         var truncated = ciphertextBytes[..truncateAt];
 
         using var truncatedStream = new MemoryStream(truncated);
-        using var reader = AgeEncrypt.DecryptReader(truncatedStream, identity);
+        using var reader = Age.DecryptReader(truncatedStream, identity);
 
         var buf = new byte[100];
         Assert.Throws<AgeAuthenticationException>(() => reader.Read(buf, 0, buf.Length));
     }
 }
 
-public class AgeKeygenTests
+public class KeyFacadeTests
 {
     [Fact]
     public void Generate_Returns_Valid_Identity()
     {
-        using var identity = AgeKeygen.Generate();
+        using var identity = X25519Identity.Generate();
         var str = identity.ToSecretString();
         Assert.StartsWith("AGE-SECRET-KEY-1", str);
     }

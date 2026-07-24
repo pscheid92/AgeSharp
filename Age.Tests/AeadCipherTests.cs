@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
-using Age.Crypto;
+using AgeSharp.Crypto;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 public class AeadCipherTests
 {

@@ -1,7 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AgeSharp;
 
-namespace Age.Cli;
+namespace AgeSharp.Cli;
 
 internal record InspectOutput(string File, string Version, bool Armored, bool PostQuantum, InspectRecipient[] Recipients, InspectSize Size);
 
@@ -25,7 +26,7 @@ internal static class InspectCommand
             var totalSize = ms.Length;
             ms.Position = 0;
 
-            var header = AgeHeader.Parse(ms);
+            var header = Age.ReadHeader(ms);
 
             if (json)
                 PrintJson(header, displayName, totalSize);
@@ -48,7 +49,7 @@ internal static class InspectCommand
         Console.WriteLine($"{displayName} is an age file, version \"age-encryption.org/v1\".");
         Console.WriteLine();
 
-        var types = header.Recipients.Select(s => s.Type).Distinct().ToList();
+        var types = header.Stanzas.Select(s => s.Type).Distinct().ToList();
         Console.WriteLine("This file is encrypted to the following recipient types:");
 
         foreach (var type in types)
@@ -84,8 +85,8 @@ internal static class InspectCommand
             File: displayName,
             Version: "age-encryption.org/v1",
             Armored: header.IsArmored,
-            PostQuantum: header.Recipients.Any(s => PostQuantumTypes.Contains(s.Type)),
-            Recipients: header.Recipients.Select((s, i) => new InspectRecipient(i, s.Type, [.. s.Args])).ToArray(),
+            PostQuantum: header.Stanzas.Any(s => PostQuantumTypes.Contains(s.Type)),
+            Recipients: header.Stanzas.Select((s, i) => new InspectRecipient(i, s.Type, [.. s.Args])).ToArray(),
             Size: new InspectSize(sizes.Header, sizes.Overhead, sizes.Payload, sizes.Total)
         );
 

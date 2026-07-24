@@ -1,4 +1,4 @@
-namespace Age.Plugin;
+namespace AgeSharp;
 
 /// <summary>
 /// Validation for age plugin names. A plugin name becomes part of the

@@ -1,5 +1,5 @@
 using System.Text;
-using Age.Recipients;
+using AgeSharp;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
@@ -7,7 +7,7 @@ using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities.IO.Pem;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 /// <summary>
 /// The TryParse contract: true + a usable value for valid input, false — never

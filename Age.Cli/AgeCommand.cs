@@ -1,10 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
-using Age.Format;
-using Age.Plugin;
-using Age.Recipients;
+using AgeSharp;
 
-namespace Age.Cli;
+namespace AgeSharp.Cli;
 
 internal static class AgeCommand
 {
@@ -26,7 +24,7 @@ internal static class AgeCommand
             if (recipients.Count > 0 || recipientFiles.Length > 0 || identityFiles.Length > 0)
                 throw new AgeException("-p/--passphrase can't be combined with other recipient flags");
 
-            recipients.Add(new ScryptRecipient(ReadAndConfirmPassphrase()));
+            recipients.Add(new Passphrase(ReadAndConfirmPassphrase()));
         }
         else
         {
@@ -42,7 +40,7 @@ internal static class AgeCommand
         using var input = OpenInput(inputPath);
         using var output = OpenOutput(outputPath);
 
-        AgeEncrypt.Encrypt(input, output, armor, [.. recipients]);
+        Age.Encrypt(input, output, new AgeOptions { Armor = armor }, [.. recipients]);
         return 0;
     }
 
@@ -51,7 +49,7 @@ internal static class AgeCommand
         foreach (var file in recipientFiles)
         {
             var text = File.ReadAllText(file);
-            recipients.AddRange(AgeKeygen.ParseRecipientsFile(text, callbacks));
+            recipients.AddRange(Age.ParseRecipients(text, callbacks));
         }
 
         foreach (var file in identityFiles)
@@ -97,7 +95,7 @@ internal static class AgeCommand
         input.Position = 0;
 
         using var output = OpenOutput(outputPath);
-        AgeEncrypt.Decrypt(input, output, [.. identities]);
+        Age.Decrypt(input, output, [.. identities]);
         return 0;
     }
 
@@ -118,7 +116,7 @@ internal static class AgeCommand
             if (identityFiles.Length == 0)
                 throw new AgeException("missing identity (-i required for decryption, or use -p for passphrase)");
 
-            identities.AddRange(from file in identityFiles from id in LoadIdentities(file, callbacks) select id is ScryptRecipient ? new RejectScryptIdentity() : id);
+            identities.AddRange(from file in identityFiles from id in LoadIdentities(file, callbacks) select id is Passphrase ? new RejectScryptIdentity() : id);
         }
 
         return identities;
@@ -134,7 +132,7 @@ internal static class AgeCommand
     };
 
     private static IRecipient ParseRecipient(string s) =>
-        AgeKeygen.ParseRecipientLine(s, new CliPluginCallbacks());
+        Age.ParseRecipient(s, new CliPluginCallbacks());
 
     private static List<IIdentity> LoadIdentities(string path, IPluginCallbacks callbacks)
     {
@@ -146,15 +144,15 @@ internal static class AgeCommand
         if (trimmed.StartsWith("age-encryption.org/v1") || trimmed.StartsWith("-----BEGIN AGE ENCRYPTED FILE-----"))
         {
             var pass = ReadPassphrase($"Enter passphrase for identity file \"{path}\": ");
-            return [.. AgeKeygen.DecryptIdentityFile(bytes, pass)];
+            return [.. Age.DecryptIdentities(new MemoryStream(bytes), pass)];
         }
 
         // SSH private key
         if (trimmed.StartsWith("-----BEGIN"))
-            return [AgeKeygen.ParseSshIdentity(text)];
+            return [Age.ParseIdentity(text)];
 
         // Standard age identity file (AGE-SECRET-KEY-, AGE-SECRET-KEY-PQ-, AGE-PLUGIN-)
-        return [.. AgeKeygen.ParseIdentityFile(text, callbacks)];
+        return [.. Age.ParseIdentities(text, callbacks)];
     }
 
     private static string ReadPassphrase(string prompt)
@@ -216,11 +214,11 @@ internal static class AgeCommand
     /// </summary>
     private sealed class LazyPassphraseIdentity : IIdentity
     {
-        private ScryptRecipient? _inner;
+        private Passphrase? _inner;
 
         public byte[]? Unwrap(Stanza stanza)
         {
-            _inner ??= new ScryptRecipient(ReadPassphrase("Enter passphrase: "));
+            _inner ??= new Passphrase(ReadPassphrase("Enter passphrase: "));
             return _inner.Unwrap(stanza);
         }
     }

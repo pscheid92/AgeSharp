@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.Security.Cryptography;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byte[] payloadKey, Stream plaintext) : Stream
 {

@@ -1,9 +1,8 @@
 using System.Security.Cryptography;
-using Age.Format;
-using Age.Recipients;
+using AgeSharp;
 using BenchmarkDotNet.Attributes;
 
-namespace Age.Benchmarks;
+namespace AgeSharp.Benchmarks;
 
 [MemoryDiagnoser]
 public class RecipientBenchmarks
@@ -18,7 +17,7 @@ public class RecipientBenchmarks
     private MlKem768X25519Recipient _mlKemRecipient = null!;
     private Stanza _mlKemStanza = null!;
 
-    private ScryptRecipient _scryptRecipient = null!;
+    private Passphrase _passphrase = null!;
     private Stanza _scryptStanza = null!;
 
     [GlobalSetup]
@@ -37,8 +36,8 @@ public class RecipientBenchmarks
         _mlKemStanza = _mlKemRecipient.Wrap(_fileKey);
 
         // scrypt (workFactor: 10 to keep benchmarks fast)
-        _scryptRecipient = new ScryptRecipient("benchmark-passphrase", workFactor: 10);
-        _scryptStanza = _scryptRecipient.Wrap(_fileKey);
+        _passphrase = new Passphrase("benchmark-passphrase", workFactor: 10);
+        _scryptStanza = _passphrase.Wrap(_fileKey);
     }
 
     [GlobalCleanup]
@@ -61,8 +60,8 @@ public class RecipientBenchmarks
     public byte[]? MlKem768X25519Unwrap() => _mlKemIdentity.Unwrap(_mlKemStanza);
 
     [Benchmark]
-    public Stanza ScryptWrap() => _scryptRecipient.Wrap(_fileKey);
+    public Stanza ScryptWrap() => _passphrase.Wrap(_fileKey);
 
     [Benchmark]
-    public byte[]? ScryptUnwrap() => ((IIdentity)_scryptRecipient).Unwrap(_scryptStanza);
+    public byte[]? ScryptUnwrap() => ((IIdentity)_passphrase).Unwrap(_scryptStanza);
 }

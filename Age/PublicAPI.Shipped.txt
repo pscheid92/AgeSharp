@@ -1,128 +1,106 @@
 #nullable enable
-Age.AgeArmorException
-Age.AgeArmorException.AgeArmorException(string! message) -> void
-Age.AgeEncrypt
-Age.AgeException
-Age.AgeException.AgeException(string! message) -> void
-Age.AgeException.AgeException(string! message, System.Exception! inner) -> void
-Age.AgeHeader
-Age.AgeHeader.IsArmored.get -> bool
-Age.AgeHeader.PayloadOffset.get -> long
-Age.AgeHeader.RecipientCount.get -> int
-Age.AgeHeader.Recipients.get -> System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>!
-Age.AgeHeaderException
-Age.AgeHeaderException.AgeHeaderException(string! message) -> void
-Age.AgeHeaderException.AgeHeaderException(string! message, System.Exception! inner) -> void
-Age.AgeHmacException
-Age.AgeHmacException.AgeHmacException(string! message) -> void
-Age.AgeKeygen
-Age.AgeLimits
-Age.AgePayloadException
-Age.AgePayloadException.AgePayloadException(string! message) -> void
-Age.AgePayloadException.AgePayloadException(string! message, System.Exception! inner) -> void
-Age.AgePluginException
-Age.AgePluginException.AgePluginException(string! message) -> void
-Age.AgePluginException.AgePluginException(string! message, System.Exception! inner) -> void
-Age.AgeRandomAccess
-Age.AgeRandomAccess.AgeRandomAccess(System.IO.Stream! ciphertext, params System.ReadOnlySpan<Age.Recipients.IIdentity!> identities) -> void
-Age.AgeRandomAccess.Dispose() -> void
-Age.AgeRandomAccess.GetStream(long plaintextOffset = 0) -> System.IO.Stream!
-Age.AgeRandomAccess.PlaintextLength.get -> long
-Age.AgeRandomAccess.ReadAt(long plaintextOffset, System.Span<byte> buffer) -> int
-Age.Format.Stanza
-Age.Format.Stanza.Args.get -> System.Collections.Generic.IReadOnlyList<string!>!
-Age.Format.Stanza.Body.get -> System.ReadOnlyMemory<byte>
-Age.Format.Stanza.Stanza(string! type, string![]! args, byte[]! body) -> void
-Age.Format.Stanza.Type.get -> string!
-Age.NoIdentityMatchException
-Age.NoIdentityMatchException.NoIdentityMatchException() -> void
-Age.Plugin.IPluginCallbacks
-Age.Plugin.IPluginCallbacks.Confirm(string! message, string! yes, string? no) -> bool
-Age.Plugin.IPluginCallbacks.DisplayMessage(string! message) -> void
-Age.Plugin.IPluginCallbacks.RequestValue(string! prompt, bool secret) -> string!
-Age.Recipients.IIdentity
-Age.Recipients.IIdentity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
-Age.Recipients.IIdentity.Unwrap(System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>! stanzas) -> byte[]?
-Age.Recipients.IRecipient
-Age.Recipients.IRecipient.Label.get -> string?
-Age.Recipients.IRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
-Age.Recipients.MlKem768X25519Identity
-Age.Recipients.MlKem768X25519Identity.Dispose() -> void
-Age.Recipients.MlKem768X25519Identity.Recipient.get -> Age.Recipients.MlKem768X25519Recipient!
-Age.Recipients.MlKem768X25519Identity.ToSecretString() -> string!
-Age.Recipients.MlKem768X25519Identity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
-Age.Recipients.MlKem768X25519Recipient
-Age.Recipients.MlKem768X25519Recipient.Label.get -> string!
-Age.Recipients.MlKem768X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
-Age.Recipients.PluginIdentity
-Age.Recipients.PluginIdentity.PluginIdentity(string! identity, Age.Plugin.IPluginCallbacks? callbacks = null) -> void
-Age.Recipients.PluginIdentity.ToSecretString() -> string!
-Age.Recipients.PluginIdentity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
-Age.Recipients.PluginIdentity.Unwrap(System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>! stanzas) -> byte[]?
-Age.Recipients.PluginRecipient
-Age.Recipients.PluginRecipient.Label.get -> string?
-Age.Recipients.PluginRecipient.PluginRecipient(string! recipient, Age.Plugin.IPluginCallbacks? callbacks = null) -> void
-Age.Recipients.PluginRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
-Age.Recipients.ScryptRecipient
-Age.Recipients.ScryptRecipient.ScryptRecipient(string! passphrase, int workFactor = 18) -> void
-Age.Recipients.ScryptRecipient.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
-Age.Recipients.ScryptRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
-Age.Recipients.SshEd25519Identity
-Age.Recipients.SshEd25519Identity.Dispose() -> void
-Age.Recipients.SshEd25519Identity.Recipient.get -> Age.Recipients.SshEd25519Recipient!
-Age.Recipients.SshEd25519Identity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
-Age.Recipients.SshEd25519Recipient
-Age.Recipients.SshEd25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
-Age.Recipients.SshRsaIdentity
-Age.Recipients.SshRsaIdentity.Dispose() -> void
-Age.Recipients.SshRsaIdentity.Recipient.get -> Age.Recipients.SshRsaRecipient!
-Age.Recipients.SshRsaIdentity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
-Age.Recipients.SshRsaRecipient
-Age.Recipients.SshRsaRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
-Age.Recipients.X25519Identity
-Age.Recipients.X25519Identity.Dispose() -> void
-Age.Recipients.X25519Identity.Recipient.get -> Age.Recipients.X25519Recipient!
-Age.Recipients.X25519Identity.ToSecretString() -> string!
-Age.Recipients.X25519Identity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
-Age.Recipients.X25519Recipient
-Age.Recipients.X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
-const Age.AgeLimits.MaxArmorLineBytes = 65536 -> int
-const Age.AgeLimits.MaxHeaderBytes = 16777216 -> int
-const Age.AgeLimits.MaxHeaderLineBytes = 65536 -> int
-override Age.Recipients.MlKem768X25519Identity.ToString() -> string!
-override Age.Recipients.MlKem768X25519Recipient.ToString() -> string!
-override Age.Recipients.PluginIdentity.ToString() -> string!
-override Age.Recipients.PluginRecipient.ToString() -> string!
-override Age.Recipients.X25519Identity.ToString() -> string!
-override Age.Recipients.X25519Recipient.ToString() -> string!
-static Age.AgeEncrypt.Decrypt(System.IO.Stream! input, System.IO.Stream! output, params System.ReadOnlySpan<Age.Recipients.IIdentity!> identities) -> void
-static Age.AgeEncrypt.DecryptDetached(System.IO.Stream! headerInput, System.IO.Stream! payloadInput, System.IO.Stream! output, params System.ReadOnlySpan<Age.Recipients.IIdentity!> identities) -> void
-static Age.AgeEncrypt.DecryptReader(System.IO.Stream! ciphertext, params System.ReadOnlySpan<Age.Recipients.IIdentity!> identities) -> System.IO.Stream!
-static Age.AgeEncrypt.Encrypt(System.IO.Stream! input, System.IO.Stream! output, bool armor, params System.ReadOnlySpan<Age.Recipients.IRecipient!> recipients) -> void
-static Age.AgeEncrypt.Encrypt(System.IO.Stream! input, System.IO.Stream! output, params System.ReadOnlySpan<Age.Recipients.IRecipient!> recipients) -> void
-static Age.AgeEncrypt.EncryptDetached(System.IO.Stream! input, System.IO.Stream! headerOutput, System.IO.Stream! payloadOutput, params System.ReadOnlySpan<Age.Recipients.IRecipient!> recipients) -> void
-static Age.AgeEncrypt.EncryptReader(System.IO.Stream! plaintext, bool armor, params System.ReadOnlySpan<Age.Recipients.IRecipient!> recipients) -> System.IO.Stream!
-static Age.AgeEncrypt.EncryptReader(System.IO.Stream! plaintext, params System.ReadOnlySpan<Age.Recipients.IRecipient!> recipients) -> System.IO.Stream!
-static Age.AgeHeader.Parse(System.IO.Stream! input) -> Age.AgeHeader!
-static Age.AgeKeygen.DecryptIdentityFile(byte[]! data, string! passphrase) -> Age.Recipients.IIdentity![]!
-static Age.AgeKeygen.EncryptIdentityFile(string! identityFileText, string! passphrase, bool armor = false, int workFactor = 18) -> byte[]!
-static Age.AgeKeygen.Generate() -> Age.Recipients.X25519Identity!
-static Age.AgeKeygen.GeneratePq() -> Age.Recipients.MlKem768X25519Identity!
-static Age.AgeKeygen.ParseIdentity(string! s) -> Age.Recipients.X25519Identity!
-static Age.AgeKeygen.ParseIdentityFile(string! text, Age.Plugin.IPluginCallbacks? callbacks = null) -> Age.Recipients.IIdentity![]!
-static Age.AgeKeygen.ParsePqIdentity(string! s) -> Age.Recipients.MlKem768X25519Identity!
-static Age.AgeKeygen.ParsePqRecipient(string! s) -> Age.Recipients.MlKem768X25519Recipient!
-static Age.AgeKeygen.ParseRecipient(string! s) -> Age.Recipients.X25519Recipient!
-static Age.AgeKeygen.ParseRecipientsFile(string! text, Age.Plugin.IPluginCallbacks? callbacks = null) -> Age.Recipients.IRecipient![]!
-static Age.AgeKeygen.ParseSshIdentity(string! pemText) -> Age.Recipients.IIdentity!
-static Age.AgeKeygen.ParseSshRecipient(string! authorizedKeysLine) -> Age.Recipients.IRecipient!
-static Age.Recipients.MlKem768X25519Identity.Generate() -> Age.Recipients.MlKem768X25519Identity!
-static Age.Recipients.MlKem768X25519Identity.Parse(string! s) -> Age.Recipients.MlKem768X25519Identity!
-static Age.Recipients.MlKem768X25519Recipient.Parse(string! s) -> Age.Recipients.MlKem768X25519Recipient!
-static Age.Recipients.SshEd25519Identity.Parse(string! pemText) -> Age.Recipients.SshEd25519Identity!
-static Age.Recipients.SshEd25519Recipient.Parse(string! authorizedKeysLine) -> Age.Recipients.SshEd25519Recipient!
-static Age.Recipients.SshRsaIdentity.Parse(string! pemText) -> Age.Recipients.SshRsaIdentity!
-static Age.Recipients.SshRsaRecipient.Parse(string! authorizedKeysLine) -> Age.Recipients.SshRsaRecipient!
-static Age.Recipients.X25519Identity.Generate() -> Age.Recipients.X25519Identity!
-static Age.Recipients.X25519Identity.Parse(string! s) -> Age.Recipients.X25519Identity!
-static Age.Recipients.X25519Recipient.Parse(string! s) -> Age.Recipients.X25519Recipient!
+AgeSharp.AgeArmorException
+AgeSharp.AgeArmorException.AgeArmorException(string! message) -> void
+AgeSharp.Age
+AgeSharp.AgeException
+AgeSharp.AgeException.AgeException(string! message) -> void
+AgeSharp.AgeException.AgeException(string! message, System.Exception! inner) -> void
+AgeSharp.AgeHeader
+AgeSharp.AgeHeader.IsArmored.get -> bool
+AgeSharp.AgeHeader.PayloadOffset.get -> long
+AgeSharp.AgeHeaderException
+AgeSharp.AgeHeaderException.AgeHeaderException(string! message) -> void
+AgeSharp.AgeHeaderException.AgeHeaderException(string! message, System.Exception! inner) -> void
+AgeSharp.AgeHmacException
+AgeSharp.AgeHmacException.AgeHmacException(string! message) -> void
+AgeSharp.AgePayloadException
+AgeSharp.AgePayloadException.AgePayloadException(string! message) -> void
+AgeSharp.AgePayloadException.AgePayloadException(string! message, System.Exception! inner) -> void
+AgeSharp.AgePluginException
+AgeSharp.AgePluginException.AgePluginException(string! message) -> void
+AgeSharp.AgePluginException.AgePluginException(string! message, System.Exception! inner) -> void
+AgeSharp.AgeRandomAccess
+AgeSharp.AgeRandomAccess.AgeRandomAccess(System.IO.Stream! ciphertext, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
+AgeSharp.AgeRandomAccess.Dispose() -> void
+AgeSharp.AgeRandomAccess.GetStream(long plaintextOffset = 0) -> System.IO.Stream!
+AgeSharp.AgeRandomAccess.PlaintextLength.get -> long
+AgeSharp.AgeRandomAccess.ReadAt(long plaintextOffset, System.Span<byte> buffer) -> int
+AgeSharp.Stanza
+AgeSharp.Stanza.Args.get -> System.Collections.Generic.IReadOnlyList<string!>!
+AgeSharp.Stanza.Body.get -> System.ReadOnlyMemory<byte>
+AgeSharp.Stanza.Stanza(string! type, string![]! args, byte[]! body) -> void
+AgeSharp.Stanza.Type.get -> string!
+AgeSharp.NoIdentityMatchException
+AgeSharp.NoIdentityMatchException.NoIdentityMatchException() -> void
+AgeSharp.IPluginCallbacks
+AgeSharp.IPluginCallbacks.Confirm(string! message, string! yes, string? no) -> bool
+AgeSharp.IPluginCallbacks.DisplayMessage(string! message) -> void
+AgeSharp.IPluginCallbacks.RequestValue(string! prompt, bool secret) -> string!
+AgeSharp.IIdentity
+AgeSharp.IIdentity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
+AgeSharp.IIdentity.Unwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas) -> byte[]?
+AgeSharp.IRecipient
+AgeSharp.IRecipient.Label.get -> string?
+AgeSharp.IRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+AgeSharp.MlKem768X25519Identity
+AgeSharp.MlKem768X25519Identity.Dispose() -> void
+AgeSharp.MlKem768X25519Identity.Recipient.get -> AgeSharp.MlKem768X25519Recipient!
+AgeSharp.MlKem768X25519Identity.ToSecretString() -> string!
+AgeSharp.MlKem768X25519Identity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
+AgeSharp.MlKem768X25519Recipient
+AgeSharp.MlKem768X25519Recipient.Label.get -> string!
+AgeSharp.MlKem768X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+AgeSharp.PluginIdentity
+AgeSharp.PluginIdentity.PluginIdentity(string! identity, AgeSharp.IPluginCallbacks? callbacks = null) -> void
+AgeSharp.PluginIdentity.ToSecretString() -> string!
+AgeSharp.PluginIdentity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
+AgeSharp.PluginIdentity.Unwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas) -> byte[]?
+AgeSharp.PluginRecipient
+AgeSharp.PluginRecipient.Label.get -> string?
+AgeSharp.PluginRecipient.PluginRecipient(string! recipient, AgeSharp.IPluginCallbacks? callbacks = null) -> void
+AgeSharp.PluginRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+AgeSharp.Passphrase
+AgeSharp.Passphrase.Passphrase(string! passphrase, int workFactor = 18) -> void
+AgeSharp.Passphrase.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
+AgeSharp.Passphrase.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+AgeSharp.SshEd25519Identity
+AgeSharp.SshEd25519Identity.Dispose() -> void
+AgeSharp.SshEd25519Identity.Recipient.get -> AgeSharp.SshEd25519Recipient!
+AgeSharp.SshEd25519Identity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
+AgeSharp.SshEd25519Recipient
+AgeSharp.SshEd25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+AgeSharp.SshRsaIdentity
+AgeSharp.SshRsaIdentity.Dispose() -> void
+AgeSharp.SshRsaIdentity.Recipient.get -> AgeSharp.SshRsaRecipient!
+AgeSharp.SshRsaIdentity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
+AgeSharp.SshRsaRecipient
+AgeSharp.SshRsaRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+AgeSharp.X25519Identity
+AgeSharp.X25519Identity.Dispose() -> void
+AgeSharp.X25519Identity.Recipient.get -> AgeSharp.X25519Recipient!
+AgeSharp.X25519Identity.ToSecretString() -> string!
+AgeSharp.X25519Identity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
+AgeSharp.X25519Recipient
+AgeSharp.X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+override AgeSharp.MlKem768X25519Identity.ToString() -> string!
+override AgeSharp.MlKem768X25519Recipient.ToString() -> string!
+override AgeSharp.PluginIdentity.ToString() -> string!
+override AgeSharp.PluginRecipient.ToString() -> string!
+override AgeSharp.X25519Identity.ToString() -> string!
+override AgeSharp.X25519Recipient.ToString() -> string!
+static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
+static AgeSharp.Age.DecryptDetached(System.IO.Stream! headerInput, System.IO.Stream! payloadInput, System.IO.Stream! output, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
+static AgeSharp.Age.DecryptReader(System.IO.Stream! ciphertext, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> System.IO.Stream!
+static AgeSharp.Age.Encrypt(System.IO.Stream! input, System.IO.Stream! output, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
+static AgeSharp.Age.EncryptDetached(System.IO.Stream! input, System.IO.Stream! headerOutput, System.IO.Stream! payloadOutput, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
+static AgeSharp.Age.EncryptReader(System.IO.Stream! plaintext, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
+static AgeSharp.MlKem768X25519Identity.Generate() -> AgeSharp.MlKem768X25519Identity!
+static AgeSharp.MlKem768X25519Identity.Parse(string! s) -> AgeSharp.MlKem768X25519Identity!
+static AgeSharp.MlKem768X25519Recipient.Parse(string! s) -> AgeSharp.MlKem768X25519Recipient!
+static AgeSharp.SshEd25519Identity.Parse(string! pemText) -> AgeSharp.SshEd25519Identity!
+static AgeSharp.SshEd25519Recipient.Parse(string! authorizedKeysLine) -> AgeSharp.SshEd25519Recipient!
+static AgeSharp.SshRsaIdentity.Parse(string! pemText) -> AgeSharp.SshRsaIdentity!
+static AgeSharp.SshRsaRecipient.Parse(string! authorizedKeysLine) -> AgeSharp.SshRsaRecipient!
+static AgeSharp.X25519Identity.Generate() -> AgeSharp.X25519Identity!
+static AgeSharp.X25519Identity.Parse(string! s) -> AgeSharp.X25519Identity!
+static AgeSharp.X25519Recipient.Parse(string! s) -> AgeSharp.X25519Recipient!

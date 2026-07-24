@@ -1,14 +1,13 @@
 using System.Text;
-using Age.Crypto;
-using Age.Format;
-using Age.Recipients;
+using AgeSharp.Crypto;
+using AgeSharp;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.OpenSsl;
 using Org.BouncyCastle.Security;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 /// <summary>
 /// Pins the v0.3 exception contract: structure that can't be parsed throws
@@ -58,7 +57,7 @@ public class ExceptionContractTests
         using var headerInput = new MemoryStream(header);
 
         var ex = Assert.Throws<AgeFormatException>(() =>
-            AgeEncrypt.DecryptDetached(headerInput, shortPayload, new MemoryStream(), identity));
+            Age.DecryptDetached(headerInput, shortPayload, new MemoryStream(), identity));
         Assert.Contains("payload nonce", ex.Message);
     }
 
@@ -69,7 +68,7 @@ public class ExceptionContractTests
         using var encrypted = Encrypt(identity, "hello"u8.ToArray());
 
         var ex = Assert.Throws<AgeFormatException>(() =>
-            AgeEncrypt.Decrypt(encrypted, new MemoryStream(), new WrongSizeIdentity()));
+            Age.Decrypt(encrypted, new MemoryStream(), new WrongSizeIdentity()));
         Assert.Contains("file key must be", ex.Message);
     }
 
@@ -112,7 +111,7 @@ public class ExceptionContractTests
         using var payloadInput = new MemoryStream(payload);
 
         Assert.Throws<AgeAuthenticationException>(() =>
-            AgeEncrypt.DecryptDetached(headerInput, payloadInput, new MemoryStream(), identity));
+            Age.DecryptDetached(headerInput, payloadInput, new MemoryStream(), identity));
     }
 
     [Fact]
@@ -139,7 +138,7 @@ public class ExceptionContractTests
         using var input = new MemoryStream("age-encryption.org/v1\n"u8.ToArray());
 
         var ex = Assert.Throws<AgeFormatException>(() =>
-            AgeEncrypt.Decrypt(input, new MemoryStream(), identity));
+            Age.Decrypt(input, new MemoryStream(), identity));
         Assert.Contains("unexpected end of header", ex.Message);
     }
 
@@ -171,7 +170,7 @@ public class ExceptionContractTests
         using var input = new MemoryStream(Encoding.ASCII.GetBytes(armored));
 
         Assert.Throws<AgeFormatException>(() =>
-            AgeEncrypt.Decrypt(input, new MemoryStream(), identity));
+            Age.Decrypt(input, new MemoryStream(), identity));
     }
 
     [Fact]
@@ -182,7 +181,7 @@ public class ExceptionContractTests
         using var input = new MemoryStream(Encoding.ASCII.GetBytes(armored));
 
         Assert.Throws<AgeFormatException>(() =>
-            AgeEncrypt.Decrypt(input, new MemoryStream(), identity));
+            Age.Decrypt(input, new MemoryStream(), identity));
     }
 
     [Fact]
@@ -196,7 +195,7 @@ public class ExceptionContractTests
         using var input = new MemoryStream(Encoding.ASCII.GetBytes(armored));
 
         var ex = Assert.Throws<AgeFormatException>(() =>
-            AgeEncrypt.Decrypt(input, new MemoryStream(), identity));
+            Age.Decrypt(input, new MemoryStream(), identity));
         Assert.Contains("non-canonical base64 in armor", ex.Message);
     }
 
@@ -240,7 +239,7 @@ public class ExceptionContractTests
     public void SshIdentity_MarkerWithoutPem_ThrowsFormat()
     {
         var ex = Assert.Throws<AgeFormatException>(() =>
-            AgeKeygen.ParseSshIdentity("BEGIN OPENSSH PRIVATE KEY"));
+            Age.ParseIdentity("BEGIN OPENSSH PRIVATE KEY"));
         Assert.Contains("failed to read PEM object", ex.Message);
     }
 
@@ -255,7 +254,7 @@ public class ExceptionContractTests
         using var sw = new StringWriter();
         new PemWriter(sw).WriteObject(keyPair.Private);
 
-        var ex = Assert.Throws<AgeFormatException>(() => AgeKeygen.ParseSshIdentity(sw.ToString()));
+        var ex = Assert.Throws<AgeFormatException>(() => Age.ParseIdentity(sw.ToString()));
         Assert.Contains("unsupported private key type", ex.Message);
     }
 
@@ -290,7 +289,7 @@ public class ExceptionContractTests
     {
         var output = new MemoryStream();
         using var input = new MemoryStream(plaintext);
-        AgeEncrypt.Encrypt(input, output, identity.Recipient);
+        Age.Encrypt(input, output, identity.Recipient);
         output.Position = 0;
         return output;
     }
@@ -300,7 +299,7 @@ public class ExceptionContractTests
         using var input = new MemoryStream("some plaintext for the contract tests"u8.ToArray());
         using var header = new MemoryStream();
         using var payload = new MemoryStream();
-        AgeEncrypt.EncryptDetached(input, header, payload, identity.Recipient);
+        Age.EncryptDetached(input, header, payload, identity.Recipient);
         return (header.ToArray(), payload.ToArray());
     }
 

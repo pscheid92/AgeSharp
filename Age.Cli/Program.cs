@@ -1,6 +1,6 @@
 using System.CommandLine;
-using Age;
-using Age.Cli;
+using AgeSharp;
+using AgeSharp.Cli;
 
 // --- Root command (encrypt/decrypt) ---
 var encryptOption = new Option<bool>("--encrypt", "-e") { Description = "Encrypt the input (default)" };

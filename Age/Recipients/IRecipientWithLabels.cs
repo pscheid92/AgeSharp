@@ -1,6 +1,5 @@
-using Age.Format;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// An <see cref="IRecipient"/> that also produces security labels when it wraps

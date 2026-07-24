@@ -1,9 +1,7 @@
 using System.Text;
-using Age.Crypto;
-using Age.Format;
-using Age.Plugin;
+using AgeSharp.Crypto;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// A recipient handled by an external <c>age-plugin-*</c> binary. Wrapping spawns

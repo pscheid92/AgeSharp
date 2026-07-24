@@ -31,7 +31,7 @@ and targets .NET 10.
   `Stream` for pipe-and-forget use cases
 - Detached header APIs (`EncryptDetached` / `DecryptDetached`)
 - Random-access decryption (`AgeRandomAccess`) — seek into encrypted files
-- Header inspection without decryption (`AgeHeader.Parse`)
+- Header inspection without decryption (`Age.ReadHeader`)
 - Encrypted identity files (passphrase-protected)
 - Recipients file parsing (`-R` style files with comments)
 - Fully interoperable — files produced by AgeSharp decrypt with `age`, `rage`, and vice versa
@@ -50,39 +50,38 @@ dotnet add package AgeSharp
 ### Encrypt and decrypt
 
 ```csharp
-using Age;
-using Age.Recipients;
+using AgeSharp;
 
 using var identity = X25519Identity.Generate();
 var recipient = identity.Recipient;
 
 using var input = new MemoryStream("Hello, age!"u8.ToArray());
 using var encrypted = new MemoryStream();
-AgeEncrypt.Encrypt(input, encrypted, recipient);
+Age.Encrypt(input, encrypted, recipient);
 
 encrypted.Position = 0;
 using var decrypted = new MemoryStream();
-AgeEncrypt.Decrypt(encrypted, decrypted, identity);
+Age.Decrypt(encrypted, decrypted, identity);
 ```
 
 ### Passphrase encryption
 
 ```csharp
-var passphrase = new ScryptRecipient("correct-horse-battery-staple");
+var passphrase = new Passphrase("correct-horse-battery-staple");
 
 using var input = new MemoryStream("Hello, age!"u8.ToArray());
 using var encrypted = new MemoryStream();
-AgeEncrypt.Encrypt(input, encrypted, passphrase);
+Age.Encrypt(input, encrypted, passphrase);
 
 encrypted.Position = 0;
 using var decrypted = new MemoryStream();
-AgeEncrypt.Decrypt(encrypted, decrypted, passphrase);
+Age.Decrypt(encrypted, decrypted, passphrase);
 ```
 
 ### ASCII armor
 
 ```csharp
-AgeEncrypt.Encrypt(input, encrypted, armor: true, recipient);
+Age.Encrypt(input, encrypted, new AgeOptions { Armor = true }, recipient);
 
 // -----BEGIN AGE ENCRYPTED FILE-----
 // YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA...
@@ -95,10 +94,10 @@ AgeEncrypt.Encrypt(input, encrypted, armor: true, recipient);
 using var alice = X25519Identity.Generate();
 using var bob = X25519Identity.Generate();
 
-AgeEncrypt.Encrypt(input, encrypted, alice.Recipient, bob.Recipient);
+Age.Encrypt(input, encrypted, alice.Recipient, bob.Recipient);
 
 // Either identity can decrypt
-AgeEncrypt.Decrypt(encrypted, decrypted, bob);
+Age.Decrypt(encrypted, decrypted, bob);
 ```
 
 ### SSH keys
@@ -107,10 +106,10 @@ AgeEncrypt.Decrypt(encrypted, decrypted, bob);
 var recipient = SshEd25519Recipient.Parse("ssh-ed25519 AAAA...");
 var identity = SshEd25519Identity.Parse(File.ReadAllText("/path/to/id_ed25519"));
 
-AgeEncrypt.Encrypt(input, encrypted, recipient);
+Age.Encrypt(input, encrypted, recipient);
 
 encrypted.Position = 0;
-AgeEncrypt.Decrypt(encrypted, decrypted, identity);
+Age.Decrypt(encrypted, decrypted, identity);
 ```
 
 ### Post-quantum (ML-KEM-768-X25519)
@@ -119,7 +118,7 @@ AgeEncrypt.Decrypt(encrypted, decrypted, identity);
 using var identity = MlKem768X25519Identity.Generate();
 var recipient = identity.Recipient;
 
-AgeEncrypt.Encrypt(input, encrypted, recipient);
+Age.Encrypt(input, encrypted, recipient);
 ```
 
 ### Pull-based streaming
@@ -128,11 +127,11 @@ Returns a readable `Stream` — header and key setup is eager, payload encryptio
 
 ```csharp
 // Encrypt: returns a Stream you read ciphertext from
-using var encryptedStream = AgeEncrypt.EncryptReader(plaintext, recipient);
+using var encryptedStream = Age.EncryptReader(plaintext, recipient);
 encryptedStream.CopyTo(networkStream);
 
 // Decrypt: returns a Stream you read plaintext from
-using var decryptedStream = AgeEncrypt.DecryptReader(ciphertext, identity);
+using var decryptedStream = Age.DecryptReader(ciphertext, identity);
 decryptedStream.CopyTo(outputStream);
 ```
 
@@ -143,10 +142,10 @@ the header and payload in different locations.
 
 ```csharp
 // Encrypt with separate header and payload
-AgeEncrypt.EncryptDetached(input, headerOutput, payloadOutput, recipient);
+Age.EncryptDetached(input, headerOutput, payloadOutput, recipient);
 
 // Decrypt from separate streams
-AgeEncrypt.DecryptDetached(headerInput, payloadInput, output, identity);
+Age.DecryptDetached(headerInput, payloadInput, output, identity);
 ```
 
 ### Random-access decryption
@@ -174,21 +173,34 @@ stream.Read(buf);
 Parse the header of an encrypted file without decrypting it.
 
 ```csharp
-var header = AgeHeader.Parse(stream);
+var header = Age.ReadHeader(stream);
 
-Console.WriteLine($"Recipients: {header.RecipientCount}");
+Console.WriteLine($"Recipients: {header.Stanzas.Count}");
 Console.WriteLine($"Armored: {header.IsArmored}");
 Console.WriteLine($"Payload offset: {header.PayloadOffset}");
 
-foreach (var stanza in header.Recipients)
+foreach (var stanza in header.Stanzas)
     Console.WriteLine($"  {stanza.Type}: {stanza.Args[0]}");
 ```
 
 ### Parse existing keys
 
+`Age.ParseRecipient` / `Age.ParseIdentity` accept any supported format
+(X25519, ML-KEM-768, plugin, or SSH) and dispatch on the string:
+
 ```csharp
-using var identity = AgeKeygen.ParseIdentity("AGE-SECRET-KEY-1...");
-var recipient = AgeKeygen.ParseRecipient("age1...");
+IRecipient recipient = Age.ParseRecipient("age1...");
+IIdentity identity = Age.ParseIdentity("AGE-SECRET-KEY-1...");
+
+// Non-throwing variants:
+if (Age.TryParseRecipient(userInput, out var r)) { /* ... */ }
+```
+
+Parse a specific type directly when you want the concrete type back (e.g. to
+`Dispose` an identity that holds key material):
+
+```csharp
+using var x25519 = X25519Identity.Parse("AGE-SECRET-KEY-1...");
 ```
 
 ### Custom recipients and identities
@@ -199,14 +211,16 @@ remote secrets managers, or age plugins.
 ```csharp
 public class MyRecipient : IRecipient
 {
-    public IReadOnlyCollection<string> Labels => []; // or security labels to prevent mixing
-
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
         // Wrap the file key using your custom scheme
         return new Stanza("MyType", ["arg1"], wrappedKey);
     }
 }
+
+// To carry security labels (as the post-quantum recipient does, so it can't be
+// mixed with classical recipients), also implement IRecipientWithLabels:
+//     (Stanza, IReadOnlyCollection<string>) WrapWithLabels(ReadOnlySpan<byte> fileKey)
 
 public class MyIdentity : IIdentity
 {
@@ -223,13 +237,19 @@ public class MyIdentity : IIdentity
 An age header must be buffered in full before its MAC can be verified, so
 AgeSharp caps how much it will read before authentication — otherwise a hostile
 or truncated stream with an unterminated (or endlessly repeated) line could
-exhaust memory. The limits are exposed as constants on `AgeLimits`:
+exhaust memory. The limits are per-call properties on `AgeOptions`, passed to
+any decrypt or header-inspection method:
 
-| Constant | Default | Bounds |
+| `AgeOptions` property | Default | Bounds |
 | --- | --- | --- |
-| `AgeLimits.MaxHeaderLineBytes` | 64 KiB | A single header line |
-| `AgeLimits.MaxHeaderBytes` | 16 MiB | The whole header (all stanzas) |
-| `AgeLimits.MaxArmorLineBytes` | 64 KiB | A single ASCII-armor line |
+| `MaxHeaderLineBytes` | 64 KiB | A single header line |
+| `MaxHeaderBytes` | 16 MiB | The whole header (all stanzas) |
+| `MaxArmorLineBytes` | 64 KiB | A single ASCII-armor line |
+
+```csharp
+var options = new AgeOptions { MaxHeaderBytes = 1024 * 1024 };
+Age.Decrypt(input, output, options, identity);
+```
 
 Exceeding a limit throws `AgeFormatException`. The age
 [specification](https://github.com/C2SP/C2SP/blob/main/age.md) sets no such
