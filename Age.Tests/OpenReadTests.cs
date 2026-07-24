@@ -15,7 +15,7 @@ public class OpenReadTests
     {
         using var input = new MemoryStream(plaintext);
         var output = new MemoryStream();
-        Age.Encrypt(input, output, new AgeOptions { Armor = armor }, recipient);
+        Age.Encrypt(input, output, new AgeEncryptOptions { Armor = armor }, recipient);
         output.Position = 0;
         return output;
     }

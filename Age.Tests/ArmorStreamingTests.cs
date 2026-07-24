@@ -12,7 +12,7 @@ namespace AgeSharp.Tests;
 public class ArmorStreamingTests
 {
     private static byte[] Armored(byte[] plaintext, IRecipient recipient) =>
-        Age.Encrypt(plaintext, new AgeOptions { Armor = true }, recipient);
+        Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, recipient);
 
     private static byte[] Payload(int size, int seed = 3)
     {
@@ -115,7 +115,7 @@ public class ArmorStreamingTests
     {
         // This bound used to live in a pass-through stream wrapper; it now belongs to
         // the line accumulator, so it must still trip on a line that never terminates.
-        var options = new AgeOptions { MaxArmorLineBytes = 128 };
+        var options = new AgeDecryptOptions { MaxArmorLineBytes = 128 };
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\n" + new string('A', 4096);
 
         using var input = new MemoryStream(Encoding.ASCII.GetBytes(text));
@@ -175,7 +175,7 @@ public class ArmorStreamingTests
         var plaintext = Payload(4000);
 
         using var source = new MemoryStream(Armored(plaintext, identity.Recipient));
-        await using var dearmored = AsciiArmor.Dearmor(source, new AgeOptions().MaxArmorLineBytes);
+        await using var dearmored = AsciiArmor.Dearmor(source, new AgeDecryptOptions().MaxArmorLineBytes);
 
         using var collected = new MemoryStream();
         var buffer = new byte[512];
@@ -194,7 +194,7 @@ public class ArmorStreamingTests
         var plaintext = Payload(100);
 
         using var source = new MemoryStream(Armored(plaintext, identity.Recipient));
-        using var dearmored = AsciiArmor.Dearmor(source, new AgeOptions().MaxArmorLineBytes);
+        using var dearmored = AsciiArmor.Dearmor(source, new AgeDecryptOptions().MaxArmorLineBytes);
 
         Assert.Equal(0, dearmored.Read([], 0, 0));
 
@@ -208,7 +208,7 @@ public class ArmorStreamingTests
     public void DearmorStream_IsForwardOnlyAndReadOnly()
     {
         using var source = new MemoryStream("-----BEGIN AGE ENCRYPTED FILE-----\n"u8.ToArray());
-        using var dearmored = AsciiArmor.Dearmor(source, new AgeOptions().MaxArmorLineBytes);
+        using var dearmored = AsciiArmor.Dearmor(source, new AgeDecryptOptions().MaxArmorLineBytes);
 
         Assert.True(dearmored.CanRead);
         Assert.False(dearmored.CanSeek);
@@ -231,7 +231,7 @@ public class ArmorStreamingTests
         // Decodes as base64, but the bits the padding claims are unused are not zero.
         var text = $"-----BEGIN AGE ENCRYPTED FILE-----\n{finalLine}\n-----END AGE ENCRYPTED FILE-----\n";
         using var source = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        using var dearmored = AsciiArmor.Dearmor(source, new AgeOptions().MaxArmorLineBytes);
+        using var dearmored = AsciiArmor.Dearmor(source, new AgeDecryptOptions().MaxArmorLineBytes);
 
         var ex = Assert.Throws<AgeFormatException>(() => dearmored.CopyTo(Stream.Null));
         Assert.Contains("non-canonical", ex.Message);

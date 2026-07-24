@@ -97,11 +97,20 @@ Age.Decrypt(encrypted, decrypted, passphrase);
 ### ASCII armor
 
 ```csharp
-Age.Encrypt(input, encrypted, new AgeOptions { Armor = true }, recipient);
+Age.Encrypt(input, encrypted, new AgeEncryptOptions { Armor = true }, recipient);
 
 // -----BEGIN AGE ENCRYPTED FILE-----
 // YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA...
 // -----END AGE ENCRYPTED FILE-----
+```
+
+Decryption auto-detects armor on any stream, so you never have to say which form
+you have. `AgeDecryptOptions.RequireArmor` is a *strictness* opt-in, for when
+silently accepting the wrong form would be a bug:
+
+```csharp
+Age.Decrypt(input, output, identity);                                                // either form
+Age.Decrypt(input, output, new AgeDecryptOptions { RequireArmor = true }, identity);  // armored only
 ```
 
 ### Multiple recipients
@@ -181,7 +190,7 @@ through every operation. Async methods take `IReadOnlyList<>` rather than a
 `params` span (spans can't cross an `await`).
 
 ```csharp
-await Age.EncryptAsync(input, output, [recipient], new AgeOptions { Armor = true }, cancellationToken);
+await Age.EncryptAsync(input, output, [recipient], new AgeEncryptOptions { Armor = true }, cancellationToken);
 await Age.DecryptAsync(ciphertext, output, [identity], cancellationToken: cancellationToken);
 
 await using var stream = await Age.OpenReadAsync(source, [identity], cancellationToken: cancellationToken);
@@ -194,7 +203,7 @@ differ in shape, though no longer in capability:
 | | sync | async |
 | --- | --- | --- |
 | Recipients / identities | `params ReadOnlySpan<>` | `IReadOnlyList<>` (spans can't cross an `await`) |
-| `AgeOptions` | positional, before the params span | optional, after the collection — so a `CancellationToken` needs a named argument |
+| Options | `AgeEncryptOptions` / `AgeDecryptOptions`, positional before the params span | same types, optional after the collection — so a `CancellationToken` needs a named argument |
 | Seekability | `CanSeek` mirrors the source | same |
 | `byte[]` overloads | yes | no equivalent |
 | Detached header | yes | no equivalent |
@@ -315,28 +324,34 @@ public class MyIdentity : IIdentity
 An age header must be buffered in full before its MAC can be verified, so
 AgeSharp caps how much it will read before authentication — otherwise a hostile
 or truncated stream with an unterminated (or endlessly repeated) line could
-exhaust memory. The limits are per-call properties on `AgeOptions`, passed to
+exhaust memory. The limits are per-call properties on `AgeDecryptOptions`, passed to
 any decrypt or header-inspection method:
 
-| `AgeOptions` property | Default | Bounds |
+| `AgeDecryptOptions` property | Default | Bounds |
 | --- | --- | --- |
 | `MaxHeaderLineBytes` | 64 KiB | A single header line |
 | `MaxHeaderBytes` | 16 MiB | The whole header (all stanzas) |
 | `MaxArmorLineBytes` | 64 KiB | A single ASCII-armor line |
 
 ```csharp
-var options = new AgeOptions { MaxHeaderBytes = 1024 * 1024 };
+var options = new AgeDecryptOptions { MaxHeaderBytes = 1024 * 1024 };
 Age.Decrypt(input, output, options, identity);
 ```
 
-> **Where `AgeOptions` goes.** Every synchronous method that can act on options takes
-> it the same way — a second overload with `options` positional, immediately before
-> the `params` recipients or identities. The async methods take it as a trailing
-> optional argument instead, because `params` and optional arguments cannot coexist;
-> that is the one difference, and it is why a `CancellationToken` needs a named
-> argument there. `EncryptDetached` is the sole entry point with no options overload:
-> armor wraps a whole age file, which a detached header and payload are not, and the
-> size limits apply only to parsing — there is nothing to configure.
+> **Two options types.** `AgeEncryptOptions` carries what encryption can configure
+> (`Armor`); `AgeDecryptOptions` carries what parsing can (`RequireArmor` and the three
+> limits above). They are separate so that no member is inert where it is accepted —
+> and because "produce armor" and "require armor" are different enough to deserve
+> different names rather than one flag that changes meaning by direction.
+>
+> **Where options go.** Every synchronous method that takes options does so the same
+> way — a second overload with `options` positional, immediately before the `params`
+> recipients or identities. The async methods take it as a trailing optional argument
+> instead, because `params` and optional arguments cannot coexist; that is the one
+> difference, and it is why a `CancellationToken` needs a named argument there.
+> `EncryptDetached` is the sole entry point with no options overload: armor wraps a
+> whole age file, which a detached header and payload are not, so there is nothing
+> for `AgeEncryptOptions` to configure.
 
 Exceeding a limit throws `AgeFormatException`. The age
 [specification](https://github.com/C2SP/C2SP/blob/main/age.md) sets no such

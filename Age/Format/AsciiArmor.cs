@@ -24,7 +24,7 @@ internal static class AsciiArmor
     /// seekability intact for the binary path), and any other source is wrapped in a
     /// <see cref="PeekableStream"/> that replays the probed bytes.
     /// </summary>
-    public static (Stream source, bool isArmored) Detect(Stream input)
+    public static (Stream source, bool isArmored) Detect(Stream input, bool requireArmored = false)
     {
         var probe = new byte[ProbeSize];
 
@@ -33,16 +33,17 @@ internal static class AsciiArmor
             var pos = input.Position;
             var read = ReadChunk(input, probe);
             input.Position = pos;
-            return (input, StartsWithMarker(probe.AsSpan(0, read)));
+            return Result(input, StartsWithMarker(probe.AsSpan(0, read)), requireArmored);
         }
 
         var peekable = new PeekableStream(input);
         var peeked = peekable.Peek(probe);
-        return (peekable, StartsWithMarker(probe.AsSpan(0, peeked)));
+        return Result(peekable, StartsWithMarker(probe.AsSpan(0, peeked)), requireArmored);
     }
 
     /// <summary>Asynchronous, purity-safe counterpart to <see cref="Detect"/>.</summary>
-    public static async ValueTask<(Stream source, bool isArmored)> DetectAsync(Stream input, CancellationToken cancellationToken)
+    public static async ValueTask<(Stream source, bool isArmored)> DetectAsync(Stream input, bool requireArmored,
+                                                                                CancellationToken cancellationToken)
     {
         var probe = new byte[ProbeSize];
 
@@ -51,12 +52,22 @@ internal static class AsciiArmor
             var pos = input.Position;
             var read = await ReadChunkAsync(input, probe, cancellationToken).ConfigureAwait(false);
             input.Position = pos;
-            return (input, StartsWithMarker(probe.AsSpan(0, read)));
+            return Result(input, StartsWithMarker(probe.AsSpan(0, read)), requireArmored);
         }
 
         var peekable = new PeekableStream(input);
         var peeked = await peekable.PeekAsync(probe, cancellationToken).ConfigureAwait(false);
-        return (peekable, StartsWithMarker(probe.AsSpan(0, peeked)));
+        return Result(peekable, StartsWithMarker(probe.AsSpan(0, peeked)), requireArmored);
+    }
+
+    // Enforcing the strictness opt-in here keeps it in one place: the decrypt, async
+    // decrypt, and header-inspection paths all detect through these two methods.
+    private static (Stream source, bool isArmored) Result(Stream source, bool isArmored, bool requireArmored)
+    {
+        if (requireArmored && !isArmored)
+            throw new AgeFormatException("input is not ASCII-armored, but AgeDecryptOptions.RequireArmor required it to be");
+
+        return (source, isArmored);
     }
 
     // Pure: does the probe begin (after allowed whitespace) with the armor marker?

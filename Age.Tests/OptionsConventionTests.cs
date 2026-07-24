@@ -4,7 +4,7 @@ using Xunit;
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Every synchronous entry point that can act on <see cref="AgeOptions"/> takes it
+/// Every synchronous entry point that can act on <see cref="AgeDecryptOptions"/> takes it
 /// the same way — a second overload with the options positional, before the params
 /// span — and the options it takes actually reach the parser.
 /// </summary>
@@ -12,10 +12,10 @@ public class OptionsConventionTests
 {
     // A limit low enough that a real header trips it, proving the value was threaded
     // through rather than silently replaced by the default.
-    private static AgeOptions Tiny => new() { MaxHeaderBytes = 32 };
+    private static AgeDecryptOptions Tiny => new() { MaxHeaderBytes = 32 };
 
     private static byte[] Ciphertext(IRecipient recipient, bool armor = false) =>
-        Age.Encrypt("options"u8, new AgeOptions { Armor = armor }, recipient);
+        Age.Encrypt("options"u8, new AgeEncryptOptions { Armor = armor }, recipient);
 
     [Fact]
     public void ReadHeader_OptionsOverload_AppliesTheLimit()
@@ -68,14 +68,14 @@ public class OptionsConventionTests
 
         using var output = new MemoryStream();
         Age.DecryptDetached(new MemoryStream(header), new MemoryStream(payload), output,
-                            new AgeOptions { MaxHeaderBytes = 1024 * 1024 }, identity);
+                            new AgeDecryptOptions { MaxHeaderBytes = 1024 * 1024 }, identity);
 
         Assert.Equal("detached"u8.ToArray(), output.ToArray());
     }
 
     [Theory]
     [MemberData(nameof(OptionsRespectingEntryPoints))]
-    public void EveryOptionsOverload_ThreadsTheLimitThrough(string name, Action<AgeOptions> call)
+    public void EveryOptionsOverload_ThreadsTheLimitThrough(string name, Action<AgeDecryptOptions> call)
     {
         // One shape for all of them: pass a limit no real header can satisfy and
         // require it to be honoured. A hardcoded default would let these pass.
@@ -84,14 +84,14 @@ public class OptionsConventionTests
         Assert.True(ex is AgeFormatException, $"{name} ignored the options it was given (got {ex?.GetType().Name ?? "no exception"})");
     }
 
-    public static TheoryData<string, Action<AgeOptions>> OptionsRespectingEntryPoints()
+    public static TheoryData<string, Action<AgeDecryptOptions>> OptionsRespectingEntryPoints()
     {
         using var identity = X25519Identity.Generate();
         var recipient = identity.Recipient;
         var binary = Age.Encrypt("options"u8, recipient);
         var secret = identity.ToSecretString();
 
-        return new TheoryData<string, Action<AgeOptions>>
+        return new TheoryData<string, Action<AgeDecryptOptions>>
         {
             { "Decrypt(stream)", o =>
                 {

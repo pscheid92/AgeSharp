@@ -20,7 +20,7 @@ public class OverloadResolutionTests
         using var id = X25519Identity.Generate();
         IRecipient r = id.Recipient;
         var recipients = new[] { r };
-        var options = new AgeOptions();
+        var options = new AgeEncryptOptions();
         var plaintext = "probe"u8.ToArray();
 
         // Stream overloads
@@ -51,7 +51,7 @@ public class OverloadResolutionTests
         using var id = X25519Identity.Generate();
         IIdentity i = id;
         var identities = new[] { i };
-        var options = new AgeOptions();
+        var options = new AgeDecryptOptions();
         var expected = "probe"u8.ToArray();
         var ct = Age.Encrypt(expected, id.Recipient);
 

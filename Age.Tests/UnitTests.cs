@@ -557,7 +557,7 @@ public class AsciiArmorTests
     {
         // A single body line far longer than any legal armor line must be rejected
         // without buffering the whole (potentially unbounded) line into memory.
-        var text = "-----BEGIN AGE ENCRYPTED FILE-----\n" + new string('A', new AgeOptions().MaxArmorLineBytes + 1000) + "\n";
+        var text = "-----BEGIN AGE ENCRYPTED FILE-----\n" + new string('A', new AgeDecryptOptions().MaxArmorLineBytes + 1000) + "\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var ex = Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
         Assert.Contains("exceeds", ex.Message);
@@ -567,7 +567,7 @@ public class AsciiArmorTests
     public void Reject_Oversized_Line_Before_Begin_Marker()
     {
         // The bound must also protect the marker search before the armor body.
-        var text = new string('x', new AgeOptions().MaxArmorLineBytes + 1000);
+        var text = new string('x', new AgeDecryptOptions().MaxArmorLineBytes + 1000);
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
@@ -1172,7 +1172,7 @@ public class AgeTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, new AgeOptions { Armor = true }, identity.Recipient);
+        Age.Encrypt(encInput, encOutput, new AgeEncryptOptions { Armor = true }, identity.Recipient);
 
         // Verify it's actually armored
         encOutput.Position = 0;

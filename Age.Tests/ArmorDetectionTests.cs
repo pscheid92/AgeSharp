@@ -17,7 +17,7 @@ public class ArmorDetectionTests
     public void Decrypt_ArmoredNonSeekableSource_RoundTrips()
     {
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
 
         using var input = new NonSeekableStream(new MemoryStream(armored));
         using var output = new MemoryStream();
@@ -30,7 +30,7 @@ public class ArmorDetectionTests
     public void OpenRead_ArmoredNonSeekableSource_RoundTrips()
     {
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
 
         using var input = new NonSeekableStream(new MemoryStream(armored));
         using var stream = Age.OpenRead(input, identity);
@@ -44,7 +44,7 @@ public class ArmorDetectionTests
     public async Task DecryptAsync_ArmoredNonSeekableSource_RoundTrips()
     {
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
 
         using var input = new NonSeekableStream(new MemoryStream(armored));
         using var output = new MemoryStream();
@@ -57,7 +57,7 @@ public class ArmorDetectionTests
     public void ReadHeader_ArmoredNonSeekableSource_Parses()
     {
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
 
         using var input = new NonSeekableStream(new MemoryStream(armored));
         var header = Age.ReadHeader(input);
@@ -111,7 +111,7 @@ public class ArmorDetectionTests
         // The dearmor chain used to own its source, so inspecting an armored file's
         // header closed the caller's stream.
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
 
         using var input = new MemoryStream(armored);
         Age.ReadHeader(input);
@@ -124,7 +124,7 @@ public class ArmorDetectionTests
     public void Decrypt_DoesNotDisposeAnArmoredSource()
     {
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
 
         using var input = new MemoryStream(armored);
         using (var output = new MemoryStream())
@@ -140,7 +140,7 @@ public class ArmorDetectionTests
     public void LeadingWhitespace_WithinTheBound_IsStillDetected()
     {
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
         var padded = (byte[])[.. Encoding.ASCII.GetBytes(new string('\n', 512)), .. armored];
 
         using var input = new NonSeekableStream(new MemoryStream(padded));
@@ -157,7 +157,7 @@ public class ArmorDetectionTests
         // pushes the marker past it is rejected rather than silently misread. The
         // reference CLI draws the same line at 1 KiB.
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
         var padded = (byte[])[.. Encoding.ASCII.GetBytes(new string('\n', 4096)), .. armored];
 
         using var input = new NonSeekableStream(new MemoryStream(padded));
