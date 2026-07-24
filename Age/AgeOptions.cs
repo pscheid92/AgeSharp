@@ -7,18 +7,33 @@ namespace AgeSharp;
 /// from exhausting memory (the header must be buffered whole to verify its MAC).
 /// </summary>
 /// <remarks>
+/// <para>
 /// The age specification defines no maximum header size, so these are AgeSharp's
 /// own defensive limits, set far above any real file — the largest built-in
 /// stanza line is ~1.5 KiB, and <see cref="MaxHeaderBytes"/> still permits well
 /// over a hundred thousand recipients. Raise them only if a legitimate file ever
 /// trips one.
+/// </para>
+/// <para>
+/// Not every member applies in both directions. <see cref="Armor"/> is meaningful
+/// on encryption and decryption alike (see its remarks), but the three limits bound
+/// <em>parsing</em>, so they have no effect on an encrypt call — encryption writes a
+/// header it generated itself. The same object can safely be shared by both.
+/// </para>
 /// </remarks>
 public sealed class AgeOptions
 {
     /// <summary>
-    /// If <c>true</c>, encryption produces a PEM-like ASCII-armored text block
-    /// instead of raw binary. Ignored on decryption (armor is auto-detected).
+    /// Whether the age file is ASCII-armored.
     /// </summary>
+    /// <remarks>
+    /// On encryption, <c>true</c> produces a PEM-like armored text block instead of
+    /// raw binary. On decryption it is a strictness opt-in rather than a switch:
+    /// armor is auto-detected either way, so <c>false</c> (the default) accepts
+    /// binary and armored input alike, while <c>true</c> <em>requires</em> the input
+    /// to be armored and rejects it otherwise with <see cref="AgeFormatException"/>.
+    /// Both readings say the same thing — this file is armored.
+    /// </remarks>
     public bool Armor { get; init; }
 
     /// <summary>

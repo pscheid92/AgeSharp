@@ -104,6 +104,15 @@ Age.Encrypt(input, encrypted, new AgeOptions { Armor = true }, recipient);
 // -----END AGE ENCRYPTED FILE-----
 ```
 
+Decryption auto-detects armor on any stream, so you never have to say which form
+you have. Setting `Armor` on a decrypt call is a *strictness* opt-in instead —
+it requires the input to be armored and rejects binary:
+
+```csharp
+Age.Decrypt(input, output, identity);                                  // either form
+Age.Decrypt(input, output, new AgeOptions { Armor = true }, identity); // armored only
+```
+
 ### Multiple recipients
 
 ```csharp
@@ -329,6 +338,11 @@ var options = new AgeOptions { MaxHeaderBytes = 1024 * 1024 };
 Age.Decrypt(input, output, options, identity);
 ```
 
+> **Which members apply where.** `Armor` is meaningful in both directions — produce
+> armor when encrypting, require it when decrypting. The three limits bound *parsing*,
+> so they have no effect on an encrypt call. One options object can safely be shared
+> by both directions.
+>
 > **Where `AgeOptions` goes.** Every synchronous method that can act on options takes
 > it the same way — a second overload with `options` positional, immediately before
 > the `params` recipients or identities. The async methods take it as a trailing

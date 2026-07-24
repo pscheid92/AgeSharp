@@ -38,7 +38,7 @@ public sealed class AgeHeader
         // Lookahead-based detection, shared with the decrypt paths: armored input is
         // recognised on any stream, seekable or not. The dearmor wrapper is disposed
         // below; `input` itself is never disposed.
-        var (source, isArmored) = AsciiArmor.Detect(input);
+        var (source, isArmored) = AsciiArmor.Detect(input, requireArmored: options.Armor);
         var binaryInput = isArmored ? AsciiArmor.Dearmor(source, options.MaxArmorLineBytes) : source;
         var needsDispose = isArmored;
 

@@ -139,7 +139,7 @@ public static partial class Age
         // Identical to the synchronous DeArmorIfNeeded apart from the awaits: the
         // dearmor is sans-I/O, so armored input streams here too — no buffering, and
         // no blocking read on the caller's stream.
-        var (source, isArmored) = await AsciiArmor.DetectAsync(input, cancellationToken).ConfigureAwait(false);
+        var (source, isArmored) = await AsciiArmor.DetectAsync(input, options.Armor, cancellationToken).ConfigureAwait(false);
 
         return isArmored
             ? (AsciiArmor.Dearmor(source, options.MaxArmorLineBytes), true)

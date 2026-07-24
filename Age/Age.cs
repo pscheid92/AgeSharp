@@ -506,7 +506,7 @@ public static partial class Age
     // stream is never disposed.
     private static (Stream binaryInput, bool needsDispose) DeArmorIfNeeded(Stream input, AgeOptions options)
     {
-        var (source, isArmored) = AsciiArmor.Detect(input);
+        var (source, isArmored) = AsciiArmor.Detect(input, requireArmored: options.Armor);
 
         return isArmored
             ? (AsciiArmor.Dearmor(source, options.MaxArmorLineBytes), true)
