@@ -214,6 +214,13 @@ internal sealed class SeekableDecryptStream : Stream
         if (lastChunkPlainSize < 0)
             throw new AgeAuthenticationException("chunk too small for authentication tag");
 
+        // An empty final chunk is only legal when it is the sole chunk (empty
+        // plaintext). Because a read never has to touch a zero-length final chunk,
+        // this layout must be rejected up front or it would slip past unnoticed —
+        // the forward-only path catches the same case as it reads.
+        if (lastChunkPlainSize == 0 && fullChunks > 0)
+            throw new AgeAuthenticationException("final STREAM chunk is empty but there were preceding chunks");
+
         return fullChunks * StreamEncryption.ChunkSize + lastChunkPlainSize;
     }
 }
