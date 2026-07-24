@@ -67,4 +67,17 @@ public class RandomAccessBenchmarks
             _sink += _reader.Read(buffer);
         }
     }
+
+    // Tiny reads within a chunk: with the one-chunk cache each 64 KiB chunk is
+    // decrypted once regardless of how many small reads land inside it. Without
+    // the cache this would re-decrypt the chunk on every 64-byte Read.
+    [Benchmark]
+    public void SmallSequentialReads()
+    {
+        Span<byte> buffer = stackalloc byte[64];
+        _reader.Position = 0;
+        int read;
+        while ((read = _reader.Read(buffer)) > 0)
+            _sink += read;
+    }
 }
