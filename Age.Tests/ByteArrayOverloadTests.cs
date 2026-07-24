@@ -36,7 +36,7 @@ public class ByteArrayOverloadTests
         using var identity = X25519Identity.Generate();
         var plaintext = "armored buffer payload"u8.ToArray();
 
-        var ciphertext = Age.Encrypt(plaintext, new AgeOptions { Armor = true }, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
 
         Assert.StartsWith("-----BEGIN AGE ENCRYPTED FILE-----", Encoding.ASCII.GetString(ciphertext));
         // Decrypt auto-detects armor from the seekable buffer.
@@ -101,7 +101,7 @@ public class ByteArrayOverloadTests
         var plaintext = new byte[4096];
         new Random(7).NextBytes(plaintext);
 
-        var ciphertext = Age.Encrypt(plaintext, new AgeOptions { Armor = armored }, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = armored }, identity.Recipient);
 
         Assert.Equal(plaintext, AgeCli.Decrypt(identity.ToSecretString(), ciphertext));
     }

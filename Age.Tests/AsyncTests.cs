@@ -40,7 +40,7 @@ public class AsyncTests
     {
         var output = new MemoryStream();
         await Age.EncryptAsync(new ThrowOnSyncIoStream(new MemoryStream(plaintext)), new ThrowOnSyncIoStream(output),
-            recipients, new AgeOptions { Armor = armored });
+            recipients, new AgeEncryptOptions { Armor = armored });
         return output.ToArray();
     }
 
@@ -54,7 +54,7 @@ public class AsyncTests
     private static async Task<byte[]> OpenWriteThroughHarness(byte[] plaintext, bool armored, params IRecipient[] recipients)
     {
         var output = new MemoryStream();
-        await using (var stream = Age.OpenWrite(new ThrowOnSyncIoStream(output), new AgeOptions { Armor = armored }, recipients))
+        await using (var stream = Age.OpenWrite(new ThrowOnSyncIoStream(output), new AgeEncryptOptions { Armor = armored }, recipients))
             await stream.WriteAsync(plaintext);
         return output.ToArray();
     }
@@ -91,7 +91,7 @@ public class AsyncTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = MakePlaintext(size);
-        var ciphertext = Age.Encrypt(plaintext, new AgeOptions { Armor = armored }, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = armored }, identity.Recipient);
 
         Assert.Equal(plaintext, await DecryptAsyncThroughHarness(ciphertext, identity));
     }
@@ -159,7 +159,7 @@ public class AsyncTests
 
         using var input = new MemoryStream(plaintext);
         using var ciphertext = new MemoryStream();
-        await Age.EncryptAsync(input, ciphertext, [identity.Recipient], new AgeOptions { Armor = armored });
+        await Age.EncryptAsync(input, ciphertext, [identity.Recipient], new AgeEncryptOptions { Armor = armored });
 
         Assert.Equal(plaintext, Age.Decrypt(ciphertext.ToArray(), identity));
     }
@@ -171,7 +171,7 @@ public class AsyncTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = MakePlaintext(70_000);
-        var ciphertext = Age.Encrypt(plaintext, new AgeOptions { Armor = armored }, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = armored }, identity.Recipient);
 
         using var input = new MemoryStream(ciphertext);
         using var output = new MemoryStream();
@@ -303,7 +303,7 @@ public class AsyncTests
 
         // Pull readers: ReadAsync(byte[], offset, count) — binary (EncryptStream) and armored (ArmorStream).
         Assert.Equal(plaintext, await ReadAllByteArrayAsync(Age.EncryptReader(new MemoryStream(plaintext), identity.Recipient), identity));
-        Assert.Equal(plaintext, await ReadAllByteArrayAsync(Age.EncryptReader(new MemoryStream(plaintext), new AgeOptions { Armor = true }, identity.Recipient), identity, decodeCiphertext: true));
+        Assert.Equal(plaintext, await ReadAllByteArrayAsync(Age.EncryptReader(new MemoryStream(plaintext), new AgeEncryptOptions { Armor = true }, identity.Recipient), identity, decodeCiphertext: true));
 
         var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
 

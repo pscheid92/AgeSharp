@@ -31,14 +31,12 @@ public sealed class AgeHeader
 
     // Parses the header of an age file (binary, or armored when the stream is
     // seekable) without decrypting it. Public entry point is Age.ReadHeader.
-    internal static AgeHeader Parse(Stream input, AgeOptions? options = null)
+    internal static AgeHeader Parse(Stream input, AgeDecryptOptions options)
     {
-        options ??= AgeOptions.Default;
-
         // Lookahead-based detection, shared with the decrypt paths: armored input is
         // recognised on any stream, seekable or not. The dearmor wrapper is disposed
         // below; `input` itself is never disposed.
-        var (source, isArmored) = AsciiArmor.Detect(input);
+        var (source, isArmored) = AsciiArmor.Detect(input, requireArmored: options.RequireArmor);
         var binaryInput = isArmored ? AsciiArmor.Dearmor(source, options.MaxArmorLineBytes) : source;
         var needsDispose = isArmored;
 

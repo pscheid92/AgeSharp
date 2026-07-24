@@ -22,7 +22,7 @@ public class PushBasedTests
     private static byte[] EncryptWithOpenWrite(byte[] plaintext, bool armored, params IRecipient[] recipients)
     {
         using var destination = new MemoryStream();
-        using (var stream = Age.OpenWrite(destination, new AgeOptions { Armor = armored }, recipients))
+        using (var stream = Age.OpenWrite(destination, new AgeEncryptOptions { Armor = armored }, recipients))
             stream.Write(plaintext, 0, plaintext.Length);
         return destination.ToArray();
     }
@@ -91,7 +91,7 @@ public class PushBasedTests
         using var identity = X25519Identity.Generate();
 
         using var destination = new MemoryStream();
-        using (Age.OpenWrite(destination, new AgeOptions { Armor = armored }, identity.Recipient))
+        using (Age.OpenWrite(destination, new AgeEncryptOptions { Armor = armored }, identity.Recipient))
         {
             // No write: the header, payload nonce, and a final empty chunk are still emitted.
         }
@@ -236,7 +236,7 @@ public class PushBasedTests
         using var identity = X25519Identity.Generate();
 
         var destination = new DisposeTrackingStream();
-        using (var stream = Age.OpenWrite(destination, new AgeOptions { Armor = armored }, identity.Recipient))
+        using (var stream = Age.OpenWrite(destination, new AgeEncryptOptions { Armor = armored }, identity.Recipient))
             stream.Write("do not dispose me"u8);
 
         Assert.Equal(0, destination.DisposeCount);
@@ -384,7 +384,7 @@ public class PushBasedTests
         using var identity = X25519Identity.Generate();
 
         using var destination = new MemoryStream();
-        using (Age.OpenWrite(destination, new AgeOptions { Armor = armored }, identity.Recipient))
+        using (Age.OpenWrite(destination, new AgeEncryptOptions { Armor = armored }, identity.Recipient))
         {
         }
 

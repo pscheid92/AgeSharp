@@ -27,7 +27,7 @@ directly using the table below.
 |---|---|
 | `using Age; using Age.Recipients; using Age.Format;` | `using AgeSharp;` |
 | `AgeEncrypt.Encrypt(in, out, r)` | `Age.Encrypt(in, out, r)` |
-| `AgeEncrypt.Encrypt(in, out, armor: true, r)` | `Age.Encrypt(in, out, new AgeOptions { Armor = true }, r)` |
+| `AgeEncrypt.Encrypt(in, out, armor: true, r)` | `Age.Encrypt(in, out, new AgeEncryptOptions { Armor = true }, r)` |
 | `AgeEncrypt.Decrypt(in, out, id)` | `Age.Decrypt(in, out, id)` |
 | `AgeEncrypt.EncryptReader(pt, r)` | `Age.EncryptReader(pt, r)` |
 | `AgeEncrypt.DecryptReader(ct, id)` | `Age.OpenRead(ct, id)` |
@@ -43,10 +43,10 @@ directly using the table below.
 | `AgeKeygen.ParseRecipient` / `ParsePqRecipient` / `ParseSshRecipient` | `Age.ParseRecipient` (universal) or the concrete type's `Parse` |
 | `AgeKeygen.ParseRecipientsFile` / `ParseIdentityFile` | `Age.ParseRecipients` / `Age.ParseIdentities` (return arrays) |
 | `AgeKeygen.DecryptIdentityFile(bytes, pw)` | `Age.DecryptIdentities(stream, pw)` |
-| `AgeKeygen.EncryptIdentityFile(text, pw, armor, wf)` | recipe: `Age.Encrypt(bytes, new AgeOptions { Armor = … }, new Passphrase(pw, wf))` |
+| `AgeKeygen.EncryptIdentityFile(text, pw, armor, wf)` | recipe: `Age.Encrypt(bytes, new AgeEncryptOptions { Armor = … }, new Passphrase(pw, wf))` |
 | `new ScryptRecipient(pw, wf)` | `new Passphrase(pw, wf)` |
 | `identity.ToString()` *(returned the secret!)* | `identity.ToSecretString()` — `ToString()` is now redacted |
-| `AgeLimits.Max*` consts | `AgeOptions.Max*` init-properties (per-call) |
+| `AgeLimits.Max*` consts | `AgeDecryptOptions.Max*` init-properties (per-call) |
 | `catch (FormatException)` on parses | `catch (AgeFormatException)`, or use `TryParse` |
 | `catch (AgeHeaderException / AgeArmorException)` | `catch (AgeFormatException)` |
 | `catch (AgeHmacException / AgePayloadException)` | `catch (AgeAuthenticationException)` |
@@ -58,8 +58,14 @@ key string — a real footgun for logs. In 0.3 it returns a redacted form like
 `X25519Identity(age1…)`; use `ToSecretString()` when you deliberately want the
 exportable secret.
 
+**Options are split by direction.** `AgeEncryptOptions` carries what encryption can
+configure (`Armor`); `AgeDecryptOptions` carries what parsing can (`RequireArmor` plus
+the three size limits). Nothing is inert where it is accepted, and "produce armor"
+and "require armor" get different names rather than one flag whose meaning depends on
+the call it is passed to.
+
 **Limits are per-call.** The old `AgeLimits.Max*` static constants are now
-`init`-only properties on `AgeOptions`, passed to any decrypt or header-inspection
+`init`-only properties on `AgeDecryptOptions`, passed to any decrypt or header-inspection
 call — so different call sites can set different bounds.
 
 **Universal parsing.** `Age.ParseRecipient` / `Age.ParseIdentity` dispatch on the
