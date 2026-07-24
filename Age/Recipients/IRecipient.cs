@@ -21,9 +21,20 @@ public interface IRecipient
     Stanza Wrap(ReadOnlySpan<byte> fileKey);
 
     /// <summary>
-    /// Optional security labels. Encryption requires all recipients to carry
-    /// the same label set, compared order-insensitively (e.g. to prevent
-    /// mixing post-quantum and classical recipients). Default: empty.
+    /// Wraps the file key and reports the security labels associated with this
+    /// wrapping. Encryption requires every recipient to produce the same label
+    /// set (compared as an unordered set); mismatched sets are rejected — this
+    /// is how post-quantum and classical recipients are kept from being mixed.
     /// </summary>
-    IReadOnlyCollection<string> Labels => [];
+    /// <remarks>
+    /// The default returns <see cref="Wrap"/>'s stanza with an empty label set.
+    /// Override only when the recipient carries labels — and note labels may be
+    /// dynamic (a fresh random label, or supplied by a plugin during wrapping),
+    /// so they must come from the same operation that produces the stanza rather
+    /// than from a separately-read property.
+    /// </remarks>
+    /// <param name="fileKey">The 16-byte symmetric file key that protects the payload.</param>
+    /// <returns>The wrapped stanza and its label set (empty for an unlabelled recipient).</returns>
+    (Stanza stanza, IReadOnlyCollection<string> labels) WrapWithLabels(ReadOnlySpan<byte> fileKey) =>
+        (Wrap(fileKey), []);
 }

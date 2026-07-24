@@ -29,11 +29,13 @@ public sealed class MlKem768X25519Recipient : IRecipient, IParsable<MlKem768X255
     private static readonly string[] PostQuantumLabels = ["postquantum"];
 
     /// <summary>
-    /// The <c>postquantum</c> security label — prevents mixing this recipient
-    /// with classical recipients in one encryption.
+    /// Wraps the file key and attaches the <c>postquantum</c> label, so this
+    /// recipient can only be combined with other post-quantum-secure recipients
+    /// (mixing with a classical recipient would leave the file vulnerable to a
+    /// quantum attacker who breaks the classical stanza).
     /// </summary>
-    public IReadOnlyCollection<string> Labels =>
-        PostQuantumLabels;
+    public (Stanza stanza, IReadOnlyCollection<string> labels) WrapWithLabels(ReadOnlySpan<byte> fileKey) =>
+        (Wrap(fileKey), PostQuantumLabels);
 
     /// <summary>Parses a bech32-encoded recipient (<c>age1pq1…</c>, lowercase).</summary>
     /// <exception cref="AgeFormatException">The string is not a valid ML-KEM-768-X25519 recipient.</exception>

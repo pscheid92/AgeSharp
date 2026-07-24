@@ -22,7 +22,7 @@ public static class AgeEncrypt
     /// </summary>
     /// <param name="input">The plaintext source. Read once, start to end.</param>
     /// <param name="output">The ciphertext destination.</param>
-    /// <param name="recipients">One or more recipients. Must all carry the same <see cref="IRecipient.Labels"/> set.</param>
+    /// <param name="recipients">One or more recipients. Must all produce the same label set (see <see cref="IRecipient.WrapWithLabels"/>).</param>
     /// <exception cref="ArgumentException">No recipients were supplied.</exception>
     /// <exception cref="AgeException">
     /// Recipients have mismatched security labels, or a passphrase (scrypt)
@@ -38,7 +38,7 @@ public static class AgeEncrypt
     /// <param name="input">The plaintext source.</param>
     /// <param name="output">The ciphertext destination.</param>
     /// <param name="armor">If <c>true</c>, output is a PEM-like armored text block; otherwise raw binary.</param>
-    /// <param name="recipients">One or more recipients. Must all carry the same <see cref="IRecipient.Labels"/> set.</param>
+    /// <param name="recipients">One or more recipients. Must all produce the same label set (see <see cref="IRecipient.WrapWithLabels"/>).</param>
     public static void Encrypt(Stream input, Stream output, bool armor, params ReadOnlySpan<IRecipient> recipients)
     {
         if (recipients.Length == 0)
@@ -222,34 +222,45 @@ public static class AgeEncrypt
 
     private static (Header header, byte[] fileKey) BuildHeaderAndFileKey(ReadOnlySpan<IRecipient> recipients)
     {
-        // Label sets must be identical across recipients (order-insensitive) —
-        // rejects mixing PQ and non-PQ recipients
-        var firstLabels = recipients[0].Labels;
-
-        for (var i = 1; i < recipients.Length; i++)
-        {
-            if (!LabelSetsEqual(firstLabels, recipients[i].Labels))
-                throw new AgeException("cannot mix recipients with different security labels");
-        }
-
         var fileKey = new byte[FileKeySize];
         RandomNumberGenerator.Fill(fileKey);
 
-        var header = new Header();
+        try
+        {
+            var header = new Header();
 
-        foreach (var recipient in recipients)
-            header.Stanzas.Add(recipient.Wrap(fileKey));
+            // Wrap each recipient and collect its label set from the same call —
+            // labels can be dynamic (a fresh random label, or plugin-provided),
+            // so they must come from the wrap that produced the stanza, not a
+            // separately-read property. All label sets must match, compared as
+            // unordered sets (age-plugin.md: "treat them as an unordered set").
+            IReadOnlyCollection<string>? firstLabels = null;
 
-        // A scrypt stanza must be the only stanza in the header — the same rule
-        // decryption enforces. Checked post-Wrap so custom recipients that emit
-        // scrypt stanzas are caught too.
-        if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
+            for (var i = 0; i < recipients.Length; i++)
+            {
+                var (stanza, labels) = recipients[i].WrapWithLabels(fileKey);
+
+                if (i == 0)
+                    firstLabels = labels;
+                else if (!LabelSetsEqual(firstLabels!, labels))
+                    throw new AgeException("cannot mix recipients with different security labels");
+
+                header.Stanzas.Add(stanza);
+            }
+
+            // A scrypt stanza must be the only stanza in the header — the same rule
+            // decryption enforces. Checked post-wrap so custom recipients that emit
+            // scrypt stanzas are caught too.
+            if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
+                throw new AgeException("a passphrase (scrypt) recipient must be the only recipient");
+
+            return (header, fileKey);
+        }
+        catch
         {
             CryptographicOperations.ZeroMemory(fileKey);
-            throw new AgeException("a passphrase (scrypt) recipient must be the only recipient");
+            throw;
         }
-
-        return (header, fileKey);
     }
 
     private static byte[] UnwrapFileKey(Stream headerInput, ReadOnlySpan<IIdentity> identities)

@@ -85,10 +85,22 @@ public class PluginTests
     }
 
     [Fact]
-    public void PluginRecipient_Label_IsNull()
+    public void PluginRecipient_DoesNotAdvertiseLabelSupport()
     {
-        var recipient = new PluginRecipient(MakePluginRecipient("yubikey"));
-        Assert.Empty(((IRecipient)recipient).Labels);
+        // We inherit the empty-label default and MUST NOT offer extension-labels,
+        // since we can't yet enforce a labels response (age-plugin.md).
+        var recipient = new PluginRecipient(MakePluginRecipient("test"));
+
+        var responseWriter = new StringWriter();
+        var mockConn = new PluginConnection(new StringReader(""), responseWriter);
+        mockConn.WriteStanza("recipient-stanza", ["0", "X25519", "eph"], [0xAA]);
+        mockConn.WriteStanza("done", [], []);
+
+        var captured = new StringWriter();
+        var conn = new PluginConnection(new StringReader(responseWriter.ToString()), captured);
+        recipient.WrapWithConnection(conn, new byte[16]);
+
+        Assert.DoesNotContain("extension-labels", captured.ToString());
     }
 
     [Fact]
@@ -310,7 +322,6 @@ public class PluginTests
         var sent = capturedOutput.ToString();
         Assert.Contains("-> add-recipient", sent);
         Assert.Contains("-> wrap-file-key", sent);
-        Assert.Contains("-> extension-labels", sent);
         Assert.Contains("-> done", sent);
     }
 

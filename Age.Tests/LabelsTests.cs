@@ -12,10 +12,25 @@ public class LabelsTests
 {
     private sealed class StubRecipient(params string[] labels) : IRecipient
     {
-        public IReadOnlyCollection<string> Labels => labels;
-
         public Stanza Wrap(ReadOnlySpan<byte> fileKey) =>
             new("test", ["arg"], new byte[32]);
+
+        public (Stanza stanza, IReadOnlyCollection<string> labels) WrapWithLabels(ReadOnlySpan<byte> fileKey) =>
+            (Wrap(fileKey), labels);
+    }
+
+    [Fact]
+    public void DefaultRecipient_HasEmptyLabels()
+    {
+        // A recipient that implements only Wrap gets the empty-set DIM default.
+        IRecipient plain = new PlainRecipient();
+        var (_, labels) = plain.WrapWithLabels(new byte[16]);
+        Assert.Empty(labels);
+    }
+
+    private sealed class PlainRecipient : IRecipient
+    {
+        public Stanza Wrap(ReadOnlySpan<byte> fileKey) => new("test", ["arg"], new byte[32]);
     }
 
     private static void Encrypt(params IRecipient[] recipients)
