@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using Age.Crypto;
 using Age.Format;
-using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 
@@ -140,22 +139,8 @@ public sealed class X25519Identity : IIdentity, IDisposable, IParsable<X25519Ide
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
         var privateKeyParams = new X25519PrivateKeyParameters(_rawPrivateKey);
 
-        // DH: identity × ephemeral
-        var agreement = new X25519Agreement();
-        agreement.Init(privateKeyParams);
-        var sharedSecret = new byte[agreement.AgreementSize];
-        try
-        {
-            agreement.CalculateAgreement(ephPub, sharedSecret, 0);
-        }
-        catch (InvalidOperationException)
-        {
-            throw new AgeFormatException("X25519 shared secret is all-zero (low-order or identity point)");
-        }
-
-        // BouncyCastle may not reject all low-order points — check for all-zero shared secret
-        if (sharedSecret.All(b => b == 0))
-            throw new AgeFormatException("X25519 shared secret is all-zero (low-order or identity point)");
+        // DH: identity × ephemeral (guards against low-order/all-zero results)
+        var sharedSecret = CryptoHelper.X25519Agree(privateKeyParams, ephPub);
 
         // HKDF: salt = ephPub || recipientPub, info = label
         var recipientPubBytes = PublicKeyParams.GetEncoded();
