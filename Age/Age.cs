@@ -76,6 +76,66 @@ public static partial class Age
     }
 
     /// <summary>
+    /// Encrypts <paramref name="plaintext"/> and returns the age ciphertext as a
+    /// new byte array. A buffer-in, buffer-out convenience for small payloads
+    /// (secrets, database fields) that skips the <see cref="MemoryStream"/> ceremony.
+    /// </summary>
+    /// <param name="plaintext">The plaintext to encrypt.</param>
+    /// <param name="recipients">One or more recipients. Must all produce the same label set.</param>
+    /// <exception cref="ArgumentException">No recipients were supplied.</exception>
+    public static byte[] Encrypt(ReadOnlySpan<byte> plaintext, params ReadOnlySpan<IRecipient> recipients)
+        => Encrypt(plaintext, AgeOptions.Default, recipients);
+
+    /// <summary>
+    /// Encrypts <paramref name="plaintext"/> into a new byte array, applying
+    /// <paramref name="options"/> (e.g. ASCII armor).
+    /// </summary>
+    public static byte[] Encrypt(ReadOnlySpan<byte> plaintext, AgeOptions options, params ReadOnlySpan<IRecipient> recipients)
+    {
+        // Copy into an owned buffer so the plaintext can be zeroed afterwards; the
+        // returned ciphertext is not secret.
+        var buffer = plaintext.ToArray();
+        try
+        {
+            using var input = new MemoryStream(buffer);
+            using var output = new MemoryStream();
+            Encrypt(input, output, options, recipients);
+            return output.ToArray();
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(buffer);
+        }
+    }
+
+    /// <summary>
+    /// Decrypts age <paramref name="ciphertext"/> and returns the plaintext as a
+    /// new byte array. The buffer-in, buffer-out counterpart to
+    /// <see cref="Encrypt(ReadOnlySpan{byte}, ReadOnlySpan{IRecipient})"/>; armored
+    /// input is auto-detected.
+    /// </summary>
+    /// <param name="ciphertext">The age ciphertext (binary or ASCII-armored).</param>
+    /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
+    /// <exception cref="ArgumentException">No identities were supplied.</exception>
+    /// <exception cref="NoIdentityMatchException">None of the identities matched any stanza.</exception>
+    /// <exception cref="AgeFormatException">The header or armor is malformed.</exception>
+    /// <exception cref="AgeAuthenticationException">The header MAC or a payload chunk failed authentication.</exception>
+    public static byte[] Decrypt(ReadOnlySpan<byte> ciphertext, params ReadOnlySpan<IIdentity> identities)
+        => Decrypt(ciphertext, AgeOptions.Default, identities);
+
+    /// <summary>
+    /// Decrypts age <paramref name="ciphertext"/> into a new byte array, applying
+    /// <paramref name="options"/> (the header-size limits).
+    /// </summary>
+    public static byte[] Decrypt(ReadOnlySpan<byte> ciphertext, AgeOptions options, params ReadOnlySpan<IIdentity> identities)
+    {
+        using var input = new MemoryStream(ciphertext.ToArray());
+        using var output = new MemoryStream();
+        Decrypt(input, output, options, identities);
+        return output.ToArray();
+    }
+
+    /// <summary>
     /// Encrypts <paramref name="input"/>, writing the age header to
     /// <paramref name="headerOutput"/> and the encrypted payload to
     /// <paramref name="payloadOutput"/>. Useful when header and payload
