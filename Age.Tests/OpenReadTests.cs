@@ -357,6 +357,21 @@ public class OpenReadTests
     }
 
     [Fact]
+    public void SeekableSource_UnderDeliversVsLength_ThrowsAuthentication()
+    {
+        using var identity = X25519Identity.Generate();
+        var ciphertextBytes = Encrypt("payload"u8.ToArray(), identity.Recipient).ToArray();
+
+        // A seekable source that claims more bytes than it can actually deliver: the
+        // chunk math trusts Length, so reading the (over-sized) final chunk hits the
+        // "could not read full chunk" guard.
+        using var lying = new InflatedLengthStream(new MemoryStream(ciphertextBytes), extra: 64);
+        using var stream = Age.OpenRead(lying, identity);
+
+        Assert.Throws<AgeAuthenticationException>(() => stream.Read(new byte[8], 0, 8));
+    }
+
+    [Fact]
     public void SeekableStream_ContractMembers()
     {
         using var identity = X25519Identity.Generate();
@@ -401,6 +416,28 @@ public class OpenReadTests
             return n;
         }
 
+        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+        public override void Flush() { }
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    /// <summary>A seekable stream that reports a Length larger than its backing data can deliver.</summary>
+    private sealed class InflatedLengthStream(MemoryStream inner, long extra) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => true;
+        public override bool CanWrite => false;
+        public override long Length => inner.Length + extra;
+
+        public override long Position
+        {
+            get => inner.Position;
+            set => inner.Position = value;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+        public override int Read(Span<byte> buffer) => inner.Read(buffer);
         public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
         public override void Flush() { }
         public override void SetLength(long value) => throw new NotSupportedException();

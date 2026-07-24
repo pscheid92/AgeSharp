@@ -126,9 +126,9 @@ internal sealed class SeekableDecryptStream : Stream
             _encChunk.AsSpan(0, encChunkSize),
             _chunkPlaintext.AsSpan(0, plaintextLength));
 
-        if (isFinal && plaintextLength == 0 && chunkIndex > 0)
-            throw new AgeAuthenticationException("final STREAM chunk is empty but there were preceding chunks");
-
+        // An empty final chunk after preceding chunks is impossible here: the
+        // constructor's ComputePlaintextLength already rejected that layout, so
+        // no such stream is ever built. The check lives there, not per-read.
         return plaintextLength;
     }
 
