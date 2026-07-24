@@ -390,4 +390,17 @@ public class PqRoundTripTests
             Age.Encrypt(encInput, encOutput, x25519Id.Recipient, pqId.Recipient));
         Assert.Contains("different security labels", ex.Message);
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public void Unwrap_WrongArgumentCount_ThrowsFormatException(int argCount)
+    {
+        using var identity = MlKem768X25519Identity.Generate();
+        var args = Enumerable.Repeat("AAAA", argCount).ToArray();
+        var stanza = new Stanza(AgeProtocol.MlKemStanzaType, args, new byte[32]);
+
+        var ex = Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
+        Assert.Contains("exactly 1 argument", ex.Message);
+    }
 }

@@ -284,6 +284,26 @@ public class TryParseTests
         Assert.False(SshRsaIdentity.TryParse(ed25519Pem, out _));
     }
 
+    // --- declared-vs-actual key type mismatch (each Parse rejects the other's key) ---
+
+    [Fact]
+    public void SshEd25519_Parse_RsaKey_ThrowsFormatException()
+    {
+        var (_, rsaPem) = GenerateRsaKeyPair(2048);
+
+        var ex = Assert.Throws<AgeFormatException>(() => SshEd25519Identity.Parse(rsaPem));
+        Assert.Contains("expected ssh-ed25519", ex.Message);
+    }
+
+    [Fact]
+    public void SshRsa_Parse_Ed25519Key_ThrowsFormatException()
+    {
+        var (_, ed25519Pem) = GenerateEd25519KeyPair();
+
+        var ex = Assert.Throws<AgeFormatException>(() => SshRsaIdentity.Parse(ed25519Pem));
+        Assert.Contains("expected ssh-rsa", ex.Message);
+    }
+
     // --- helpers (mirrors SshTests' generators) ---
 
     private static (string authorizedKeys, string pemText) GenerateEd25519KeyPair()

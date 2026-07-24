@@ -505,6 +505,25 @@ public class SshEd25519RecipientIdentityTests
         identity.Dispose();
         identity.Dispose();
     }
+
+    // --- IIdentityWithRecipient (see IdentityInterfaceTests for the native types) ---
+
+    [Fact]
+    public void ExposesRecipient_ThroughIIdentityWithRecipient()
+    {
+        var (authorizedKeys, pemText) = GenerateEd25519KeyPair();
+        using var identity = SshEd25519Identity.Parse(pemText);
+
+        var withRecipient = Assert.IsAssignableFrom<IIdentityWithRecipient>(identity);
+
+        // The interface must hand back the same key the authorized_keys line names.
+        var expected = SshEd25519Recipient.Parse(authorizedKeys);
+        var fileKey = new byte[16];
+        RandomNumberGenerator.Fill(fileKey);
+
+        Assert.NotNull(identity.Unwrap(expected.Wrap(fileKey)));
+        Assert.NotNull(identity.Unwrap(withRecipient.Recipient.Wrap(fileKey)));
+    }
 }
 
 public class SshRsaRecipientIdentityTests
@@ -745,6 +764,25 @@ public class SshRsaRecipientIdentityTests
 
         identity.Dispose();
         identity.Dispose();
+    }
+
+    // --- IIdentityWithRecipient (see IdentityInterfaceTests for the native types) ---
+
+    [Fact]
+    public void ExposesRecipient_ThroughIIdentityWithRecipient()
+    {
+        var (authorizedKeys, pemText) = GenerateRsaKeyPair();
+        using var identity = SshRsaIdentity.Parse(pemText);
+
+        var withRecipient = Assert.IsAssignableFrom<IIdentityWithRecipient>(identity);
+
+        // The interface must hand back the same key the authorized_keys line names.
+        var expected = SshRsaRecipient.Parse(authorizedKeys);
+        var fileKey = new byte[16];
+        RandomNumberGenerator.Fill(fileKey);
+
+        Assert.NotNull(identity.Unwrap(expected.Wrap(fileKey)));
+        Assert.NotNull(identity.Unwrap(withRecipient.Recipient.Wrap(fileKey)));
     }
 }
 
