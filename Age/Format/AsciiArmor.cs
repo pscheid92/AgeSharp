@@ -80,32 +80,7 @@ internal static class AsciiArmor
     /// source stays with the caller, as everywhere else in the library.
     /// </summary>
     public static Stream Dearmor(Stream input, int maxArmorLineBytes = 64 * 1024)
-    {
-        // Bound the line length at the byte level so the reader below can keep
-        // using the fast ReadLine path without risking an unbounded allocation.
-        var bounded = new NewlineBoundedStream(input, maxArmorLineBytes);
-        var reader = new StreamReader(bounded, Encoding.ASCII, detectEncodingFromByteOrderMarks: false,
-            bufferSize: 4096, leaveOpen: true);
-
-        // Skip leading whitespace (allowed per spec).
-        // The old byte-level parser skipped individual whitespace bytes, so
-        // "  \n\t-----BEGIN AGE ENCRYPTED FILE-----" is valid. With line-based
-        // reading we skip blank lines, then TrimStart the marker line.
-        string? line;
-
-        do
-        {
-            line = reader.ReadLine();
-        } while (line != null && line.AsSpan().Trim().Length == 0);
-
-        if (line == null)
-            throw new AgeFormatException("empty armored data");
-
-        if (line.TrimStart() != BeginMarker)
-            throw new AgeFormatException($"expected begin marker, got: {line}");
-
-        return new DearmorStream(reader);
-    }
+        => new DearmorStream(input, maxArmorLineBytes);
 
     public static void Armor(Stream input, Stream output)
     {

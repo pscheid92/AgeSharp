@@ -7,6 +7,9 @@ namespace AgeSharp;
 /// Top-level entry point for encrypting and decrypting data in the age format.
 /// All streaming APIs are memory-bounded: a 1 GiB input uses the same working
 /// set as a 1 MB input (two 64 KiB chunk buffers rented from <c>ArrayPool</c>).
+/// This holds for ASCII-armored input too — armor is decoded a line at a time
+/// rather than buffered — and on the asynchronous paths as well as the
+/// synchronous ones.
 /// </summary>
 public static partial class Age
 {

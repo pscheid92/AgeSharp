@@ -1,197 +1,156 @@
-using System.Buffers;
-using System.Text;
-
 namespace AgeSharp;
 
 /// <summary>
 /// A read-only stream that lazily decodes ASCII-armored (PEM-like) base64 data.
-/// Reads one line at a time from the underlying stream, decodes the base64,
-/// and serves decoded bytes on demand — avoiding full-file materialization.
+/// It pulls raw bytes from the source, frames them into lines with
+/// <see cref="ArmorLineAccumulator"/>, and decodes each line with
+/// <see cref="ArmorDecoder"/> — so memory stays bounded by one 48-byte decoded line
+/// plus a small read buffer, whatever the file's size.
 /// </summary>
+/// <remarks>
+/// The sync and async read paths differ only in how bytes are fetched from the
+/// source; all framing, validation, and decoding is shared sans-I/O state. That is
+/// what lets armored input be decrypted without any blocking I/O on the caller's
+/// stream. The source is never disposed — ownership stays with the caller.
+/// </remarks>
 internal sealed class DearmorStream : Stream
 {
-    private const int ColumnsPerLine = 64;
-    private const int MaxDecodedPerLine = 48; // 64 base64 chars = 48 bytes
-    private const string EndMarker = "-----END AGE ENCRYPTED FILE-----";
+    private const int SourceBufferSize = 4096;
 
-    private static readonly SearchValues<char> Base64Chars =
-        SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=");
+    private readonly Stream _source;
+    private readonly ArmorLineAccumulator _lines;
+    private readonly ArmorDecoder _decoder = new();
 
-    private readonly StreamReader _reader;
-    private readonly byte[] _decodeBuffer = new byte[MaxDecodedPerLine];
-    private int _decodeOffset;
-    private int _decodeCount;
-    private bool _finished;
-    private bool _lastLineWasShort;
+    private readonly byte[] _sourceBuffer = new byte[SourceBufferSize];
+    private int _sourceOffset;
+    private int _sourceLength;
 
-    public DearmorStream(StreamReader reader)
+    private readonly byte[] _decoded = new byte[ArmorDecoder.MaxDecodedPerLine];
+    private int _decodedOffset;
+    private int _decodedLength;
+
+    private bool _eof;
+
+    public DearmorStream(Stream source, int maxArmorLineBytes)
     {
-        _reader = reader;
+        _source = source;
+        _lines = new ArmorLineAccumulator(maxArmorLineBytes);
     }
 
     public override int Read(byte[] buffer, int offset, int count)
-    {
-        var totalRead = 0;
-
-        while (totalRead < count)
-        {
-            if (_decodeCount > 0)
-            {
-                var toCopy = Math.Min(count - totalRead, _decodeCount);
-                Buffer.BlockCopy(_decodeBuffer, _decodeOffset, buffer, offset + totalRead, toCopy);
-                _decodeOffset += toCopy;
-                _decodeCount -= toCopy;
-                totalRead += toCopy;
-                continue;
-            }
-
-            if (_finished)
-                break;
-
-            if (!DecodeNextLine())
-                break;
-        }
-
-        return totalRead;
-    }
+        => Read(buffer.AsSpan(offset, count));
 
     public override int Read(Span<byte> buffer)
     {
-        var totalRead = 0;
-
-        while (totalRead < buffer.Length)
+        while (true)
         {
-            if (_decodeCount > 0)
+            if (Drain(buffer, out var served))
+                return served;
+
+            if (_eof)
+                return 0;
+
+            // Refill only when the current batch is spent; decoding it may yield
+            // several lines, and the loop re-enters to drain each in turn.
+            if (_sourceOffset >= _sourceLength)
             {
-                var toCopy = Math.Min(buffer.Length - totalRead, _decodeCount);
-                _decodeBuffer.AsSpan(_decodeOffset, toCopy).CopyTo(buffer[totalRead..]);
-                _decodeOffset += toCopy;
-                _decodeCount -= toCopy;
-                totalRead += toCopy;
-                continue;
+                _sourceLength = _source.Read(_sourceBuffer);
+                _sourceOffset = 0;
+
+                if (_sourceLength == 0)
+                {
+                    // May still decode a final line that lacked a trailing newline,
+                    // so loop rather than returning — Drain picks those bytes up.
+                    FinishAtEof();
+                    continue;
+                }
             }
 
-            if (_finished)
-                break;
-
-            if (!DecodeNextLine())
-                break;
+            DecodeNextLineFromBuffer();
         }
-
-        return totalRead;
     }
 
-    private bool DecodeNextLine()
-    {
-        var line = _reader.ReadLine()
-            ?? throw new AgeFormatException("unexpected end of armored data");
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
 
-        if (line == EndMarker)
-        {
-            _finished = true;
-            ValidateTrailing();
-            return false;
-        }
-
-        ValidateBodyLine(line);
-
-        if (!Convert.TryFromBase64Chars(line.AsSpan(), _decodeBuffer, out var bytesWritten))
-            throw new AgeFormatException("invalid base64 in armor");
-
-        // Full-length lines (64 chars) encode exactly 48 bytes with no padding.
-        // If padding is present on a full line, the decode succeeds but is non-canonical.
-        if (line.Length == ColumnsPerLine && bytesWritten != MaxDecodedPerLine)
-            throw new AgeFormatException("non-canonical base64 in armor");
-
-        // Short lines may have padding — validate the trailing bits are zero.
-        if (line.Length < ColumnsPerLine)
-            ValidateCanonicalPadding(line.AsSpan());
-
-        _decodeOffset = 0;
-        _decodeCount = bytesWritten;
-        return true;
-    }
-
-    private void ValidateTrailing()
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
         while (true)
         {
-            var ch = _reader.Read();
+            if (Drain(buffer.Span, out var served))
+                return served;
 
-            if (ch < 0)
-                break;
+            if (_eof)
+                return 0;
 
-            if (ch is not (' ' or '\t' or '\r' or '\n'))
-                throw new AgeFormatException("trailing data after end marker");
+            if (_sourceOffset >= _sourceLength)
+            {
+                _sourceLength = await _source.ReadAsync(_sourceBuffer, cancellationToken).ConfigureAwait(false);
+                _sourceOffset = 0;
+
+                if (_sourceLength == 0)
+                {
+                    // May still decode a final line that lacked a trailing newline,
+                    // so loop rather than returning — Drain picks those bytes up.
+                    FinishAtEof();
+                    continue;
+                }
+            }
+
+            DecodeNextLineFromBuffer();
         }
     }
 
-    private void ValidateBodyLine(string line)
+    // Copies whatever is already decoded into the caller's buffer. Returns true when
+    // it produced something (or the caller asked for nothing), meaning Read can return.
+    private bool Drain(Span<byte> destination, out int served)
     {
-        if (line.Length == 0)
-            throw new AgeFormatException("empty line in armor body");
+        var available = _decodedLength - _decodedOffset;
 
-        if (line[0] is ' ' or '\t' || line[^1] is ' ' or '\t')
-            throw new AgeFormatException("whitespace in armor body line");
-
-        if (line.Length > ColumnsPerLine)
-            throw new AgeFormatException($"armor body line exceeds {ColumnsPerLine} characters");
-
-        if (_lastLineWasShort)
-            throw new AgeFormatException("short line in armor body is not the last line");
-
-        if (line.Length < ColumnsPerLine)
-            _lastLineWasShort = true;
-
-        var invalid = line.AsSpan().IndexOfAnyExcept(Base64Chars);
-
-        if (invalid >= 0)
-            throw new AgeFormatException($"invalid character in armor body: '{line[invalid]}'");
-    }
-
-    private static void ValidateCanonicalPadding(ReadOnlySpan<char> line)
-    {
-        if (line.Length == 0)
-            return;
-
-        var padCount = 0;
-
-        if (line[^1] == '=')
+        if (destination.IsEmpty)
         {
-            padCount = 1;
-
-            if (line.Length > 1 && line[^2] == '=')
-                padCount = 2;
+            served = 0;
+            return true;
         }
 
-        if (padCount == 0)
-            return;
+        if (available <= 0)
+        {
+            served = 0;
+            return false;
+        }
 
-        var lastDataChar = line[^(padCount + 1)];
-        var value = Base64Value(lastDataChar);
-        var unusedBits = padCount == 1 ? 2 : 4;
-        var mask = (1 << unusedBits) - 1;
-
-        if ((value & mask) != 0)
-            throw new AgeFormatException("non-canonical base64 in armor");
+        served = Math.Min(available, destination.Length);
+        _decoded.AsSpan(_decodedOffset, served).CopyTo(destination);
+        _decodedOffset += served;
+        return true;
     }
 
-    private static int Base64Value(char c) => c switch
+    // CPU-only: consume buffered source bytes until one line completes, then decode
+    // it. Shared by both read paths — only the fill above differs.
+    private void DecodeNextLineFromBuffer()
     {
-        >= 'A' and <= 'Z' => c - 'A',
-        >= 'a' and <= 'z' => c - 'a' + 26,
-        >= '0' and <= '9' => c - '0' + 52,
-        '+' => 62,
-        '/' => 63,
-        _ => throw new AgeFormatException($"invalid base64 character: '{c}'"),
-    };
+        while (_sourceOffset < _sourceLength)
+        {
+            if (!_lines.Feed(_sourceBuffer[_sourceOffset++]))
+                continue;
 
-    protected override void Dispose(bool disposing)
+            _decodedLength = _decoder.ProcessLine(_lines.Line, _decoded);
+            _decodedOffset = 0;
+            return;
+        }
+    }
+
+    private void FinishAtEof()
     {
-        if (disposing)
-            _reader.Dispose();
+        // A final line without a trailing newline is still a line, and may decode.
+        if (_lines.FinishAtEof())
+        {
+            _decodedLength = _decoder.ProcessLine(_lines.Line, _decoded);
+            _decodedOffset = 0;
+        }
 
-        base.Dispose(disposing);
+        _decoder.FinishAtEof();
+        _eof = true;
     }
 
     public override bool CanRead => true;

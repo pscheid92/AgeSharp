@@ -203,7 +203,11 @@ public class ExceptionContractTests
     public void Dearmor_BlankOnlyInput_ThrowsFormat()
     {
         using var input = new MemoryStream("  \n\n \n"u8.ToArray());
-        var ex = Assert.Throws<AgeFormatException>(() => AsciiArmor.Dearmor(input));
+        var ex = Assert.Throws<AgeFormatException>(() =>
+        {
+            using var s = AsciiArmor.Dearmor(input);
+            s.CopyTo(Stream.Null);
+        });
         Assert.Contains("empty armored data", ex.Message);
     }
 
