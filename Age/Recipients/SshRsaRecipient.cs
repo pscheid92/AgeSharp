@@ -51,23 +51,8 @@ public sealed class SshRsaRecipient : IRecipient
     /// Tries to parse an <c>ssh-rsa AAAA…</c> public key line. Returns false
     /// instead of throwing when the input is null, malformed, or a weak key.
     /// </summary>
-    public static bool TryParse([NotNullWhen(true)] string? authorizedKeysLine, [MaybeNullWhen(false)] out SshRsaRecipient result)
-    {
-        if (authorizedKeysLine is not null)
-        {
-            try
-            {
-                result = Parse(authorizedKeysLine);
-                return true;
-            }
-            catch (AgeFormatException)
-            {
-            }
-        }
-
-        result = null;
-        return false;
-    }
+    public static bool TryParse([NotNullWhen(true)] string? authorizedKeysLine, [MaybeNullWhen(false)] out SshRsaRecipient result) =>
+        ParseHelpers.TryParse(authorizedKeysLine, Parse, out result);
 
     /// <summary>Wraps the file key for this SSH key using RSA-OAEP (SHA-256).</summary>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)

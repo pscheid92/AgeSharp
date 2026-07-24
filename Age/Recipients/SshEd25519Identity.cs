@@ -60,23 +60,8 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
     /// Tries to parse an ssh-ed25519 private key from PEM text. Returns false
     /// instead of throwing when the input is null or malformed.
     /// </summary>
-    public static bool TryParse([NotNullWhen(true)] string? pemText, [MaybeNullWhen(false)] out SshEd25519Identity result)
-    {
-        if (pemText is not null)
-        {
-            try
-            {
-                result = Parse(pemText);
-                return true;
-            }
-            catch (AgeFormatException)
-            {
-            }
-        }
-
-        result = null;
-        return false;
-    }
+    public static bool TryParse([NotNullWhen(true)] string? pemText, [MaybeNullWhen(false)] out SshEd25519Identity result) =>
+        ParseHelpers.TryParse(pemText, Parse, out result);
 
     /// <summary>
     /// Attempts to unwrap the file key from an <c>ssh-ed25519</c> stanza. Returns

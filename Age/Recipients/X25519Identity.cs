@@ -74,23 +74,8 @@ public sealed class X25519Identity : IIdentity, IDisposable, IParsable<X25519Ide
     /// Tries to parse a bech32-encoded secret key (<c>AGE-SECRET-KEY-1…</c>).
     /// Returns false instead of throwing when the input is null or malformed.
     /// </summary>
-    public static bool TryParse([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out X25519Identity result)
-    {
-        if (s is not null)
-        {
-            try
-            {
-                result = Parse(s);
-                return true;
-            }
-            catch (AgeFormatException)
-            {
-            }
-        }
-
-        result = null;
-        return false;
-    }
+    public static bool TryParse([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out X25519Identity result) =>
+        ParseHelpers.TryParse(s, Parse, out result);
 
     static X25519Identity IParsable<X25519Identity>.Parse(string s, IFormatProvider? provider) =>
         Parse(s);

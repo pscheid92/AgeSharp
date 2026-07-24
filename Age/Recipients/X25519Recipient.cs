@@ -47,23 +47,8 @@ public sealed class X25519Recipient : IRecipient, IParsable<X25519Recipient>
     /// Tries to parse a bech32-encoded recipient (<c>age1…</c>). Returns false
     /// instead of throwing when the input is null or malformed.
     /// </summary>
-    public static bool TryParse([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out X25519Recipient result)
-    {
-        if (s is not null)
-        {
-            try
-            {
-                result = Parse(s);
-                return true;
-            }
-            catch (AgeFormatException)
-            {
-            }
-        }
-
-        result = null;
-        return false;
-    }
+    public static bool TryParse([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out X25519Recipient result) =>
+        ParseHelpers.TryParse(s, Parse, out result);
 
     static X25519Recipient IParsable<X25519Recipient>.Parse(string s, IFormatProvider? provider) =>
         Parse(s);

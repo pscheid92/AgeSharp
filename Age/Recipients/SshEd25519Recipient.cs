@@ -48,23 +48,8 @@ public sealed class SshEd25519Recipient : IRecipient
     /// Tries to parse an <c>ssh-ed25519 AAAA…</c> public key line. Returns false
     /// instead of throwing when the input is null or malformed.
     /// </summary>
-    public static bool TryParse([NotNullWhen(true)] string? authorizedKeysLine, [MaybeNullWhen(false)] out SshEd25519Recipient result)
-    {
-        if (authorizedKeysLine is not null)
-        {
-            try
-            {
-                result = Parse(authorizedKeysLine);
-                return true;
-            }
-            catch (AgeFormatException)
-            {
-            }
-        }
-
-        result = null;
-        return false;
-    }
+    public static bool TryParse([NotNullWhen(true)] string? authorizedKeysLine, [MaybeNullWhen(false)] out SshEd25519Recipient result) =>
+        ParseHelpers.TryParse(authorizedKeysLine, Parse, out result);
 
     /// <summary>Wraps the file key for this SSH key via tweaked X25519 + ChaCha20-Poly1305.</summary>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)

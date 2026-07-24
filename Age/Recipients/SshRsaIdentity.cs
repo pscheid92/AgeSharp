@@ -51,23 +51,8 @@ public sealed class SshRsaIdentity : IIdentity, IDisposable
     /// Tries to parse an ssh-rsa private key from PEM text. Returns false
     /// instead of throwing when the input is null or malformed.
     /// </summary>
-    public static bool TryParse([NotNullWhen(true)] string? pemText, [MaybeNullWhen(false)] out SshRsaIdentity result)
-    {
-        if (pemText is not null)
-        {
-            try
-            {
-                result = Parse(pemText);
-                return true;
-            }
-            catch (AgeFormatException)
-            {
-            }
-        }
-
-        result = null;
-        return false;
-    }
+    public static bool TryParse([NotNullWhen(true)] string? pemText, [MaybeNullWhen(false)] out SshRsaIdentity result) =>
+        ParseHelpers.TryParse(pemText, Parse, out result);
 
     /// <summary>
     /// Attempts to unwrap the file key from an <c>ssh-rsa</c> stanza. Returns null
