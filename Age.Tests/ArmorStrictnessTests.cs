@@ -100,6 +100,50 @@ public class ArmorStrictnessTests
         Assert.Throws<AgeFormatException>(() => Age.Decrypt(input, output, Required, identity));
     }
 
+    // --- options are genuinely optional on the async surface ---
+
+    [Fact]
+    public async Task EncryptAsync_WithoutOptions_ProducesBinary()
+    {
+        // The async methods take options as a trailing optional argument, so both
+        // supplying and omitting it are real call shapes.
+        using var identity = X25519Identity.Generate();
+
+        using var input = new MemoryStream(Plaintext);
+        using var output = new MemoryStream();
+        await Age.EncryptAsync(input, output, [identity.Recipient]);
+
+        Assert.Equal(Plaintext, Age.Decrypt(output.ToArray(), identity));
+        Assert.False(Age.ReadHeader(new MemoryStream(output.ToArray())).IsArmored);
+    }
+
+    [Fact]
+    public async Task EncryptAsync_WithOptions_ProducesArmor()
+    {
+        using var identity = X25519Identity.Generate();
+
+        using var input = new MemoryStream(Plaintext);
+        using var output = new MemoryStream();
+        await Age.EncryptAsync(input, output, [identity.Recipient], Armored);
+
+        Assert.True(Age.ReadHeader(new MemoryStream(output.ToArray())).IsArmored);
+    }
+
+    [Fact]
+    public async Task OpenReadAsync_FailingOnArmoredInput_DisposesTheDearmorWrapper()
+    {
+        // Armored input means the async path owns a dearmor wrapper; a failure after
+        // it is built must still release it rather than leaking on the error path.
+        using var identity = X25519Identity.Generate();
+        using var stranger = X25519Identity.Generate();
+        var armored = Age.Encrypt(Plaintext, Armored, identity.Recipient);
+
+        using var input = new MemoryStream(armored);
+
+        await Assert.ThrowsAsync<NoIdentityMatchException>(async () =>
+            await Age.OpenReadAsync(input, [stranger]));
+    }
+
     // --- the split itself ---
 
     [Fact]
