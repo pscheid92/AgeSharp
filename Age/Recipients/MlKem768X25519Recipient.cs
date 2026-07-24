@@ -26,8 +26,14 @@ public sealed class MlKem768X25519Recipient : IRecipient, IParsable<MlKem768X255
     /// The <c>postquantum</c> security label: prevents mixing this recipient with
     /// classical recipients, which would silently void the post-quantum guarantee.
     /// </summary>
-    public string Label =>
-        "postquantum";
+    private static readonly string[] PostQuantumLabels = ["postquantum"];
+
+    /// <summary>
+    /// The <c>postquantum</c> security label — prevents mixing this recipient
+    /// with classical recipients in one encryption.
+    /// </summary>
+    public IReadOnlyCollection<string> Labels =>
+        PostQuantumLabels;
 
     /// <summary>Parses a bech32-encoded recipient (<c>age1pq1…</c>, lowercase).</summary>
     /// <exception cref="AgeFormatException">The string is not a valid ML-KEM-768-X25519 recipient.</exception>

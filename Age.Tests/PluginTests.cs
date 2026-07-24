@@ -88,7 +88,7 @@ public class PluginTests
     public void PluginRecipient_Label_IsNull()
     {
         var recipient = new PluginRecipient(MakePluginRecipient("yubikey"));
-        Assert.Null(recipient.Label);
+        Assert.Empty(((IRecipient)recipient).Labels);
     }
 
     [Fact]

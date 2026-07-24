@@ -20,10 +20,9 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
     internal string PluginName { get; } =
         ExtractPluginName(recipient);
 
-    /// <summary>Plugin recipients declare no security label.</summary>
-    public string? Label =>
-        null;
-
+    // No Labels override: plugin-declared labels (the "labels" stanza of the
+    // recipient-v1 protocol) are not supported yet, so the interface default
+    // (empty set) matches actual behavior.
 
     /// <summary>Wraps the file key by running the plugin binary (recipient-v1 protocol).</summary>
     /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an error.</exception>

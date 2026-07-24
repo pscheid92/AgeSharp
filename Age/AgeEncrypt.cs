@@ -22,7 +22,7 @@ public static class AgeEncrypt
     /// </summary>
     /// <param name="input">The plaintext source. Read once, start to end.</param>
     /// <param name="output">The ciphertext destination.</param>
-    /// <param name="recipients">One or more recipients. Must all share the same <see cref="IRecipient.Label"/>.</param>
+    /// <param name="recipients">One or more recipients. Must all carry the same <see cref="IRecipient.Labels"/> set.</param>
     /// <exception cref="ArgumentException">No recipients were supplied.</exception>
     /// <exception cref="AgeException">
     /// Recipients have mismatched security labels, or a passphrase (scrypt)
@@ -38,7 +38,7 @@ public static class AgeEncrypt
     /// <param name="input">The plaintext source.</param>
     /// <param name="output">The ciphertext destination.</param>
     /// <param name="armor">If <c>true</c>, output is a PEM-like armored text block; otherwise raw binary.</param>
-    /// <param name="recipients">One or more recipients. Must all share the same <see cref="IRecipient.Label"/>.</param>
+    /// <param name="recipients">One or more recipients. Must all carry the same <see cref="IRecipient.Labels"/> set.</param>
     public static void Encrypt(Stream input, Stream output, bool armor, params ReadOnlySpan<IRecipient> recipients)
     {
         if (recipients.Length == 0)
@@ -210,14 +210,25 @@ public static class AgeEncrypt
         }
     }
 
+    private static bool LabelSetsEqual(IReadOnlyCollection<string> a, IReadOnlyCollection<string> b)
+    {
+        if (a.Count == 0 && b.Count == 0)
+            return true;
+
+        // Set semantics: order-insensitive, duplicates collapse
+        var set = new HashSet<string>(a, StringComparer.Ordinal);
+        return set.SetEquals(b);
+    }
+
     private static (Header header, byte[] fileKey) BuildHeaderAndFileKey(ReadOnlySpan<IRecipient> recipients)
     {
-        // Check label consistency — reject mixing PQ and non-PQ recipients
-        var firstLabel = recipients[0].Label;
+        // Label sets must be identical across recipients (order-insensitive) —
+        // rejects mixing PQ and non-PQ recipients
+        var firstLabels = recipients[0].Labels;
 
         for (var i = 1; i < recipients.Length; i++)
         {
-            if (recipients[i].Label != firstLabel)
+            if (!LabelSetsEqual(firstLabels, recipients[i].Labels))
                 throw new AgeException("cannot mix recipients with different security labels");
         }
 

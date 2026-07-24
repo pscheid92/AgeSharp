@@ -21,9 +21,9 @@ public interface IRecipient
     Stanza Wrap(ReadOnlySpan<byte> fileKey);
 
     /// <summary>
-    /// Optional security label. Recipients with different labels cannot be
-    /// mixed in a single encryption (e.g. to prevent mixing post-quantum and
-    /// classical recipients). <c>null</c> means "no label."
+    /// Optional security labels. Encryption requires all recipients to carry
+    /// the same label set, compared order-insensitively (e.g. to prevent
+    /// mixing post-quantum and classical recipients). Default: empty.
     /// </summary>
-    string? Label => null;
+    IReadOnlyCollection<string> Labels => [];
 }

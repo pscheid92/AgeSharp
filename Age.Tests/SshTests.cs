@@ -378,7 +378,7 @@ public class SshEd25519RecipientIdentityTests
     {
         var (authorizedKeys, _) = GenerateEd25519KeyPair();
         var recipient = SshEd25519Recipient.Parse(authorizedKeys);
-        Assert.Null(((IRecipient)recipient).Label);
+        Assert.Empty(((IRecipient)recipient).Labels);
     }
 
     [Fact]
@@ -592,7 +592,7 @@ public class SshRsaRecipientIdentityTests
     {
         var (authorizedKeys, _) = GenerateRsaKeyPair();
         var recipient = SshRsaRecipient.Parse(authorizedKeys);
-        Assert.Null(((IRecipient)recipient).Label);
+        Assert.Empty(((IRecipient)recipient).Labels);
     }
 
     [Fact]
