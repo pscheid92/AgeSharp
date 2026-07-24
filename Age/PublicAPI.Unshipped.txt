@@ -8,7 +8,8 @@ Age.AgeFormatException.AgeFormatException(string! message, System.Exception! inn
 *REMOVED*Age.Recipients.IRecipient.Label.get -> string?
 *REMOVED*Age.Recipients.MlKem768X25519Recipient.Label.get -> string!
 *REMOVED*Age.Recipients.PluginRecipient.Label.get -> string?
-Age.Recipients.IRecipient.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> (Age.Format.Stanza! stanza, System.Collections.Generic.IReadOnlyCollection<string!>! labels)
+Age.Recipients.IRecipientWithLabels
+Age.Recipients.IRecipientWithLabels.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> (Age.Format.Stanza! stanza, System.Collections.Generic.IReadOnlyCollection<string!>! labels)
 Age.Recipients.MlKem768X25519Recipient.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> (Age.Format.Stanza! stanza, System.Collections.Generic.IReadOnlyCollection<string!>! labels)
 static Age.Recipients.MlKem768X25519Identity.TryParse(string? s, out Age.Recipients.MlKem768X25519Identity! result) -> bool
 static Age.Recipients.MlKem768X25519Recipient.TryParse(string? s, out Age.Recipients.MlKem768X25519Recipient! result) -> bool

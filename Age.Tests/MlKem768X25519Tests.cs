@@ -238,7 +238,7 @@ public class MlKem768X25519IdentityTests
     public void Label_ReturnsPostquantum()
     {
         using var identity = MlKem768X25519Identity.Generate();
-        var (_, labels) = ((IRecipient)identity.Recipient).WrapWithLabels(new byte[16]);
+        var (_, labels) = identity.Recipient.WrapWithLabels(new byte[16]);
         Assert.Equal(["postquantum"], labels);
     }
 }

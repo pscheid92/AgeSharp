@@ -22,7 +22,7 @@ public static class AgeEncrypt
     /// </summary>
     /// <param name="input">The plaintext source. Read once, start to end.</param>
     /// <param name="output">The ciphertext destination.</param>
-    /// <param name="recipients">One or more recipients. Must all produce the same label set (see <see cref="IRecipient.WrapWithLabels"/>).</param>
+    /// <param name="recipients">One or more recipients. Must all produce the same label set (see <see cref="IRecipientWithLabels"/>).</param>
     /// <exception cref="ArgumentException">No recipients were supplied.</exception>
     /// <exception cref="AgeException">
     /// Recipients have mismatched security labels, or a passphrase (scrypt)
@@ -38,7 +38,7 @@ public static class AgeEncrypt
     /// <param name="input">The plaintext source.</param>
     /// <param name="output">The ciphertext destination.</param>
     /// <param name="armor">If <c>true</c>, output is a PEM-like armored text block; otherwise raw binary.</param>
-    /// <param name="recipients">One or more recipients. Must all produce the same label set (see <see cref="IRecipient.WrapWithLabels"/>).</param>
+    /// <param name="recipients">One or more recipients. Must all produce the same label set (see <see cref="IRecipientWithLabels"/>).</param>
     public static void Encrypt(Stream input, Stream output, bool armor, params ReadOnlySpan<IRecipient> recipients)
     {
         if (recipients.Length == 0)
@@ -210,6 +210,17 @@ public static class AgeEncrypt
         }
     }
 
+    // Wrap a recipient and get its label set. Recipients that don't implement
+    // IRecipientWithLabels are treated as having an empty set (mirrors the
+    // reference implementation's wrapWithLabels helper).
+    private static (Stanza stanza, IReadOnlyCollection<string> labels) WrapWithLabels(IRecipient recipient, ReadOnlySpan<byte> fileKey)
+    {
+        if (recipient is IRecipientWithLabels labelled)
+            return labelled.WrapWithLabels(fileKey);
+
+        return (recipient.Wrap(fileKey), []);
+    }
+
     private static bool LabelSetsEqual(IReadOnlyCollection<string> a, IReadOnlyCollection<string> b)
     {
         if (a.Count == 0 && b.Count == 0)
@@ -238,7 +249,7 @@ public static class AgeEncrypt
 
             for (var i = 0; i < recipients.Length; i++)
             {
-                var (stanza, labels) = recipients[i].WrapWithLabels(fileKey);
+                var (stanza, labels) = WrapWithLabels(recipients[i], fileKey);
 
                 if (i == 0)
                     firstLabels = labels;

@@ -8,7 +8,7 @@ namespace Age.Recipients;
 /// A post-quantum ML-KEM-768-X25519 hybrid recipient (<c>age1pq1…</c>), used to
 /// encrypt. Instances are immutable and safe to share.
 /// </summary>
-public sealed class MlKem768X25519Recipient : IRecipient, IParsable<MlKem768X25519Recipient>
+public sealed class MlKem768X25519Recipient : IRecipientWithLabels, IParsable<MlKem768X25519Recipient>
 {
     private const string Hrp = "age1pq";
 

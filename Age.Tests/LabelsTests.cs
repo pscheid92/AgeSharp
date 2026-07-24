@@ -10,7 +10,8 @@ namespace Age.Tests;
 /// </summary>
 public class LabelsTests
 {
-    private sealed class StubRecipient(params string[] labels) : IRecipient
+    // Carries labels → implements the optional IRecipientWithLabels.
+    private sealed class StubRecipient(params string[] labels) : IRecipientWithLabels
     {
         public Stanza Wrap(ReadOnlySpan<byte> fileKey) =>
             new("test", ["arg"], new byte[32]);
@@ -19,19 +20,23 @@ public class LabelsTests
             (Wrap(fileKey), labels);
     }
 
-    [Fact]
-    public void DefaultRecipient_HasEmptyLabels()
-    {
-        // A recipient that implements only Wrap gets the empty-set DIM default.
-        IRecipient plain = new PlainRecipient();
-        var (_, labels) = plain.WrapWithLabels(new byte[16]);
-        Assert.Empty(labels);
-    }
-
+    // No labels → implements only IRecipient; the engine treats it as empty-set.
     private sealed class PlainRecipient : IRecipient
     {
         public Stanza Wrap(ReadOnlySpan<byte> fileKey) => new("test", ["arg"], new byte[32]);
     }
+
+    [Fact]
+    public void PlainRecipients_MixFreely() =>
+        Encrypt(new PlainRecipient(), new PlainRecipient());
+
+    [Fact]
+    public void PlainRecipient_TreatedAsEmpty_MatchesEmptyLabelSet() =>
+        Encrypt(new PlainRecipient(), new StubRecipient());
+
+    [Fact]
+    public void PlainRecipient_RejectedAgainstLabelled() =>
+        AssertRejected(new PlainRecipient(), new StubRecipient("a"));
 
     private static void Encrypt(params IRecipient[] recipients)
     {

@@ -374,12 +374,11 @@ public class SshEd25519RecipientIdentityTests
     }
 
     [Fact]
-    public void WrapWithLabels_HasNoLabels()
+    public void IsNotLabelled()
     {
         var (authorizedKeys, _) = GenerateEd25519KeyPair();
-        var recipient = SshEd25519Recipient.Parse(authorizedKeys);
-        var (_, labels) = ((IRecipient)recipient).WrapWithLabels(new byte[16]);
-        Assert.Empty(labels);
+        IRecipient recipient = SshEd25519Recipient.Parse(authorizedKeys);
+        Assert.False(recipient is IRecipientWithLabels);
     }
 
     [Fact]
@@ -589,12 +588,11 @@ public class SshRsaRecipientIdentityTests
     }
 
     [Fact]
-    public void WrapWithLabels_HasNoLabels()
+    public void IsNotLabelled()
     {
         var (authorizedKeys, _) = GenerateRsaKeyPair();
-        var recipient = SshRsaRecipient.Parse(authorizedKeys);
-        var (_, labels) = ((IRecipient)recipient).WrapWithLabels(new byte[16]);
-        Assert.Empty(labels);
+        IRecipient recipient = SshRsaRecipient.Parse(authorizedKeys);
+        Assert.False(recipient is IRecipientWithLabels);
     }
 
     [Fact]
