@@ -1,22 +1,20 @@
-using System.Text;
-
 namespace AgeSharp;
 
 /// <summary>
-/// Reads header lines from a stream byte-by-byte (UTF-8/ASCII),
-/// tracking all raw bytes read for MAC computation.
-/// This avoids StreamReader buffering that would consume payload bytes.
+/// Reads header lines from a stream one byte at a time (so it never consumes
+/// payload bytes past the header), delegating all line framing, validation, and
+/// size-limit logic to the sans-I/O <see cref="HeaderLineAccumulator"/>. This
+/// class is only the fill step: the single place that touches the stream.
 /// </summary>
 internal sealed class HeaderReader(Stream stream, int maxLineBytes = 64 * 1024, int maxHeaderBytes = 16 * 1024 * 1024)
 {
-    private readonly MemoryStream _rawBytes = new();
+    private readonly HeaderLineAccumulator _accumulator = new(maxLineBytes, maxHeaderBytes);
     private string? _pushedBack;
 
     /// <summary>
     /// All raw bytes read so far (for MAC computation).
     /// </summary>
-    public ReadOnlySpan<byte> RawBytes =>
-        _rawBytes.GetBuffer().AsSpan(0, (int)_rawBytes.Length);
+    public ReadOnlySpan<byte> RawBytes => _accumulator.RawBytes;
 
     /// <summary>
     /// Push a line back so the next ReadLine returns it.
@@ -33,64 +31,23 @@ internal sealed class HeaderReader(Stream stream, int maxLineBytes = 64 * 1024, 
     /// </summary>
     public string? ReadLine()
     {
-        if (_pushedBack == null)
-            return ReadRawLine();
-
-        var line = _pushedBack;
-        _pushedBack = null;
-        return line;
-    }
-
-    private string? ReadRawLine()
-    {
-        var lineBytes = new List<byte>();
+        if (_pushedBack != null)
+        {
+            var line = _pushedBack;
+            _pushedBack = null;
+            return line;
+        }
 
         while (true)
         {
-            var b = ReadAndTrackByte();
+            var b = stream.ReadByte();
 
             if (b < 0)
-                return lineBytes.Count == 0
-                    ? null
-                    : throw new AgeFormatException("unexpected end of stream (no trailing newline)");
+                return _accumulator.FinishAtEof();
 
-            if (b == '\n')
-                break;
-
-            ValidateByte(b);
-
-            if (lineBytes.Count >= maxLineBytes)
-                throw new AgeFormatException($"header line exceeds {maxLineBytes} bytes");
-
-            lineBytes.Add((byte)b);
-        }
-
-        return Encoding.ASCII.GetString(lineBytes.ToArray());
-    }
-
-    private int ReadAndTrackByte()
-    {
-        var b = stream.ReadByte();
-
-        if (b >= 0)
-        {
-            if (_rawBytes.Length >= maxHeaderBytes)
-                throw new AgeFormatException($"header exceeds {maxHeaderBytes} bytes");
-
-            _rawBytes.WriteByte((byte)b);
-        }
-
-        return b;
-    }
-
-    private static void ValidateByte(int b)
-    {
-        switch (b)
-        {
-            case '\r':
-                throw new AgeFormatException("CR characters are not allowed in age headers");
-            case > 127:
-                throw new AgeFormatException($"non-ASCII byte 0x{b:X2} in header");
+            var line = _accumulator.Feed((byte)b);
+            if (line != null)
+                return line;
         }
     }
 
