@@ -9,7 +9,7 @@ namespace AgeSharp;
 /// stored as its 32-byte generation seed. Disposing zeroes the seed; instances
 /// are safe for concurrent <see cref="Unwrap"/> calls.
 /// </summary>
-public sealed class MlKem768X25519Identity : IIdentity, IDisposable, IParsable<MlKem768X25519Identity>
+public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable, IParsable<MlKem768X25519Identity>
 {
     private const string Hrp = "AGE-SECRET-KEY-PQ-";
     private const int SeedSize = 32;
@@ -33,6 +33,10 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable, IParsable<M
             return new(XWing.GeneratePublicKey(_seed));
         }
     }
+
+    // See X25519Identity: explicit implementation because C# has no covariant returns
+    // for interface members.
+    IRecipient IIdentityWithRecipient.Recipient => Recipient;
 
     /// <summary>Generates a new identity from a cryptographically secure random seed.</summary>
     public static MlKem768X25519Identity Generate()

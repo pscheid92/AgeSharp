@@ -122,14 +122,8 @@ internal static class AgeCommand
         return identities;
     }
 
-    private static IRecipient? GetRecipientFromIdentity(IIdentity identity) => identity switch
-    {
-        X25519Identity x => x.Recipient,
-        MlKem768X25519Identity pq => pq.Recipient,
-        SshEd25519Identity ssh => ssh.Recipient,
-        SshRsaIdentity ssh => ssh.Recipient,
-        _ => null
-    };
+    private static IRecipient? GetRecipientFromIdentity(IIdentity identity) =>
+        identity is IIdentityWithRecipient withRecipient ? withRecipient.Recipient : null;
 
     private static IRecipient ParseRecipient(string s) =>
         Age.ParseRecipient(s, new CliPluginCallbacks());

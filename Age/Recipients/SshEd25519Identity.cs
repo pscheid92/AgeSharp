@@ -9,7 +9,7 @@ namespace AgeSharp;
 /// An identity backed by an ssh-ed25519 private key, converted to X25519 for the
 /// age <c>ssh-ed25519</c> recipient type. Disposing zeroes the converted key.
 /// </summary>
-public sealed class SshEd25519Identity : IIdentity, IDisposable
+public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
 {
     private const int KeySize = 32;
     private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
@@ -42,6 +42,10 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
             return new(_sshWireBytes, _x25519PublicKey);
         }
     }
+
+    // See X25519Identity: explicit implementation because C# has no covariant returns
+    // for interface members.
+    IRecipient IIdentityWithRecipient.Recipient => Recipient;
 
     /// <summary>Parses an ssh-ed25519 private key from PEM text (OpenSSH format).</summary>
     /// <exception cref="AgeFormatException">The text is not a valid ssh-ed25519 private key.</exception>
