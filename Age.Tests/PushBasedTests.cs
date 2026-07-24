@@ -150,6 +150,80 @@ public class PushBasedTests
 
         Assert.Throws<ObjectDisposedException>(() => stream.Write("x"u8.ToArray(), 0, 1));
         Assert.Throws<ObjectDisposedException>(() => stream.WriteByte(0));
+        Assert.Throws<ObjectDisposedException>(() => stream.Flush());
+    }
+
+    // --- Stream contract: capabilities, harmless flush, unsupported members ---
+
+    [Fact]
+    public void OpenWrite_Flush_PropagatesWithoutFinalizing()
+    {
+        using var identity = X25519Identity.Generate();
+
+        using var destination = new MemoryStream();
+        using var stream = Age.OpenWrite(destination, identity.Recipient);
+
+        stream.Write("flush"u8);
+        stream.Flush();       // must not finalize — the stream stays writable
+        stream.Write(" more"u8);
+    }
+
+    [Fact]
+    public void OpenWrite_UnsupportedMembers_Throw()
+    {
+        using var identity = X25519Identity.Generate();
+        using var destination = new MemoryStream();
+        using var stream = Age.OpenWrite(destination, identity.Recipient);
+
+        Assert.Throws<NotSupportedException>(() => _ = stream.Length);
+        Assert.Throws<NotSupportedException>(() => _ = stream.Position);
+        Assert.Throws<NotSupportedException>(() => stream.Position = 0);
+        Assert.Throws<NotSupportedException>(() => _ = stream.Read(new byte[1], 0, 1));
+        Assert.Throws<NotSupportedException>(() => _ = stream.Seek(0, SeekOrigin.Begin));
+        Assert.Throws<NotSupportedException>(() => stream.SetLength(0));
+    }
+
+    [Fact]
+    public void ArmorWriterStream_Capabilities_And_UnsupportedMembers()
+    {
+        using var destination = new MemoryStream();
+        using var armor = new ArmorWriterStream(destination);
+
+        Assert.True(armor.CanWrite);
+        Assert.False(armor.CanRead);
+        Assert.False(armor.CanSeek);
+
+        armor.Flush(); // propagates to the destination
+
+        Assert.Throws<NotSupportedException>(() => _ = armor.Length);
+        Assert.Throws<NotSupportedException>(() => _ = armor.Position);
+        Assert.Throws<NotSupportedException>(() => armor.Position = 0);
+        Assert.Throws<NotSupportedException>(() => _ = armor.Read(new byte[1], 0, 1));
+        Assert.Throws<NotSupportedException>(() => _ = armor.Seek(0, SeekOrigin.Begin));
+        Assert.Throws<NotSupportedException>(() => armor.SetLength(0));
+    }
+
+    [Fact]
+    public void ArmorWriterStream_DisposeWithoutWrite_EmitsEmptyArmor()
+    {
+        using var destination = new MemoryStream();
+        using (new ArmorWriterStream(destination))
+        {
+            // Never written to: the begin marker is emitted on dispose alongside the footer.
+        }
+
+        var text = System.Text.Encoding.ASCII.GetString(destination.ToArray());
+        Assert.Equal("-----BEGIN AGE ENCRYPTED FILE-----\n-----END AGE ENCRYPTED FILE-----\n", text);
+    }
+
+    [Fact]
+    public void ArmorWriterStream_WriteAfterDispose_Throws()
+    {
+        var destination = new MemoryStream();
+        var armor = new ArmorWriterStream(destination);
+        armor.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => armor.Write("x"u8.ToArray(), 0, 1));
     }
 
     // --- Stream ownership: the caller's destination is never disposed ---
