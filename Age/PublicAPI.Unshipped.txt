@@ -50,7 +50,9 @@ static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, A
 static AgeSharp.Age.Encrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
 static AgeSharp.Age.EncryptReader(System.IO.Stream! plaintext, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
 AgeSharp.AgeHeader.Stanzas.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
-static AgeSharp.Age.ReadHeader(System.IO.Stream! source, AgeSharp.AgeOptions? options = null) -> AgeSharp.AgeHeader!
+static AgeSharp.Age.ReadHeader(System.IO.Stream! source) -> AgeSharp.AgeHeader!
+static AgeSharp.Age.ReadHeader(System.IO.Stream! source, AgeSharp.AgeOptions! options) -> AgeSharp.AgeHeader!
+static AgeSharp.Age.DecryptDetached(System.IO.Stream! headerInput, System.IO.Stream! payloadInput, System.IO.Stream! output, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
 static AgeSharp.Age.OpenWrite(System.IO.Stream! destination, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
 static AgeSharp.Age.OpenWrite(System.IO.Stream! destination, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
 static AgeSharp.Age.OpenRead(System.IO.Stream! source, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> System.IO.Stream!
