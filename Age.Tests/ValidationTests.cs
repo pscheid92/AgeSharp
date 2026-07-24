@@ -108,6 +108,25 @@ public class ValidationTests
             Age.DecryptDetached(new MemoryStream(), new MemoryStream(), new MemoryStream()));
     }
 
+    // --- and the same on the encrypt side ---
+
+    [Fact]
+    public void EncryptDetached_NoRecipients_ThrowsArgumentException()
+    {
+        var ex = Assert.Throws<ArgumentException>(() =>
+            Age.EncryptDetached(new MemoryStream(), new MemoryStream(), new MemoryStream()));
+
+        Assert.Equal("recipients", ex.ParamName);
+    }
+
+    [Fact]
+    public void EncryptReader_NoRecipients_ThrowsArgumentException()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => Age.EncryptReader(new MemoryStream()));
+
+        Assert.Equal("recipients", ex.ParamName);
+    }
+
     // --- Stanza constructor rejects input that would corrupt header framing ---
 
     [Fact]
