@@ -256,6 +256,123 @@ public class AsyncTests
             () => Age.DecryptAsync(source, output, [identity], cancellationToken: cts.Token));
     }
 
+    // --- The byte[] ReadAsync/WriteAsync overloads, FlushAsync, double DisposeAsync ---
+
+    [Fact]
+    public async Task AsyncByteArrayOverloads_And_Flush_RoundTrip()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = MakePlaintext(200_000);
+
+        // Push writer: WriteAsync(byte[], offset, count) + FlushAsync (binary).
+        var pushOut = new MemoryStream();
+        await using (var writer = Age.OpenWrite(pushOut, identity.Recipient))
+        {
+            await writer.WriteAsync(plaintext, 0, plaintext.Length);
+            await writer.FlushAsync();
+        }
+        Assert.Equal(plaintext, Age.Decrypt(pushOut.ToArray(), identity));
+
+        // Push armor writer directly: WriteAsync(byte[], ...) + FlushAsync.
+        var armorOut = new MemoryStream();
+        await using (var armorWriter = new ArmorWriterStream(armorOut))
+        {
+            await armorWriter.WriteAsync(new byte[48], 0, 48);
+            await armorWriter.FlushAsync();
+        }
+        Assert.StartsWith("-----BEGIN AGE ENCRYPTED FILE-----", System.Text.Encoding.ASCII.GetString(armorOut.ToArray()));
+
+        // Pull readers: ReadAsync(byte[], offset, count) — binary (EncryptStream) and armored (ArmorStream).
+        Assert.Equal(plaintext, await ReadAllByteArrayAsync(Age.EncryptReader(new MemoryStream(plaintext), identity.Recipient), identity));
+        Assert.Equal(plaintext, await ReadAllByteArrayAsync(Age.EncryptReader(new MemoryStream(plaintext), new AgeOptions { Armor = true }, identity.Recipient), identity, decodeCiphertext: true));
+
+        var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
+
+        // Decrypt readers: ReadAsync(byte[], ...) — seekable (OpenRead) and forward-only (OpenReadAsync).
+        await using (var seekable = Age.OpenRead(new MemoryStream(ciphertext), identity))
+            Assert.Equal(plaintext, await DrainByteArrayAsync(seekable));
+        await using (var forward = await Age.OpenReadAsync(new MemoryStream(ciphertext), [identity]))
+            Assert.Equal(plaintext, await DrainByteArrayAsync(forward));
+    }
+
+    [Fact]
+    public async Task OpenWrite_DoubleDisposeAsync_IsNoOp()
+    {
+        using var identity = X25519Identity.Generate();
+        var output = new MemoryStream();
+
+        var stream = Age.OpenWrite(output, identity.Recipient);
+        await stream.WriteAsync(new byte[] { 1, 2, 3 });
+        await stream.DisposeAsync();
+        var afterFirst = output.ToArray();
+        await stream.DisposeAsync(); // second async dispose is a no-op
+
+        Assert.Equal(afterFirst, output.ToArray());
+        Assert.Equal(new byte[] { 1, 2, 3 }, Age.Decrypt(afterFirst, identity));
+    }
+
+    // --- Async error paths ---
+
+    [Fact]
+    public async Task OpenReadAsync_TruncatedHeader_Throws()
+    {
+        using var identity = X25519Identity.Generate();
+        var bytes = System.Text.Encoding.ASCII.GetBytes("age-encryption.org/v1\n"); // no MAC line
+
+        await Assert.ThrowsAsync<AgeFormatException>(async () => await Age.OpenReadAsync(new MemoryStream(bytes), [identity]));
+    }
+
+    [Fact]
+    public async Task OpenReadAsync_MissingNonce_Throws()
+    {
+        using var identity = X25519Identity.Generate();
+        var full = Age.Encrypt("data"u8.ToArray(), identity.Recipient);
+        var headerOnly = full[..(int)Age.ReadHeader(new MemoryStream(full)).PayloadOffset]; // header, no nonce
+
+        await Assert.ThrowsAsync<AgeFormatException>(async () => await Age.OpenReadAsync(new MemoryStream(headerOnly), [identity]));
+    }
+
+    [Fact]
+    public async Task DecryptAsync_ForwardOnly_EmptyPayload_Throws()
+    {
+        using var identity = X25519Identity.Generate();
+        var full = Age.Encrypt("data"u8.ToArray(), identity.Recipient);
+        var offset = (int)Age.ReadHeader(new MemoryStream(full)).PayloadOffset;
+        var headerAndNonce = full[..(offset + 16)]; // header + nonce, zero chunks
+
+        // Non-seekable forces the forward-only decrypt path.
+        using var source = new NonSeekableStream(new MemoryStream(headerAndNonce));
+        using var output = new MemoryStream();
+        await Assert.ThrowsAsync<AgeAuthenticationException>(() => Age.DecryptAsync(source, output, [identity]));
+    }
+
+    private static async Task<byte[]> ReadAllByteArrayAsync(Stream ciphertextStream, IIdentity identity, bool decodeCiphertext = false)
+    {
+        var ciphertext = new MemoryStream();
+        await using (ciphertextStream)
+        {
+            var buffer = new byte[8192];
+            int n;
+            while ((n = await ciphertextStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                ciphertext.Write(buffer, 0, n);
+        }
+
+        // decodeCiphertext is irrelevant to the read path; both binary and armored
+        // ciphertext decrypt through the sync facade for verification.
+        _ = decodeCiphertext;
+        return Age.Decrypt(ciphertext.ToArray(), identity);
+    }
+
+    private static async Task<byte[]> DrainByteArrayAsync(Stream plaintextStream)
+    {
+        var output = new MemoryStream();
+        var buffer = new byte[8192];
+        int n;
+        while ((n = await plaintextStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+            output.Write(buffer, 0, n);
+        return output.ToArray();
+    }
+
     // --- Interop: async encryption decrypts with the reference age CLI ---
 
     [SkippableTheory]
