@@ -68,10 +68,36 @@ internal sealed class EncryptWriterStream : Stream
             // The buffer is full and there is still more plaintext to place, so this
             // chunk cannot be the final one — flush it before taking the next bytes.
             if (_bufferLength == StreamEncryption.ChunkSize)
-                FlushChunk(isFinal: false);
+            {
+                var length = EncryptBufferedChunk(isFinal: false);
+                _destination.Write(_ciphertextBuffer.AsSpan(0, length));
+            }
 
             var take = Math.Min(StreamEncryption.ChunkSize - _bufferLength, buffer.Length);
             buffer[..take].CopyTo(_plaintextBuffer.AsSpan(_bufferLength));
+            _bufferLength += take;
+            buffer = buffer[take..];
+        }
+    }
+
+    public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        => WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+    public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        await WritePreambleAsync(cancellationToken).ConfigureAwait(false);
+
+        while (!buffer.IsEmpty)
+        {
+            if (_bufferLength == StreamEncryption.ChunkSize)
+            {
+                var length = EncryptBufferedChunk(isFinal: false);
+                await _destination.WriteAsync(_ciphertextBuffer.AsMemory(0, length), cancellationToken).ConfigureAwait(false);
+            }
+
+            var take = Math.Min(StreamEncryption.ChunkSize - _bufferLength, buffer.Length);
+            buffer.Span[..take].CopyTo(_plaintextBuffer.AsSpan(_bufferLength));
             _bufferLength += take;
             buffer = buffer[take..];
         }
@@ -86,15 +112,27 @@ internal sealed class EncryptWriterStream : Stream
         _preambleWritten = true;
     }
 
-    private void FlushChunk(bool isFinal)
+    private ValueTask WritePreambleAsync(CancellationToken cancellationToken)
+    {
+        if (_preambleWritten)
+            return ValueTask.CompletedTask;
+
+        _preambleWritten = true;
+        return _destination.WriteAsync(_preamble, cancellationToken);
+    }
+
+    // CPU-only: encrypt the buffered plaintext into _ciphertextBuffer, advance the
+    // counter, reset the buffer, and return the ciphertext length to write.
+    private int EncryptBufferedChunk(bool isFinal)
     {
         StreamEncryption.EncryptChunk(
             _cipher, _counter, isFinal,
             _plaintextBuffer.AsSpan(0, _bufferLength),
             _ciphertextBuffer);
-        _destination.Write(_ciphertextBuffer.AsSpan(0, _bufferLength + StreamEncryption.TagSize));
+        var length = _bufferLength + StreamEncryption.TagSize;
         _counter++;
         _bufferLength = 0;
+        return length;
     }
 
     protected override void Dispose(bool disposing)
@@ -113,7 +151,7 @@ internal sealed class EncryptWriterStream : Stream
             {
                 _finalized = true;
                 WritePreamble();
-                FlushChunk(isFinal: true);
+                _destination.Write(_ciphertextBuffer.AsSpan(0, EncryptBufferedChunk(isFinal: true)));
             }
 
             if (_ownsDestination)
@@ -121,20 +159,62 @@ internal sealed class EncryptWriterStream : Stream
         }
         finally
         {
-            _cipher.Dispose();
-            CryptographicOperations.ZeroMemory(_payloadKey);
-            CryptographicOperations.ZeroMemory(_plaintextBuffer.AsSpan(0, StreamEncryption.ChunkSize));
-            ArrayPool<byte>.Shared.Return(_plaintextBuffer);
-            ArrayPool<byte>.Shared.Return(_ciphertextBuffer);
+            ReleaseResources();
         }
 
         base.Dispose(disposing);
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+        {
+            await base.DisposeAsync().ConfigureAwait(false);
+            return;
+        }
+
+        _disposed = true;
+
+        try
+        {
+            if (!_finalized)
+            {
+                _finalized = true;
+                await WritePreambleAsync(default).ConfigureAwait(false);
+                var length = EncryptBufferedChunk(isFinal: true);
+                await _destination.WriteAsync(_ciphertextBuffer.AsMemory(0, length), default).ConfigureAwait(false);
+            }
+
+            if (_ownsDestination)
+                await _destination.DisposeAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            ReleaseResources();
+        }
+
+        await base.DisposeAsync().ConfigureAwait(false);
+    }
+
+    private void ReleaseResources()
+    {
+        _cipher.Dispose();
+        CryptographicOperations.ZeroMemory(_payloadKey);
+        CryptographicOperations.ZeroMemory(_plaintextBuffer.AsSpan(0, StreamEncryption.ChunkSize));
+        ArrayPool<byte>.Shared.Return(_plaintextBuffer);
+        ArrayPool<byte>.Shared.Return(_ciphertextBuffer);
     }
 
     public override void Flush()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _destination.Flush();
+    }
+
+    public override Task FlushAsync(CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return _destination.FlushAsync(cancellationToken);
     }
 
     public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();

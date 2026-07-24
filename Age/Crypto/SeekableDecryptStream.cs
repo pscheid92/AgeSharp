@@ -101,16 +101,59 @@ internal sealed class SeekableDecryptStream : Stream
         return totalRead;
     }
 
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var totalRead = 0;
+
+        while (totalRead < buffer.Length && _position >= 0 && _position < _plaintextLength)
+        {
+            var chunkIndex = _position / StreamEncryption.ChunkSize;
+            var offsetInChunk = (int)(_position % StreamEncryption.ChunkSize);
+
+            await EnsureChunkAsync(chunkIndex, cancellationToken).ConfigureAwait(false);
+
+            var available = _cachedLength - offsetInChunk;
+            if (available <= 0)
+                break;
+
+            var toCopy = Math.Min(available, buffer.Length - totalRead);
+            _chunkPlaintext.AsSpan(offsetInChunk, toCopy).CopyTo(buffer.Span[totalRead..]);
+
+            totalRead += toCopy;
+            _position += toCopy;
+        }
+
+        return totalRead;
+    }
+
     private void EnsureChunk(long chunkIndex)
     {
         if (_cachedChunkIndex == chunkIndex)
             return;
 
-        _cachedLength = DecryptChunk(chunkIndex);
+        var (encChunkSize, chunkStart) = ChunkLayout(chunkIndex);
+        ReadFully(_payloadStart + chunkStart, _encChunk.AsSpan(0, encChunkSize));
+        _cachedLength = DecryptLoadedChunk(chunkIndex, encChunkSize);
         _cachedChunkIndex = chunkIndex;
     }
 
-    private int DecryptChunk(long chunkIndex)
+    private async ValueTask EnsureChunkAsync(long chunkIndex, CancellationToken cancellationToken)
+    {
+        if (_cachedChunkIndex == chunkIndex)
+            return;
+
+        var (encChunkSize, chunkStart) = ChunkLayout(chunkIndex);
+        await ReadFullyAsync(_payloadStart + chunkStart, _encChunk.AsMemory(0, encChunkSize), cancellationToken).ConfigureAwait(false);
+        _cachedLength = DecryptLoadedChunk(chunkIndex, encChunkSize);
+        _cachedChunkIndex = chunkIndex;
+    }
+
+    private (int encChunkSize, long chunkStart) ChunkLayout(long chunkIndex)
     {
         var isFinal = chunkIndex == _totalChunks - 1;
         var chunkStart = chunkIndex * StreamEncryption.EncryptedChunkSize;
@@ -118,9 +161,16 @@ internal sealed class SeekableDecryptStream : Stream
             ? (int)(_totalEncrypted - chunkStart)
             : StreamEncryption.EncryptedChunkSize;
 
-        ReadFully(_payloadStart + chunkStart, _encChunk.AsSpan(0, encChunkSize));
+        return (encChunkSize, chunkStart);
+    }
 
+    // CPU-only: decrypt the chunk already loaded into _encChunk. Shared by the sync
+    // and async read paths — only the read that filled _encChunk differs.
+    private int DecryptLoadedChunk(long chunkIndex, int encChunkSize)
+    {
+        var isFinal = chunkIndex == _totalChunks - 1;
         var plaintextLength = encChunkSize - StreamEncryption.TagSize;
+
         StreamEncryption.DecryptChunk(
             _cipher, chunkIndex, isFinal,
             _encChunk.AsSpan(0, encChunkSize),
@@ -140,6 +190,21 @@ internal sealed class SeekableDecryptStream : Stream
         while (total < destination.Length)
         {
             var read = _ciphertext.Read(destination[total..]);
+            if (read == 0)
+                throw new AgeAuthenticationException($"could not read full chunk at offset {position}");
+
+            total += read;
+        }
+    }
+
+    private async ValueTask ReadFullyAsync(long position, Memory<byte> destination, CancellationToken cancellationToken)
+    {
+        _ciphertext.Position = position;
+
+        var total = 0;
+        while (total < destination.Length)
+        {
+            var read = await _ciphertext.ReadAsync(destination[total..], cancellationToken).ConfigureAwait(false);
             if (read == 0)
                 throw new AgeAuthenticationException($"could not read full chunk at offset {position}");
 
@@ -168,18 +233,32 @@ internal sealed class SeekableDecryptStream : Stream
         if (disposing && !_disposed)
         {
             _disposed = true;
-
-            _cipher.Dispose();
-            CryptographicOperations.ZeroMemory(_payloadKey);
-            CryptographicOperations.ZeroMemory(_chunkPlaintext.AsSpan(0, StreamEncryption.ChunkSize));
-            ArrayPool<byte>.Shared.Return(_chunkPlaintext);
-            ArrayPool<byte>.Shared.Return(_encChunk);
-
-            if (_ownsStream)
-                _ciphertext.Dispose();
+            ReleaseResources();
+            if (_ownsStream) _ciphertext.Dispose();
         }
 
         base.Dispose(disposing);
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        if (!_disposed)
+        {
+            _disposed = true;
+            ReleaseResources();
+            if (_ownsStream) await _ciphertext.DisposeAsync().ConfigureAwait(false);
+        }
+
+        await base.DisposeAsync().ConfigureAwait(false);
+    }
+
+    private void ReleaseResources()
+    {
+        _cipher.Dispose();
+        CryptographicOperations.ZeroMemory(_payloadKey);
+        CryptographicOperations.ZeroMemory(_chunkPlaintext.AsSpan(0, StreamEncryption.ChunkSize));
+        ArrayPool<byte>.Shared.Return(_chunkPlaintext);
+        ArrayPool<byte>.Shared.Return(_encChunk);
     }
 
     public override void Flush()

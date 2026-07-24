@@ -24,6 +24,7 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
     private int _plaintextOffset;
     private long _counter;
     private bool _hasSavedByte;
+    private bool _disposed;
 
     public override bool CanRead => true;
     public override bool CanSeek => false;
@@ -45,30 +46,60 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
 
         while (totalRead < buffer.Length)
         {
-            // Drain any buffered plaintext first
-            if (_plaintextOffset < _plaintextLength)
-            {
-                var available = _plaintextLength - _plaintextOffset;
-                var toCopy = Math.Min(available, buffer.Length - totalRead);
-                _plaintextBuffer.AsSpan(_plaintextOffset, toCopy).CopyTo(buffer[totalRead..]);
-                _plaintextOffset += toCopy;
-                totalRead += toCopy;
+            if (TryDrain(buffer[totalRead..], ref totalRead))
                 continue;
-            }
 
             if (_state == State.Done)
                 return totalRead;
 
-            DecryptNextChunk();
+            ProcessChunk(ReadFromCiphertext());
         }
 
         return totalRead;
     }
 
-    private void DecryptNextChunk()
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        var totalRead = 0;
+
+        while (totalRead < buffer.Length)
+        {
+            if (TryDrain(buffer.Span[totalRead..], ref totalRead))
+                continue;
+
+            if (_state == State.Done)
+                return totalRead;
+
+            ProcessChunk(await ReadFromCiphertextAsync(cancellationToken).ConfigureAwait(false));
+        }
+
+        return totalRead;
+    }
+
+    // Copies any buffered plaintext into dest; returns true when it did so (there
+    // was buffered plaintext), false when the buffer is empty and a chunk is due.
+    private bool TryDrain(Span<byte> dest, ref int totalRead)
+    {
+        if (_plaintextOffset >= _plaintextLength)
+            return false;
+
+        var available = _plaintextLength - _plaintextOffset;
+        var toCopy = Math.Min(available, dest.Length);
+        _plaintextBuffer.AsSpan(_plaintextOffset, toCopy).CopyTo(dest);
+        _plaintextOffset += toCopy;
+        totalRead += toCopy;
+
+        return true;
+    }
+
+    // CPU-only: decrypt the freshly-read ciphertext chunk. Shared by the sync and
+    // async read paths — only the read that produced bytesRead differs.
+    private void ProcessChunk(int bytesRead)
     {
         var prevPlaintextLength = _plaintextLength;
-        var bytesRead = ReadFromCiphertext();
 
         switch (bytesRead)
         {
@@ -122,14 +153,7 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
 
     private int ReadFromCiphertext()
     {
-        var total = 0;
-
-        if (_hasSavedByte)
-        {
-            // _ciphertextBuffer[0] already contains the saved byte
-            total = 1;
-            _hasSavedByte = false;
-        }
+        var total = TakeSavedByte();
 
         const int target = StreamEncryption.EncryptedChunkSize + 1;
         while (total < target)
@@ -145,19 +169,65 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         return total;
     }
 
+    private async ValueTask<int> ReadFromCiphertextAsync(CancellationToken cancellationToken)
+    {
+        var total = TakeSavedByte();
+
+        const int target = StreamEncryption.EncryptedChunkSize + 1;
+        while (total < target)
+        {
+            var read = await ciphertext.ReadAsync(_ciphertextBuffer.AsMemory(total, target - total), cancellationToken).ConfigureAwait(false);
+
+            if (read == 0)
+                break;
+
+            total += read;
+        }
+
+        return total;
+    }
+
+    private int TakeSavedByte()
+    {
+        if (!_hasSavedByte)
+            return 0;
+
+        // _ciphertextBuffer[0] already contains the saved byte
+        _hasSavedByte = false;
+        return 1;
+    }
+
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
+        if (disposing && !_disposed)
         {
-            _cipher.Dispose();
-            CryptographicOperations.ZeroMemory(payloadKey);
-            CryptographicOperations.ZeroMemory(_plaintextBuffer.AsSpan(0, PlaintextBufferSize));
-            ArrayPool<byte>.Shared.Return(_ciphertextBuffer);
-            ArrayPool<byte>.Shared.Return(_plaintextBuffer);
+            _disposed = true;
+            ReleaseResources();
             if (ownsStream) ciphertext.Dispose();
         }
 
         base.Dispose(disposing);
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        if (!_disposed)
+        {
+            _disposed = true;
+            ReleaseResources();
+            if (ownsStream) await ciphertext.DisposeAsync().ConfigureAwait(false);
+        }
+
+        await base.DisposeAsync().ConfigureAwait(false);
+    }
+
+    private void ReleaseResources()
+    {
+        _cipher.Dispose();
+        CryptographicOperations.ZeroMemory(payloadKey);
+        CryptographicOperations.ZeroMemory(_plaintextBuffer.AsSpan(0, PlaintextBufferSize));
+        ArrayPool<byte>.Shared.Return(_ciphertextBuffer);
+        ArrayPool<byte>.Shared.Return(_plaintextBuffer);
     }
 
     public override void Flush()

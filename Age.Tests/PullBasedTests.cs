@@ -166,6 +166,24 @@ public class PullBasedTests
         Assert.False(stream.CanWrite);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EncryptReader_UnsupportedMembers_Throw(bool armored)
+    {
+        using var identity = X25519Identity.Generate();
+        using var input = new MemoryStream("data"u8.ToArray());
+        using var stream = Age.EncryptReader(input, new AgeOptions { Armor = armored }, identity.Recipient);
+
+        Assert.Throws<NotSupportedException>(() => _ = stream.Length);
+        Assert.Throws<NotSupportedException>(() => _ = stream.Position);
+        Assert.Throws<NotSupportedException>(() => stream.Position = 0);
+        Assert.Throws<NotSupportedException>(() => stream.Seek(0, SeekOrigin.Begin));
+        Assert.Throws<NotSupportedException>(() => stream.SetLength(0));
+        Assert.Throws<NotSupportedException>(() => stream.Write(new byte[1], 0, 1));
+        stream.Flush(); // no-op
+    }
+
     [Fact]
     public void OpenRead_SeekableSource_IsSeekable()
     {

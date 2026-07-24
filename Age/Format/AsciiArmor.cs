@@ -24,6 +24,29 @@ internal static class AsciiArmor
         return read == marker.Length && buf.AsSpan().SequenceEqual(marker);
     }
 
+    /// <summary>Asynchronous, purity-safe counterpart to <see cref="IsArmored"/>.</summary>
+    public static async ValueTask<bool> IsArmoredAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        if (!stream.CanSeek)
+            return false;
+
+        var pos = stream.Position;
+        try
+        {
+            await SkipLeadingWhitespaceAsync(stream, cancellationToken).ConfigureAwait(false);
+
+            var marker = Encoding.ASCII.GetBytes(BeginMarker);
+            var buf = new byte[marker.Length];
+            var read = await ReadChunkAsync(stream, buf, cancellationToken).ConfigureAwait(false);
+
+            return read == marker.Length && buf.AsSpan().SequenceEqual(marker);
+        }
+        finally
+        {
+            stream.Position = pos;
+        }
+    }
+
     private static void SkipLeadingWhitespace(Stream stream)
     {
         while (true)
@@ -111,4 +134,39 @@ internal static class AsciiArmor
         return total;
     }
 
+    private static async ValueTask SkipLeadingWhitespaceAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        var one = new byte[1];
+
+        while (true)
+        {
+            var read = await stream.ReadAsync(one.AsMemory(0, 1), cancellationToken).ConfigureAwait(false);
+
+            if (read == 0)
+                break;
+
+            if (one[0] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
+                continue;
+
+            stream.Position--;
+            break;
+        }
+    }
+
+    private static async ValueTask<int> ReadChunkAsync(Stream stream, byte[] buffer, CancellationToken cancellationToken)
+    {
+        var total = 0;
+
+        while (total < buffer.Length)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(total, buffer.Length - total), cancellationToken).ConfigureAwait(false);
+
+            if (read == 0)
+                break;
+
+            total += read;
+        }
+
+        return total;
+    }
 }
