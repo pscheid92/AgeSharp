@@ -93,12 +93,12 @@ public class ValidationTests
     }
 
     [Fact]
-    public void DecryptReader_NoIdentities_ThrowsArgumentException()
+    public void OpenRead_NoIdentities_ThrowsArgumentException()
     {
         using var identity = X25519Identity.Generate();
         using var encrypted = EncryptTo(identity.Recipient);
 
-        Assert.Throws<ArgumentException>(() => Age.DecryptReader(encrypted));
+        Assert.Throws<ArgumentException>(() => Age.OpenRead(encrypted));
     }
 
     [Fact]
@@ -106,15 +106,6 @@ public class ValidationTests
     {
         Assert.Throws<ArgumentException>(() =>
             Age.DecryptDetached(new MemoryStream(), new MemoryStream(), new MemoryStream()));
-    }
-
-    [Fact]
-    public void RandomAccess_NoIdentities_ThrowsArgumentException()
-    {
-        using var identity = X25519Identity.Generate();
-        using var encrypted = EncryptTo(identity.Recipient);
-
-        Assert.Throws<ArgumentException>(() => new AgeRandomAccess(encrypted));
     }
 
     // --- Stanza constructor rejects input that would corrupt header framing ---

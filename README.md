@@ -27,10 +27,11 @@ and targets .NET 10.
 - Streaming encryption and decryption across all APIs — memory is bounded
   by a single 64 KiB chunk buffer regardless of input size (1 GiB file uses
   the same working set as a 1 MB file)
-- Pull-based streaming (`EncryptReader` / `DecryptReader`) returns a readable
-  `Stream` for pipe-and-forget use cases
+- Push- and pull-based streaming (`OpenWrite` / `EncryptReader` / `OpenRead`)
+  return a readable or writable `Stream` for pipe-and-forget use cases
 - Detached header APIs (`EncryptDetached` / `DecryptDetached`)
-- Random-access decryption (`AgeRandomAccess`) — seek into encrypted files
+- Seekable decryption — `Age.OpenRead` over a seekable source seeks into
+  encrypted files without reading the whole file
 - Header inspection without decryption (`Age.ReadHeader`)
 - Encrypted identity files (passphrase-protected)
 - Recipients file parsing (`-R` style files with comments)
@@ -131,7 +132,7 @@ using var encryptedStream = Age.EncryptReader(plaintext, recipient);
 encryptedStream.CopyTo(networkStream);
 
 // Decrypt: returns a Stream you read plaintext from
-using var decryptedStream = Age.DecryptReader(ciphertext, identity);
+using var decryptedStream = Age.OpenRead(ciphertext, identity);
 decryptedStream.CopyTo(outputStream);
 ```
 
@@ -148,25 +149,29 @@ Age.EncryptDetached(input, headerOutput, payloadOutput, recipient);
 Age.DecryptDetached(headerInput, payloadInput, output, identity);
 ```
 
-### Random-access decryption
+### Seekable decryption
 
-Seek into an encrypted file and decrypt individual chunks without reading
-the whole file — useful for encrypted archives, databases, and large files.
+When the ciphertext source is seekable, `Age.OpenRead` returns a seekable
+plaintext `Stream`: `Length` is the plaintext length, `Seek` maps to the
+containing 64 KiB chunk, and the last-read chunk is cached. This decrypts
+individual regions without reading the whole file — useful for encrypted
+archives, databases, and large files. (A non-seekable source yields a
+forward-only stream; a seekable armored source is materialized in memory.)
 
 ```csharp
-using var ra = new AgeRandomAccess(ciphertext, identity);
+using var stream = Age.OpenRead(ciphertext, identity);
 
-Console.WriteLine($"Plaintext length: {ra.PlaintextLength}");
+Console.WriteLine($"Plaintext length: {stream.Length}");
 
 // Read 100 bytes at offset 50000
 var buf = new byte[100];
-ra.ReadAt(50000, buf);
-
-// Or get a seekable Stream
-using var stream = ra.GetStream();
 stream.Seek(50000, SeekOrigin.Begin);
-stream.Read(buf);
+stream.ReadExactly(buf);
 ```
+
+> Truncation of the payload is only detected once a read reaches the affected
+> chunk, so a seek-and-read that never touches the final chunk cannot observe a
+> truncated tail.
 
 ### Header inspection
 

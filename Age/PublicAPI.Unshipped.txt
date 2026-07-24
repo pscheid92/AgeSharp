@@ -46,12 +46,19 @@ AgeSharp.AgeOptions.MaxHeaderBytes.get -> int
 AgeSharp.AgeOptions.MaxHeaderBytes.init -> void
 AgeSharp.AgeOptions.MaxHeaderLineBytes.get -> int
 AgeSharp.AgeOptions.MaxHeaderLineBytes.init -> void
-AgeSharp.AgeRandomAccess.AgeRandomAccess(System.IO.Stream! ciphertext, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
 static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
-static AgeSharp.Age.DecryptReader(System.IO.Stream! ciphertext, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> System.IO.Stream!
 static AgeSharp.Age.Encrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
 static AgeSharp.Age.EncryptReader(System.IO.Stream! plaintext, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
 AgeSharp.AgeHeader.Stanzas.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 static AgeSharp.Age.ReadHeader(System.IO.Stream! source, AgeSharp.AgeOptions? options = null) -> AgeSharp.AgeHeader!
 static AgeSharp.Age.OpenWrite(System.IO.Stream! destination, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
 static AgeSharp.Age.OpenWrite(System.IO.Stream! destination, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
+static AgeSharp.Age.OpenRead(System.IO.Stream! source, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> System.IO.Stream!
+static AgeSharp.Age.OpenRead(System.IO.Stream! source, AgeSharp.AgeOptions! options, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> System.IO.Stream!
+*REMOVED*AgeSharp.AgeRandomAccess
+*REMOVED*AgeSharp.AgeRandomAccess.AgeRandomAccess(System.IO.Stream! ciphertext, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
+*REMOVED*AgeSharp.AgeRandomAccess.Dispose() -> void
+*REMOVED*AgeSharp.AgeRandomAccess.GetStream(long plaintextOffset = 0) -> System.IO.Stream!
+*REMOVED*AgeSharp.AgeRandomAccess.PlaintextLength.get -> long
+*REMOVED*AgeSharp.AgeRandomAccess.ReadAt(long plaintextOffset, System.Span<byte> buffer) -> int
+*REMOVED*static AgeSharp.Age.DecryptReader(System.IO.Stream! ciphertext, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> System.IO.Stream!
