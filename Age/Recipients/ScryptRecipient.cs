@@ -66,18 +66,7 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
         if (stanza.Args.Count != 2)
             throw new AgeFormatException($"scrypt stanza must have 2 arguments, got {stanza.Args.Count}");
 
-        byte[] salt;
-        try
-        {
-            salt = Base64Unpadded.Decode(stanza.Args[0]);
-        }
-        catch (AgeFormatException ex)
-        {
-            throw new AgeFormatException($"invalid scrypt salt encoding: {ex.Message}", ex);
-        }
-
-        if (salt.Length != SaltSize)
-            throw new AgeFormatException($"scrypt salt must be {SaltSize} bytes, got {salt.Length}");
+        var salt = ParseHelpers.DecodeArg(stanza.Args[0], SaltSize, "scrypt salt");
 
         var wfStr = stanza.Args[1];
         if (!ValidateWorkFactor(wfStr, out var stanzaWorkFactor))

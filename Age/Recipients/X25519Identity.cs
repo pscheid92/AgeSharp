@@ -49,25 +49,8 @@ public sealed class X25519Identity : IIdentity, IDisposable, IParsable<X25519Ide
 
     /// <summary>Parses a bech32-encoded secret key (<c>AGE-SECRET-KEY-1…</c>, uppercase).</summary>
     /// <exception cref="AgeFormatException">The string is not a valid X25519 secret key.</exception>
-    public static X25519Identity Parse(string s)
-    {
-        // Must be uppercase
-        if (s != s.ToUpperInvariant())
-            throw new AgeFormatException("age secret key must be uppercase");
-
-        var (hrp, data) = Bech32.Decode(s);
-
-        if (!string.Equals(hrp, Hrp, StringComparison.OrdinalIgnoreCase))
-            throw new AgeFormatException($"expected HRP '{Hrp}', got '{hrp}'");
-
-        if (data.Length != KeySize)
-            throw new AgeFormatException($"X25519 secret key must be {KeySize} bytes, got {data.Length}");
-
-        var raw = new byte[KeySize];
-        Array.Copy(data, raw, KeySize);
-        CryptographicOperations.ZeroMemory(data);
-        return new X25519Identity(raw);
-    }
+    public static X25519Identity Parse(string s) =>
+        new(ParseHelpers.DecodeSecretKey(s, Hrp, KeySize, "X25519 secret key"));
 
     /// <summary>
     /// Tries to parse a bech32-encoded secret key (<c>AGE-SECRET-KEY-1…</c>).
@@ -120,18 +103,7 @@ public sealed class X25519Identity : IIdentity, IDisposable, IParsable<X25519Ide
         if (stanza.Args.Count != 1)
             throw new AgeFormatException($"X25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");
 
-        byte[] ephPubBytes;
-        try
-        {
-            ephPubBytes = Base64Unpadded.Decode(stanza.Args[0]);
-        }
-        catch (AgeFormatException ex)
-        {
-            throw new AgeFormatException($"invalid X25519 ephemeral key encoding: {ex.Message}", ex);
-        }
-
-        if (ephPubBytes.Length != KeySize)
-            throw new AgeFormatException($"X25519 ephemeral key must be {KeySize} bytes, got {ephPubBytes.Length}");
+        var ephPubBytes = ParseHelpers.DecodeArg(stanza.Args[0], KeySize, "X25519 ephemeral key");
 
         if (stanza.Body.Length != WrappedKeySize)
             throw new AgeFormatException($"X25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");

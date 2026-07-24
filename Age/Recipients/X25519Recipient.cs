@@ -26,22 +26,9 @@ public sealed class X25519Recipient : IRecipient, IParsable<X25519Recipient>
 
     /// <summary>Parses a bech32-encoded recipient (<c>age1…</c>, lowercase).</summary>
     /// <exception cref="AgeFormatException">The string is not a valid X25519 recipient.</exception>
-    public static X25519Recipient Parse(string s)
-    {
-        var (hrp, data) = Bech32.Decode(s);
-        
-        if (hrp != Hrp)
-            throw new AgeFormatException($"expected HRP '{Hrp}', got '{hrp}'");
-        
-        if (data.Length != KeySize)
-            throw new AgeFormatException($"X25519 public key must be {KeySize} bytes, got {data.Length}");
-
-        // Must be lowercase
-        if (s != s.ToLowerInvariant())
-            throw new AgeFormatException("age recipient must be lowercase");
-
-        return new X25519Recipient(new X25519PublicKeyParameters(data));
-    }
+    public static X25519Recipient Parse(string s) =>
+        new(new X25519PublicKeyParameters(
+            ParseHelpers.DecodeRecipientKey(s, Hrp, KeySize, "X25519 public key")));
 
     /// <summary>
     /// Tries to parse a bech32-encoded recipient (<c>age1…</c>). Returns false
