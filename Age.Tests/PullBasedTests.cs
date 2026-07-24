@@ -1,5 +1,4 @@
-using Age;
-using Age.Recipients;
+using AgeSharp;
 using Xunit;
 
 namespace Age.Tests;
@@ -272,13 +271,13 @@ public class PullBasedTests
         new Random(7).NextBytes(fixedCiphertext);
 
         using var pullSource = new MemoryStream(fixedCiphertext);
-        using var pullArmor = new Age.Format.ArmorStream(pullSource);
+        using var pullArmor = new AgeSharp.ArmorStream(pullSource);
         using var pullOut = new MemoryStream();
         pullArmor.CopyTo(pullOut);
 
         using var pushSource = new MemoryStream(fixedCiphertext);
         using var pushOut = new MemoryStream();
-        Age.Format.AsciiArmor.Armor(pushSource, pushOut);
+        AgeSharp.AsciiArmor.Armor(pushSource, pushOut);
 
         Assert.Equal(pushOut.ToArray(), pullOut.ToArray());
     }

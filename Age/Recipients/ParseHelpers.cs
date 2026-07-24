@@ -1,8 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
-using Age.Crypto;
+using AgeSharp.Crypto;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 internal static class ParseHelpers
 {

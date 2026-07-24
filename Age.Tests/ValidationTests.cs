@@ -1,5 +1,4 @@
-using Age.Format;
-using Age.Recipients;
+using AgeSharp;
 using Xunit;
 
 namespace Age.Tests;

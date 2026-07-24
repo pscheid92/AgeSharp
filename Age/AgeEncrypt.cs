@@ -1,9 +1,7 @@
 using System.Security.Cryptography;
-using Age.Crypto;
-using Age.Format;
-using Age.Recipients;
+using AgeSharp.Crypto;
 
-namespace Age;
+namespace AgeSharp;
 
 /// <summary>
 /// Top-level entry point for encrypting and decrypting data in the age format.

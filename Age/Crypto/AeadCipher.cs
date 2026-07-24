@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// Factory for <see cref="IAeadCipher"/> instances. Uses the native platform cipher where it is

@@ -1,4 +1,4 @@
-namespace Age;
+namespace AgeSharp;
 
 /// <summary>
 /// Resource limits applied while reading an age file's header and ASCII armor,

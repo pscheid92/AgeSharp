@@ -1,4 +1,4 @@
-namespace Age;
+namespace AgeSharp;
 
 /// <summary>
 /// Base class for all errors thrown by this library. The hierarchy follows one

@@ -1,5 +1,5 @@
 using System.Security.Cryptography;
-using Age.Crypto;
+using AgeSharp.Crypto;
 using Xunit;
 
 namespace Age.Tests;

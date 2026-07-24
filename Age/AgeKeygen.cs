@@ -1,9 +1,7 @@
 using System.Text;
-using Age.Crypto;
-using Age.Plugin;
-using Age.Recipients;
+using AgeSharp.Crypto;
 
-namespace Age;
+namespace AgeSharp;
 
 /// <summary>
 /// Key generation and key/identity-file parsing: single keys, recipients files

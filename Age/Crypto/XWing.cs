@@ -4,7 +4,7 @@ using Org.BouncyCastle.Crypto.Kems;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 internal static class XWing
 {

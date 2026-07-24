@@ -1,5 +1,5 @@
 using System.CommandLine;
-using Age;
+using AgeSharp;
 using Age.Cli;
 
 // --- Root command (encrypt/decrypt) ---

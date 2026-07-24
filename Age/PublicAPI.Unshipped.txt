@@ -1,31 +1,31 @@
 #nullable enable
-Age.AgeAuthenticationException
-Age.AgeAuthenticationException.AgeAuthenticationException(string! message) -> void
-Age.AgeAuthenticationException.AgeAuthenticationException(string! message, System.Exception! inner) -> void
-Age.AgeFormatException
-Age.AgeFormatException.AgeFormatException(string! message) -> void
-Age.AgeFormatException.AgeFormatException(string! message, System.Exception! inner) -> void
-*REMOVED*Age.Recipients.IRecipient.Label.get -> string?
-*REMOVED*Age.Recipients.MlKem768X25519Recipient.Label.get -> string!
-*REMOVED*Age.Recipients.PluginRecipient.Label.get -> string?
-Age.Recipients.IRecipientWithLabels
-Age.Recipients.IRecipientWithLabels.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> (Age.Format.Stanza! stanza, System.Collections.Generic.IReadOnlyCollection<string!>! labels)
-Age.Recipients.MlKem768X25519Recipient.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> (Age.Format.Stanza! stanza, System.Collections.Generic.IReadOnlyCollection<string!>! labels)
-static Age.Recipients.MlKem768X25519Identity.TryParse(string? s, out Age.Recipients.MlKem768X25519Identity! result) -> bool
-static Age.Recipients.MlKem768X25519Recipient.TryParse(string? s, out Age.Recipients.MlKem768X25519Recipient! result) -> bool
-static Age.Recipients.SshEd25519Identity.TryParse(string? pemText, out Age.Recipients.SshEd25519Identity! result) -> bool
-static Age.Recipients.SshEd25519Recipient.TryParse(string? authorizedKeysLine, out Age.Recipients.SshEd25519Recipient! result) -> bool
-static Age.Recipients.SshRsaIdentity.TryParse(string? pemText, out Age.Recipients.SshRsaIdentity! result) -> bool
-static Age.Recipients.SshRsaRecipient.TryParse(string? authorizedKeysLine, out Age.Recipients.SshRsaRecipient! result) -> bool
-static Age.Recipients.X25519Identity.TryParse(string? s, out Age.Recipients.X25519Identity! result) -> bool
-static Age.Recipients.X25519Recipient.TryParse(string? s, out Age.Recipients.X25519Recipient! result) -> bool
-*REMOVED*Age.AgeArmorException
-*REMOVED*Age.AgeArmorException.AgeArmorException(string! message) -> void
-*REMOVED*Age.AgeHeaderException
-*REMOVED*Age.AgeHeaderException.AgeHeaderException(string! message) -> void
-*REMOVED*Age.AgeHeaderException.AgeHeaderException(string! message, System.Exception! inner) -> void
-*REMOVED*Age.AgeHmacException
-*REMOVED*Age.AgeHmacException.AgeHmacException(string! message) -> void
-*REMOVED*Age.AgePayloadException
-*REMOVED*Age.AgePayloadException.AgePayloadException(string! message) -> void
-*REMOVED*Age.AgePayloadException.AgePayloadException(string! message, System.Exception! inner) -> void
+AgeSharp.AgeAuthenticationException
+AgeSharp.AgeAuthenticationException.AgeAuthenticationException(string! message) -> void
+AgeSharp.AgeAuthenticationException.AgeAuthenticationException(string! message, System.Exception! inner) -> void
+AgeSharp.AgeFormatException
+AgeSharp.AgeFormatException.AgeFormatException(string! message) -> void
+AgeSharp.AgeFormatException.AgeFormatException(string! message, System.Exception! inner) -> void
+*REMOVED*AgeSharp.IRecipient.Label.get -> string?
+*REMOVED*AgeSharp.MlKem768X25519Recipient.Label.get -> string!
+*REMOVED*AgeSharp.PluginRecipient.Label.get -> string?
+AgeSharp.IRecipientWithLabels
+AgeSharp.IRecipientWithLabels.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> (AgeSharp.Stanza! stanza, System.Collections.Generic.IReadOnlyCollection<string!>! labels)
+AgeSharp.MlKem768X25519Recipient.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> (AgeSharp.Stanza! stanza, System.Collections.Generic.IReadOnlyCollection<string!>! labels)
+static AgeSharp.MlKem768X25519Identity.TryParse(string? s, out AgeSharp.MlKem768X25519Identity! result) -> bool
+static AgeSharp.MlKem768X25519Recipient.TryParse(string? s, out AgeSharp.MlKem768X25519Recipient! result) -> bool
+static AgeSharp.SshEd25519Identity.TryParse(string? pemText, out AgeSharp.SshEd25519Identity! result) -> bool
+static AgeSharp.SshEd25519Recipient.TryParse(string? authorizedKeysLine, out AgeSharp.SshEd25519Recipient! result) -> bool
+static AgeSharp.SshRsaIdentity.TryParse(string? pemText, out AgeSharp.SshRsaIdentity! result) -> bool
+static AgeSharp.SshRsaRecipient.TryParse(string? authorizedKeysLine, out AgeSharp.SshRsaRecipient! result) -> bool
+static AgeSharp.X25519Identity.TryParse(string? s, out AgeSharp.X25519Identity! result) -> bool
+static AgeSharp.X25519Recipient.TryParse(string? s, out AgeSharp.X25519Recipient! result) -> bool
+*REMOVED*AgeSharp.AgeArmorException
+*REMOVED*AgeSharp.AgeArmorException.AgeArmorException(string! message) -> void
+*REMOVED*AgeSharp.AgeHeaderException
+*REMOVED*AgeSharp.AgeHeaderException.AgeHeaderException(string! message) -> void
+*REMOVED*AgeSharp.AgeHeaderException.AgeHeaderException(string! message, System.Exception! inner) -> void
+*REMOVED*AgeSharp.AgeHmacException
+*REMOVED*AgeSharp.AgeHmacException.AgeHmacException(string! message) -> void
+*REMOVED*AgeSharp.AgePayloadException
+*REMOVED*AgeSharp.AgePayloadException.AgePayloadException(string! message) -> void
+*REMOVED*AgeSharp.AgePayloadException.AgePayloadException(string! message, System.Exception! inner) -> void

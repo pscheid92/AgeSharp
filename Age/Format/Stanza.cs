@@ -1,14 +1,14 @@
-using Age.Crypto;
+using AgeSharp.Crypto;
 
-namespace Age.Format;
+namespace AgeSharp;
 
 /// <summary>
 /// One entry in an age file header's recipient list. A stanza carries the
 /// wrapped file key for a single recipient, plus recipient-specific metadata.
 /// </summary>
 /// <remarks>
-/// Stanzas are the extensibility primitive used by custom <see cref="Age.Recipients.IRecipient"/>
-/// and <see cref="Age.Recipients.IIdentity"/> implementations to communicate
+/// Stanzas are the extensibility primitive used by custom <see cref="IRecipient"/>
+/// and <see cref="IIdentity"/> implementations to communicate
 /// wrapped keys through the age wire format. The <see cref="Type"/> tag
 /// identifies the recipient kind (<c>"X25519"</c>, <c>"scrypt"</c>, <c>"ssh-ed25519"</c>,
 /// <c>"ssh-rsa"</c>, <c>"mlkem768x25519"</c>, or any custom tag).

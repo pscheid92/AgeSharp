@@ -1,10 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
-using Age.Crypto;
-using Age.Format;
+using AgeSharp.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// Passphrase-based encryption via scrypt. Implements both <see cref="IRecipient"/>

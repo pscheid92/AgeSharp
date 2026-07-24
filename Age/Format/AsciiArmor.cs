@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Age.Format;
+namespace AgeSharp;
 
 internal static class AsciiArmor
 {

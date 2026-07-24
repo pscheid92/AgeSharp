@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Age.Format;
+namespace AgeSharp;
 
 /// <summary>
 /// Reads header lines from a stream byte-by-byte (UTF-8/ASCII),

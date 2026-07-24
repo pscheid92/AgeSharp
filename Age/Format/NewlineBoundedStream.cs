@@ -1,4 +1,4 @@
-namespace Age.Format;
+namespace AgeSharp;
 
 /// <summary>
 /// A read-only pass-through stream that caps the number of bytes that may pass

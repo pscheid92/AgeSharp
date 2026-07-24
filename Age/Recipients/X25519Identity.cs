@@ -1,11 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
-using Age.Crypto;
-using Age.Format;
+using AgeSharp.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// A native age X25519 identity — the secret half of an age key pair

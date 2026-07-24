@@ -1,6 +1,5 @@
-using Age.Format;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// Wraps an age file key into a stanza that a matching <see cref="IIdentity"/>

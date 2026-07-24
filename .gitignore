@@ -26,3 +26,6 @@ BenchmarkDotNet.Artifacts/
 .DS_Store
 Thumbs.db
 dist/
+/go-age/
+/docs/API_REVIEW.md
+/docs/V0.3.0_PLAN.md

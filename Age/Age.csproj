@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AssemblyName>AgeSharp</AssemblyName>
+    <RootNamespace>AgeSharp</RootNamespace>
 
     <PackageId>AgeSharp</PackageId>
     <Authors>pscheid92</Authors>

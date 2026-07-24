@@ -1,9 +1,8 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
-using Age;
-using Age.Crypto;
-using Age.Recipients;
+using AgeSharp;
+using AgeSharp.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Utilities;
@@ -327,7 +326,7 @@ public class SshEd25519RecipientIdentityTests
         var (_, pemText) = GenerateEd25519KeyPair();
         using var identity = SshEd25519Identity.Parse(pemText);
 
-        var stanza = new Age.Format.Stanza("X25519", ["arg"], new byte[32]);
+        var stanza = new AgeSharp.Stanza("X25519", ["arg"], new byte[32]);
         Assert.Null(identity.Unwrap(stanza));
     }
 
@@ -337,7 +336,7 @@ public class SshEd25519RecipientIdentityTests
         var (_, pemText) = GenerateEd25519KeyPair();
         using var identity = SshEd25519Identity.Parse(pemText);
 
-        var stanza = new Age.Format.Stanza("ssh-ed25519", ["onlyone"], new byte[32]);
+        var stanza = new AgeSharp.Stanza("ssh-ed25519", ["onlyone"], new byte[32]);
         Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
@@ -418,7 +417,7 @@ public class SshEd25519RecipientIdentityTests
         var goodStanza = recipient.Wrap(fileKey);
 
         // Replace the ephemeral key arg with invalid base64
-        var stanza = new Age.Format.Stanza("ssh-ed25519", [goodStanza.Args[0], "@@invalid@@"], goodStanza.Body.ToArray());
+        var stanza = new AgeSharp.Stanza("ssh-ed25519", [goodStanza.Args[0], "@@invalid@@"], goodStanza.Body.ToArray());
         Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
@@ -434,8 +433,8 @@ public class SshEd25519RecipientIdentityTests
         var goodStanza = recipient.Wrap(fileKey);
 
         // Replace ephemeral key with wrong length (16 bytes instead of 32)
-        var shortKeyB64 = Age.Crypto.Base64Unpadded.Encode(new byte[16]);
-        var stanza = new Age.Format.Stanza("ssh-ed25519", [goodStanza.Args[0], shortKeyB64], goodStanza.Body.ToArray());
+        var shortKeyB64 = AgeSharp.Crypto.Base64Unpadded.Encode(new byte[16]);
+        var stanza = new AgeSharp.Stanza("ssh-ed25519", [goodStanza.Args[0], shortKeyB64], goodStanza.Body.ToArray());
         Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
@@ -451,7 +450,7 @@ public class SshEd25519RecipientIdentityTests
         var goodStanza = recipient.Wrap(fileKey);
 
         // Replace body with wrong length
-        var stanza = new Age.Format.Stanza("ssh-ed25519", [.. goodStanza.Args], new byte[16]);
+        var stanza = new AgeSharp.Stanza("ssh-ed25519", [.. goodStanza.Args], new byte[16]);
         Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
@@ -467,8 +466,8 @@ public class SshEd25519RecipientIdentityTests
         // All-zero (low-order/identity) ephemeral → all-zero shared secret.
         // Before the guard this leaked BouncyCastle's InvalidOperationException
         // straight through Decrypt, escaping the AgeException contract.
-        var lowOrderEph = Age.Crypto.Base64Unpadded.Encode(new byte[32]);
-        var stanza = new Age.Format.Stanza("ssh-ed25519", [goodStanza.Args[0], lowOrderEph], new byte[32]);
+        var lowOrderEph = AgeSharp.Crypto.Base64Unpadded.Encode(new byte[32]);
+        var stanza = new AgeSharp.Stanza("ssh-ed25519", [goodStanza.Args[0], lowOrderEph], new byte[32]);
         Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 }
@@ -545,7 +544,7 @@ public class SshRsaRecipientIdentityTests
         var (_, pemText) = GenerateRsaKeyPair();
         using var identity = SshRsaIdentity.Parse(pemText);
 
-        var stanza = new Age.Format.Stanza("X25519", ["arg"], new byte[32]);
+        var stanza = new AgeSharp.Stanza("X25519", ["arg"], new byte[32]);
         Assert.Null(identity.Unwrap(stanza));
     }
 
@@ -555,7 +554,7 @@ public class SshRsaRecipientIdentityTests
         var (_, pemText) = GenerateRsaKeyPair();
         using var identity = SshRsaIdentity.Parse(pemText);
 
-        var stanza = new Age.Format.Stanza("ssh-rsa", ["tag", "extra"], new byte[256]);
+        var stanza = new AgeSharp.Stanza("ssh-rsa", ["tag", "extra"], new byte[256]);
         Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
@@ -653,7 +652,7 @@ public class SshRsaRecipientIdentityTests
         var corruptBody = new byte[stanza.Body.Length];
         // Fill with a value that's less than the modulus but will fail OAEP padding check
         corruptBody[1] = 0x02; // Ensure it's < modulus
-        var corruptStanza = new Age.Format.Stanza("ssh-rsa", [.. stanza.Args], corruptBody);
+        var corruptStanza = new AgeSharp.Stanza("ssh-rsa", [.. stanza.Args], corruptBody);
 
         Assert.Null(identity.Unwrap(corruptStanza));
     }
@@ -673,7 +672,7 @@ public class SshRsaRecipientIdentityTests
         // Body larger than 256 bytes (2048-bit key) triggers "input too large for RSA cipher"
         var oversizedBody = new byte[512];
         RandomNumberGenerator.Fill(oversizedBody);
-        var oversizedStanza = new Age.Format.Stanza("ssh-rsa", [.. stanza.Args], oversizedBody);
+        var oversizedStanza = new AgeSharp.Stanza("ssh-rsa", [.. stanza.Args], oversizedBody);
 
         Assert.Null(identity.Unwrap(oversizedStanza));
     }

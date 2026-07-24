@@ -1,7 +1,7 @@
 using System.Buffers.Text;
 using System.Text;
 
-namespace Age.Format;
+namespace AgeSharp;
 
 internal sealed class ArmorStream : Stream
 {

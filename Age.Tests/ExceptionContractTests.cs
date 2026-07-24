@@ -1,7 +1,6 @@
 using System.Text;
-using Age.Crypto;
-using Age.Format;
-using Age.Recipients;
+using AgeSharp.Crypto;
+using AgeSharp;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.OpenSsl;

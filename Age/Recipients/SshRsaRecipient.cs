@@ -1,13 +1,12 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
-using Age.Crypto;
-using Age.Format;
+using AgeSharp.Crypto;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Encodings;
 using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Crypto.Parameters;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// A recipient backed by an ssh-rsa public key (an <c>authorized_keys</c> line,

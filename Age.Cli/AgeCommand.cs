@@ -1,8 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using Age.Format;
-using Age.Plugin;
-using Age.Recipients;
+using AgeSharp;
 
 namespace Age.Cli;
 

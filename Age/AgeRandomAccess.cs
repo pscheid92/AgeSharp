@@ -1,9 +1,7 @@
 using System.Security.Cryptography;
-using Age.Crypto;
-using Age.Format;
-using Age.Recipients;
+using AgeSharp.Crypto;
 
-namespace Age;
+namespace AgeSharp;
 
 /// <summary>
 /// Random-access decryption over a seekable age ciphertext: decrypt arbitrary

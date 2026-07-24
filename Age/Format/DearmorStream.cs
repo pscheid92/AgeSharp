@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.Text;
 
-namespace Age.Format;
+namespace AgeSharp;
 
 /// <summary>
 /// A read-only stream that lazily decodes ASCII-armored (PEM-like) base64 data.

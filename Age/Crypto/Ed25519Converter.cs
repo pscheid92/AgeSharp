@@ -1,7 +1,7 @@
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Math.EC.Rfc7748;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 internal static class Ed25519Converter
 {

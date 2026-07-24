@@ -1,4 +1,4 @@
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// Minimal ChaCha20-Poly1305 AEAD abstraction. The method shapes mirror

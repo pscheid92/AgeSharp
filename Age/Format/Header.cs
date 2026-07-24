@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
-using Age.Crypto;
+using AgeSharp.Crypto;
 
-namespace Age.Format;
+namespace AgeSharp;
 
 internal sealed class Header
 {

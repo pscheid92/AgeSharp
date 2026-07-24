@@ -1,4 +1,4 @@
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 internal sealed class RandomAccessDecryptStream(AgeRandomAccess reader, long initialOffset) : Stream
 {

@@ -1,8 +1,7 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
-using Age;
-using Age.Recipients;
+using AgeSharp;
 using Xunit;
 
 namespace Age.TestKit;
