@@ -24,8 +24,15 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable, IParsable<M
     }
 
     /// <summary>The matching public recipient (<c>age1pq1…</c>), derived from the seed.</summary>
-    public MlKem768X25519Recipient Recipient =>
-        new(XWing.GeneratePublicKey(_seed));
+    /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
+    public MlKem768X25519Recipient Recipient
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return new(XWing.GeneratePublicKey(_seed));
+        }
+    }
 
     /// <summary>Generates a new identity from a cryptographically secure random seed.</summary>
     public static MlKem768X25519Identity Generate()
@@ -57,8 +64,11 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable, IParsable<M
     /// Returns the bech32-encoded secret seed (<c>AGE-SECRET-KEY-PQ-1…</c>), e.g. for
     /// writing to an identity file. Handle the result as a secret.
     /// </summary>
+    /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public string ToSecretString()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var seedCopy = new byte[SeedSize];
         Array.Copy(_seed, seedCopy, SeedSize);
 
@@ -71,10 +81,15 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable, IParsable<M
     /// Returns a redacted representation containing only a prefix of the public
     /// recipient (the full recipient is ~2000 characters), so accidental logging
     /// or string interpolation cannot leak the secret seed. Use
-    /// <see cref="ToSecretString"/> to export the secret.
+    /// <see cref="ToSecretString"/> to export the secret. Once disposed, returns
+    /// <c>MlKem768X25519Identity(disposed)</c> — unlike the other members this
+    /// never throws, because debuggers, loggers, and exception-message formatting
+    /// all call <c>ToString</c> and must not fail on a disposed instance.
     /// </summary>
     public override string ToString() =>
-        $"MlKem768X25519Identity({Recipient.ToString()[..24]}…)";
+        _disposed
+            ? "MlKem768X25519Identity(disposed)"
+            : $"MlKem768X25519Identity({Recipient.ToString()[..24]}…)";
 
     /// <summary>
     /// Attempts to unwrap the file key from an <c>mlkem768x25519</c> stanza.

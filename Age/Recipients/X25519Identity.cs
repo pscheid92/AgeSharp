@@ -26,7 +26,15 @@ public sealed class X25519Identity : IIdentity, IDisposable, IParsable<X25519Ide
     }
 
     /// <summary>The matching public recipient (<c>age1…</c>), derived from the secret key.</summary>
-    public X25519Recipient Recipient => new(PublicKeyParams);
+    /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
+    public X25519Recipient Recipient
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return new(PublicKeyParams);
+        }
+    }
 
     private X25519PublicKeyParameters PublicKeyParams
     {
@@ -68,8 +76,11 @@ public sealed class X25519Identity : IIdentity, IDisposable, IParsable<X25519Ide
     /// Returns the bech32-encoded secret key (<c>AGE-SECRET-KEY-1…</c>), e.g. for
     /// writing to an identity file. Handle the result as a secret.
     /// </summary>
+    /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public string ToSecretString()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var rawCopy = new byte[KeySize];
         Array.Copy(_rawPrivateKey, rawCopy, KeySize);
 
@@ -82,10 +93,13 @@ public sealed class X25519Identity : IIdentity, IDisposable, IParsable<X25519Ide
     /// <summary>
     /// Returns a redacted representation containing only the public recipient, so
     /// accidental logging or string interpolation cannot leak the secret key.
-    /// Use <see cref="ToSecretString"/> to export the secret key.
+    /// Use <see cref="ToSecretString"/> to export the secret key. Once disposed,
+    /// returns <c>X25519Identity(disposed)</c> — unlike the other members this
+    /// never throws, because debuggers, loggers, and exception-message formatting
+    /// all call <c>ToString</c> and must not fail on a disposed instance.
     /// </summary>
     public override string ToString() =>
-        $"X25519Identity({Recipient})";
+        _disposed ? "X25519Identity(disposed)" : $"X25519Identity({Recipient})";
 
     /// <summary>
     /// Attempts to unwrap the file key from an X25519 stanza. Returns null for

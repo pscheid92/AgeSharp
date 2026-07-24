@@ -470,6 +470,41 @@ public class SshEd25519RecipientIdentityTests
         var stanza = new AgeSharp.Stanza("ssh-ed25519", [goodStanza.Args[0], lowOrderEph], new byte[32]);
         Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
+
+    // --- disposal contract (see IdentityLifecycleTests for the X25519/ML-KEM half) ---
+
+    [Fact]
+    public void Recipient_AfterDispose_Throws()
+    {
+        var (_, pemText) = GenerateEd25519KeyPair();
+        var identity = SshEd25519Identity.Parse(pemText);
+        identity.Dispose();
+
+        // The public halves survive Dispose here, so this guard is about a uniform
+        // contract rather than preventing a wrong value.
+        Assert.Throws<ObjectDisposedException>(() => identity.Recipient);
+    }
+
+    [Fact]
+    public void Unwrap_AfterDispose_Throws()
+    {
+        var (_, pemText) = GenerateEd25519KeyPair();
+        var identity = SshEd25519Identity.Parse(pemText);
+        var stanza = identity.Recipient.Wrap(new byte[16]);
+        identity.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => identity.Unwrap(stanza));
+    }
+
+    [Fact]
+    public void DoubleDispose_DoesNotThrow()
+    {
+        var (_, pemText) = GenerateEd25519KeyPair();
+        var identity = SshEd25519Identity.Parse(pemText);
+
+        identity.Dispose();
+        identity.Dispose();
+    }
 }
 
 public class SshRsaRecipientIdentityTests
@@ -675,6 +710,41 @@ public class SshRsaRecipientIdentityTests
         var oversizedStanza = new AgeSharp.Stanza("ssh-rsa", [.. stanza.Args], oversizedBody);
 
         Assert.Null(identity.Unwrap(oversizedStanza));
+    }
+
+    // --- disposal contract (see IdentityLifecycleTests for the X25519/ML-KEM half) ---
+
+    [Fact]
+    public void Recipient_AfterDispose_Throws()
+    {
+        var (_, pemText) = GenerateRsaKeyPair();
+        var identity = SshRsaIdentity.Parse(pemText);
+        identity.Dispose();
+
+        // Dispose wipes nothing for RSA (BouncyCastle BigIntegers), so this guard is
+        // about a uniform contract rather than preventing a wrong value.
+        Assert.Throws<ObjectDisposedException>(() => identity.Recipient);
+    }
+
+    [Fact]
+    public void Unwrap_AfterDispose_Throws()
+    {
+        var (_, pemText) = GenerateRsaKeyPair();
+        var identity = SshRsaIdentity.Parse(pemText);
+        var stanza = identity.Recipient.Wrap(new byte[16]);
+        identity.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => identity.Unwrap(stanza));
+    }
+
+    [Fact]
+    public void DoubleDispose_DoesNotThrow()
+    {
+        var (_, pemText) = GenerateRsaKeyPair();
+        var identity = SshRsaIdentity.Parse(pemText);
+
+        identity.Dispose();
+        identity.Dispose();
     }
 }
 
