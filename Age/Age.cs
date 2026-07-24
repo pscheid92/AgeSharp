@@ -51,7 +51,7 @@ public static partial class Age
 
     /// <summary>
     /// Decrypts an age-encrypted <paramref name="input"/> into <paramref name="output"/>.
-    /// Armored input is auto-detected when the stream is seekable.
+    /// Armored input is auto-detected on any stream, seekable or not.
     /// </summary>
     /// <param name="input">The age-encrypted source (binary or ASCII-armored).</param>
     /// <param name="output">The plaintext destination.</param>
@@ -297,25 +297,26 @@ public static partial class Age
     /// <summary>
     /// Returns a readable plaintext <see cref="Stream"/> over an age-encrypted
     /// <paramref name="source"/>. Header parsing and MAC verification happen
-    /// eagerly; payload decryption is lazy. Armored input is auto-detected when
-    /// the source is seekable. Dispose the returned stream when done.
+    /// eagerly; payload decryption is lazy. Armored input is auto-detected on any
+    /// stream, seekable or not. Dispose the returned stream when done.
     /// </summary>
     /// <remarks>
     /// <see cref="Stream.CanSeek"/> mirrors the source: a seekable source yields a
     /// seekable stream whose <see cref="Stream.Length"/> is the plaintext length
     /// and whose <see cref="Stream.Seek"/> maps to the containing 64 KiB chunk,
     /// with the last-read chunk cached; a non-seekable source yields a forward-only
-    /// stream. A seekable armored source is materialized (its dearmored bytes are
-    /// buffered in memory) so it can seek. Payload truncation is only detected once
-    /// a read reaches the affected chunk, so a seek-and-read that never touches the
-    /// final chunk cannot observe a truncated tail.
+    /// stream, as does an armored one — armor is decoded a line at a time, so it
+    /// gives up seeking rather than buying it with the file's size in memory.
+    /// Opening a seekable source decrypts the final chunk to authenticate the
+    /// plaintext length, so <see cref="Stream.Length"/> is trustworthy and a
+    /// truncated payload is rejected here rather than on reaching the missing tail.
     /// </remarks>
     /// <param name="source">The age-encrypted source (binary or ASCII-armored).</param>
     /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
     /// <exception cref="ArgumentException">No identities were supplied.</exception>
     /// <exception cref="NoIdentityMatchException">None of the identities matched any stanza.</exception>
     /// <exception cref="AgeFormatException">The header (or armor) is malformed.</exception>
-    /// <exception cref="AgeAuthenticationException">The header MAC failed, or a seekable source's payload is structurally impossible.</exception>
+    /// <exception cref="AgeAuthenticationException">The header MAC failed, or a seekable source's payload is truncated or structurally impossible.</exception>
     public static Stream OpenRead(Stream source, params ReadOnlySpan<IIdentity> identities)
         => OpenRead(source, AgeOptions.Default, identities);
 
@@ -343,7 +344,7 @@ public static partial class Age
             // CanSeek mirrors the (possibly dearmored) source: a seekable input
             // gets random-access decryption; anything else stays forward-only.
             return binaryInput.CanSeek
-                ? new SeekableDecryptStream(payloadKey, binaryInput, binaryInput.Position, needsDispose)
+                ? SeekableDecryptStream.Create(payloadKey, binaryInput, binaryInput.Position, needsDispose)
                 : new DecryptStream(payloadKey, binaryInput, needsDispose);
         }
         catch
@@ -357,7 +358,7 @@ public static partial class Age
     /// <summary>
     /// Parses the header of an age file without decrypting it (and without
     /// verifying the header MAC, which requires an identity). Armored input is
-    /// auto-detected when the stream is seekable.
+    /// auto-detected on any stream, seekable or not.
     /// </summary>
     /// <param name="source">The age-encrypted source.</param>
     /// <param name="options">Parsing options (the header-size limits); defaults are used when null.</param>

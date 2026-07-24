@@ -41,8 +41,8 @@ public static partial class Age
 
     /// <summary>
     /// Asynchronously decrypts an age-encrypted <paramref name="input"/> into
-    /// <paramref name="output"/>. Armored input is auto-detected when the source
-    /// is seekable. Every stream operation is genuinely asynchronous.
+    /// <paramref name="output"/>. Armored input is auto-detected on any
+    /// source, seekable or not. Every stream operation is genuinely asynchronous.
     /// </summary>
     /// <param name="input">The age-encrypted source (binary or ASCII-armored).</param>
     /// <param name="output">The plaintext destination.</param>
@@ -72,10 +72,10 @@ public static partial class Age
     /// stream is produced; payload decryption is lazy and asynchronous.
     /// </summary>
     /// <remarks>
-    /// Unlike the synchronous <see cref="OpenRead(Stream, ReadOnlySpan{IIdentity})"/>,
-    /// the returned stream is <b>forward-only</b> (<see cref="Stream.CanSeek"/> is
-    /// false); the seekable random-access path is synchronous only. A seekable
-    /// armored source is materialized (its dearmored bytes are buffered in memory).
+    /// Behaves as <see cref="OpenRead(Stream, ReadOnlySpan{IIdentity})"/> does:
+    /// <see cref="Stream.CanSeek"/> mirrors the source, and opening a seekable one
+    /// authenticates the plaintext length by decrypting the final chunk. Every step,
+    /// including that authentication and each chunk read, is asynchronous.
     /// </remarks>
     /// <param name="source">The age-encrypted source (binary or ASCII-armored).</param>
     /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
@@ -118,7 +118,13 @@ public static partial class Age
                 CryptographicOperations.ZeroMemory(fileKey);
             }
 
-            return new DecryptStream(payloadKey, binaryInput, needsDispose);
+            // Same dispatch as the synchronous path: a seekable source yields a
+            // seekable stream. Both the length authentication below and every chunk
+            // read are asynchronous, so this stays free of blocking I/O.
+            return binaryInput.CanSeek
+                ? await SeekableDecryptStream.CreateAsync(payloadKey, binaryInput, binaryInput.Position,
+                                                          needsDispose, cancellationToken).ConfigureAwait(false)
+                : new DecryptStream(payloadKey, binaryInput, needsDispose);
         }
         catch
         {

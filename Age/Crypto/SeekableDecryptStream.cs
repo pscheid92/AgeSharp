@@ -35,7 +35,7 @@ internal sealed class SeekableDecryptStream : Stream
     private long _position;
     private bool _disposed;
 
-    public SeekableDecryptStream(byte[] payloadKey, Stream ciphertext, long payloadStart, bool ownsStream)
+    private SeekableDecryptStream(byte[] payloadKey, Stream ciphertext, long payloadStart, bool ownsStream)
     {
         _payloadKey = payloadKey;
         _ciphertext = ciphertext;
@@ -54,6 +54,81 @@ internal sealed class SeekableDecryptStream : Stream
         _chunkPlaintext = ArrayPool<byte>.Shared.Rent(StreamEncryption.ChunkSize);
         _encChunk = ArrayPool<byte>.Shared.Rent(StreamEncryption.EncryptedChunkSize);
         _cipher = AeadCipher.Create(payloadKey);
+    }
+
+    /// <summary>
+    /// Opens the stream, authenticating the plaintext length before returning.
+    /// </summary>
+    /// <exception cref="AgeAuthenticationException">
+    /// The payload is structurally impossible, or its final chunk does not
+    /// authenticate as a final chunk — meaning the ciphertext was truncated.
+    /// </exception>
+    public static SeekableDecryptStream Create(byte[] payloadKey, Stream ciphertext, long payloadStart, bool ownsStream)
+    {
+        var stream = new SeekableDecryptStream(payloadKey, ciphertext, payloadStart, ownsStream);
+
+        try
+        {
+            var (encChunkSize, chunkStart) = stream.FinalChunkLayout();
+            stream.ReadFully(stream._payloadStart + chunkStart, stream._encChunk.AsSpan(0, encChunkSize));
+            stream.CacheFinalChunk(encChunkSize);
+        }
+        catch
+        {
+            stream.AbandonResources();
+            throw;
+        }
+
+        return stream;
+    }
+
+    /// <summary>Asynchronous counterpart to <see cref="Create"/>.</summary>
+    public static async ValueTask<SeekableDecryptStream> CreateAsync(byte[] payloadKey, Stream ciphertext,
+                                                                     long payloadStart, bool ownsStream,
+                                                                     CancellationToken cancellationToken)
+    {
+        var stream = new SeekableDecryptStream(payloadKey, ciphertext, payloadStart, ownsStream);
+
+        try
+        {
+            var (encChunkSize, chunkStart) = stream.FinalChunkLayout();
+            await stream.ReadFullyAsync(stream._payloadStart + chunkStart,
+                                        stream._encChunk.AsMemory(0, encChunkSize), cancellationToken).ConfigureAwait(false);
+            stream.CacheFinalChunk(encChunkSize);
+        }
+        catch
+        {
+            stream.AbandonResources();
+            throw;
+        }
+
+        return stream;
+    }
+
+    private (int encChunkSize, long chunkStart) FinalChunkLayout() => ChunkLayout(_totalChunks - 1);
+
+    // Decrypting the final chunk *as a final chunk* is what authenticates the
+    // plaintext length: the chunk layout alone cannot distinguish a truncated file
+    // from a shorter one, because a truncation landing on a chunk boundary produces
+    // a structurally valid payload. Both reference implementations do this, and the
+    // forward-only path already catches truncation when it reaches the last chunk —
+    // without this, the same file behaved differently depending on whether the
+    // caller's stream happened to be seekable.
+    //
+    // The decrypted chunk seeds the cache rather than being thrown away, so a
+    // seek to the end costs nothing extra.
+    private void CacheFinalChunk(int encChunkSize)
+    {
+        _cachedLength = DecryptLoadedChunk(_totalChunks - 1, encChunkSize);
+        _cachedChunkIndex = _totalChunks - 1;
+    }
+
+    // Construction failed after buffers were rented: return them and drop the cipher.
+    // The instance is never handed to a caller, so it can never be disposed twice.
+    private void AbandonResources()
+    {
+        _disposed = true;
+        ReleaseResources();
     }
 
     public override bool CanRead => true;
