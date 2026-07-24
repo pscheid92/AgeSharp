@@ -30,8 +30,9 @@
 | Seekable decryption (`Age.OpenRead`) | ✅ | ❌ | ✅ | Seek into encrypted files (e.g. ZIP in age) |
 | Detached header APIs | ✅ | ❌ | ✅ | Extract/decrypt header separately |
 | `age-inspect` | ✅ | ❌ | ✅ | Metadata inspection without decryption |
-| Pull-based encryption (`EncryptReader`) | ✅ | ✅ | ✅ | Stream-returning API, lazy payload encryption/decryption |
-| Async I/O | ❌ | ✅ | ❌ | Rust-specific feature flag |
+| Push-based encryption (`OpenWrite`) | ✅ | ✅ | ✅ | Writable stream (`WriteCloser`-style); plaintext in, ciphertext out |
+| Pull-based streaming (`EncryptReader` / `OpenRead`) | ✅ | ✅ | ✅ | Stream-returning API, lazy payload encryption/decryption |
+| Async I/O | ❌ | ✅ | ✅ | `EncryptAsync`/`DecryptAsync`/`OpenReadAsync` + async streams; no blocking I/O (`AllowSynchronousIO = false`) |
 
 ## CLI Tools
 
@@ -43,4 +44,4 @@
 
 ## Summary
 
-AgeSharp is the most complete non-Go implementation of the age encryption specification. It covers every recipient type (including post-quantum ML-KEM-768 and the plugin protocol), all core encryption features, and all Go v1.3.0 advanced APIs — detached headers, pull-based streams, random-access decryption, and `age inspect`. AgeSharp leads rage in both post-quantum support and advanced API coverage.
+AgeSharp is the most complete non-Go implementation of the age encryption specification. It covers every recipient type (including post-quantum ML-KEM-768 and the plugin protocol), all core encryption features, and all Go v1.3.0 advanced APIs — detached headers, push and pull streams, random-access decryption, and `age inspect` — plus a fully asynchronous surface (`EncryptAsync`/`DecryptAsync`/`OpenReadAsync` with no blocking I/O). It leads rage in post-quantum support and advanced API coverage, and matches rage's async story that the Go reference does not offer.
