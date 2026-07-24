@@ -24,7 +24,7 @@ internal static class AgeCommand
             if (recipients.Count > 0 || recipientFiles.Length > 0 || identityFiles.Length > 0)
                 throw new AgeException("-p/--passphrase can't be combined with other recipient flags");
 
-            recipients.Add(new ScryptRecipient(ReadAndConfirmPassphrase()));
+            recipients.Add(new Passphrase(ReadAndConfirmPassphrase()));
         }
         else
         {
@@ -116,7 +116,7 @@ internal static class AgeCommand
             if (identityFiles.Length == 0)
                 throw new AgeException("missing identity (-i required for decryption, or use -p for passphrase)");
 
-            identities.AddRange(from file in identityFiles from id in LoadIdentities(file, callbacks) select id is ScryptRecipient ? new RejectScryptIdentity() : id);
+            identities.AddRange(from file in identityFiles from id in LoadIdentities(file, callbacks) select id is Passphrase ? new RejectScryptIdentity() : id);
         }
 
         return identities;
@@ -214,11 +214,11 @@ internal static class AgeCommand
     /// </summary>
     private sealed class LazyPassphraseIdentity : IIdentity
     {
-        private ScryptRecipient? _inner;
+        private Passphrase? _inner;
 
         public byte[]? Unwrap(Stanza stanza)
         {
-            _inner ??= new ScryptRecipient(ReadPassphrase("Enter passphrase: "));
+            _inner ??= new Passphrase(ReadPassphrase("Enter passphrase: "));
             return _inner.Unwrap(stanza);
         }
     }

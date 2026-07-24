@@ -61,10 +61,10 @@ AgeSharp.PluginRecipient
 AgeSharp.PluginRecipient.Label.get -> string?
 AgeSharp.PluginRecipient.PluginRecipient(string! recipient, AgeSharp.IPluginCallbacks? callbacks = null) -> void
 AgeSharp.PluginRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
-AgeSharp.ScryptRecipient
-AgeSharp.ScryptRecipient.ScryptRecipient(string! passphrase, int workFactor = 18) -> void
-AgeSharp.ScryptRecipient.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
-AgeSharp.ScryptRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+AgeSharp.Passphrase
+AgeSharp.Passphrase.Passphrase(string! passphrase, int workFactor = 18) -> void
+AgeSharp.Passphrase.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
+AgeSharp.Passphrase.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
 AgeSharp.SshEd25519Identity
 AgeSharp.SshEd25519Identity.Dispose() -> void
 AgeSharp.SshEd25519Identity.Recipient.get -> AgeSharp.SshEd25519Recipient!

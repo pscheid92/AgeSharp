@@ -17,7 +17,7 @@ public class RecipientBenchmarks
     private MlKem768X25519Recipient _mlKemRecipient = null!;
     private Stanza _mlKemStanza = null!;
 
-    private ScryptRecipient _scryptRecipient = null!;
+    private Passphrase _scryptRecipient = null!;
     private Stanza _scryptStanza = null!;
 
     [GlobalSetup]
@@ -36,7 +36,7 @@ public class RecipientBenchmarks
         _mlKemStanza = _mlKemRecipient.Wrap(_fileKey);
 
         // scrypt (workFactor: 10 to keep benchmarks fast)
-        _scryptRecipient = new ScryptRecipient("benchmark-passphrase", workFactor: 10);
+        _scryptRecipient = new Passphrase("benchmark-passphrase", workFactor: 10);
         _scryptStanza = _scryptRecipient.Wrap(_fileKey);
     }
 

@@ -178,7 +178,7 @@ public class DetachedHeaderTests
     [Fact]
     public void AgeHeader_Parse_ScryptStanza()
     {
-        var recipient = new ScryptRecipient("test passphrase", workFactor: 10);
+        var recipient = new Passphrase("test passphrase", workFactor: 10);
         var plaintext = "scrypt header test"u8.ToArray();
 
         using var input = new MemoryStream(plaintext);

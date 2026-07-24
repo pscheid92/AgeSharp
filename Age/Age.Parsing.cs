@@ -81,7 +81,7 @@ public static partial class Age
     public static IIdentity[] DecryptIdentities(Stream source, string passphrase, IPluginCallbacks? plugins = null)
     {
         using var output = new MemoryStream();
-        Decrypt(source, output, new ScryptRecipient(passphrase));
+        Decrypt(source, output, new Passphrase(passphrase));
         return ParseIdentities(Encoding.UTF8.GetString(output.ToArray()), plugins);
     }
 

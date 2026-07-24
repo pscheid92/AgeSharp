@@ -8,15 +8,15 @@ namespace AgeSharp;
 /// <summary>
 /// Passphrase-based encryption via scrypt. Implements both <see cref="IRecipient"/>
 /// and <see cref="IIdentity"/>: the same passphrase encrypts and decrypts, so pass
-/// the same instance to <c>Encrypt</c> and <c>Decrypt</c>. An scrypt recipient must
-/// be the only recipient of a file (enforced on both encrypt and decrypt).
+/// the same instance to <c>Encrypt</c> and <c>Decrypt</c>. A passphrase must be the
+/// only recipient of a file (enforced on both encrypt and decrypt).
 /// </summary>
 /// <param name="passphrase">The passphrase; used as UTF-8 bytes.</param>
 /// <param name="workFactor">
 /// The scrypt cost as log2(N), 1–20 (default 18, matching the age CLI).
 /// Decryption refuses stanzas whose work factor exceeds 20.
 /// </param>
-public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IRecipient, IIdentity
+public sealed class Passphrase(string passphrase, int workFactor = 18) : IRecipient, IIdentity
 {
     private const string StanzaType = "scrypt";
     private const string ScryptSaltLabel = "age-encryption.org/v1/scrypt";

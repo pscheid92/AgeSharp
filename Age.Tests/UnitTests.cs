@@ -874,7 +874,7 @@ public class StreamEncryptionTests
     }
 }
 
-public class ScryptRecipientTests
+public class PassphraseTests
 {
     [Theory]
     [InlineData("1", true, 1)]
@@ -882,7 +882,7 @@ public class ScryptRecipientTests
     [InlineData("20", true, 20)]
     public void ValidateWorkFactor_Valid_Values(string input, bool expectedValid, int expectedValue)
     {
-        var result = ScryptRecipient.ValidateWorkFactor(input, out int workFactor);
+        var result = Passphrase.ValidateWorkFactor(input, out int workFactor);
         Assert.Equal(expectedValid, result);
         Assert.Equal(expectedValue, workFactor);
     }
@@ -895,13 +895,13 @@ public class ScryptRecipientTests
     [InlineData("abc")]
     public void ValidateWorkFactor_Invalid_Values(string input)
     {
-        Assert.False(ScryptRecipient.ValidateWorkFactor(input, out _));
+        Assert.False(Passphrase.ValidateWorkFactor(input, out _));
     }
 
     [Fact]
     public void Unwrap_Rejects_WorkFactor_Over_20()
     {
-        var recipient = new ScryptRecipient("password");
+        var recipient = new Passphrase("password");
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "21"], new byte[32]);
@@ -918,7 +918,7 @@ public class ScryptRecipientTests
     {
         // Out-of-range work factors must fail fast (the high end would otherwise
         // overflow `1 << workFactor` or produce a file this library can't read).
-        Assert.Throws<ArgumentOutOfRangeException>(() => new ScryptRecipient("password", workFactor));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Passphrase("password", workFactor));
     }
 
     [Theory]
@@ -927,13 +927,13 @@ public class ScryptRecipientTests
     [InlineData(20)]
     public void Constructor_Accepts_InRange_WorkFactor(int workFactor)
     {
-        _ = new ScryptRecipient("password", workFactor);
+        _ = new Passphrase("password", workFactor);
     }
 
     [Fact]
     public void Unwrap_Rejects_Wrong_Salt_Size()
     {
-        var recipient = new ScryptRecipient("password");
+        var recipient = new Passphrase("password");
         var wrongSalt = new byte[10];
         var saltB64 = Base64Unpadded.Encode(wrongSalt);
         var stanza = new Stanza("scrypt", [saltB64, "10"], new byte[32]);
@@ -943,7 +943,7 @@ public class ScryptRecipientTests
     [Fact]
     public void Unwrap_Rejects_Wrong_Body_Size()
     {
-        var recipient = new ScryptRecipient("password");
+        var recipient = new Passphrase("password");
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "10"], new byte[16]);
@@ -953,7 +953,7 @@ public class ScryptRecipientTests
     [Fact]
     public void Unwrap_Rejects_Wrong_Arg_Count()
     {
-        var recipient = new ScryptRecipient("password");
+        var recipient = new Passphrase("password");
         var stanza = new Stanza("scrypt", ["onlyone"], new byte[32]);
         Assert.Throws<AgeFormatException>(() => recipient.Unwrap(stanza));
     }
@@ -961,7 +961,7 @@ public class ScryptRecipientTests
     [Fact]
     public void Unwrap_Rejects_Invalid_Salt_Encoding()
     {
-        var recipient = new ScryptRecipient("password");
+        var recipient = new Passphrase("password");
         var stanza = new Stanza("scrypt", ["@@invalid@@", "10"], new byte[32]);
         Assert.Throws<AgeFormatException>(() => recipient.Unwrap(stanza));
     }
@@ -969,7 +969,7 @@ public class ScryptRecipientTests
     [Fact]
     public void Unwrap_Rejects_Invalid_WorkFactor_String()
     {
-        var recipient = new ScryptRecipient("password");
+        var recipient = new Passphrase("password");
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "abc"], new byte[32]);
@@ -980,12 +980,12 @@ public class ScryptRecipientTests
     public void Unwrap_With_Wrong_Passphrase()
     {
         // Encrypt with one passphrase, try to decrypt with another
-        var correct = new ScryptRecipient("correct", workFactor: 10);
+        var correct = new Passphrase("correct", workFactor: 10);
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
         var stanza = correct.Wrap(fileKey);
 
-        var wrong = new ScryptRecipient("wrong", workFactor: 10);
+        var wrong = new Passphrase("wrong", workFactor: 10);
         // Wrong passphrase causes AEAD failure — either throws AgeException or returns null
         try
         {
@@ -1002,7 +1002,7 @@ public class ScryptRecipientTests
     [Fact]
     public void Unwrap_Returns_Null_For_NonMatching_Type()
     {
-        var recipient = new ScryptRecipient("password");
+        var recipient = new Passphrase("password");
         var stanza = new Stanza("X25519", ["arg"], new byte[32]);
         Assert.Null(recipient.Unwrap(stanza));
     }
@@ -1207,7 +1207,7 @@ public class AgeTests
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
 
-        var scryptRecipient = new ScryptRecipient("pass", workFactor: 10);
+        var scryptRecipient = new Passphrase("pass", workFactor: 10);
         var scryptStanza = scryptRecipient.Wrap(fileKey);
         var x25519Stanza = id.Recipient.Wrap(fileKey);
 

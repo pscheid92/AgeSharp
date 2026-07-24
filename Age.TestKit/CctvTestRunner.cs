@@ -50,7 +50,7 @@ public class CctvTestRunner
                 identities.Add(Age.ParseIdentity(identityStr));
         }
         if (passphrase != null)
-            identities.Add(new ScryptRecipient(passphrase));
+            identities.Add(new Passphrase(passphrase));
 
         // Some failure vectors ship no identities at all: the file must be rejected
         // while parsing the header, before identity matching. Decrypt requires at
