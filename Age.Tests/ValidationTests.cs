@@ -1,7 +1,7 @@
 using AgeSharp;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 /// <summary>
 /// Argument and invariant validation on the public entry points: the encrypt-side
@@ -17,7 +17,7 @@ public class ValidationTests
     private static MemoryStream EncryptTo(IRecipient recipient)
     {
         var encrypted = new MemoryStream();
-        AgeEncrypt.Encrypt(Plaintext(), encrypted, recipient);
+        Age.Encrypt(Plaintext(), encrypted, recipient);
         encrypted.Position = 0;
         return encrypted;
     }
@@ -31,7 +31,7 @@ public class ValidationTests
         var scrypt = new ScryptRecipient("pw", LowWorkFactor);
 
         var ex = Assert.Throws<AgeException>(() =>
-            AgeEncrypt.Encrypt(Plaintext(), new MemoryStream(), scrypt, identity.Recipient));
+            Age.Encrypt(Plaintext(), new MemoryStream(), scrypt, identity.Recipient));
 
         Assert.Contains("only recipient", ex.Message);
     }
@@ -43,7 +43,7 @@ public class ValidationTests
         var second = new ScryptRecipient("pw2", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
-            AgeEncrypt.Encrypt(Plaintext(), new MemoryStream(), first, second));
+            Age.Encrypt(Plaintext(), new MemoryStream(), first, second));
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class ValidationTests
         var scrypt = new ScryptRecipient("pw", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
-            AgeEncrypt.EncryptDetached(Plaintext(), new MemoryStream(), new MemoryStream(), scrypt, identity.Recipient));
+            Age.EncryptDetached(Plaintext(), new MemoryStream(), new MemoryStream(), scrypt, identity.Recipient));
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class ValidationTests
         var scrypt = new ScryptRecipient("pw", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
-            AgeEncrypt.EncryptReader(Plaintext(), scrypt, identity.Recipient));
+            Age.EncryptReader(Plaintext(), scrypt, identity.Recipient));
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class ValidationTests
         using var encrypted = EncryptTo(scrypt);
 
         using var decrypted = new MemoryStream();
-        AgeEncrypt.Decrypt(encrypted, decrypted, scrypt);
+        Age.Decrypt(encrypted, decrypted, scrypt);
 
         Assert.Equal("hello"u8.ToArray(), decrypted.ToArray());
     }
@@ -87,7 +87,7 @@ public class ValidationTests
         using var encrypted = EncryptTo(identity.Recipient);
 
         var ex = Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.Decrypt(encrypted, new MemoryStream()));
+            Age.Decrypt(encrypted, new MemoryStream()));
 
         Assert.Equal("identities", ex.ParamName);
     }
@@ -98,14 +98,14 @@ public class ValidationTests
         using var identity = X25519Identity.Generate();
         using var encrypted = EncryptTo(identity.Recipient);
 
-        Assert.Throws<ArgumentException>(() => AgeEncrypt.DecryptReader(encrypted));
+        Assert.Throws<ArgumentException>(() => Age.DecryptReader(encrypted));
     }
 
     [Fact]
     public void DecryptDetached_NoIdentities_ThrowsArgumentException()
     {
         Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.DecryptDetached(new MemoryStream(), new MemoryStream(), new MemoryStream()));
+            Age.DecryptDetached(new MemoryStream(), new MemoryStream(), new MemoryStream()));
     }
 
     [Fact]

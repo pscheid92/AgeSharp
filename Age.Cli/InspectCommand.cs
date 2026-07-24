@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AgeSharp;
 
-namespace Age.Cli;
+namespace AgeSharp.Cli;
 
 internal record InspectOutput(string File, string Version, bool Armored, bool PostQuantum, InspectRecipient[] Recipients, InspectSize Size);
 

@@ -8,7 +8,7 @@ namespace AgeSharp;
 /// All streaming APIs are memory-bounded: a 1 GiB input uses the same working
 /// set as a 1 MB input (two 64 KiB chunk buffers rented from <c>ArrayPool</c>).
 /// </summary>
-public static class AgeEncrypt
+public static partial class Age
 {
     private const int FileKeySize = 16;
     internal const int PayloadNonceSize = 16;

@@ -5,7 +5,7 @@ using Org.BouncyCastle.Crypto.Parameters;
 using BclChaCha = System.Security.Cryptography.ChaCha20Poly1305;
 using BcChaCha = Org.BouncyCastle.Crypto.Modes.ChaCha20Poly1305;
 
-namespace Age.Benchmarks;
+namespace AgeSharp.Benchmarks;
 
 // Compares the platform (BCL) ChaCha20-Poly1305 against BouncyCastle's managed one
 // in AgeSharp's streaming hot-path pattern: construct once, encrypt per 64 KiB chunk.

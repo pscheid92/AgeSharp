@@ -1,7 +1,7 @@
 #nullable enable
 AgeSharp.AgeArmorException
 AgeSharp.AgeArmorException.AgeArmorException(string! message) -> void
-AgeSharp.AgeEncrypt
+AgeSharp.Age
 AgeSharp.AgeException
 AgeSharp.AgeException.AgeException(string! message) -> void
 AgeSharp.AgeException.AgeException(string! message, System.Exception! inner) -> void
@@ -15,7 +15,6 @@ AgeSharp.AgeHeaderException.AgeHeaderException(string! message) -> void
 AgeSharp.AgeHeaderException.AgeHeaderException(string! message, System.Exception! inner) -> void
 AgeSharp.AgeHmacException
 AgeSharp.AgeHmacException.AgeHmacException(string! message) -> void
-AgeSharp.AgeKeygen
 AgeSharp.AgeLimits
 AgeSharp.AgePayloadException
 AgeSharp.AgePayloadException.AgePayloadException(string! message) -> void
@@ -95,27 +94,15 @@ override AgeSharp.PluginIdentity.ToString() -> string!
 override AgeSharp.PluginRecipient.ToString() -> string!
 override AgeSharp.X25519Identity.ToString() -> string!
 override AgeSharp.X25519Recipient.ToString() -> string!
-static AgeSharp.AgeEncrypt.Decrypt(System.IO.Stream! input, System.IO.Stream! output, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
-static AgeSharp.AgeEncrypt.DecryptDetached(System.IO.Stream! headerInput, System.IO.Stream! payloadInput, System.IO.Stream! output, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
-static AgeSharp.AgeEncrypt.DecryptReader(System.IO.Stream! ciphertext, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> System.IO.Stream!
-static AgeSharp.AgeEncrypt.Encrypt(System.IO.Stream! input, System.IO.Stream! output, bool armor, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
-static AgeSharp.AgeEncrypt.Encrypt(System.IO.Stream! input, System.IO.Stream! output, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
-static AgeSharp.AgeEncrypt.EncryptDetached(System.IO.Stream! input, System.IO.Stream! headerOutput, System.IO.Stream! payloadOutput, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
-static AgeSharp.AgeEncrypt.EncryptReader(System.IO.Stream! plaintext, bool armor, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
-static AgeSharp.AgeEncrypt.EncryptReader(System.IO.Stream! plaintext, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
+static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
+static AgeSharp.Age.DecryptDetached(System.IO.Stream! headerInput, System.IO.Stream! payloadInput, System.IO.Stream! output, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
+static AgeSharp.Age.DecryptReader(System.IO.Stream! ciphertext, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> System.IO.Stream!
+static AgeSharp.Age.Encrypt(System.IO.Stream! input, System.IO.Stream! output, bool armor, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
+static AgeSharp.Age.Encrypt(System.IO.Stream! input, System.IO.Stream! output, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
+static AgeSharp.Age.EncryptDetached(System.IO.Stream! input, System.IO.Stream! headerOutput, System.IO.Stream! payloadOutput, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
+static AgeSharp.Age.EncryptReader(System.IO.Stream! plaintext, bool armor, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
+static AgeSharp.Age.EncryptReader(System.IO.Stream! plaintext, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
 static AgeSharp.AgeHeader.Parse(System.IO.Stream! input) -> AgeSharp.AgeHeader!
-static AgeSharp.AgeKeygen.DecryptIdentityFile(byte[]! data, string! passphrase) -> AgeSharp.IIdentity![]!
-static AgeSharp.AgeKeygen.EncryptIdentityFile(string! identityFileText, string! passphrase, bool armor = false, int workFactor = 18) -> byte[]!
-static AgeSharp.AgeKeygen.Generate() -> AgeSharp.X25519Identity!
-static AgeSharp.AgeKeygen.GeneratePq() -> AgeSharp.MlKem768X25519Identity!
-static AgeSharp.AgeKeygen.ParseIdentity(string! s) -> AgeSharp.X25519Identity!
-static AgeSharp.AgeKeygen.ParseIdentityFile(string! text, AgeSharp.IPluginCallbacks? callbacks = null) -> AgeSharp.IIdentity![]!
-static AgeSharp.AgeKeygen.ParsePqIdentity(string! s) -> AgeSharp.MlKem768X25519Identity!
-static AgeSharp.AgeKeygen.ParsePqRecipient(string! s) -> AgeSharp.MlKem768X25519Recipient!
-static AgeSharp.AgeKeygen.ParseRecipient(string! s) -> AgeSharp.X25519Recipient!
-static AgeSharp.AgeKeygen.ParseRecipientsFile(string! text, AgeSharp.IPluginCallbacks? callbacks = null) -> AgeSharp.IRecipient![]!
-static AgeSharp.AgeKeygen.ParseSshIdentity(string! pemText) -> AgeSharp.IIdentity!
-static AgeSharp.AgeKeygen.ParseSshRecipient(string! authorizedKeysLine) -> AgeSharp.IRecipient!
 static AgeSharp.MlKem768X25519Identity.Generate() -> AgeSharp.MlKem768X25519Identity!
 static AgeSharp.MlKem768X25519Identity.Parse(string! s) -> AgeSharp.MlKem768X25519Identity!
 static AgeSharp.MlKem768X25519Recipient.Parse(string! s) -> AgeSharp.MlKem768X25519Recipient!

@@ -29,3 +29,10 @@ static AgeSharp.X25519Recipient.TryParse(string? s, out AgeSharp.X25519Recipient
 *REMOVED*AgeSharp.AgePayloadException
 *REMOVED*AgeSharp.AgePayloadException.AgePayloadException(string! message) -> void
 *REMOVED*AgeSharp.AgePayloadException.AgePayloadException(string! message, System.Exception! inner) -> void
+static AgeSharp.Age.DecryptIdentities(System.IO.Stream! source, string! passphrase, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IIdentity![]!
+static AgeSharp.Age.ParseIdentities(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IIdentity![]!
+static AgeSharp.Age.ParseIdentity(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IIdentity!
+static AgeSharp.Age.ParseRecipient(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IRecipient!
+static AgeSharp.Age.ParseRecipients(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IRecipient![]!
+static AgeSharp.Age.TryParseIdentity(string? s, out AgeSharp.IIdentity! result) -> bool
+static AgeSharp.Age.TryParseRecipient(string? s, out AgeSharp.IRecipient! result) -> bool

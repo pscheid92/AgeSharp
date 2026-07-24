@@ -1,7 +1,7 @@
 using AgeSharp;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 /// <summary>
 /// The label-set contract on encryption: all recipients must carry the same
@@ -41,7 +41,7 @@ public class LabelsTests
     {
         using var input = new MemoryStream("hello"u8.ToArray());
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, recipients);
+        Age.Encrypt(input, output, recipients);
     }
 
     private static void AssertRejected(params IRecipient[] recipients)
@@ -91,11 +91,11 @@ public class LabelsTests
 
         using var input = new MemoryStream("hello"u8.ToArray());
         using var encrypted = new MemoryStream();
-        AgeEncrypt.Encrypt(input, encrypted, a.Recipient, b.Recipient);
+        Age.Encrypt(input, encrypted, a.Recipient, b.Recipient);
 
         encrypted.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(encrypted, output, b);
+        Age.Decrypt(encrypted, output, b);
         Assert.Equal("hello"u8.ToArray(), output.ToArray());
     }
 

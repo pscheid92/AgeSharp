@@ -1,6 +1,6 @@
 using AgeSharp;
 
-namespace Age.Cli;
+namespace AgeSharp.Cli;
 
 internal static class KeygenCommand
 {
@@ -23,11 +23,11 @@ internal static class KeygenCommand
     {
         if (postQuantum)
         {
-            using var identity = AgeKeygen.GeneratePq();
+            using var identity = MlKem768X25519Identity.Generate();
             return (identity.Recipient.ToString(), identity.ToSecretString());
         }
 
-        using var x = AgeKeygen.Generate();
+        using var x = X25519Identity.Generate();
         return (x.Recipient.ToString(), x.ToSecretString());
     }
 

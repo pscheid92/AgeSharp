@@ -1,7 +1,7 @@
 using AgeSharp;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 public class DetachedHeaderTests
 {
@@ -14,12 +14,12 @@ public class DetachedHeaderTests
         using var input = new MemoryStream(plaintext);
         using var headerOut = new MemoryStream();
         using var payloadOut = new MemoryStream();
-        AgeEncrypt.EncryptDetached(input, headerOut, payloadOut, identity.Recipient);
+        Age.EncryptDetached(input, headerOut, payloadOut, identity.Recipient);
 
         headerOut.Position = 0;
         payloadOut.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.DecryptDetached(headerOut, payloadOut, output, identity);
+        Age.DecryptDetached(headerOut, payloadOut, output, identity);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -33,7 +33,7 @@ public class DetachedHeaderTests
         // Encrypt normally
         using var input = new MemoryStream(plaintext);
         using var ciphertext = new MemoryStream();
-        AgeEncrypt.Encrypt(input, ciphertext, identity.Recipient);
+        Age.Encrypt(input, ciphertext, identity.Recipient);
         var ciphertextBytes = ciphertext.ToArray();
 
         // Parse header to find payload offset
@@ -47,7 +47,7 @@ public class DetachedHeaderTests
         using var headerIn = new MemoryStream(headerBytes);
         using var payloadIn = new MemoryStream(payloadBytes);
         using var output = new MemoryStream();
-        AgeEncrypt.DecryptDetached(headerIn, payloadIn, output, identity);
+        Age.DecryptDetached(headerIn, payloadIn, output, identity);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -61,7 +61,7 @@ public class DetachedHeaderTests
         using var input = new MemoryStream(plaintext);
         using var headerOut = new MemoryStream();
         using var payloadOut = new MemoryStream();
-        AgeEncrypt.EncryptDetached(input, headerOut, payloadOut, identity.Recipient);
+        Age.EncryptDetached(input, headerOut, payloadOut, identity.Recipient);
 
         // Concatenate header + payload into single stream
         using var combined = new MemoryStream();
@@ -72,7 +72,7 @@ public class DetachedHeaderTests
 
         combined.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(combined, output, identity);
+        Age.Decrypt(combined, output, identity);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -86,7 +86,7 @@ public class DetachedHeaderTests
 
         using var input = new MemoryStream(plaintext);
         using var ciphertext = new MemoryStream();
-        AgeEncrypt.Encrypt(input, ciphertext, id1.Recipient, id2.Recipient);
+        Age.Encrypt(input, ciphertext, id1.Recipient, id2.Recipient);
 
         ciphertext.Position = 0;
         var header = AgeHeader.Parse(ciphertext);
@@ -106,7 +106,7 @@ public class DetachedHeaderTests
 
         using var input = new MemoryStream(plaintext);
         using var ciphertext = new MemoryStream();
-        AgeEncrypt.Encrypt(input, ciphertext, true, identity.Recipient);
+        Age.Encrypt(input, ciphertext, true, identity.Recipient);
 
         ciphertext.Position = 0;
         var header = AgeHeader.Parse(ciphertext);
@@ -124,12 +124,12 @@ public class DetachedHeaderTests
         using var input = new MemoryStream(plaintext);
         using var headerOut = new MemoryStream();
         using var payloadOut = new MemoryStream();
-        AgeEncrypt.EncryptDetached(input, headerOut, payloadOut, identity.Recipient);
+        Age.EncryptDetached(input, headerOut, payloadOut, identity.Recipient);
 
         headerOut.Position = 0;
         payloadOut.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.DecryptDetached(headerOut, payloadOut, output, identity);
+        Age.DecryptDetached(headerOut, payloadOut, output, identity);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -144,13 +144,13 @@ public class DetachedHeaderTests
         using var input = new MemoryStream(plaintext);
         using var headerOut = new MemoryStream();
         using var payloadOut = new MemoryStream();
-        AgeEncrypt.EncryptDetached(input, headerOut, payloadOut, id1.Recipient, id2.Recipient);
+        Age.EncryptDetached(input, headerOut, payloadOut, id1.Recipient, id2.Recipient);
 
         // Decrypt with second identity
         headerOut.Position = 0;
         payloadOut.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.DecryptDetached(headerOut, payloadOut, output, id2);
+        Age.DecryptDetached(headerOut, payloadOut, output, id2);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -165,12 +165,12 @@ public class DetachedHeaderTests
         using var input = new MemoryStream(plaintext);
         using var headerOut = new MemoryStream();
         using var payloadOut = new MemoryStream();
-        AgeEncrypt.EncryptDetached(input, headerOut, payloadOut, identity.Recipient);
+        Age.EncryptDetached(input, headerOut, payloadOut, identity.Recipient);
 
         headerOut.Position = 0;
         payloadOut.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.DecryptDetached(headerOut, payloadOut, output, identity);
+        Age.DecryptDetached(headerOut, payloadOut, output, identity);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -183,7 +183,7 @@ public class DetachedHeaderTests
 
         using var input = new MemoryStream(plaintext);
         using var ciphertext = new MemoryStream();
-        AgeEncrypt.Encrypt(input, ciphertext, recipient);
+        Age.Encrypt(input, ciphertext, recipient);
 
         ciphertext.Position = 0;
         var header = AgeHeader.Parse(ciphertext);
@@ -200,7 +200,7 @@ public class DetachedHeaderTests
 
         using var input = new MemoryStream(plaintext);
         using var ciphertext = new MemoryStream();
-        AgeEncrypt.Encrypt(input, ciphertext, identity.Recipient);
+        Age.Encrypt(input, ciphertext, identity.Recipient);
 
         ciphertext.Position = 0;
         using var nonSeekable = new NonSeekableStream(ciphertext);

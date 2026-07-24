@@ -1,7 +1,7 @@
 using AgeSharp;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 public class RandomAccessTests
 {
@@ -17,7 +17,7 @@ public class RandomAccessTests
         // Full decrypt for comparison
         ciphertext.Position = 0;
         using var fullDecOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(ciphertext, fullDecOutput, identity);
+        Age.Decrypt(ciphertext, fullDecOutput, identity);
         var expected = fullDecOutput.ToArray();
 
         // Sequential read via ReadAt
@@ -263,7 +263,7 @@ public class RandomAccessTests
 
         using var input = new MemoryStream(plaintext);
         var ciphertext = new MemoryStream();
-        AgeEncrypt.Encrypt(input, ciphertext, armor: true, identity.Recipient);
+        Age.Encrypt(input, ciphertext, armor: true, identity.Recipient);
         ciphertext.Position = 0;
 
         using var ra = new AgeRandomAccess(ciphertext, identity);
@@ -370,7 +370,7 @@ public class RandomAccessTests
     {
         using var input = new MemoryStream(plaintext);
         var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, recipient);
+        Age.Encrypt(input, output, recipient);
         output.Position = 0;
         return output;
     }

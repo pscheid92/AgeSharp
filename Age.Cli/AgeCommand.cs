@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using AgeSharp;
 
-namespace Age.Cli;
+namespace AgeSharp.Cli;
 
 internal static class AgeCommand
 {
@@ -40,7 +40,7 @@ internal static class AgeCommand
         using var input = OpenInput(inputPath);
         using var output = OpenOutput(outputPath);
 
-        AgeEncrypt.Encrypt(input, output, armor, [.. recipients]);
+        Age.Encrypt(input, output, armor, [.. recipients]);
         return 0;
     }
 
@@ -49,7 +49,7 @@ internal static class AgeCommand
         foreach (var file in recipientFiles)
         {
             var text = File.ReadAllText(file);
-            recipients.AddRange(AgeKeygen.ParseRecipientsFile(text, callbacks));
+            recipients.AddRange(Age.ParseRecipients(text, callbacks));
         }
 
         foreach (var file in identityFiles)
@@ -95,7 +95,7 @@ internal static class AgeCommand
         input.Position = 0;
 
         using var output = OpenOutput(outputPath);
-        AgeEncrypt.Decrypt(input, output, [.. identities]);
+        Age.Decrypt(input, output, [.. identities]);
         return 0;
     }
 
@@ -132,7 +132,7 @@ internal static class AgeCommand
     };
 
     private static IRecipient ParseRecipient(string s) =>
-        AgeKeygen.ParseRecipientLine(s, new CliPluginCallbacks());
+        Age.ParseRecipient(s, new CliPluginCallbacks());
 
     private static List<IIdentity> LoadIdentities(string path, IPluginCallbacks callbacks)
     {
@@ -144,15 +144,15 @@ internal static class AgeCommand
         if (trimmed.StartsWith("age-encryption.org/v1") || trimmed.StartsWith("-----BEGIN AGE ENCRYPTED FILE-----"))
         {
             var pass = ReadPassphrase($"Enter passphrase for identity file \"{path}\": ");
-            return [.. AgeKeygen.DecryptIdentityFile(bytes, pass)];
+            return [.. Age.DecryptIdentities(new MemoryStream(bytes), pass)];
         }
 
         // SSH private key
         if (trimmed.StartsWith("-----BEGIN"))
-            return [AgeKeygen.ParseSshIdentity(text)];
+            return [Age.ParseIdentity(text)];
 
         // Standard age identity file (AGE-SECRET-KEY-, AGE-SECRET-KEY-PQ-, AGE-PLUGIN-)
-        return [.. AgeKeygen.ParseIdentityFile(text, callbacks)];
+        return [.. Age.ParseIdentities(text, callbacks)];
     }
 
     private static string ReadPassphrase(string prompt)

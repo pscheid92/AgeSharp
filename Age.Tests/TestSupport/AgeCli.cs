@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 /// <summary>
 /// Locates the reference <c>age</c> / <c>age-keygen</c> CLI binaries used by the interop

@@ -4,7 +4,7 @@ using System.Text;
 using AgeSharp;
 using Xunit;
 
-namespace Age.TestKit;
+namespace AgeSharp.TestKit;
 
 public class CctvTestRunner
 {
@@ -47,7 +47,7 @@ public class CctvTestRunner
             else if (identityStr.StartsWith("AGE-SECRET-KEY-1", StringComparison.OrdinalIgnoreCase))
                 identities.Add(X25519Identity.Parse(identityStr));
             else if (identityStr.StartsWith("-----BEGIN"))
-                identities.Add(AgeKeygen.ParseSshIdentity(identityStr));
+                identities.Add(Age.ParseIdentity(identityStr));
         }
         if (passphrase != null)
             identities.Add(new ScryptRecipient(passphrase));
@@ -91,7 +91,7 @@ public class CctvTestRunner
         using var input = new MemoryStream(ageFileBytes);
         using var output = new MemoryStream();
 
-        AgeEncrypt.Decrypt(input, output, identities.ToArray());
+        Age.Decrypt(input, output, identities.ToArray());
 
         var plaintext = output.ToArray();
         var hash = SHA256.HashData(plaintext);
@@ -105,7 +105,7 @@ public class CctvTestRunner
         using var output = new MemoryStream();
 
         Assert.Throws<NoIdentityMatchException>(() =>
-            AgeEncrypt.Decrypt(input, output, identities.ToArray()));
+            Age.Decrypt(input, output, identities.ToArray()));
     }
 
     private static void RunHmacFailureTest(byte[] ageFileBytes, List<IIdentity> identities)
@@ -114,7 +114,7 @@ public class CctvTestRunner
         using var output = new MemoryStream();
 
         Assert.Throws<AgeAuthenticationException>(() =>
-            AgeEncrypt.Decrypt(input, output, identities.ToArray()));
+            Age.Decrypt(input, output, identities.ToArray()));
     }
 
     private static void RunHeaderFailureTest(byte[] ageFileBytes, List<IIdentity> identities)
@@ -123,7 +123,7 @@ public class CctvTestRunner
         using var output = new MemoryStream();
 
         var ex = Assert.ThrowsAny<AgeException>(() =>
-            AgeEncrypt.Decrypt(input, output, identities.ToArray()));
+            Age.Decrypt(input, output, identities.ToArray()));
         Assert.True(ex is AgeFormatException or AgeAuthenticationException,
             $"Expected AgeFormatException or AgeAuthenticationException, got {ex.GetType().Name}: {ex.Message}");
     }
@@ -134,7 +134,7 @@ public class CctvTestRunner
         using var output = new MemoryStream();
 
         Assert.Throws<AgeAuthenticationException>(() =>
-            AgeEncrypt.Decrypt(input, output, identities.ToArray()));
+            Age.Decrypt(input, output, identities.ToArray()));
     }
 
     // Armor defects are structural by definition — a single exact type now.
@@ -144,7 +144,7 @@ public class CctvTestRunner
         using var output = new MemoryStream();
 
         Assert.Throws<AgeFormatException>(() =>
-            AgeEncrypt.Decrypt(input, output, identities.ToArray()));
+            Age.Decrypt(input, output, identities.ToArray()));
     }
 
     private static (Dictionary<string, string> metadata, List<string> identityStrings, byte[] ageFileBytes) ParseTestFile(string path)

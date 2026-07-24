@@ -1,7 +1,7 @@
 using AgeSharp;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 public class RoundTripTests
 {
@@ -15,11 +15,11 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, recipient);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, identity);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -34,11 +34,11 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, recipient);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, identity);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -55,11 +55,11 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, recipient);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, identity);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -76,11 +76,11 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, recipient);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, identity);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -95,11 +95,11 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, recipient);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, recipient);
+        Age.Decrypt(encOutput, decOutput, recipient);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -114,18 +114,18 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, id1.Recipient, id2.Recipient);
+        Age.Encrypt(encInput, encOutput, id1.Recipient, id2.Recipient);
 
         // Decrypt with first identity
         encOutput.Position = 0;
         using var decOutput1 = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput1, id1);
+        Age.Decrypt(encOutput, decOutput1, id1);
         Assert.Equal(plaintext, decOutput1.ToArray());
 
         // Decrypt with second identity
         encOutput.Position = 0;
         using var decOutput2 = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput2, id2);
+        Age.Decrypt(encOutput, decOutput2, id2);
         Assert.Equal(plaintext, decOutput2.ToArray());
     }
 
@@ -136,8 +136,8 @@ public class RoundTripTests
         var identityStr = identity.ToSecretString();
         var recipientStr = identity.Recipient.ToString();
 
-        using var parsed = AgeKeygen.ParseIdentity(identityStr);
-        var parsedRecipient = AgeKeygen.ParseRecipient(recipientStr);
+        using var parsed = X25519Identity.Parse(identityStr);
+        var parsedRecipient = X25519Recipient.Parse(recipientStr);
 
         Assert.Equal(identityStr, parsed.ToSecretString());
         Assert.Equal(recipientStr, parsedRecipient.ToString());

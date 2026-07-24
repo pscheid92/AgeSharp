@@ -7,7 +7,7 @@ using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities.IO.Pem;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 /// <summary>
 /// The TryParse contract: true + a usable value for valid input, false — never

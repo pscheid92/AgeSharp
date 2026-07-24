@@ -139,12 +139,12 @@ public sealed class AgeRandomAccess : IDisposable
 
     private static PayloadInfo InitializeFromStream(Stream binaryInput, ReadOnlySpan<IIdentity> identities)
     {
-        var (fileKey, reader) = AgeEncrypt.UnwrapHeaderFromReader(binaryInput, identities);
+        var (fileKey, reader) = Age.UnwrapHeaderFromReader(binaryInput, identities);
 
         try
         {
             var payloadNonce = ReadPayloadNonce(reader);
-            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", AgeEncrypt.PayloadKeySize);
+            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", Age.PayloadKeySize);
             var payloadStart = binaryInput.Position;
             var totalEncrypted = binaryInput.Length - payloadStart;
 
@@ -205,12 +205,12 @@ public sealed class AgeRandomAccess : IDisposable
 
     private static byte[] ReadPayloadNonce(HeaderReader reader)
     {
-        var payloadNonce = new byte[AgeEncrypt.PayloadNonceSize];
+        var payloadNonce = new byte[Age.PayloadNonceSize];
         var nonceRead = reader.ReadPayloadBytes(payloadNonce);
 
-        return nonceRead == AgeEncrypt.PayloadNonceSize
+        return nonceRead == Age.PayloadNonceSize
             ? payloadNonce
-            : throw new AgeFormatException($"expected {AgeEncrypt.PayloadNonceSize}-byte payload nonce, got {nonceRead} bytes");
+            : throw new AgeFormatException($"expected {Age.PayloadNonceSize}-byte payload nonce, got {nonceRead} bytes");
     }
 
     private static (Stream binaryInput, bool needsDispose) DeArmorInput(Stream ciphertext)

@@ -3,7 +3,7 @@ using AgeSharp;
 using AgeSharp.Crypto;
 using Xunit;
 
-namespace Age.Tests;
+namespace AgeSharp.Tests;
 
 public class Base64UnpaddedTests
 {
@@ -1152,14 +1152,14 @@ public class X25519RecipientIdentityTests
     }
 }
 
-public class AgeEncryptTests
+public class AgeTests
 {
     [Fact]
     public void Encrypt_Rejects_No_Recipients()
     {
         using var input = new MemoryStream("test"u8.ToArray());
         using var output = new MemoryStream();
-        Assert.Throws<ArgumentException>(() => AgeEncrypt.Encrypt(input, output));
+        Assert.Throws<ArgumentException>(() => Age.Encrypt(input, output));
     }
 
     [Fact]
@@ -1170,7 +1170,7 @@ public class AgeEncryptTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, armor: true, identity.Recipient);
+        Age.Encrypt(encInput, encOutput, armor: true, identity.Recipient);
 
         // Verify it's actually armored
         encOutput.Position = 0;
@@ -1179,7 +1179,7 @@ public class AgeEncryptTests
         // Decrypt
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, identity);
         Assert.Equal(plaintext, decOutput.ToArray());
     }
 
@@ -1192,11 +1192,11 @@ public class AgeEncryptTests
         var plaintext = "test"u8.ToArray();
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, id1.Recipient);
+        Age.Encrypt(encInput, encOutput, id1.Recipient);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Assert.Throws<NoIdentityMatchException>(() => AgeEncrypt.Decrypt(encOutput, decOutput, id2));
+        Assert.Throws<NoIdentityMatchException>(() => Age.Decrypt(encOutput, decOutput, id2));
     }
 
     [Fact]
@@ -1226,7 +1226,7 @@ public class AgeEncryptTests
 
         ms.Position = 0;
         using var output = new MemoryStream();
-        Assert.Throws<AgeFormatException>(() => AgeEncrypt.Decrypt(ms, output, scryptRecipient));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(ms, output, scryptRecipient));
     }
 
     [Fact]
@@ -1239,7 +1239,7 @@ public class AgeEncryptTests
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         using var output = new MemoryStream();
         using var id = X25519Identity.Generate();
-        var ex = Assert.Throws<AgeFormatException>(() => AgeEncrypt.Decrypt(stream, output, id));
+        var ex = Assert.Throws<AgeFormatException>(() => Age.Decrypt(stream, output, id));
         Assert.Contains("header parse error", ex.Message);
     }
 
@@ -1251,7 +1251,7 @@ public class AgeEncryptTests
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         using var output = new MemoryStream();
         using var id = X25519Identity.Generate();
-        Assert.Throws<AgeFormatException>(() => AgeEncrypt.Decrypt(stream, output, id));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(stream, output, id));
     }
 
     [Fact]
@@ -1277,7 +1277,7 @@ public class AgeEncryptTests
         ms.Position = 0;
         using var output = new MemoryStream();
         using var id = X25519Identity.Generate();
-        Assert.Throws<AgeFormatException>(() => AgeEncrypt.Decrypt(ms, output, id));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(ms, output, id));
     }
 
     [Fact]
@@ -1299,7 +1299,7 @@ public class AgeEncryptTests
 
         ms.Position = 0;
         using var output = new MemoryStream();
-        Assert.Throws<AgeFormatException>(() => AgeEncrypt.Decrypt(ms, output, id));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(ms, output, id));
     }
 }
 
@@ -1315,7 +1315,7 @@ public class DecryptStreamTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, identity.Recipient);
+        Age.Encrypt(encInput, encOutput, identity.Recipient);
         var ciphertextBytes = encOutput.ToArray();
 
         // Parse header to find payload offset
@@ -1332,7 +1332,7 @@ public class DecryptStreamTests
         var truncated = ciphertextBytes[..truncateAt];
 
         using var truncatedStream = new MemoryStream(truncated);
-        using var reader = AgeEncrypt.DecryptReader(truncatedStream, identity);
+        using var reader = Age.DecryptReader(truncatedStream, identity);
 
         var buf = new byte[plaintext.Length];
         // Truncating removes the final chunk, so DecryptStream will detect
@@ -1357,7 +1357,7 @@ public class DecryptStreamTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, identity.Recipient);
+        Age.Encrypt(encInput, encOutput, identity.Recipient);
         var ciphertextBytes = encOutput.ToArray();
 
         // Parse header to find payload offset
@@ -1370,19 +1370,19 @@ public class DecryptStreamTests
         var truncated = ciphertextBytes[..truncateAt];
 
         using var truncatedStream = new MemoryStream(truncated);
-        using var reader = AgeEncrypt.DecryptReader(truncatedStream, identity);
+        using var reader = Age.DecryptReader(truncatedStream, identity);
 
         var buf = new byte[100];
         Assert.Throws<AgeAuthenticationException>(() => reader.Read(buf, 0, buf.Length));
     }
 }
 
-public class AgeKeygenTests
+public class KeyFacadeTests
 {
     [Fact]
     public void Generate_Returns_Valid_Identity()
     {
-        using var identity = AgeKeygen.Generate();
+        using var identity = X25519Identity.Generate();
         var str = identity.ToSecretString();
         Assert.StartsWith("AGE-SECRET-KEY-1", str);
     }

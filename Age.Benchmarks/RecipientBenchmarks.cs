@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using AgeSharp;
 using BenchmarkDotNet.Attributes;
 
-namespace Age.Benchmarks;
+namespace AgeSharp.Benchmarks;
 
 [MemoryDiagnoser]
 public class RecipientBenchmarks

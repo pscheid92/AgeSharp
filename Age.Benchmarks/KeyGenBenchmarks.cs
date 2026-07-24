@@ -1,7 +1,7 @@
 using AgeSharp;
 using BenchmarkDotNet.Attributes;
 
-namespace Age.Benchmarks;
+namespace AgeSharp.Benchmarks;
 
 [MemoryDiagnoser]
 public class KeyGenBenchmarks
