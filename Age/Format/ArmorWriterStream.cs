@@ -1,16 +1,8 @@
-using System.Buffers.Text;
-using System.Text;
-
 namespace AgeSharp;
 
 internal sealed class ArmorWriterStream(Stream destination) : Stream
 {
-    private const int CharsPerLine = 64;
-
-    private static readonly byte[] BeginBytes = Encoding.ASCII.GetBytes("-----BEGIN AGE ENCRYPTED FILE-----\n");
-    private static readonly byte[] EndBytes = Encoding.ASCII.GetBytes("-----END AGE ENCRYPTED FILE-----\n");
-    private readonly byte[] _encoded = new byte[CharsPerLine + 1]; // 64 base64 chars + '\n'
-
+    private readonly byte[] _encoded = new byte[ArmorEncoder.MaxEncodedPerLine];
     private readonly byte[] _lineBuffer = new byte[ArmorFormat.BytesPerLine];
     private bool _begun;
     private bool _disposed;
@@ -78,7 +70,7 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
         if (_begun)
             return;
 
-        destination.Write(BeginBytes);
+        destination.Write(ArmorEncoder.BeginMarkerLine);
         _begun = true;
     }
 
@@ -88,17 +80,14 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
             return ValueTask.CompletedTask;
 
         _begun = true;
-        return destination.WriteAsync(BeginBytes, cancellationToken);
+        return destination.WriteAsync(ArmorEncoder.BeginMarkerLine, cancellationToken);
     }
 
-    // CPU-only: base64-encode the buffered line into _encoded (newline included),
-    // reset the line buffer, and return the encoded length to write.
     private int EncodeLine()
     {
-        Base64.EncodeToUtf8(_lineBuffer.AsSpan(0, _lineLength), _encoded, out _, out var bytesWritten);
-        _encoded[bytesWritten] = (byte)'\n';
+        var written = ArmorEncoder.EncodeLine(_lineBuffer.AsSpan(0, _lineLength), _encoded);
         _lineLength = 0;
-        return bytesWritten + 1;
+        return written;
     }
 
     protected override void Dispose(bool disposing)
@@ -110,7 +99,7 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
             EnsureBegun();
             if (_lineLength > 0)
                 destination.Write(_encoded.AsSpan(0, EncodeLine())); // final short (or exactly-64) line
-            destination.Write(EndBytes);
+            destination.Write(ArmorEncoder.EndMarkerLine);
             // The destination is caller-owned and is deliberately left open.
         }
 
@@ -126,7 +115,7 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
             await EnsureBegunAsync(default).ConfigureAwait(false);
             if (_lineLength > 0)
                 await destination.WriteAsync(_encoded.AsMemory(0, EncodeLine())).ConfigureAwait(false);
-            await destination.WriteAsync(EndBytes).ConfigureAwait(false);
+            await destination.WriteAsync(ArmorEncoder.EndMarkerLine).ConfigureAwait(false);
             // The destination is caller-owned and is deliberately left open.
         }
 

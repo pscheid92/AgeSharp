@@ -1,16 +1,8 @@
-using System.Buffers.Text;
-using System.Text;
-
 namespace AgeSharp;
 
 internal sealed class ArmorStream : Stream
 {
-    private const int CharsPerLine = 64;
-
-    private static readonly byte[] BeginBytes = Encoding.ASCII.GetBytes("-----BEGIN AGE ENCRYPTED FILE-----\n");
-    private static readonly byte[] EndBytes = Encoding.ASCII.GetBytes("-----END AGE ENCRYPTED FILE-----\n");
-    private readonly byte[] _scratch = new byte[CharsPerLine + 1];
-
+    private readonly byte[] _scratch = new byte[ArmorEncoder.MaxEncodedPerLine];
     private readonly Stream _source;
     private readonly byte[] _sourceScratch = new byte[ArmorFormat.BytesPerLine];
     private bool _disposed;
@@ -105,7 +97,7 @@ internal sealed class ArmorStream : Stream
             switch (_phase)
             {
                 case Phase.Begin:
-                    EmitMarker(BeginBytes, Phase.Body);
+                    EmitMarker(ArmorEncoder.BeginMarkerLine, Phase.Body);
                     return true;
 
                 case Phase.Body:
@@ -120,7 +112,7 @@ internal sealed class ArmorStream : Stream
                     return true;
 
                 case Phase.End:
-                    EmitMarker(EndBytes, Phase.Done);
+                    EmitMarker(ArmorEncoder.EndMarkerLine, Phase.Done);
                     return true;
 
                 case Phase.Done:
@@ -140,7 +132,7 @@ internal sealed class ArmorStream : Stream
             switch (_phase)
             {
                 case Phase.Begin:
-                    EmitMarker(BeginBytes, Phase.Body);
+                    EmitMarker(ArmorEncoder.BeginMarkerLine, Phase.Body);
                     return true;
 
                 case Phase.Body:
@@ -155,7 +147,7 @@ internal sealed class ArmorStream : Stream
                     return true;
 
                 case Phase.End:
-                    EmitMarker(EndBytes, Phase.Done);
+                    EmitMarker(ArmorEncoder.EndMarkerLine, Phase.Done);
                     return true;
 
                 case Phase.Done:
@@ -176,9 +168,7 @@ internal sealed class ArmorStream : Stream
 
     private void EncodeBodyLine(int read)
     {
-        Base64.EncodeToUtf8(_sourceScratch.AsSpan(0, read), _scratch, out _, out var bytesWritten);
-        _scratch[bytesWritten] = (byte)'\n';
-        _scratchLength = bytesWritten + 1;
+        _scratchLength = ArmorEncoder.EncodeLine(_sourceScratch.AsSpan(0, read), _scratch);
     }
 
     private int ReadFullChunk()
