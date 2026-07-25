@@ -5,7 +5,6 @@ namespace AgeSharp;
 
 internal sealed class ArmorStream : Stream
 {
-    private const int BytesPerLine = 48;
     private const int CharsPerLine = 64;
 
     private static readonly byte[] BeginBytes = Encoding.ASCII.GetBytes("-----BEGIN AGE ENCRYPTED FILE-----\n");
@@ -14,7 +13,7 @@ internal sealed class ArmorStream : Stream
     private enum Phase { Begin, Body, End, Done }
 
     private readonly Stream _source;
-    private readonly byte[] _sourceScratch = new byte[BytesPerLine];
+    private readonly byte[] _sourceScratch = new byte[ArmorFormat.BytesPerLine];
     private readonly byte[] _scratch = new byte[CharsPerLine + 1];
     private int _scratchOffset;
     private int _scratchLength;

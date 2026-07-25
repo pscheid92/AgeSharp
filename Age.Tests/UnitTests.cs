@@ -1058,6 +1058,17 @@ public class X25519RecipientIdentityTests
     }
 
     [Fact]
+    public void Wrap_LowOrderRecipient_ThrowsFormatException()
+    {
+        // The encrypt side runs the same agreement, and a recipient string is just as
+        // attacker-supplied as a stanza: an all-zero public point must be rejected
+        // there too, not left to produce a predictable wrap key.
+        var lowOrder = X25519Recipient.Parse(Bech32.Encode("age", new byte[32]));
+
+        Assert.Throws<AgeFormatException>(() => lowOrder.Wrap(new byte[16]));
+    }
+
+    [Fact]
     public void Identity_Reject_NonUppercase()
     {
         using var identity = X25519Identity.Generate();

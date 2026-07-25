@@ -4,9 +4,6 @@ namespace AgeSharp;
 
 internal static class AsciiArmor
 {
-    private const string BeginMarker = "-----BEGIN AGE ENCRYPTED FILE-----";
-    private const string EndMarker = "-----END AGE ENCRYPTED FILE-----";
-    private const int ColumnsPerLine = 64;
 
     /// <summary>
     /// Maximum leading whitespace tolerated before the begin marker. The spec allows
@@ -15,14 +12,14 @@ internal static class AsciiArmor
     /// </summary>
     private const int MaxLeadingWhitespace = 1024;
 
-    internal static int ProbeSize => MaxLeadingWhitespace + BeginMarker.Length;
+    internal static int ProbeSize => MaxLeadingWhitespace + ArmorFormat.BeginMarker.Length;
 
     /// <summary>
     /// Bytes needed past any leading whitespace to decide. A pull-side probe simply
     /// reads <see cref="ProbeSize"/> bytes, but a push-side one cannot wait for bytes
     /// that may never come, so it decides as soon as this many are past the whitespace.
     /// </summary>
-    internal static int MarkerLength => BeginMarker.Length;
+    internal static int MarkerLength => ArmorFormat.BeginMarker.Length;
 
     internal static bool IsArmorWhitespace(byte b) => b is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n';
 
@@ -89,7 +86,7 @@ internal static class AsciiArmor
         // All whitespace within the probe means either an empty stream or more
         // leading whitespace than we accept — neither is armor we can read.
         var rest = probe[start..];
-        var marker = Encoding.ASCII.GetBytes(BeginMarker);
+        var marker = Encoding.ASCII.GetBytes(ArmorFormat.BeginMarker);
 
         return rest.Length >= marker.Length && rest[..marker.Length].SequenceEqual(marker);
     }
@@ -110,10 +107,10 @@ internal static class AsciiArmor
     {
         const int bytesPerLine = 48; // 48 bytes encode to exactly 64 base64 chars
         var readBuffer = new byte[bytesPerLine];
-        Span<char> charBuffer = stackalloc char[ColumnsPerLine + 4]; // room for padding
+        Span<char> charBuffer = stackalloc char[ArmorFormat.ColumnsPerLine + 4]; // room for padding
 
         var writer = new StreamWriter(output, leaveOpen: true) { NewLine = "\n" };
-        writer.WriteLine(BeginMarker);
+        writer.WriteLine(ArmorFormat.BeginMarker);
 
         while (true)
         {
@@ -127,41 +124,15 @@ internal static class AsciiArmor
             writer.WriteLine();
         }
 
-        writer.WriteLine(EndMarker);
+        writer.WriteLine(ArmorFormat.EndMarker);
         writer.Flush();
     }
 
+    // Fills the buffer, tolerating a short read at end of stream: both callers treat a
+    // short result as "that was all there was" rather than an error.
     private static int ReadChunk(Stream stream, byte[] buffer)
-    {
-        var total = 0;
+        => stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
 
-        while (total < buffer.Length)
-        {
-            var read = stream.Read(buffer, total, buffer.Length - total);
-
-            if (read == 0)
-                break;
-
-            total += read;
-        }
-
-        return total;
-    }
-
-    private static async ValueTask<int> ReadChunkAsync(Stream stream, byte[] buffer, CancellationToken cancellationToken)
-    {
-        var total = 0;
-
-        while (total < buffer.Length)
-        {
-            var read = await stream.ReadAsync(buffer.AsMemory(total, buffer.Length - total), cancellationToken).ConfigureAwait(false);
-
-            if (read == 0)
-                break;
-
-            total += read;
-        }
-
-        return total;
-    }
+    private static ValueTask<int> ReadChunkAsync(Stream stream, byte[] buffer, CancellationToken cancellationToken)
+        => stream.ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false, cancellationToken);
 }

@@ -1,4 +1,4 @@
-namespace AgeSharp;
+namespace AgeSharp.Recipients;
 
 internal static class AgeProtocol
 {

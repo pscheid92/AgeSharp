@@ -15,11 +15,8 @@ namespace AgeSharp;
 /// </remarks>
 internal sealed class ArmorDecoder
 {
-    public const int MaxDecodedPerLine = 48; // 64 base64 chars decode to 48 bytes
-
-    private const int ColumnsPerLine = 64;
-    private const string BeginMarker = "-----BEGIN AGE ENCRYPTED FILE-----";
-    private const string EndMarker = "-----END AGE ENCRYPTED FILE-----";
+    /// <summary>Upper bound on what one line can decode to, for sizing a caller's buffer.</summary>
+    public const int MaxDecodedPerLine = ArmorFormat.BytesPerLine;
 
     private static readonly SearchValues<char> Base64Chars =
         SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=");
@@ -50,14 +47,14 @@ internal sealed class ArmorDecoder
                 if (line.Trim().Length == 0)
                     return 0;
 
-                if (!line.TrimStart().SequenceEqual(BeginMarker))
+                if (!line.TrimStart().SequenceEqual(ArmorFormat.BeginMarker))
                     throw new AgeFormatException($"expected begin marker, got: {new string(line)}");
 
                 _state = State.Body;
                 return 0;
 
             case State.Body:
-                if (line.SequenceEqual(EndMarker))
+                if (line.SequenceEqual(ArmorFormat.EndMarker))
                 {
                     _state = State.AfterEnd;
                     return 0;
@@ -128,8 +125,8 @@ internal sealed class ArmorDecoder
         if (line[0] is ' ' or '\t' || line[^1] is ' ' or '\t')
             throw new AgeFormatException("whitespace in armor body line");
 
-        if (line.Length > ColumnsPerLine)
-            throw new AgeFormatException($"armor body line exceeds {ColumnsPerLine} characters");
+        if (line.Length > ArmorFormat.ColumnsPerLine)
+            throw new AgeFormatException($"armor body line exceeds {ArmorFormat.ColumnsPerLine} characters");
 
         if (_sawFinalLine)
             throw new AgeFormatException("armor body continues after a line that ended it");
@@ -138,7 +135,7 @@ internal sealed class ArmorDecoder
         // than the column width, OR a full-width line carrying base64 padding. A
         // final chunk of 46 or 47 bytes encodes to exactly 64 characters *with*
         // padding, so width alone does not prove a line is not the last.
-        if (line.Length < ColumnsPerLine || line[^1] == '=')
+        if (line.Length < ArmorFormat.ColumnsPerLine || line[^1] == '=')
             _sawFinalLine = true;
 
         var invalid = line.IndexOfAnyExcept(Base64Chars);

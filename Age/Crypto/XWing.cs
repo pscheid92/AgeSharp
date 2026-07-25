@@ -1,4 +1,3 @@
-using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Kems;
 using Org.BouncyCastle.Crypto.Parameters;
@@ -49,13 +48,12 @@ internal static class XWing
         var ssM = new byte[SharedSecretSize];
         encapsulator.Encapsulate(ctM, 0, MlKemCiphertextSize, ssM, 0, SharedSecretSize);
 
-        // X25519 ephemeral DH
+        // X25519 ephemeral DH. pkX comes from a recipient string, so it can carry a
+        // low-order point; the shared helper rejects the resulting all-zero secret
+        // rather than letting a raw BouncyCastle exception escape.
         var ekX = new X25519PrivateKeyParameters(new SecureRandom());
         var ctX = ekX.GeneratePublicKey().GetEncoded();
-        var ssX = new byte[SharedSecretSize];
-        var agreement = new X25519Agreement();
-        agreement.Init(ekX);
-        agreement.CalculateAgreement(new X25519PublicKeyParameters(pkX), ssX, 0);
+        var ssX = CryptoHelper.X25519Agree(ekX, new X25519PublicKeyParameters(pkX));
 
         // Combine: enc = ct_M || ct_X
         var enc = new byte[EncSize];
@@ -84,25 +82,11 @@ internal static class XWing
         var ssM = new byte[SharedSecretSize];
         decapsulator.Decapsulate(ctM, 0, MlKemCiphertextSize, ssM, 0, SharedSecretSize);
 
-        // X25519 DH
-        var ssX = new byte[SharedSecretSize];
-        var agreement = new X25519Agreement();
-        agreement.Init(x25519Private);
+        // X25519 DH — the all-zero rejection lives in the shared helper.
+        var ssX = CryptoHelper.X25519Agree(x25519Private, new X25519PublicKeyParameters(ctX));
 
-        try
-        {
-            agreement.CalculateAgreement(new X25519PublicKeyParameters(ctX), ssX, 0);
-        }
-        catch (InvalidOperationException)
-        {
-            throw new AgeFormatException("X-Wing X25519 agreement failed (low-order or identity point)");
-        }
-
-        // Check for all-zero shared secret (low-order point that BC didn't reject)
         // ss = SHA3-256(ss_M || ss_X || ct_X || pk_X || XWingLabel)
-        return ssX.All(b => b == 0)
-            ? throw new AgeFormatException("X-Wing X25519 shared secret is all-zero (low-order or identity point)")
-            : CombineSharedSecret(ssM, ssX, ctX, pkX);
+        return CombineSharedSecret(ssM, ssX, ctX, pkX);
     }
 
     private static byte[] CombineSharedSecret(byte[] ssM, byte[] ssX, byte[] ctX, byte[] pkX)

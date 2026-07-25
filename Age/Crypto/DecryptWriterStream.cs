@@ -358,11 +358,18 @@ internal sealed class DecryptWriterStream : Stream
     // async drains with an await after Consume returns.
     private MemoryStream? _pending;
 
+    // Whether WriteOut ran since the last drain. Tracked apart from the staged length
+    // because Finish deliberately writes an empty span: keying the drain off
+    // _pending.Length would make "nothing was produced" and "empty was produced on
+    // purpose" indistinguishable, and silently drop the latter.
+    private bool _pendingWrite;
+
     private void WriteOut(ReadOnlySpan<byte> plaintext)
     {
         if (_inAsyncWrite)
         {
             (_pending ??= new MemoryStream()).Write(plaintext);
+            _pendingWrite = true;
             return;
         }
 
@@ -373,12 +380,17 @@ internal sealed class DecryptWriterStream : Stream
 
     private async ValueTask DrainAsync(CancellationToken cancellationToken)
     {
-        if (_pending is null || _pending.Length == 0)
+        if (!_pendingWrite)
             return;
 
-        await _destination.WriteAsync(_pending.GetBuffer().AsMemory(0, (int)_pending.Length), cancellationToken)
-                          .ConfigureAwait(false);
-        _pending.SetLength(0);
+        _pendingWrite = false;
+
+        var staged = _pending is null
+            ? ReadOnlyMemory<byte>.Empty
+            : _pending.GetBuffer().AsMemory(0, (int)_pending.Length);
+
+        await _destination.WriteAsync(staged, cancellationToken).ConfigureAwait(false);
+        _pending?.SetLength(0);
     }
 
     // --- finalization -------------------------------------------------------

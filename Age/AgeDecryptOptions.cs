@@ -26,24 +26,51 @@ public sealed class AgeDecryptOptions
     /// </remarks>
     public bool RequireArmor { get; init; }
 
+    private readonly int _maxHeaderLineBytes = 64 * 1024;
+    private readonly int _maxHeaderBytes = 16 * 1024 * 1024;
+    private readonly int _maxArmorLineBytes = 64 * 1024;
+
     /// <summary>
     /// Maximum length, in bytes, of a single header line (the version line, a
     /// stanza argument line, or a stanza body line). Default: 64 KiB.
     /// </summary>
-    public int MaxHeaderLineBytes { get; init; } = 64 * 1024;
+    /// <exception cref="ArgumentOutOfRangeException">The value is not positive.</exception>
+    public int MaxHeaderLineBytes
+    {
+        get => _maxHeaderLineBytes;
+        init => _maxHeaderLineBytes = RequirePositive(value, nameof(MaxHeaderLineBytes));
+    }
 
     /// <summary>
     /// Maximum total length, in bytes, of the header — every line up to and
     /// including the <c>--- &lt;mac&gt;</c> line. Default: 16 MiB.
     /// </summary>
-    public int MaxHeaderBytes { get; init; } = 16 * 1024 * 1024;
+    /// <exception cref="ArgumentOutOfRangeException">The value is not positive.</exception>
+    public int MaxHeaderBytes
+    {
+        get => _maxHeaderBytes;
+        init => _maxHeaderBytes = RequirePositive(value, nameof(MaxHeaderBytes));
+    }
 
     /// <summary>
     /// Maximum length, in bytes, of a single ASCII-armor line. A spec-compliant
     /// armor line is at most 64 characters; the ceiling is set high so it only
     /// ever rejects a hostile unterminated line. Default: 64 KiB.
     /// </summary>
-    public int MaxArmorLineBytes { get; init; } = 64 * 1024;
+    /// <exception cref="ArgumentOutOfRangeException">The value is not positive.</exception>
+    public int MaxArmorLineBytes
+    {
+        get => _maxArmorLineBytes;
+        init => _maxArmorLineBytes = RequirePositive(value, nameof(MaxArmorLineBytes));
+    }
+
+    // Rejected at construction rather than on the first byte of input: a zero or
+    // negative limit otherwise surfaces as "armor line exceeds 0 bytes", which reads
+    // as a complaint about the file rather than about the caller's own options.
+    private static int RequirePositive(int value, string name) =>
+        value > 0
+            ? value
+            : throw new ArgumentOutOfRangeException(name, value, $"{name} must be greater than zero");
 
     internal static readonly AgeDecryptOptions Default = new();
 }

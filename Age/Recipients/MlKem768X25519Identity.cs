@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using AgeSharp.Crypto;
+using AgeSharp.Recipients;
 
 namespace AgeSharp;
 

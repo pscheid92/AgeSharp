@@ -257,34 +257,26 @@ internal sealed class SeekableDecryptStream : Stream
         return plaintextLength;
     }
 
+    // Short of a full chunk means the payload is truncated, which is an authentication
+    // failure rather than an I/O one — so the end-of-stream case is handled here rather
+    // than letting ReadExactly raise EndOfStreamException.
     private void ReadFully(long position, Span<byte> destination)
     {
         _ciphertext.Position = position;
 
-        var total = 0;
-        while (total < destination.Length)
-        {
-            var read = _ciphertext.Read(destination[total..]);
-            if (read == 0)
-                throw new AgeAuthenticationException($"could not read full chunk at offset {position}");
-
-            total += read;
-        }
+        if (_ciphertext.ReadAtLeast(destination, destination.Length, throwOnEndOfStream: false) < destination.Length)
+            throw new AgeAuthenticationException($"could not read full chunk at offset {position}");
     }
 
     private async ValueTask ReadFullyAsync(long position, Memory<byte> destination, CancellationToken cancellationToken)
     {
         _ciphertext.Position = position;
 
-        var total = 0;
-        while (total < destination.Length)
-        {
-            var read = await _ciphertext.ReadAsync(destination[total..], cancellationToken).ConfigureAwait(false);
-            if (read == 0)
-                throw new AgeAuthenticationException($"could not read full chunk at offset {position}");
+        var read = await _ciphertext.ReadAtLeastAsync(destination, destination.Length, throwOnEndOfStream: false,
+                                                      cancellationToken).ConfigureAwait(false);
 
-            total += read;
-        }
+        if (read < destination.Length)
+            throw new AgeAuthenticationException($"could not read full chunk at offset {position}");
     }
 
     public override long Seek(long offset, SeekOrigin origin)

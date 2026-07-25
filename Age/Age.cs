@@ -246,8 +246,20 @@ public static partial class Age
     {
         using var input = new MemoryStream(ciphertext.ToArray());
         using var output = new MemoryStream();
-        Decrypt(input, output, options, identities);
-        return output.ToArray();
+
+        try
+        {
+            Decrypt(input, output, options, identities);
+            return output.ToArray();
+        }
+        finally
+        {
+            // The returned array is the caller's copy; this one is ours to clear.
+            // Disposing a MemoryStream does not touch its buffer, so without this a
+            // second copy of the plaintext would outlive the call. Also runs when
+            // decryption throws partway, since the buffer holds plaintext by then.
+            CryptographicOperations.ZeroMemory(output.GetBuffer());
+        }
     }
 
     /// <summary>
@@ -569,9 +581,18 @@ public static partial class Age
         try
         {
             var (fileKey, reader) = UnwrapHeaderFromReader(binaryInput, identityArray, options);
-            var payloadNonce = ReadPayloadNonce(reader);
-            payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
-            CryptographicOperations.ZeroMemory(fileKey);
+
+            try
+            {
+                var payloadNonce = ReadPayloadNonce(reader);
+                payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+            }
+            finally
+            {
+                // In a finally, not inline: a truncated file throws from the nonce read,
+                // and the file key must not outlive that. Mirrors DecryptReaderAsync.
+                CryptographicOperations.ZeroMemory(fileKey);
+            }
 
             // CanSeek mirrors the (possibly dearmored) source: a seekable input
             // gets random-access decryption; anything else stays forward-only.
@@ -695,7 +716,16 @@ public static partial class Age
         if (items.Count == 0)
             throw new ArgumentException($"at least one {noun} is required", paramName);
 
-        return items as T[] ?? [.. items];
+        var array = items as T[] ?? [.. items];
+
+        // Every params overload funnels through here via Combine, so this one scan
+        // covers both shapes. Without it a null element surfaces as a NullReference
+        // from inside the wrap loop, naming nothing the caller can act on.
+        for (var i = 0; i < array.Length; i++)
+            if (array[i] is null)
+                throw new ArgumentException($"{noun} at index {i} is null", paramName);
+
+        return array;
     }
 
     // Wrap a recipient and get its label set. Recipients that don't implement
@@ -800,10 +830,21 @@ public static partial class Age
         if (fileKey is null)
             throw new NoIdentityMatchException();
 
-        if (fileKey.Length != FileKeySize)
-            throw new AgeFormatException($"file key must be {FileKeySize} bytes, got {fileKey.Length}");
+        // Both remaining checks can reject a key that was already recovered, so neither
+        // may leave it sitting in memory on the way out.
+        try
+        {
+            if (fileKey.Length != FileKeySize)
+                throw new AgeFormatException($"file key must be {FileKeySize} bytes, got {fileKey.Length}");
 
-        header.VerifyMac(fileKey);
+            header.VerifyMac(fileKey);
+        }
+        catch
+        {
+            CryptographicOperations.ZeroMemory(fileKey);
+            throw;
+        }
+
         return fileKey;
     }
 

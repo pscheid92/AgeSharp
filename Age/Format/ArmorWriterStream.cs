@@ -17,13 +17,12 @@ namespace AgeSharp;
 /// </remarks>
 internal sealed class ArmorWriterStream(Stream destination) : Stream
 {
-    private const int BytesPerLine = 48;   // 48 bytes encode to exactly 64 base64 chars
     private const int CharsPerLine = 64;
 
     private static readonly byte[] BeginBytes = Encoding.ASCII.GetBytes("-----BEGIN AGE ENCRYPTED FILE-----\n");
     private static readonly byte[] EndBytes = Encoding.ASCII.GetBytes("-----END AGE ENCRYPTED FILE-----\n");
 
-    private readonly byte[] _lineBuffer = new byte[BytesPerLine];
+    private readonly byte[] _lineBuffer = new byte[ArmorFormat.BytesPerLine];
     private readonly byte[] _encoded = new byte[CharsPerLine + 1]; // 64 base64 chars + '\n'
     private int _lineLength;
     private bool _begun;
@@ -50,12 +49,12 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
 
         while (!buffer.IsEmpty)
         {
-            var take = Math.Min(BytesPerLine - _lineLength, buffer.Length);
+            var take = Math.Min(ArmorFormat.BytesPerLine - _lineLength, buffer.Length);
             buffer[..take].CopyTo(_lineBuffer.AsSpan(_lineLength));
             _lineLength += take;
             buffer = buffer[take..];
 
-            if (_lineLength == BytesPerLine)
+            if (_lineLength == ArmorFormat.BytesPerLine)
                 destination.Write(_encoded.AsSpan(0, EncodeLine()));
         }
     }
@@ -70,12 +69,12 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
 
         while (!buffer.IsEmpty)
         {
-            var take = Math.Min(BytesPerLine - _lineLength, buffer.Length);
+            var take = Math.Min(ArmorFormat.BytesPerLine - _lineLength, buffer.Length);
             buffer.Span[..take].CopyTo(_lineBuffer.AsSpan(_lineLength));
             _lineLength += take;
             buffer = buffer[take..];
 
-            if (_lineLength == BytesPerLine)
+            if (_lineLength == ArmorFormat.BytesPerLine)
                 await destination.WriteAsync(_encoded.AsMemory(0, EncodeLine()), cancellationToken).ConfigureAwait(false);
         }
     }

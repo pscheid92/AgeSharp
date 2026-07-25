@@ -620,6 +620,62 @@ public class DecryptWriterTests
         }
     }
 
+    // --- the empty-plaintext destination write --------------------------------
+
+    // A destination that only materializes on first write (a lazy file handle, say)
+    // needs to be touched even when the plaintext is empty, or decrypting an empty
+    // age file silently produces nothing at all. Sync and async must agree.
+    private sealed class TouchRecorder : Stream
+    {
+        public bool Touched { get; private set; }
+
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => 0;
+        public override long Position { get => 0; set { } }
+
+        public override void Write(byte[] buffer, int offset, int count) => Touched = true;
+        public override void Write(ReadOnlySpan<byte> buffer) => Touched = true;
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            Touched = true;
+            return ValueTask.CompletedTask;
+        }
+
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+    }
+
+    [Fact]
+    public void EmptyPlaintext_TouchesTheDestination()
+    {
+        using var identity = X25519Identity.Generate();
+        var ciphertext = Age.Encrypt(ReadOnlySpan<byte>.Empty, identity.Recipient);
+        var destination = new TouchRecorder();
+
+        using (var writer = Age.DecryptWriter(destination, identity))
+            writer.Write(ciphertext);
+
+        Assert.True(destination.Touched);
+    }
+
+    [Fact]
+    public async Task EmptyPlaintext_TouchesTheDestination_Async()
+    {
+        using var identity = X25519Identity.Generate();
+        var ciphertext = Age.Encrypt(ReadOnlySpan<byte>.Empty, identity.Recipient);
+        var destination = new TouchRecorder();
+
+        await using (var writer = Age.DecryptWriter(destination, identity))
+            await writer.WriteAsync(ciphertext);
+
+        Assert.True(destination.Touched);
+    }
+
     // --- the grid is closed --------------------------------------------------
 
     [Fact]

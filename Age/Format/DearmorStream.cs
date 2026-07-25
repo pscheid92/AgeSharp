@@ -66,6 +66,17 @@ internal sealed class DearmorStream : Stream
     public override int Read(byte[] buffer, int offset, int count)
         => Read(buffer.AsSpan(offset, count));
 
+    // Stream's base ReadByte allocates a byte[1] per call, and the header is read one
+    // byte at a time — so without this an armored header costs one heap allocation per
+    // header byte, up to AgeDecryptOptions.MaxHeaderBytes of them before anything is
+    // authenticated. The binary path avoids it because FileStream and MemoryStream
+    // both override ReadByte themselves.
+    public override int ReadByte()
+    {
+        Span<byte> one = stackalloc byte[1];
+        return Read(one) == 1 ? one[0] : -1;
+    }
+
     public override int Read(Span<byte> buffer)
     {
         while (true)

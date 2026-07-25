@@ -125,4 +125,60 @@ public class StreamWrapperTests
         Assert.Throws<NotSupportedException>(() => peekable.SetLength(1));
         Assert.Throws<NotSupportedException>(() => peekable.Write(new byte[1], 0, 1));
     }
+
+    // Peeking twice must top the buffer up, not replace it. Replacing would drop the
+    // bytes the first peek pulled from the source but the caller has not read yet —
+    // and those bytes are unrecoverable, because the source has already yielded them.
+    [Fact]
+    public void PeekableStream_PeekingTwice_KeepsEveryByte()
+    {
+        using var peekable = new PeekableStream(new MemoryStream([1, 2, 3, 4, 5, 6]));
+
+        Span<byte> first = stackalloc byte[2];
+        Assert.Equal(2, peekable.Peek(first));
+        Assert.Equal<byte[]>([1, 2], first.ToArray());
+
+        Span<byte> second = stackalloc byte[4];
+        Assert.Equal(4, peekable.Peek(second));
+        Assert.Equal<byte[]>([1, 2, 3, 4], second.ToArray());
+
+        var all = new byte[6];
+        var total = 0;
+        while (total < all.Length)
+        {
+            var read = peekable.Read(all.AsSpan(total));
+            if (read == 0)
+                break;
+
+            total += read;
+        }
+
+        Assert.Equal<byte[]>([1, 2, 3, 4, 5, 6], all);
+    }
+
+    [Fact]
+    public async Task PeekableStream_PeekingTwiceAsync_KeepsEveryByte()
+    {
+        using var peekable = new PeekableStream(new MemoryStream([1, 2, 3, 4, 5, 6]));
+
+        var first = new byte[2];
+        Assert.Equal(2, await peekable.PeekAsync(first));
+
+        var second = new byte[4];
+        Assert.Equal(4, await peekable.PeekAsync(second));
+        Assert.Equal<byte[]>([1, 2, 3, 4], second);
+
+        var all = new byte[6];
+        var total = 0;
+        while (total < all.Length)
+        {
+            var read = await peekable.ReadAsync(all.AsMemory(total));
+            if (read == 0)
+                break;
+
+            total += read;
+        }
+
+        Assert.Equal<byte[]>([1, 2, 3, 4, 5, 6], all);
+    }
 }

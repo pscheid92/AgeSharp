@@ -13,14 +13,21 @@ internal static class CryptoHelper
     private const int Sha256Size = 32;
 
     /// <summary>
-    /// Computes an X25519 shared secret. A low-order or identity public point
-    /// yields an all-zero shared secret, which BouncyCastle's
-    /// <c>CalculateAgreement</c> rejects by throwing
-    /// <see cref="InvalidOperationException"/>; that is normalized into an
-    /// <see cref="AgeFormatException"/> so a crafted stanza can't leak a raw BCL
-    /// exception through decryption. The caller owns the returned secret and
-    /// must zero it after use.
+    /// Computes an X25519 shared secret — the single agreement path, used by every
+    /// caller so the all-zero rule is stated once. A low-order or identity public
+    /// point yields an all-zero shared secret, which the age spec says the
+    /// implementation MUST reject.
     /// </summary>
+    /// <remarks>
+    /// BouncyCastle rejects that case itself by throwing
+    /// <see cref="InvalidOperationException"/>, normalized here into an
+    /// <see cref="AgeFormatException"/> so a crafted stanza can't leak a raw BCL
+    /// exception through decryption. The explicit all-zero check that follows is
+    /// belt-and-suspenders: the spec's requirement is on us, not on the backend, and
+    /// this way it does not silently lapse if a future BouncyCastle — or a different
+    /// backend — returns the zero secret instead of throwing. The caller owns the
+    /// returned secret and must zero it after use.
+    /// </remarks>
     public static byte[] X25519Agree(X25519PrivateKeyParameters privateKey, X25519PublicKeyParameters publicKey)
     {
         var agreement = new X25519Agreement();
@@ -35,6 +42,9 @@ internal static class CryptoHelper
         {
             throw new AgeFormatException("X25519 shared secret is all-zero (low-order or identity point)");
         }
+
+        if (sharedSecret.All(b => b == 0))
+            throw new AgeFormatException("X25519 shared secret is all-zero (low-order or identity point)");
 
         return sharedSecret;
     }

@@ -10,8 +10,8 @@ namespace AgeSharp;
 /// <remarks>
 /// <para>
 /// Armor is an order-preserving, position-computable transform: every body line is
-/// exactly <see cref="ColumnsPerLine"/> base64 characters decoding to
-/// <see cref="BytesPerLine"/> bytes, and only the final line may be short. So binary
+/// exactly <see cref="ArmorFormat.ColumnsPerLine"/> base64 characters decoding to
+/// <see cref="ArmorFormat.BytesPerLine"/> bytes, and only the final line may be short. So binary
 /// byte <c>i</c> lives on line <c>i / 48</c> at offset <c>i % 48</c>, and that line
 /// starts at <c>BodyStart + (i / 48) * LineStride</c>. This is unlike compression,
 /// which genuinely destroys random access.
@@ -32,15 +32,12 @@ namespace AgeSharp;
 /// </remarks>
 internal sealed class ArmorGeometry
 {
-    internal const int ColumnsPerLine = 64;
-    internal const int BytesPerLine = 48;
-
-    private const string BeginMarker = "-----BEGIN AGE ENCRYPTED FILE-----";
-    private const string EndMarker = "-----END AGE ENCRYPTED FILE-----";
-
-    // Bounds the probes. Leading whitespace is capped the same way detection caps it;
-    // trailing whitespace after the end marker is capped here.
-    private const int ProbeSize = 8192;
+    // Bounds the head and tail probes: leading whitespace before the begin marker, and
+    // trailing whitespace after the end marker. Named for what it bounds rather than
+    // reusing "ProbeSize" — AsciiArmor has a probe of its own, sized for armor
+    // *detection*, and one name meaning two different sizes in one feature area is a
+    // trap rather than a convenience.
+    private const int EdgeProbeSize = 8192;
 
     /// <summary>Absolute source offset of the first body character.</summary>
     public long BodyStart { get; private init; }
@@ -57,11 +54,23 @@ internal sealed class ArmorGeometry
     /// falls back to forward-only decoding, which validates every line as it goes.
     /// </summary>
     public static ArmorGeometry? TryResolve(Stream source)
-        => TryResolveCore(source, static (s, p, c) =>
+    {
+        var resolved = TryResolveCore(source, static (s, p, c) =>
         {
             s.Position = p;
             return ValueTask.FromResult(ReadFully(s, c));
-        }).GetAwaiter().GetResult();
+        });
+
+        // Every read above is synchronous, so the shared core completes before it
+        // returns and reading the result never blocks. Guarded rather than assumed:
+        // if a genuinely asynchronous step is ever added to Resolve, this fails here
+        // and now instead of quietly blocking the caller's thread.
+        if (!resolved.IsCompleted)
+            throw new InvalidOperationException(
+                "synchronous armor geometry resolution did not complete synchronously");
+
+        return resolved.Result;
+    }
 
     /// <summary>
     /// Asynchronous counterpart to <see cref="TryResolve"/>. Separate because the
@@ -105,10 +114,10 @@ internal sealed class ArmorGeometry
             return null;
 
         // --- head: where does the body start, and how wide is a terminator? ---
-        var head = await readAt(source, origin, (int)Math.Min(ProbeSize, remaining)).ConfigureAwait(false);
+        var head = await readAt(source, origin, (int)Math.Min(EdgeProbeSize, remaining)).ConfigureAwait(false);
         var headText = Encoding.ASCII.GetString(head);
 
-        var markerIndex = headText.IndexOf(BeginMarker, StringComparison.Ordinal);
+        var markerIndex = headText.IndexOf(ArmorFormat.BeginMarker, StringComparison.Ordinal);
         if (markerIndex < 0)
             return null;
 
@@ -117,7 +126,7 @@ internal sealed class ArmorGeometry
         if (headText[..markerIndex].AsSpan().TrimStart(" \t\r\n").Length != 0)
             return null;
 
-        var afterMarker = markerIndex + BeginMarker.Length;
+        var afterMarker = markerIndex + ArmorFormat.BeginMarker.Length;
         var terminatorWidth = TerminatorWidthAt(headText, afterMarker);
         if (terminatorWidth == 0)
             return null;
@@ -126,10 +135,10 @@ internal sealed class ArmorGeometry
 
         // The first body line fixes the stride. A short first line means a
         // single-line body, which the tail probe resolves on its own.
-        var lineStride = ColumnsPerLine + terminatorWidth;
+        var lineStride = ArmorFormat.ColumnsPerLine + terminatorWidth;
 
         // --- tail: where does the body end? ---
-        var tailLength = (int)Math.Min(ProbeSize, source.Length - bodyStart);
+        var tailLength = (int)Math.Min(EdgeProbeSize, source.Length - bodyStart);
         if (tailLength <= 0)
             return null;
 
@@ -137,12 +146,12 @@ internal sealed class ArmorGeometry
         var tail = await readAt(source, tailStart, tailLength).ConfigureAwait(false);
         var tailText = Encoding.ASCII.GetString(tail);
 
-        var endIndex = tailText.LastIndexOf(EndMarker, StringComparison.Ordinal);
+        var endIndex = tailText.LastIndexOf(ArmorFormat.EndMarker, StringComparison.Ordinal);
         if (endIndex < 0)
             return null;
 
         // Only whitespace may follow the end marker.
-        if (tailText[(endIndex + EndMarker.Length)..].AsSpan().Trim(" \t\r\n").Length != 0)
+        if (tailText[(endIndex + ArmorFormat.EndMarker.Length)..].AsSpan().Trim(" \t\r\n").Length != 0)
             return null;
 
         var bodyEnd = tailStart + endIndex;   // absolute offset just past the body
@@ -164,12 +173,12 @@ internal sealed class ArmorGeometry
                 return null;
 
             lineCount = fullLines;
-            lastLineChars = ColumnsPerLine;
+            lastLineChars = ArmorFormat.ColumnsPerLine;
         }
         else
         {
             lastLineChars = (int)remainder - terminatorWidth;
-            if (lastLineChars <= 0 || lastLineChars > ColumnsPerLine)
+            if (lastLineChars <= 0 || lastLineChars > ArmorFormat.ColumnsPerLine)
                 return null;
 
             lineCount = fullLines + 1;
@@ -188,17 +197,17 @@ internal sealed class ArmorGeometry
         {
             BodyStart = bodyStart,
             LineStride = lineStride,
-            DecodedLength = (lineCount - 1) * BytesPerLine + lastDecoded,
+            DecodedLength = (lineCount - 1) * ArmorFormat.BytesPerLine + lastDecoded,
         };
     }
 
     /// <summary>Source offset of the line holding decoded byte <paramref name="binaryOffset"/>.</summary>
     public long LineStartFor(long binaryOffset) =>
-        BodyStart + binaryOffset / BytesPerLine * LineStride;
+        BodyStart + binaryOffset / ArmorFormat.BytesPerLine * LineStride;
 
     /// <summary>How far into that line's decoded bytes the offset falls.</summary>
     public static int OffsetWithinLine(long binaryOffset) =>
-        (int)(binaryOffset % BytesPerLine);
+        (int)(binaryOffset % ArmorFormat.BytesPerLine);
 
     private static int TerminatorWidthAt(string text, int index)
     {
@@ -223,37 +232,20 @@ internal sealed class ArmorGeometry
         return base64Line.Length / 4 * 3 - padding;
     }
 
+    // A probe that runs off the end means this is not the layout we assumed, so the
+    // EndOfStreamException these raise is an IOException that TryResolveCore catches
+    // and turns into "no geometry" — the caller then falls back to forward-only.
     private static byte[] ReadFully(Stream source, int count)
     {
         var buffer = new byte[count];
-        var total = 0;
-
-        while (total < count)
-        {
-            var read = source.Read(buffer, total, count - total);
-            if (read == 0)
-                throw new IOException("unexpected end of armored source");
-
-            total += read;
-        }
-
+        source.ReadExactly(buffer);
         return buffer;
     }
 
     private static async ValueTask<byte[]> ReadFullyAsync(Stream source, int count, CancellationToken cancellationToken)
     {
         var buffer = new byte[count];
-        var total = 0;
-
-        while (total < count)
-        {
-            var read = await source.ReadAsync(buffer.AsMemory(total, count - total), cancellationToken).ConfigureAwait(false);
-            if (read == 0)
-                throw new IOException("unexpected end of armored source");
-
-            total += read;
-        }
-
+        await source.ReadExactlyAsync(buffer, cancellationToken).ConfigureAwait(false);
         return buffer;
     }
 }

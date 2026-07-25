@@ -210,4 +210,42 @@ public class ValidationTests
         Assert.Throws<ArgumentNullException>(() => new Stanza("type", null!, []));
         Assert.Throws<ArgumentNullException>(() => new Stanza("type", [], null!));
     }
+
+    // --- a null *inside* the collection ---------------------------------------
+
+    // The collection overloads are the only shape that can carry a null element, and a
+    // caller who hits it deserves to be told which slot rather than an NRE thrown from
+    // inside the wrap loop.
+    [Fact]
+    public void Encrypt_NullRecipientInCollection_ThrowsArgumentException()
+    {
+        using var identity = X25519Identity.Generate();
+
+        var ex = Assert.Throws<ArgumentException>(() =>
+            Age.Encrypt("x"u8, new IRecipient[] { identity.Recipient, null! }));
+
+        Assert.Contains("index 1", ex.Message);
+    }
+
+    [Fact]
+    public void Decrypt_NullIdentityInCollection_ThrowsArgumentException()
+    {
+        using var identity = X25519Identity.Generate();
+        var ciphertext = Age.Encrypt("x"u8, identity.Recipient);
+
+        Assert.Throws<ArgumentException>(() =>
+            Age.Decrypt(ciphertext, new IIdentity[] { null!, identity }));
+    }
+
+    // --- the parsing limits are caller configuration, not file content ---------
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void DecryptOptions_NonPositiveLimits_ThrowAtConstruction(int value)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new AgeDecryptOptions { MaxHeaderLineBytes = value });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new AgeDecryptOptions { MaxHeaderBytes = value });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new AgeDecryptOptions { MaxArmorLineBytes = value });
+    }
 }

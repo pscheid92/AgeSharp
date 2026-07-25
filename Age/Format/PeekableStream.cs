@@ -25,48 +25,58 @@ internal sealed class PeekableStream(Stream inner) : Stream
     /// </summary>
     public int Peek(Span<byte> destination)
     {
-        var buffer = new byte[destination.Length];
-        var total = 0;
+        var needed = Grow(destination.Length);
 
-        while (total < buffer.Length)
+        while (_length < needed)
         {
-            var read = inner.Read(buffer.AsSpan(total));
+            var read = inner.Read(_peeked.AsSpan(_length, needed - _length));
             if (read == 0)
                 break;
 
-            total += read;
+            _length += read;
         }
 
-        Retain(buffer, total);
-        buffer.AsSpan(0, total).CopyTo(destination);
-        return total;
+        return Serve(destination);
     }
 
     /// <summary>Asynchronous counterpart to <see cref="Peek"/>.</summary>
     public async ValueTask<int> PeekAsync(Memory<byte> destination, CancellationToken cancellationToken = default)
     {
-        var buffer = new byte[destination.Length];
-        var total = 0;
+        var needed = Grow(destination.Length);
 
-        while (total < buffer.Length)
+        while (_length < needed)
         {
-            var read = await inner.ReadAsync(buffer.AsMemory(total), cancellationToken).ConfigureAwait(false);
+            var read = await inner.ReadAsync(_peeked.AsMemory(_length, needed - _length), cancellationToken)
+                                  .ConfigureAwait(false);
             if (read == 0)
                 break;
 
-            total += read;
+            _length += read;
         }
 
-        Retain(buffer, total);
-        buffer.AsMemory(0, total).CopyTo(destination);
-        return total;
+        return Serve(destination.Span);
     }
 
-    private void Retain(byte[] buffer, int length)
+    // Sizes the buffer to hold `count` bytes past whatever has already been replayed,
+    // and returns that target fill level. Peeking tops the buffer up rather than
+    // replacing it: replacing would drop any peeked-but-not-yet-read bytes on the
+    // floor, and those bytes are gone from the source for good.
+    private int Grow(int count)
     {
-        _peeked = buffer;
-        _offset = 0;
-        _length = length;
+        var needed = _offset + count;
+
+        if (_peeked.Length < needed)
+            Array.Resize(ref _peeked, needed);
+
+        return needed;
+    }
+
+    // Copies the unread window into the caller's buffer without consuming it.
+    private int Serve(Span<byte> destination)
+    {
+        var available = Math.Min(_length - _offset, destination.Length);
+        _peeked.AsSpan(_offset, available).CopyTo(destination);
+        return available;
     }
 
     public override int Read(byte[] buffer, int offset, int count)
