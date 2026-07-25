@@ -3,12 +3,22 @@ namespace AgeSharp;
 /// <summary>
 ///     Recovers a file key from an age header's stanzas. Implement this to add a custom
 ///     identity type; most implementations override only <see cref="Unwrap(Stanza)" />.
-///     <see cref="IDisposable" /> is a base so a caller holding one through the interface
-///     gets the usual <c>using</c>; its default implementation does nothing.
 /// </summary>
+/// <remarks>
+///     <see cref="IDisposable" /> is a base so that an identity held through this interface —
+///     as <see cref="Age.ParseIdentity" /> and friends return it — can be <c>using</c>-scoped
+///     without knowing the concrete type. The default implementation does nothing, so an
+///     identity holding no secret state need not write one.
+///     <para>
+///         If yours does hold secret state, declare your own <c>Dispose</c> rather than relying
+///         on the default. Note that a default interface method is not visible on the
+///         implementing type: without your own declaration, <c>myIdentity.Dispose()</c> does not
+///         compile, though <c>using</c> and a call through the interface both work.
+///     </para>
+/// </remarks>
 public interface IIdentity : IDisposable
 {
-    /// <summary>Releases any key material. Does nothing by default.</summary>
+    /// <summary>Releases any key material. Does nothing unless the implementation declares its own.</summary>
     void IDisposable.Dispose()
     {
     }

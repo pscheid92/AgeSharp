@@ -60,8 +60,16 @@ Pre-seeded questions:
   identity is specified, and Go implements it. So the interface's most important implementor is
   `PluginIdentity`, which could not implement it because `PluginRecipient` had no identity-based
   wrap path. Fixed alongside this decision; the apparent thinness was the missing capability.
-- [ ] `IIdentity : IDisposable` with a default no-op `Dispose` — default interface methods have
-  versioning quirks and not every consumer language sees them. Still comfortable?
+- [x] `IIdentity : IDisposable` with a default no-op `Dispose` → **kept, as an interface**. Measured
+  rather than assumed: `using` over a concrete type, over `Age.ParseIdentity`, and calls through
+  either interface all work; only a direct `id.Dispose()` on a concrete type that declares none
+  fails to compile (CS1061). That is a loud, one-time compile error, not a silent leak.
+  An abstract base class was considered — it removes the quirk entirely — and rejected: it would
+  impose single inheritance on an extension point (an identity backed by a `SafeHandle` or a
+  vendor SDK type could never implement it), split the symmetric pair since `IRecipient` must
+  stay an interface, and break `IIdentityWithRecipient : IIdentity`. Dropping the `IDisposable`
+  base was also rejected: its failure mode is unzeroed key material, which is worse than a
+  compile error in a hygiene-focused library. Doc now warns implementors about the quirk.
 - [ ] `IRecipientWithLabels.WrapWithLabels` returns a named tuple. Tuples in interface signatures
   are rare in the BCL. Alternative: an out param, or a small result type. Worth it, or fine?
   *(Still open. It was widened to `(IReadOnlyList<Stanza>, …)` alongside `Wrap`, but the tuple
@@ -196,6 +204,7 @@ Append rows as you go; this table is the review's output.
 | `EncryptDetached` options | **keep** (none) | Armor wraps a whole age file, which a detached pair is not. |
 | Empty recipient list from `Wrap` | **reject** | Newly representable once `Wrap` returned a list; silently writing a header without that recipient is the same failure the reshape fixed. |
 | `IIdentityWithRecipient` | **keep** | age's third-party identities arrive as plugins, and the spec makes encrypting to a plugin identity first-class. Its key implementor was missing, not its purpose. |
+| `IIdentity : IDisposable` + default `Dispose` | **keep** (interface, not a base class) | A base class would impose single inheritance on an extension point; dropping `IDisposable` risks unzeroed secrets. The DIM quirk is a one-time compile error, now documented. |
 | *(next: `DecryptIdentities`, `TryParse*` callbacks, Detached as a feature, `WrapWithLabels` tuple shape)* | | |
 
 Mechanics afterwards:
