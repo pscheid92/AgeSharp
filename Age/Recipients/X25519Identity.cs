@@ -18,6 +18,8 @@ public sealed class X25519Identity : IIdentityWithRecipient, IDisposable, IParsa
     private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
 
     private readonly byte[] _rawPrivateKey;
+    private X25519PublicKeyParameters? _publicKeyParams;
+    private X25519Recipient? _recipient;
     private bool _disposed;
 
     private X25519Identity(byte[] rawPrivateKey)
@@ -32,7 +34,7 @@ public sealed class X25519Identity : IIdentityWithRecipient, IDisposable, IParsa
         get
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            return new(PublicKeyParams);
+            return _recipient ??= new(PublicKeyParams);
         }
     }
 
@@ -41,14 +43,16 @@ public sealed class X25519Identity : IIdentityWithRecipient, IDisposable, IParsa
     // implemented explicitly rather than widening the public property to IRecipient.
     IRecipient IIdentityWithRecipient.Recipient => Recipient;
 
-    private X25519PublicKeyParameters PublicKeyParams
-    {
-        get
-        {
-            var privateParams = new X25519PrivateKeyParameters(_rawPrivateKey);
-            return privateParams.GeneratePublicKey();
-        }
-    }
+    // Deriving the public half is a scalar multiplication, and Unwrap needs it once
+    // per stanza to build the HKDF salt — so an N-stanza header used to cost N of
+    // them on top of the N agreements. Cached on first use instead.
+    //
+    // No lock: the derivation is deterministic, so two racing threads compute the
+    // same value and either may win. Reference assignment is atomic, which keeps
+    // the documented "safe for concurrent Unwrap" contract intact. Lazy rather than
+    // eager because parsing an identity file should not pay for keys never used.
+    private X25519PublicKeyParameters PublicKeyParams =>
+        _publicKeyParams ??= new X25519PrivateKeyParameters(_rawPrivateKey).GeneratePublicKey();
 
     /// <summary>Generates a new identity from a cryptographically secure random key.</summary>
     public static X25519Identity Generate()
