@@ -161,7 +161,31 @@ var recipient = identity.Recipient;
 Age.Encrypt(input, encrypted, recipient);
 ```
 
-### Push-based streaming
+### Streaming
+
+Three entry points return a `Stream`. Which one you want falls out of two
+questions: *which side do you hand over, and which side do you drive?*
+
+|              | you pass **ciphertext**, get a **plaintext** stream | you pass **plaintext**, get a **ciphertext** stream |
+|--------------|------------------------------------------|------------------------------------------|
+| **you read** | `Age.OpenRead(source, identities)`       | `Age.EncryptReader(plaintext, recipients)` |
+| **you write**| `Age.OpenWrite(destination, recipients)` | *(no counterpart — see below)*           |
+
+The `Open*` pair is named for the side you touch: you hand over an age file and
+get plaintext to read or write, the way `File.OpenRead` hands you the contents
+rather than the directory entry. `EncryptReader` sits in the mirrored column — it
+takes plaintext and gives you the age file as bytes — which is why it is not
+named `Open*`.
+
+The empty cell would be a writable ciphertext stream: you write an age file into
+it, plaintext lands in a destination. It isn't built, so decryption is pull-only.
+Feeding a `Stream` you cannot seek is already covered by `Age.Decrypt`, which
+streams a source of any kind, armored or not.
+
+All three are memory-bounded: a 1 GiB input costs the same working set as a 1 MB
+one.
+
+#### Push-based encryption
 
 `Age.OpenWrite` returns a writable `Stream` (GZipStream-style): write plaintext to
 it, and ciphertext is written to the destination. Recipient wrapping runs eagerly;
@@ -173,7 +197,7 @@ using (var stream = Age.OpenWrite(destination, recipient))
     inputStream.CopyTo(stream);   // Dispose finalizes the file (empty input → valid empty file)
 ```
 
-### Pull-based streaming
+#### Pull-based streaming
 
 Returns a readable `Stream` — header and key setup is eager, payload encryption/decryption is lazy (chunk-by-chunk on `Read()`).
 

@@ -11,6 +11,42 @@ namespace AgeSharp;
 /// rather than buffered — and on the asynchronous paths as well as the
 /// synchronous ones.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Three members return a <see cref="Stream"/>, and they divide along two axes —
+/// which side you hand over, and which side you drive:
+/// </para>
+/// <list type="table">
+///   <listheader>
+///     <term/>
+///     <description>pass ciphertext, get plaintext | pass plaintext, get ciphertext</description>
+///   </listheader>
+///   <item>
+///     <term>you read</term>
+///     <description><see cref="OpenRead(Stream, IIdentity, ReadOnlySpan{IIdentity})"/> |
+///     <see cref="EncryptReader(Stream, IRecipient, ReadOnlySpan{IRecipient})"/></description>
+///   </item>
+///   <item>
+///     <term>you write</term>
+///     <description><see cref="OpenWrite(Stream, IRecipient, ReadOnlySpan{IRecipient})"/> |
+///     <em>no counterpart</em></description>
+///   </item>
+/// </list>
+/// <para>
+/// The <c>Open*</c> pair is named for the side the caller touches: hand over an age
+/// file, get plaintext to read or write, as <see cref="File.OpenRead"/> hands back
+/// contents rather than a directory entry. <c>EncryptReader</c> occupies the
+/// mirrored column — plaintext in, the age file out — which is why it does not
+/// share the <c>Open*</c> name. The empty cell would be a writable ciphertext
+/// stream; it is not implemented, so decryption is pull-only.
+/// </para>
+/// <para>
+/// Every one of these accepts recipients or identities in two shapes: one or more
+/// positional arguments, or any <see cref="IReadOnlyList{T}"/>. The first element
+/// is a required parameter rather than part of the <c>params</c> tail, so omitting
+/// them entirely is a compile error.
+/// </para>
+/// </remarks>
 public static partial class Age
 {
     private const int FileKeySize = 16;
