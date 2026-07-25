@@ -1,4 +1,5 @@
 using AgeSharp;
+using AgeSharp.Crypto;
 using Xunit;
 
 namespace AgeSharp.Tests;
@@ -237,6 +238,151 @@ public class DecryptWriterTests
         });
     }
 
+    // --- malformed payloads --------------------------------------------------
+
+    private static byte[] HeaderAndNonce(byte[] ciphertext)
+    {
+        var offset = (int)Age.ReadHeader(new MemoryStream(ciphertext)).PayloadOffset;
+        return ciphertext[..(offset + 16)];   // header + payload nonce, zero chunks
+    }
+
+    [Fact]
+    public void HeaderAndNonceOnly_IsRejected()
+    {
+        using var identity = X25519Identity.Generate();
+        var truncated = HeaderAndNonce(Age.Encrypt(Pattern(100), identity.Recipient));
+
+        using var output = new MemoryStream();
+
+        var ex = Assert.Throws<AgeAuthenticationException>(() =>
+        {
+            using var writer = Age.DecryptWriter(output, identity);
+            writer.Write(truncated);
+        });
+
+        Assert.Contains("no chunks", ex.Message);
+    }
+
+    [Fact]
+    public void ChunkShorterThanTheAuthenticationTag_IsRejected()
+    {
+        using var identity = X25519Identity.Generate();
+        var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
+        var offset = (int)Age.ReadHeader(new MemoryStream(ciphertext)).PayloadOffset;
+        var stub = ciphertext[..(offset + 16 + 5)];   // five bytes is not even a tag
+
+        using var output = new MemoryStream();
+
+        var ex = Assert.Throws<AgeAuthenticationException>(() =>
+        {
+            using var writer = Age.DecryptWriter(output, identity);
+            writer.Write(stub);
+        });
+
+        Assert.Contains("chunk too small", ex.Message);
+    }
+
+    [Fact]
+    public void TruncatedInsideThePayloadNonce_IsRejected()
+    {
+        // The header parsed, so a file key is live when finalization fails — this is
+        // the path that must still zero it on the way out.
+        using var identity = X25519Identity.Generate();
+        var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
+        var offset = (int)Age.ReadHeader(new MemoryStream(ciphertext)).PayloadOffset;
+
+        using var output = new MemoryStream();
+
+        Assert.Throws<AgeFormatException>(() =>
+        {
+            using var writer = Age.DecryptWriter(output, identity);
+            writer.Write(ciphertext.AsSpan(0, offset + 4));
+        });
+    }
+
+    [Fact]
+    public void EmptyFinalChunkAfterData_IsRejected()
+    {
+        // STREAM rule: an empty final chunk is legal only for empty plaintext. No
+        // encoder emits this and truncation cannot fake it — the AEAD tag fails
+        // first — so the file is forged with a known payload key, which is exactly
+        // the adversarial shape the check defends against.
+        using var identity = X25519Identity.Generate();
+
+        var fileKey = new byte[16];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(fileKey);
+
+        var header = new Header();
+        header.Stanzas.Add(identity.Recipient.Wrap(fileKey));
+        using var headerBytes = new MemoryStream();
+        header.WriteTo(headerBytes, fileKey);
+
+        var nonce = new byte[16];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(nonce);
+        var payloadKey = CryptoHelper.HkdfDerive(fileKey, nonce, "payload", 32);
+
+        var full = StreamEncryption.EncryptChunk(payloadKey, 0, isFinal: false, new byte[ChunkSize]);
+        var emptyFinal = StreamEncryption.EncryptChunk(payloadKey, 1, isFinal: true, []);
+        var forged = (byte[])[.. headerBytes.ToArray(), .. nonce, .. full, .. emptyFinal];
+
+        using var output = new MemoryStream();
+
+        var ex = Assert.Throws<AgeAuthenticationException>(() =>
+        {
+            using var writer = Age.DecryptWriter(output, identity);
+            writer.Write(forged);
+        });
+
+        Assert.Contains("final STREAM chunk is empty", ex.Message);
+    }
+
+    // --- armor edge cases ----------------------------------------------------
+
+    [Fact]
+    public void Armored_WithoutATrailingNewline_RoundTrips()
+    {
+        // Plenty of tools omit the final newline; the last line then only completes
+        // at end of input rather than on an LF.
+        using var identity = X25519Identity.Generate();
+        var plaintext = Pattern(300);
+        var armored = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+
+        var trimmed = armored[^1] == (byte)'\n' ? armored[..^1] : armored;
+        Assert.Equal(plaintext, PushDecrypt(trimmed, identity));
+    }
+
+    [Fact]
+    public void Armored_TruncatedBeforeTheEndMarker_IsRejected()
+    {
+        // Cut mid-body with no trailing newline: the last partial line still decodes
+        // to real bytes at end of input, and the missing end marker is what rejects it.
+        using var identity = X25519Identity.Generate();
+        var armored = Age.Encrypt(Pattern(4000), new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var text = System.Text.Encoding.ASCII.GetString(armored);
+
+        var lines = text.Split('\n');
+        var cut = string.Join('\n', lines[..(lines.Length / 2)]) + "\n" + lines[lines.Length / 2][..20];
+
+        using var output = new MemoryStream();
+
+        Assert.Throws<AgeFormatException>(() =>
+        {
+            using var writer = Age.DecryptWriter(output, identity);
+            writer.Write(System.Text.Encoding.ASCII.GetBytes(cut));
+        });
+    }
+
+    [Fact]
+    public void Armored_WithLeadingWhitespace_RoundTrips()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = Pattern(300);
+        var armored = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var padded = (byte[])[.. "\n\n   \n"u8, .. armored];
+
+        Assert.Equal(plaintext, PushDecrypt(padded, identity));
+    }
+
     // --- stream contract -----------------------------------------------------
 
     [Fact]
@@ -254,9 +400,48 @@ public class DecryptWriterTests
         Assert.False(writer.CanRead);
         Assert.False(writer.CanSeek);
         Assert.Throws<NotSupportedException>(() => writer.Length);
+        Assert.Throws<NotSupportedException>(() => writer.Position);
+        Assert.Throws<NotSupportedException>(() => writer.Position = 0);
         Assert.Throws<NotSupportedException>(() => writer.Seek(0, SeekOrigin.Begin));
         Assert.Throws<NotSupportedException>(() => writer.SetLength(0));
         Assert.Throws<NotSupportedException>(() => writer.Read(new byte[1], 0, 1));
+
+        writer.Flush();
+    }
+
+    [Fact]
+    public async Task ArrayOverloads_AndFlush_ForwardCorrectly()
+    {
+        // Stream's byte[]-based Write overloads are what BCL helpers like CopyTo
+        // actually call, so they carry real traffic rather than being ceremony.
+        using var identity = X25519Identity.Generate();
+        var plaintext = Pattern(3000);
+        var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
+
+        using var output = new MemoryStream();
+
+        using (var writer = Age.DecryptWriter(output, identity))
+        {
+            writer.Write(ciphertext, 0, 100);
+            await writer.WriteAsync(ciphertext, 100, ciphertext.Length - 100);
+            await writer.FlushAsync();
+        }
+
+        Assert.Equal(plaintext, output.ToArray());
+    }
+
+    [Fact]
+    public void CopyTo_DrivesItEndToEnd()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = Pattern(ChunkSize + 99);
+        using var source = new MemoryStream(Age.Encrypt(plaintext, identity.Recipient));
+        using var output = new MemoryStream();
+
+        using (var writer = Age.DecryptWriter(output, identity))
+            source.CopyTo(writer);
+
+        Assert.Equal(plaintext, output.ToArray());
     }
 
     [Fact]
@@ -361,6 +546,77 @@ public class DecryptWriterTests
         {
             if (disposing) WasDisposed = true;
             base.Dispose(disposing);
+        }
+    }
+
+    [Fact]
+    public async Task WriteAsync_WrongIdentity_FaultsWithoutMaskingAtDispose()
+    {
+        // The async mirror of the fault guard: DisposeAsync must not finalize a
+        // stream that already threw, or the caller sees a truncation complaint
+        // instead of the real error.
+        using var identity = X25519Identity.Generate();
+        using var stranger = X25519Identity.Generate();
+        var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
+
+        using var output = new MemoryStream();
+        var writer = Age.DecryptWriter(output, stranger);
+
+        await Assert.ThrowsAsync<NoIdentityMatchException>(async () => await writer.WriteAsync(ciphertext));
+        await writer.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task DisposeAsync_IsIdempotent()
+    {
+        using var identity = X25519Identity.Generate();
+        var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
+
+        using var output = new MemoryStream();
+        var writer = Age.DecryptWriter(output, identity);
+        await writer.WriteAsync(ciphertext);
+
+        await writer.DisposeAsync();
+        await writer.DisposeAsync();
+    }
+
+    [Fact]
+    public void Dispose_IsIdempotent()
+    {
+        using var identity = X25519Identity.Generate();
+        var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
+
+        using var output = new MemoryStream();
+        var writer = Age.DecryptWriter(output, identity);
+        writer.Write(ciphertext);
+
+        writer.Dispose();
+        writer.Dispose();
+    }
+
+    // --- every overload resolves ---------------------------------------------
+
+    [Fact]
+    public void EveryOverloadRoundTrips()
+    {
+        using var identity = X25519Identity.Generate();
+        List<IIdentity> identityList = [identity];
+        var options = new AgeDecryptOptions();
+        var plaintext = Pattern(64);
+        var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
+
+        Check(output => Age.DecryptWriter(output, identity));
+        Check(output => Age.DecryptWriter(output, options, identity));
+        Check(output => Age.DecryptWriter(output, identityList));
+        Check(output => Age.DecryptWriter(output, options, identityList));
+
+        void Check(Func<Stream, Stream> open)
+        {
+            using var output = new MemoryStream();
+            using (var writer = open(output))
+                writer.Write(ciphertext);
+
+            Assert.Equal(plaintext, output.ToArray());
         }
     }
 
