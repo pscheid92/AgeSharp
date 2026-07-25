@@ -55,12 +55,11 @@ Five recipient/identity pairs plus `Passphrase`, which is its own inverse.
 Which optional interfaces each implements:
 
 - `IRecipientWithLabels` — only `MlKem768X25519Recipient`
-- `IIdentityWithRecipient` — `X25519Identity`, `MlKem768X25519Identity`, `SshEd25519Identity`, `SshRsaIdentity`
+- `IIdentityWithRecipient` — the four key-based identities, plus `PluginIdentity` (which defers to the plugin rather than deriving anything)
 - `IParsable<T>` — the four bech32 types (`X25519Recipient/Identity`, `MlKem768X25519Recipient/Identity`)
 - `IDisposable` explicitly — the four identity types holding secret bytes
 
-`PluginRecipient`/`PluginIdentity` implement only the base interfaces; `Passphrase` implements no
-optional interface (it has no public half to derive and carries no labels).
+`Passphrase` implements no optional interface: it has no public half and carries no labels.
 
 ### Data and configuration — 4 types
 

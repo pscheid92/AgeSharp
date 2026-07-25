@@ -82,11 +82,11 @@ public class IdentityInterfaceTests
     }
 
     [Fact]
-    public void PluginIdentity_DoesNotExposeARecipient()
+    public void PluginIdentity_ExposesARecipient()
     {
-        // A plugin identity's secret lives behind the plugin binary, so the public half
-        // is not derivable — the interface must be opt-in, not universal.
-        Assert.False(typeof(IIdentityWithRecipient).IsAssignableFrom(typeof(PluginIdentity)));
+        // Not by deriving a public half — only the plugin has one. recipient-v1 accepts
+        // add-identity, so the recipient wraps by handing the identity back to the plugin.
+        Assert.True(typeof(IIdentityWithRecipient).IsAssignableFrom(typeof(PluginIdentity)));
     }
 
     [Fact]

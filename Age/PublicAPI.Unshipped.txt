@@ -61,6 +61,7 @@ AgeSharp.Passphrase.Passphrase(System.ReadOnlySpan<char> passphrase, int workFac
 AgeSharp.Passphrase.Passphrase(string! passphrase) -> void
 AgeSharp.Passphrase.Passphrase(string! passphrase, int workFactor) -> void
 AgeSharp.Passphrase.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+AgeSharp.PluginIdentity.Recipient.get -> AgeSharp.IRecipient!
 AgeSharp.PluginRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.SshEd25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.SshRsaRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!

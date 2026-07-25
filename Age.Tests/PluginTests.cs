@@ -106,6 +106,38 @@ public class PluginTests
     }
 
     [Fact]
+    public void PluginIdentity_Recipient_WrapsViaAddIdentity()
+    {
+        // `age -e -i` on a plugin identity: recipient-v1 phase 1 takes add-identity in
+        // place of add-recipient, and the plugin wraps to the key it holds.
+        var identityString = MakePluginIdentity("yubikey");
+        var identity = new PluginIdentity(identityString);
+        var recipient = Assert.IsType<PluginRecipient>(((IIdentityWithRecipient)identity).Recipient);
+
+        var script = new StringWriter();
+        var writer = new PluginConnection(new StringReader(""), script);
+        writer.WriteStanza("recipient-stanza", ["0", "piv-p256", "arg"], [0x07]);
+        writer.WriteStanza("done", [], []);
+
+        var captured = new StringWriter();
+        var conn = new PluginConnection(new StringReader(script.ToString()), captured);
+        var stanzas = recipient.WrapWithConnection(conn, new byte[16]);
+
+        Assert.Equal("piv-p256", Assert.Single(stanzas).Type);
+        Assert.Contains($"-> add-identity {identityString}", captured.ToString());
+        Assert.DoesNotContain("add-recipient", captured.ToString());
+    }
+
+    [Fact]
+    public void PluginIdentity_Recipient_TargetsTheSamePlugin()
+    {
+        var identity = new PluginIdentity(MakePluginIdentity("yubikey"));
+        var recipient = Assert.IsType<PluginRecipient>(((IIdentityWithRecipient)identity).Recipient);
+
+        Assert.Equal("yubikey", recipient.PluginName);
+    }
+
+    [Fact]
     public void PluginRecipient_ToString_ReturnsOriginalString()
     {
         var str = MakePluginRecipient("yubikey");

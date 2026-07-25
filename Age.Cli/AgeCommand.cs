@@ -61,8 +61,9 @@ internal static class AgeCommand
                 if (GetRecipientFromIdentity(id) is { } recipient)
                     recipients.Add(recipient);
                 else
-                    Console.Error.WriteLine(
-                        "warning: skipping identity without public recipient extraction (plugin identity)");
+                    // Passphrase identities are the remaining case: no public half exists,
+                    // and -e -p is the way to encrypt to one.
+                    Console.Error.WriteLine("warning: skipping identity with no public recipient");
         }
     }
 

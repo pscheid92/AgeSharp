@@ -54,10 +54,12 @@ Pre-seeded questions:
   plugin answering one `wrap-file-key` with several `recipient-stanza`s — which `age-plugin.md`
   permits and both references accumulate — silently kept the last and dropped the rest. Proven
   with a fake plugin through the `PluginConnection` seam; test added.
-- [ ] **`IIdentityWithRecipient` is AgeSharp's own invention** — neither Go nor rage has an
-  interface for identity→recipient; both put a method on the concrete types only. Keeping it buys
-  the CLI's type-switch-free dispatch and lets custom identities participate. Cutting it matches
-  the references. (Discussed at length this session; decide and record.)
+- [x] **`IIdentityWithRecipient` is AgeSharp's own invention** → **kept**. The deciding evidence was
+  not the pattern but the ecosystem: age's third-party mechanism is plugins, and `age-plugin.md`
+  makes `(add-identity, IDENTITY)` a first-class part of `recipient-v1` — encrypting *to* a plugin
+  identity is specified, and Go implements it. So the interface's most important implementor is
+  `PluginIdentity`, which could not implement it because `PluginRecipient` had no identity-based
+  wrap path. Fixed alongside this decision; the apparent thinness was the missing capability.
 - [ ] `IIdentity : IDisposable` with a default no-op `Dispose` — default interface methods have
   versioning quirks and not every consumer language sees them. Still comfortable?
 - [ ] `IRecipientWithLabels.WrapWithLabels` returns a named tuple. Tuples in interface signatures
@@ -193,7 +195,8 @@ Append rows as you go; this table is the review's output.
 | `Encrypt`/`Decrypt` + the streaming grid + `Detached` + `ReadHeader` | **reshape** → one method each | ~50 entry points became 21; one call shape across sync and async. `4fc862b` |
 | `EncryptDetached` options | **keep** (none) | Armor wraps a whole age file, which a detached pair is not. |
 | Empty recipient list from `Wrap` | **reject** | Newly representable once `Wrap` returned a list; silently writing a header without that recipient is the same failure the reshape fixed. |
-| *(next: `IIdentityWithRecipient`, `DecryptIdentities`, `TryParse*` callbacks, Detached as a feature)* | | |
+| `IIdentityWithRecipient` | **keep** | age's third-party identities arrive as plugins, and the spec makes encrypting to a plugin identity first-class. Its key implementor was missing, not its purpose. |
+| *(next: `DecryptIdentities`, `TryParse*` callbacks, Detached as a feature, `WrapWithLabels` tuple shape)* | | |
 
 Mechanics afterwards:
 
