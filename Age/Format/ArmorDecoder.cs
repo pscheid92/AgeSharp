@@ -32,7 +32,7 @@ internal sealed class ArmorDecoder
     }
 
     private State _state = State.BeforeMarker;
-    private bool _lastLineWasShort;
+    private bool _sawFinalLine;
 
     /// <summary>
     /// Feeds one complete line and writes what it decodes to into
@@ -96,13 +96,9 @@ internal sealed class ArmorDecoder
         if (!Convert.TryFromBase64Chars(line, destination, out var bytesWritten))
             throw new AgeFormatException("invalid base64 in armor");
 
-        // Full-length lines (64 chars) encode exactly 48 bytes with no padding.
-        // If padding is present on a full line, the decode succeeds but is non-canonical.
-        if (line.Length == ColumnsPerLine && bytesWritten != MaxDecodedPerLine)
-            throw new AgeFormatException("non-canonical base64 in armor");
-
-        // Short lines may have padding — validate the trailing bits are zero.
-        if (line.Length < ColumnsPerLine)
+        // Padding means the payload ran out on this line, whatever its width — so it
+        // is validated wherever it appears, not only on short lines.
+        if (line.Contains('='))
             ValidateCanonicalPadding(line);
 
         return bytesWritten;
@@ -119,11 +115,15 @@ internal sealed class ArmorDecoder
         if (line.Length > ColumnsPerLine)
             throw new AgeFormatException($"armor body line exceeds {ColumnsPerLine} characters");
 
-        if (_lastLineWasShort)
-            throw new AgeFormatException("short line in armor body is not the last line");
+        if (_sawFinalLine)
+            throw new AgeFormatException("armor body continues after a line that ended it");
 
-        if (line.Length < ColumnsPerLine)
-            _lastLineWasShort = true;
+        // Two things end the body, and the second is easy to miss: a line narrower
+        // than the column width, OR a full-width line carrying base64 padding. A
+        // final chunk of 46 or 47 bytes encodes to exactly 64 characters *with*
+        // padding, so width alone does not prove a line is not the last.
+        if (line.Length < ColumnsPerLine || line[^1] == '=')
+            _sawFinalLine = true;
 
         var invalid = line.IndexOfAnyExcept(Base64Chars);
 
