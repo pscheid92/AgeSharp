@@ -1,8 +1,8 @@
 # Benchmarks
 
 Measured on Apple M2 (8 cores, 16 GB), macOS 26, .NET 10, on 2026-07-24.
-Numbers are for the v0.3 API surface (one-chunk seekable `OpenRead` cache, the
-push writer `OpenWrite`, and the async facades).
+Numbers are for the v0.3 API surface (one-chunk seekable `DecryptReader` cache, the
+push writer `EncryptWriter`, and the async facades).
 
 ## CLI Comparison: age (Go) vs rage (Rust) vs age-sharp (C#/.NET)
 
@@ -53,7 +53,7 @@ All times in milliseconds (lower is better).
   and Go (479 ms) — the push-encrypt path runs through `EncryptStream`
   + `ArmorStream` without any intermediate buffer.
 - **Bounded memory**: all public push APIs (`Encrypt`, `Decrypt`,
-  `EncryptDetached`, `DecryptDetached`, `OpenWrite`) stream chunk-by-chunk with
+  `EncryptDetached`, `DecryptDetached`, `EncryptWriter`) stream chunk-by-chunk with
   pooled, fixed-size scratch buffers — no per-chunk heap allocations. Memory
   stays O(1) regardless of input size; a 1 GiB file uses the same working set
   as a 1 MB file. This applies to the native ChaCha20-Poly1305 backend; the
@@ -114,7 +114,7 @@ X25519 is the fastest at ~90 μs. ML-KEM hybrid adds ~55-110% overhead
 (still sub-200 μs). Scrypt is intentionally slow (~1.9 ms) due to the
 password-hashing work factor.
 
-### Random Access (`OpenRead` over a seekable source)
+### Random Access (`DecryptReader` over a seekable source)
 
 Reading a 1 MB ciphertext (16 chunks). The one-chunk cache decrypts each
 chunk once for in-order reads, and every path is now **zero-allocation** —
@@ -155,10 +155,10 @@ in how they fill/drain the underlying stream.
 | Shape | Time | Allocated |
 |---|---:|---:|
 | One-shot `Encrypt` | 2,177 μs | 3,991 KB |
-| Push `OpenWrite` | 2,014 μs | 2,012 KB |
+| Push `EncryptWriter` | 2,014 μs | 2,012 KB |
 | Pull `EncryptReader` | 2,193 μs | 3,991 KB |
 
-All three run the same chunked STREAM path at ~2 ms. `OpenWrite` allocates
+All three run the same chunked STREAM path at ~2 ms. `EncryptWriter` allocates
 ~2 MB less and is ~7% faster here because the caller writes plaintext straight
 into it — the one-shot and pull shapes each wrap the plaintext in an input
 `MemoryStream` first, copying it.

@@ -27,13 +27,13 @@ public class ArmorDetectionTests
     }
 
     [Fact]
-    public void OpenRead_ArmoredNonSeekableSource_RoundTrips()
+    public void DecryptReader_ArmoredNonSeekableSource_RoundTrips()
     {
         using var identity = X25519Identity.Generate();
         var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
 
         using var input = new NonSeekableStream(new MemoryStream(armored));
-        using var stream = Age.OpenRead(input, identity);
+        using var stream = Age.DecryptReader(input, identity);
         using var output = new MemoryStream();
         stream.CopyTo(output);
 
@@ -92,7 +92,7 @@ public class ArmorDetectionTests
         var binary = Age.Encrypt(plaintext, identity.Recipient);
 
         using var input = new MemoryStream(binary);
-        using var stream = Age.OpenRead(input, identity);
+        using var stream = Age.DecryptReader(input, identity);
 
         Assert.True(stream.CanSeek);
         Assert.Equal(plaintext.Length, stream.Length);

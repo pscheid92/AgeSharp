@@ -29,7 +29,7 @@ public class RandomAccessBenchmarks
         Age.Encrypt(new MemoryStream(plaintext), encOut, recipient);
         _ciphertext = encOut.ToArray();
 
-        _reader = Age.OpenRead(new MemoryStream(_ciphertext), _identity);
+        _reader = Age.DecryptReader(new MemoryStream(_ciphertext), _identity);
         _plaintextLength = _reader.Length;
 
         // Pre-generate random offsets with fixed seed for reproducibility

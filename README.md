@@ -28,10 +28,10 @@ and targets .NET 10.
   by a single 64 KiB chunk buffer regardless of input size (1 GiB file uses
   the same working set as a 1 MB file), on the synchronous and asynchronous
   paths alike, and for ASCII-armored input as well as binary
-- Push- and pull-based streaming (`OpenWrite` / `EncryptReader` / `OpenRead`)
+- Push- and pull-based streaming (`EncryptWriter` / `EncryptReader` / `DecryptReader`)
   return a readable or writable `Stream` for pipe-and-forget use cases
 - Detached header APIs (`EncryptDetached` / `DecryptDetached`)
-- Seekable decryption — `Age.OpenRead` over a seekable source seeks into
+- Seekable decryption — `Age.DecryptReader` over a seekable source seeks into
   encrypted files without reading the whole file
 - Header inspection without decryption (`Age.ReadHeader`)
 - Encrypted identity files (passphrase-protected)
@@ -163,13 +163,13 @@ Age.Encrypt(input, encrypted, recipient);
 
 ### Push-based streaming
 
-`Age.OpenWrite` returns a writable `Stream` (GZipStream-style): write plaintext to
+`Age.EncryptWriter` returns a writable `Stream` (GZipStream-style): write plaintext to
 it, and ciphertext is written to the destination. Recipient wrapping runs eagerly;
 the header write is deferred to the first write; disposing finalizes the age file.
 
 ```csharp
 // Write plaintext in; ciphertext flows to destination as you write.
-using (var stream = Age.OpenWrite(destination, recipient))
+using (var stream = Age.EncryptWriter(destination, recipient))
     inputStream.CopyTo(stream);   // Dispose finalizes the file (empty input → valid empty file)
 ```
 
@@ -183,21 +183,21 @@ using var encryptedStream = Age.EncryptReader(plaintext, recipient);
 encryptedStream.CopyTo(networkStream);
 
 // Decrypt: returns a Stream you read plaintext from
-using var decryptedStream = Age.OpenRead(ciphertext, identity);
+using var decryptedStream = Age.DecryptReader(ciphertext, identity);
 decryptedStream.CopyTo(outputStream);
 ```
 
 > **Stream ownership.** The streaming APIs never dispose the streams you pass in —
 > you own the destination/source and dispose it yourself. Disposing the stream
-> returned by `OpenWrite`/`OpenRead`/`EncryptReader` releases only that wrapper
-> (and, for `OpenWrite`, finalizes the age file); the underlying stream stays open.
+> returned by `EncryptWriter`/`DecryptReader`/`EncryptReader` releases only that wrapper
+> (and, for `EncryptWriter`, finalizes the age file); the underlying stream stays open.
 >
 > **Thread-safety.** Recipients and identities are safe for concurrent use across
 > threads. The returned streams are not — like any `Stream`, use one per thread.
 
 ### Async
 
-`EncryptAsync`, `DecryptAsync`, and `OpenReadAsync` run with no blocking I/O on
+`EncryptAsync`, `DecryptAsync`, and `DecryptReaderAsync` run with no blocking I/O on
 either stream — safe under ASP.NET Core's `AllowSynchronousIO = false`. The
 returned decrypt streams (and the push/pull streams above) implement
 `ReadAsync`/`WriteAsync`/`DisposeAsync`, and a `CancellationToken` is threaded
@@ -208,7 +208,7 @@ through every operation. Async methods take `IReadOnlyList<>` rather than a
 await Age.EncryptAsync(input, output, [recipient], new AgeEncryptOptions { Armor = true }, cancellationToken);
 await Age.DecryptAsync(ciphertext, output, [identity], cancellationToken: cancellationToken);
 
-await using var stream = await Age.OpenReadAsync(source, [identity], cancellationToken: cancellationToken);
+await using var stream = await Age.DecryptReaderAsync(source, [identity], cancellationToken: cancellationToken);
 await stream.CopyToAsync(outputStream, cancellationToken);
 ```
 
@@ -242,11 +242,11 @@ Age.DecryptDetached(headerInput, payloadInput, output, identity);
 
 ### Seekable decryption
 
-When the ciphertext source is seekable, `Age.OpenRead` returns a seekable
+When the ciphertext source is seekable, `Age.DecryptReader` returns a seekable
 plaintext `Stream`: `Length` is the plaintext length, `Seek` maps to the
 containing 64 KiB chunk, and the last-read chunk is cached. This decrypts
 individual regions without reading the whole file — useful for encrypted
-archives, databases, and large files. `Age.OpenReadAsync` does the same. (A
+archives, databases, and large files. `Age.DecryptReaderAsync` does the same. (A
 non-seekable source yields a forward-only stream, as does an armored one —
 ASCII armor is decoded a line at a time, which gives up seeking rather than
 buying it with the file's size in memory.)
@@ -256,7 +256,7 @@ length, so a truncated file is rejected before the first read rather than
 reporting a plausible wrong `Length`.
 
 ```csharp
-using var stream = Age.OpenRead(ciphertext, identity);
+using var stream = Age.DecryptReader(ciphertext, identity);
 
 Console.WriteLine($"Plaintext length: {stream.Length}");
 
