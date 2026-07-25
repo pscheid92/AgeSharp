@@ -134,7 +134,7 @@ public static partial class Age
         var (source, isArmored) = await AsciiArmor.DetectAsync(input, options.RequireArmor, cancellationToken).ConfigureAwait(false);
 
         return isArmored
-            ? (AsciiArmor.Dearmor(source, options.MaxArmorLineBytes), true)
+            ? (await AsciiArmor.DearmorAsync(source, options.MaxArmorLineBytes, cancellationToken).ConfigureAwait(false), true)
             : (source, false);
     }
 }

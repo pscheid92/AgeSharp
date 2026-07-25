@@ -278,10 +278,14 @@ When the ciphertext source is seekable, `Age.DecryptReader` returns a seekable
 plaintext `Stream`: `Length` is the plaintext length, `Seek` maps to the
 containing 64 KiB chunk, and the last-read chunk is cached. This decrypts
 individual regions without reading the whole file — useful for encrypted
-archives, databases, and large files. `Age.DecryptReaderAsync` does the same. (A
-non-seekable source yields a forward-only stream, as does an armored one —
-ASCII armor is decoded a line at a time, which gives up seeking rather than
-buying it with the file's size in memory.)
+archives, databases, and large files. `Age.DecryptReaderAsync` does the same.
+
+**ASCII-armored sources seek too.** Armor is an order-preserving transform with
+fixed geometry — 48 binary bytes per 64-column line, only the last line short —
+so a binary offset translates to a text position arithmetically. Resolving that
+geometry costs two small reads, one at each end, not a scan. A non-seekable
+source (a pipe, a socket) still yields a forward-only stream, armored or not, as
+does armor whose layout does not match the assumption.
 
 Opening a seekable source decrypts the final chunk to authenticate the plaintext
 length, so a truncated file is rejected before the first read rather than

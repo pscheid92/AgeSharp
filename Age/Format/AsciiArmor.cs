@@ -100,7 +100,11 @@ internal static class AsciiArmor
     /// source stays with the caller, as everywhere else in the library.
     /// </summary>
     public static Stream Dearmor(Stream input, int maxArmorLineBytes = 64 * 1024)
-        => new DearmorStream(input, maxArmorLineBytes);
+        => DearmorStream.Create(input, maxArmorLineBytes);
+
+    /// <summary>Asynchronous counterpart to <see cref="Dearmor"/>.</summary>
+    public static async ValueTask<Stream> DearmorAsync(Stream input, int maxArmorLineBytes, CancellationToken cancellationToken)
+        => await DearmorStream.CreateAsync(input, maxArmorLineBytes, cancellationToken).ConfigureAwait(false);
 
     public static void Armor(Stream input, Stream output)
     {

@@ -74,6 +74,22 @@ internal sealed class ArmorDecoder
     }
 
     /// <summary>
+    /// Places the decoder directly in the body, for a reader that has seeked past the
+    /// begin marker rather than reading through it.
+    /// </summary>
+    /// <remarks>
+    /// Lines skipped this way are never validated — the position was computed from
+    /// the fixed armor geometry, so a file that violates it yields bytes that fail
+    /// AEAD authentication rather than decoding to something plausible. Forward reads
+    /// still validate every line they pass through.
+    /// </remarks>
+    public void ResumeInBody()
+    {
+        _state = State.Body;
+        _sawFinalLine = false;
+    }
+
+    /// <summary>
     /// Signals end of input. The armor must have been closed by an end marker;
     /// anything else means the data was truncated.
     /// </summary>

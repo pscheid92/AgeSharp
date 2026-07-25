@@ -506,8 +506,10 @@ public static partial class Age
     /// seekable stream whose <see cref="Stream.Length"/> is the plaintext length
     /// and whose <see cref="Stream.Seek"/> maps to the containing 64 KiB chunk,
     /// with the last-read chunk cached; a non-seekable source yields a forward-only
-    /// stream, as does an armored one — armor is decoded a line at a time, so it
-    /// gives up seeking rather than buying it with the file's size in memory.
+    /// stream. An ASCII-armored source seeks as well: armor has fixed geometry (48
+    /// bytes per 64-column line, only the last line short), so an offset translates
+    /// arithmetically and the layout is resolved from two small probes rather than
+    /// a scan.
     /// Opening a seekable source decrypts the final chunk to authenticate the
     /// plaintext length, so <see cref="Stream.Length"/> is trustworthy and a
     /// truncated payload is rejected here rather than on reaching the missing tail.
@@ -791,10 +793,10 @@ public static partial class Age
     }
 
     // Detects armor by lookahead and, when present, layers a streaming dearmor over
-    // the source. Armored input is therefore forward-only and costs one chunk of
-    // memory rather than the file's size; binary input passes straight through with
-    // its seekability intact. needsDispose refers to the wrapper only — the caller's
-    // stream is never disposed.
+    // the source. Armored input costs one chunk of memory rather than the file's
+    // size, and stays seekable when the source is and the armor's geometry resolves;
+    // binary input passes straight through with its seekability intact. needsDispose
+    // refers to the wrapper only — the caller's stream is never disposed.
     private static (Stream binaryInput, bool needsDispose) DeArmorIfNeeded(Stream input, AgeDecryptOptions options)
     {
         var (source, isArmored) = AsciiArmor.Detect(input, requireArmored: options.RequireArmor);
