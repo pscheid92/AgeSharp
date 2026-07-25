@@ -40,7 +40,7 @@ internal static class AgeCommand
         using var input = OpenInput(inputPath);
         using var output = OpenOutput(outputPath);
 
-        Age.Encrypt(input, output, new AgeEncryptOptions { Armor = armor }, [.. recipients]);
+        Age.Encrypt(input, output, new AgeEncryptOptions { Armor = armor }, recipients);
         return 0;
     }
 
@@ -91,7 +91,7 @@ internal static class AgeCommand
         // no need to buffer the whole file first.
         using var input = OpenInput(inputPath);
         using var output = OpenOutput(outputPath);
-        Age.Decrypt(input, output, [.. identities]);
+        Age.Decrypt(input, output, identities);
         return 0;
     }
 

@@ -125,6 +125,21 @@ Age.Encrypt(input, encrypted, alice.Recipient, bob.Recipient);
 Age.Decrypt(encrypted, decrypted, bob);
 ```
 
+Recipients assembled at runtime go through the same call as a collection — no
+splatting needed:
+
+```csharp
+List<IRecipient> recipients = LoadRecipientsFile(path);
+
+Age.Encrypt(input, encrypted, recipients);
+Age.Encrypt(input, encrypted, new AgeEncryptOptions { Armor = true }, recipients);
+```
+
+Every entry point takes both shapes: one-or-more positional arguments, or any
+`IReadOnlyList<>`. The first recipient (or identity) is a required parameter
+rather than part of the `params` tail, so forgetting them entirely is a compile
+error instead of an exception at run time.
+
 ### SSH keys
 
 ```csharp

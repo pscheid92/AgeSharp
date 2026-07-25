@@ -261,7 +261,7 @@ public class PushBasedTests
     public void OpenWrite_NoRecipients_Throws()
     {
         using var destination = new MemoryStream();
-        Assert.Throws<ArgumentException>(() => Age.OpenWrite(destination));
+        Assert.Throws<ArgumentException>(() => Age.OpenWrite(destination, Array.Empty<IRecipient>()));
     }
 
     [Fact]

@@ -78,7 +78,15 @@ public class ValidationTests
         Assert.Equal("hello"u8.ToArray(), decrypted.ToArray());
     }
 
-    // --- empty identity lists are a caller bug, not "no match" ---
+    // --- empty collections are a caller bug, not "no match" ---
+    //
+    // Omitting recipients/identities *entirely* no longer reaches these guards: the
+    // `first, params rest` overloads make that a compile error. What survives is the
+    // collection overload, where emptiness is only knowable at runtime — so these
+    // tests now pin the one shape that still needs a guard.
+
+    private static readonly IIdentity[] NoIdentities = [];
+    private static readonly IRecipient[] NoRecipients = [];
 
     [Fact]
     public void Decrypt_NoIdentities_ThrowsArgumentException()
@@ -87,7 +95,7 @@ public class ValidationTests
         using var encrypted = EncryptTo(identity.Recipient);
 
         var ex = Assert.Throws<ArgumentException>(() =>
-            Age.Decrypt(encrypted, new MemoryStream()));
+            Age.Decrypt(encrypted, new MemoryStream(), NoIdentities));
 
         Assert.Equal("identities", ex.ParamName);
     }
@@ -98,14 +106,23 @@ public class ValidationTests
         using var identity = X25519Identity.Generate();
         using var encrypted = EncryptTo(identity.Recipient);
 
-        Assert.Throws<ArgumentException>(() => Age.OpenRead(encrypted));
+        Assert.Throws<ArgumentException>(() => Age.OpenRead(encrypted, NoIdentities));
     }
 
     [Fact]
     public void DecryptDetached_NoIdentities_ThrowsArgumentException()
     {
         Assert.Throws<ArgumentException>(() =>
-            Age.DecryptDetached(new MemoryStream(), new MemoryStream(), new MemoryStream()));
+            Age.DecryptDetached(new MemoryStream(), new MemoryStream(), new MemoryStream(), NoIdentities));
+    }
+
+    [Fact]
+    public async Task DecryptAsync_NoIdentities_ThrowsArgumentException()
+    {
+        var ex = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await Age.DecryptAsync(new MemoryStream(), new MemoryStream(), NoIdentities));
+
+        Assert.Equal("identities", ex.ParamName);
     }
 
     // --- and the same on the encrypt side ---
@@ -114,7 +131,7 @@ public class ValidationTests
     public void EncryptDetached_NoRecipients_ThrowsArgumentException()
     {
         var ex = Assert.Throws<ArgumentException>(() =>
-            Age.EncryptDetached(new MemoryStream(), new MemoryStream(), new MemoryStream()));
+            Age.EncryptDetached(new MemoryStream(), new MemoryStream(), new MemoryStream(), NoRecipients));
 
         Assert.Equal("recipients", ex.ParamName);
     }
@@ -122,7 +139,34 @@ public class ValidationTests
     [Fact]
     public void EncryptReader_NoRecipients_ThrowsArgumentException()
     {
-        var ex = Assert.Throws<ArgumentException>(() => Age.EncryptReader(new MemoryStream()));
+        var ex = Assert.Throws<ArgumentException>(() => Age.EncryptReader(new MemoryStream(), NoRecipients));
+
+        Assert.Equal("recipients", ex.ParamName);
+    }
+
+    [Fact]
+    public async Task EncryptAsync_NoRecipients_ThrowsArgumentException()
+    {
+        var ex = await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await Age.EncryptAsync(new MemoryStream(), new MemoryStream(), NoRecipients));
+
+        Assert.Equal("recipients", ex.ParamName);
+    }
+
+    // --- null is rejected on both shapes ---
+
+    [Fact]
+    public void Encrypt_NullFirstRecipient_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            Age.Encrypt(Plaintext(), new MemoryStream(), (IRecipient)null!));
+    }
+
+    [Fact]
+    public void Encrypt_NullRecipientCollection_ThrowsArgumentNullException()
+    {
+        var ex = Assert.Throws<ArgumentNullException>(() =>
+            Age.Encrypt(Plaintext(), new MemoryStream(), (IReadOnlyList<IRecipient>)null!));
 
         Assert.Equal("recipients", ex.ParamName);
     }

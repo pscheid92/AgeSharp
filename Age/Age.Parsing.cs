@@ -61,7 +61,7 @@ public static partial class Age
     /// <summary>
     /// Parses a recipients file: one recipient per line, with blank lines and
     /// <c>#</c> comments ignored. The returned array converts implicitly to the
-    /// <c>ReadOnlySpan&lt;IRecipient&gt;</c> the <see cref="Encrypt(Stream, Stream, ReadOnlySpan{IRecipient})"/>
+    /// <c>ReadOnlySpan&lt;IRecipient&gt;</c> the <see cref="Encrypt(Stream, Stream, IRecipient, ReadOnlySpan{IRecipient})"/>
     /// overloads accept.
     /// </summary>
     public static IRecipient[] ParseRecipients(string text, IPluginCallbacks? plugins = null) =>

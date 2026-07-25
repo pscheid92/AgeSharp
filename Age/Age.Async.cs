@@ -25,15 +25,10 @@ public static partial class Age
     public static async Task EncryptAsync(Stream input, Stream output, IReadOnlyList<IRecipient> recipients,
                                           AgeEncryptOptions? options = null, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(recipients);
-        if (recipients.Count == 0)
-            throw new ArgumentException("at least one recipient is required", nameof(recipients));
-
         // EncryptReader builds the header eagerly and touches neither stream, so it
-        // is safe to create synchronously before awaiting. The span is consumed by
-        // that synchronous call and never crosses an await.
-        var recipientArray = recipients as IRecipient[] ?? [.. recipients];
-        var stream = EncryptReader(input, options ?? AgeEncryptOptions.Default, recipientArray);
+        // is safe to create synchronously before awaiting — and it validates
+        // recipients for us, so the guards live in exactly one place.
+        var stream = EncryptReader(input, options ?? AgeEncryptOptions.Default, recipients);
 
         await using (stream.ConfigureAwait(false))
             await stream.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
@@ -72,7 +67,7 @@ public static partial class Age
     /// stream is produced; payload decryption is lazy and asynchronous.
     /// </summary>
     /// <remarks>
-    /// Behaves as <see cref="OpenRead(Stream, ReadOnlySpan{IIdentity})"/> does:
+    /// Behaves as <see cref="OpenRead(Stream, IIdentity, ReadOnlySpan{IIdentity})"/> does:
     /// <see cref="Stream.CanSeek"/> mirrors the source, and opening a seekable one
     /// authenticates the plaintext length by decrypting the final chunk. Every step,
     /// including that authentication and each chunk read, is asynchronous.
@@ -85,10 +80,8 @@ public static partial class Age
     public static async ValueTask<Stream> OpenReadAsync(Stream source, IReadOnlyList<IIdentity> identities,
                                                         AgeDecryptOptions? options = null, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(identities);
-        if (identities.Count == 0)
-            throw new ArgumentException("at least one identity is required", nameof(identities));
-
+        // Validate before touching the stream, so a caller bug never half-consumes it.
+        var identityArray = Materialize(identities, nameof(identities), "identity");
         options ??= AgeDecryptOptions.Default;
 
         var (binaryInput, needsDispose) = await DeArmorIfNeededAsync(source, options, cancellationToken).ConfigureAwait(false);
@@ -101,7 +94,6 @@ public static partial class Age
 
             // The header is now buffered, so unwrapping is pure/synchronous and the
             // span never crosses an await.
-            var identityArray = identities as IIdentity[] ?? [.. identities];
             var fileKey = UnwrapHeader(reader, identityArray);
 
             try

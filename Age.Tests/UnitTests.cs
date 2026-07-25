@@ -1161,7 +1161,7 @@ public class AgeTests
     {
         using var input = new MemoryStream("test"u8.ToArray());
         using var output = new MemoryStream();
-        Assert.Throws<ArgumentException>(() => Age.Encrypt(input, output));
+        Assert.Throws<ArgumentException>(() => Age.Encrypt(input, output, Array.Empty<IRecipient>()));
     }
 
     [Fact]

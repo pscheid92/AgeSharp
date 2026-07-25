@@ -88,12 +88,7 @@ override AgeSharp.PluginIdentity.ToString() -> string!
 override AgeSharp.PluginRecipient.ToString() -> string!
 override AgeSharp.X25519Identity.ToString() -> string!
 override AgeSharp.X25519Recipient.ToString() -> string!
-static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
-static AgeSharp.Age.DecryptDetached(System.IO.Stream! headerInput, System.IO.Stream! payloadInput, System.IO.Stream! output, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
 static AgeSharp.Age.DecryptReader(System.IO.Stream! ciphertext, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> System.IO.Stream!
-static AgeSharp.Age.Encrypt(System.IO.Stream! input, System.IO.Stream! output, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
-static AgeSharp.Age.EncryptDetached(System.IO.Stream! input, System.IO.Stream! headerOutput, System.IO.Stream! payloadOutput, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
-static AgeSharp.Age.EncryptReader(System.IO.Stream! plaintext, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
 static AgeSharp.MlKem768X25519Identity.Generate() -> AgeSharp.MlKem768X25519Identity!
 static AgeSharp.MlKem768X25519Identity.Parse(string! s) -> AgeSharp.MlKem768X25519Identity!
 static AgeSharp.MlKem768X25519Recipient.Parse(string! s) -> AgeSharp.MlKem768X25519Recipient!
