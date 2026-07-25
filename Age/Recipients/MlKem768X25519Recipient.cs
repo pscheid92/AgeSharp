@@ -44,9 +44,9 @@ public sealed class MlKem768X25519Recipient : IRecipientWithLabels, IParsable<Ml
     ///     (mixing with a classical recipient would leave the file vulnerable to a
     ///     quantum attacker who breaks the classical stanza).
     /// </summary>
-    public (IReadOnlyList<Stanza> stanzas, IReadOnlyCollection<string> labels) WrapWithLabels(ReadOnlySpan<byte> fileKey)
+    public LabelledStanzas WrapWithLabels(ReadOnlySpan<byte> fileKey)
     {
-        return (Wrap(fileKey), PostQuantumLabels);
+        return new LabelledStanzas(Wrap(fileKey), PostQuantumLabels);
     }
 
     /// <summary>Wraps the file key for this recipient via X-Wing HPKE (ML-KEM-768 + X25519).</summary>

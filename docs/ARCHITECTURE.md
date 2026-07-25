@@ -1,12 +1,12 @@
 # Type map
 
-Sixty-two types: **26 public**, **36 internal**. This is the inventory — what a consumer can touch,
+Sixty-three types: **27 public**, **36 internal**. This is the inventory — what a consumer can touch,
 what is implementation detail, and which depends on which. For the behavioural rules (stream
 ownership, secret hygiene, sync/async parity) see [CLAUDE.md](../CLAUDE.md).
 
 ---
 
-## Public surface (26)
+## Public surface (27)
 
 Everything public lives in the flat `AgeSharp` namespace.
 
@@ -61,9 +61,10 @@ Which optional interfaces each implements:
 
 `Passphrase` implements no optional interface: it has no public half and carries no labels.
 
-### Data and configuration — 4 types
+### Data and configuration — 5 types
 
 - `Stanza` — one recipient stanza: type, args, body. The unit both `IRecipient` and `IIdentity` speak in.
+- `LabelledStanzas` — what `WrapWithLabels` returns: the stanzas plus their label set. A struct rather than a record, since value equality over a collection would compare references.
 - `AgeHeader` — result of `Age.ReadHeader`: stanzas, payload offset, whether armored. **Unverified** — no MAC has been checked, so treat its contents as attacker-controlled.
 - `AgeEncryptOptions` — one member, `Armor`.
 - `AgeDecryptOptions` — `RequireArmor` plus the three parsing limits.

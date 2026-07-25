@@ -70,10 +70,16 @@ Pre-seeded questions:
   stay an interface, and break `IIdentityWithRecipient : IIdentity`. Dropping the `IDisposable`
   base was also rejected: its failure mode is unzeroed key material, which is worse than a
   compile error in a hygiene-focused library. Doc now warns implementors about the quirk.
-- [ ] `IRecipientWithLabels.WrapWithLabels` returns a named tuple. Tuples in interface signatures
-  are rare in the BCL. Alternative: an out param, or a small result type. Worth it, or fine?
-  *(Still open. It was widened to `(IReadOnlyList<Stanza>, …)` alongside `Wrap`, but the tuple
-  shape itself survived by omission rather than by decision.)*
+- [x] `IRecipientWithLabels.WrapWithLabels` returns a named tuple → **replaced with
+  `LabelledStanzas`**, a `readonly struct`. The deciding argument was the implementor's, not the
+  caller's: this interface exists to be implemented, and a custom recipient had to reproduce a
+  110-character tuple signature exactly. It is now 65. Deconstruction is preserved, so no call
+  site changed. A `record struct` was rejected for one reason — its generated value equality
+  compares the `IReadOnlyList` by reference, so two identical results report unequal while `==`
+  invites you to ask. Not offering equality beats offering it wrongly.
+  *(The "rare in the BCL" framing in the original question was weak: rage returns the same pair
+  as a tuple and Go as multiple values, but both are idioms of languages that do not face this
+  choice, so neither is evidence about C#.)*
 - [ ] `IPluginCallbacks.RequestValue(prompt, secret) -> string` — a secret prompt returning an
   unzeroable `string`. Consistent with the library's hygiene stance?
 
@@ -205,7 +211,9 @@ Append rows as you go; this table is the review's output.
 | Empty recipient list from `Wrap` | **reject** | Newly representable once `Wrap` returned a list; silently writing a header without that recipient is the same failure the reshape fixed. |
 | `IIdentityWithRecipient` | **keep** | age's third-party identities arrive as plugins, and the spec makes encrypting to a plugin identity first-class. Its key implementor was missing, not its purpose. |
 | `IIdentity : IDisposable` + default `Dispose` | **keep** (interface, not a base class) | A base class would impose single inheritance on an extension point; dropping `IDisposable` risks unzeroed secrets. The DIM quirk is a one-time compile error, now documented. |
-| *(next: `DecryptIdentities`, `TryParse*` callbacks, Detached as a feature, `WrapWithLabels` tuple shape)* | | |
+| `WrapWithLabels` return shape | **reshape** → `LabelledStanzas` (`readonly struct`) | Implementors had to reproduce a 110-char tuple signature; record rejected because value equality over a collection compares references. |
+| `Labels` as `IReadOnlyCollection` (not `IReadOnlySet`) | **keep** | `SetEquals` would honour the *implementor's* comparer; the spec requires exact, case-sensitive comparison, so the facade forces `StringComparer.Ordinal` instead of trusting it. |
+| *(next: `DecryptIdentities`, `TryParse*` callbacks, Detached as a feature)* | | |
 
 Mechanics afterwards:
 

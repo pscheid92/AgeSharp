@@ -24,13 +24,12 @@ public static partial class Age
         return array;
     }
 
-    private static (IReadOnlyList<Stanza> stanzas, IReadOnlyCollection<string> labels) WrapWithLabels(
-        IRecipient recipient, ReadOnlySpan<byte> fileKey)
+    private static LabelledStanzas WrapWithLabels(IRecipient recipient, ReadOnlySpan<byte> fileKey)
     {
         if (recipient is IRecipientWithLabels labelled)
             return labelled.WrapWithLabels(fileKey);
 
-        return (recipient.Wrap(fileKey), []);
+        return new LabelledStanzas(recipient.Wrap(fileKey), []);
     }
 
     private static bool LabelSetsEqual(IReadOnlyCollection<string> a, IReadOnlyCollection<string> b)

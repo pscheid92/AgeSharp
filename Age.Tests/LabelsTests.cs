@@ -120,9 +120,9 @@ public class LabelsTests
             return [new Stanza("test", ["arg"], new byte[32])];
         }
 
-        public (IReadOnlyList<Stanza> stanzas, IReadOnlyCollection<string> labels) WrapWithLabels(ReadOnlySpan<byte> fileKey)
+        public LabelledStanzas WrapWithLabels(ReadOnlySpan<byte> fileKey)
         {
-            return (Wrap(fileKey), labels);
+            return new LabelledStanzas(Wrap(fileKey), labels);
         }
     }
 

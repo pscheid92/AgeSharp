@@ -52,9 +52,15 @@ AgeSharp.IIdentityWithRecipient
 AgeSharp.IIdentityWithRecipient.Recipient.get -> AgeSharp.IRecipient!
 AgeSharp.IRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.IRecipientWithLabels
-AgeSharp.IRecipientWithLabels.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> (System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas, System.Collections.Generic.IReadOnlyCollection<string!>! labels)
+AgeSharp.IRecipientWithLabels.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.LabelledStanzas
+AgeSharp.LabelledStanzas
+AgeSharp.LabelledStanzas.Deconstruct(out System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas, out System.Collections.Generic.IReadOnlyCollection<string!>! labels) -> void
+AgeSharp.LabelledStanzas.LabelledStanzas() -> void
+AgeSharp.LabelledStanzas.LabelledStanzas(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas, System.Collections.Generic.IReadOnlyCollection<string!>! labels) -> void
+AgeSharp.LabelledStanzas.Labels.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+AgeSharp.LabelledStanzas.Stanzas.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.MlKem768X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
-AgeSharp.MlKem768X25519Recipient.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> (System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas, System.Collections.Generic.IReadOnlyCollection<string!>! labels)
+AgeSharp.MlKem768X25519Recipient.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.LabelledStanzas
 AgeSharp.Passphrase.Dispose() -> void
 AgeSharp.Passphrase.Passphrase(System.ReadOnlySpan<char> passphrase) -> void
 AgeSharp.Passphrase.Passphrase(System.ReadOnlySpan<char> passphrase, int workFactor) -> void

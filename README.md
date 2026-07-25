@@ -364,7 +364,7 @@ public class MyRecipient : IRecipient
 
 // To carry security labels (as the post-quantum recipient does, so it can't be
 // mixed with classical recipients), also implement IRecipientWithLabels:
-//     (IReadOnlyList<Stanza>, IReadOnlyCollection<string>) WrapWithLabels(ReadOnlySpan<byte> fileKey)
+//     LabelledStanzas WrapWithLabels(ReadOnlySpan<byte> fileKey)
 
 public class MyIdentity : IIdentity
 {
