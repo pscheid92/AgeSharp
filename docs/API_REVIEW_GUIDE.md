@@ -7,6 +7,10 @@ are free. After it, every change is a breaking change.
 This guide orders the reading by **decision weight** — the things hardest to change later come
 first — and pre-seeds each stop with the questions this session already surfaced. Budget ~2.5 hours.
 
+**Progress: 3 of 26 questions closed.** The decided ones are checked off in place and recorded in
+the table at the end; the biggest, `IRecipient.Wrap`, is done. Stop 2's surface has already shrunk
+from ~50 members to 21, so it now reads faster than the 40 minutes budgeted.
+
 The review target is signatures and doc comments, not method bodies. Read bodies only when a
 signature makes you suspicious.
 
@@ -45,10 +49,11 @@ Read, in order:
 
 Pre-seeded questions:
 
-- [ ] **`Wrap` returns ONE `Stanza`.** Go and rage both return a *list* (`[]*Stanza`,
-  `Vec<Stanza>`), and rage's docs name the use cases: multi-format recipients, group aliases,
-  proxies. AgeSharp's single-stanza shape cannot express those. Widening later is breaking;
-  widening now is free. Decide knowingly.
+- [x] **`Wrap` returns ONE `Stanza`.** → **reshaped to `IReadOnlyList<Stanza>`** (`fd16800`).
+  Not just a shape question in the end: `PluginRecipient` assigned rather than appended, so a
+  plugin answering one `wrap-file-key` with several `recipient-stanza`s — which `age-plugin.md`
+  permits and both references accumulate — silently kept the last and dropped the rest. Proven
+  with a fake plugin through the `PluginConnection` seam; test added.
 - [ ] **`IIdentityWithRecipient` is AgeSharp's own invention** — neither Go nor rage has an
   interface for identity→recipient; both put a method on the concrete types only. Keeping it buys
   the CLI's type-switch-free dispatch and lets custom identities participate. Cutting it matches
@@ -57,29 +62,32 @@ Pre-seeded questions:
   versioning quirks and not every consumer language sees them. Still comfortable?
 - [ ] `IRecipientWithLabels.WrapWithLabels` returns a named tuple. Tuples in interface signatures
   are rare in the BCL. Alternative: an out param, or a small result type. Worth it, or fine?
+  *(Still open. It was widened to `(IReadOnlyList<Stanza>, …)` alongside `Wrap`, but the tuple
+  shape itself survived by omission rather than by decision.)*
 - [ ] `IPluginCallbacks.RequestValue(prompt, secret) -> string` — a secret prompt returning an
   unzeroable `string`. Consistent with the library's hygiene stance?
 
 ## Stop 2 — the facade matrix (40 min) · the biggest surface
 
 Files: [Age/Age.cs](../Age/Age.cs), [Age/Age.Async.cs](../Age/Age.Async.cs),
-[Age/Age.Parsing.cs](../Age/Age.Parsing.cs). Signatures and docs only — the bodies are reviewed
-code.
+[Age/Age.Parsing.cs](../Age/Age.Parsing.cs), [Age/Age.Header.cs](../Age/Age.Header.cs).
+Signatures and docs only — the bodies are reviewed code.
 
-First, draw the grid yourself (operations × shapes). It should come out as: seven operations
-(`Encrypt`, `Decrypt`, `EncryptReader`, `EncryptWriter`, `DecryptReader`, `DecryptWriter`,
-`EncryptDetached`/`DecryptDetached`), each in `(first, params rest)` and collection shapes, with
-and without options; `Encrypt`/`Decrypt` additionally in `byte[]` one-shot form; three `*Async`
-methods; `ReadHeader`; and the parsing group. If your grid disagrees with the surface, one of you
-is wrong — find out which.
+Since the consolidation this is a short list rather than a matrix: one method per operation —
+`Encrypt`, `Decrypt` (each in stream and `byte[]` form), `EncryptReader`, `EncryptWriter`,
+`DecryptReader`, `DecryptWriter`, `EncryptDetached`, `DecryptDetached`, `ReadHeader` — plus three
+`*Async` and the six parsing members. Twenty-one in total. If your count disagrees with the
+surface, one of you is wrong; find out which.
 
 Pre-seeded questions:
 
-- [ ] **Async coverage is deliberately partial**: only `EncryptAsync`, `DecryptAsync`,
-  `DecryptReaderAsync`; collection-shape only; options as optional trailing parameter — while sync
-  takes options as a *required positional* before the recipients. Two conventions in one class.
-  The `params ReadOnlySpan` overloads *cannot* be async (spans can't cross awaits), so the missing
-  async params-shapes are forced — but the options-convention split is a choice. Confirm it.
+- [x] **The options-convention split** → **resolved** (`4fc862b`). The facade collapsed from ~50
+  methods to one per operation: recipients/identities always an `IReadOnlyList<>`, options always
+  last and optional. Sync and async now share one shape, differing only by a trailing
+  `CancellationToken`, so the two-conventions problem is gone. `RS0026` suppressed in `Age.csproj`
+  with the reasoning recorded there.
+- [ ] **Async coverage is still partial** — only `EncryptAsync`, `DecryptAsync`,
+  `DecryptReaderAsync`. Separate question from the convention, and still open.
 - [ ] **No `ReadHeaderAsync`**, though `ReadHeader` reads the stream. No `*DetachedAsync` either.
   Omission or decision?
 - [ ] **`DecryptIdentities(Stream, string passphrase, …)`** — takes a raw `string` passphrase
@@ -92,8 +100,8 @@ Pre-seeded questions:
 - [ ] `ParseRecipients`/`ParseIdentities`/`DecryptIdentities` return **mutable arrays**. The docs
   justify it (arrays convert implicitly to the `ReadOnlySpan` params overloads — a real ergonomic
   win). Confirm the trade.
-- [ ] `EncryptDetached` has no options overload — deliberate and documented (armor wraps a whole
-  file, which a detached pair is not). Confirm you still agree.
+- [x] `EncryptDetached` has no options parameter → **confirmed and kept** during the consolidation
+  (`4fc862b`); it is the one entry point that deliberately takes none.
 
 ## Stop 3 — options and data (15 min)
 
@@ -140,9 +148,10 @@ Fill in the `?` cells as you read — every `ToString` on a secret-holding type 
   arguments bake into *caller* binaries at compile time, so removing the default was right.
   Nothing else on the surface has default args except `= null` callbacks and cancellation
   tokens. Confirm.
-- [ ] **Behaviour note for the release notes**: `X25519Recipient.Wrap` now throws
-  `AgeFormatException` (was `AgeException`) on a low-order recipient point — changed in this
-  session's review-fix pass.
+- [ ] **Release-note items accumulating** — carry these into the notes:
+  `X25519Recipient.Wrap` now throws `AgeFormatException` (was `AgeException`) on a low-order
+  recipient point; `Wrap`/`WrapWithLabels` now return `IReadOnlyList<Stanza>`; the facade
+  collapsed to one method per operation, so every call site passes a collection.
 
 ## Stop 5 — exceptions (10 min)
 
@@ -177,9 +186,14 @@ File: [Age/Exceptions.cs](../Age/Exceptions.cs).
 
 Append rows as you go; this table is the review's output.
 
-| Entry | Decision (keep / rename / reshape / remove / make-internal) | Why |
+| Entry | Decision | Why |
 |---|---|---|
-| | | |
+| `IRecipient.Wrap` | **reshape** → `IReadOnlyList<Stanza>` | Matches Go and rage; the single-stanza shape was silently dropping plugin stanzas. `fd16800` |
+| `IRecipientWithLabels.WrapWithLabels` | **reshape** (return type only) | Followed `Wrap`. Tuple shape itself still undecided. `fd16800` |
+| `Encrypt`/`Decrypt` + the streaming grid + `Detached` + `ReadHeader` | **reshape** → one method each | ~50 entry points became 21; one call shape across sync and async. `4fc862b` |
+| `EncryptDetached` options | **keep** (none) | Armor wraps a whole age file, which a detached pair is not. |
+| Empty recipient list from `Wrap` | **reject** | Newly representable once `Wrap` returned a list; silently writing a header without that recipient is the same failure the reshape fixed. |
+| *(next: `IIdentityWithRecipient`, `DecryptIdentities`, `TryParse*` callbacks, Detached as a feature)* | | |
 
 Mechanics afterwards:
 
