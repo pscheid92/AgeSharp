@@ -117,16 +117,16 @@ public class OverloadResolutionTests
         Age.EncryptReader(new MemoryStream(expected), recipientList).Dispose();
         Age.EncryptReader(new MemoryStream(expected), encryptOptions, recipientList).Dispose();
 
-        Age.OpenWrite(new MemoryStream(), r).Dispose();
-        Age.OpenWrite(new MemoryStream(), encryptOptions, r).Dispose();
-        Age.OpenWrite(new MemoryStream(), recipientList).Dispose();
-        Age.OpenWrite(new MemoryStream(), encryptOptions, recipientList).Dispose();
+        Age.EncryptWriter(new MemoryStream(), r).Dispose();
+        Age.EncryptWriter(new MemoryStream(), encryptOptions, r).Dispose();
+        Age.EncryptWriter(new MemoryStream(), recipientList).Dispose();
+        Age.EncryptWriter(new MemoryStream(), encryptOptions, recipientList).Dispose();
 
         var ct = Age.Encrypt(expected, r);
-        Age.OpenRead(new MemoryStream(ct), i).Dispose();
-        Age.OpenRead(new MemoryStream(ct), decryptOptions, i).Dispose();
-        Age.OpenRead(new MemoryStream(ct), identityList).Dispose();
-        Age.OpenRead(new MemoryStream(ct), decryptOptions, identityList).Dispose();
+        Age.DecryptReader(new MemoryStream(ct), i).Dispose();
+        Age.DecryptReader(new MemoryStream(ct), decryptOptions, i).Dispose();
+        Age.DecryptReader(new MemoryStream(ct), identityList).Dispose();
+        Age.DecryptReader(new MemoryStream(ct), decryptOptions, identityList).Dispose();
 
         // Detached: the header and payload streams push the recipient slot out by two.
         RoundTripDetached((header, payload, input) => Age.EncryptDetached(input, header, payload, r),

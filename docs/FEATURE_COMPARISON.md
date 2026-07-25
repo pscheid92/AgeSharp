@@ -27,12 +27,13 @@
 
 | Feature | Go | Rust | AgeSharp | Notes |
 |---|:---:|:---:|:---:|---|
-| Seekable decryption (`Age.OpenRead`) | ✅ | ❌ | ✅ | Seek into encrypted files (e.g. ZIP in age) |
+| Seekable decryption (`Age.DecryptReader`) | ✅ | ❌ | ✅ | Seek into encrypted files (e.g. ZIP in age) |
 | Detached header APIs | ✅ | ❌ | ✅ | Extract/decrypt header separately |
 | `age-inspect` | ✅ | ❌ | ✅ | Metadata inspection without decryption |
-| Push-based encryption (`OpenWrite`) | ✅ | ✅ | ✅ | Writable stream (`WriteCloser`-style); plaintext in, ciphertext out |
-| Pull-based streaming (`EncryptReader` / `OpenRead`) | ✅ | ✅ | ✅ | Stream-returning API, lazy payload encryption/decryption |
-| Async I/O | ❌ | ✅ | ✅ | `EncryptAsync`/`DecryptAsync`/`OpenReadAsync` + async streams; no blocking I/O (`AllowSynchronousIO = false`) |
+| Push-based encryption (`EncryptWriter`) | ✅ | ✅ | ✅ | Writable stream (`WriteCloser`-style); plaintext in, ciphertext out |
+| Push-based decryption (`DecryptWriter`) | ❌ | ❌ | ✅ | Writable stream; ciphertext in, plaintext out. Go's `Decrypt` and rage's `Decryptor::decrypt` both return readers only |
+| Pull-based streaming (`EncryptReader` / `DecryptReader`) | ✅ | ✅ | ✅ | Stream-returning API, lazy payload encryption/decryption |
+| Async I/O | ❌ | ✅ | ✅ | `EncryptAsync`/`DecryptAsync`/`DecryptReaderAsync` + async streams; no blocking I/O (`AllowSynchronousIO = false`) |
 
 ## CLI Tools
 
@@ -44,4 +45,4 @@
 
 ## Summary
 
-AgeSharp is the most complete non-Go implementation of the age encryption specification. It covers every recipient type (including post-quantum ML-KEM-768 and the plugin protocol), all core encryption features, and all Go v1.3.0 advanced APIs — detached headers, push and pull streams, random-access decryption, and `age inspect` — plus a fully asynchronous surface (`EncryptAsync`/`DecryptAsync`/`OpenReadAsync` with no blocking I/O). It leads rage in post-quantum support and advanced API coverage, and matches rage's async story that the Go reference does not offer.
+AgeSharp is the most complete non-Go implementation of the age encryption specification. It covers every recipient type (including post-quantum ML-KEM-768 and the plugin protocol), all core encryption features, and all Go v1.3.0 advanced APIs — detached headers, push and pull streams, random-access decryption, and `age inspect` — plus a fully asynchronous surface (`EncryptAsync`/`DecryptAsync`/`DecryptReaderAsync` with no blocking I/O). It leads rage in post-quantum support and advanced API coverage, and matches rage's async story that the Go reference does not offer.

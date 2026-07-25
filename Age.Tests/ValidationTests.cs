@@ -101,12 +101,12 @@ public class ValidationTests
     }
 
     [Fact]
-    public void OpenRead_NoIdentities_ThrowsArgumentException()
+    public void DecryptReader_NoIdentities_ThrowsArgumentException()
     {
         using var identity = X25519Identity.Generate();
         using var encrypted = EncryptTo(identity.Recipient);
 
-        Assert.Throws<ArgumentException>(() => Age.OpenRead(encrypted, NoIdentities));
+        Assert.Throws<ArgumentException>(() => Age.DecryptReader(encrypted, NoIdentities));
     }
 
     [Fact]

@@ -103,10 +103,10 @@ public class OptionsConventionTests
                     using var id = X25519Identity.Parse(secret);
                     Age.Decrypt(binary, o, id);
                 } },
-            { "OpenRead", o =>
+            { "DecryptReader", o =>
                 {
                     using var id = X25519Identity.Parse(secret);
-                    Age.OpenRead(new MemoryStream(binary), o, id).Dispose();
+                    Age.DecryptReader(new MemoryStream(binary), o, id).Dispose();
                 } },
             { "ReadHeader", o => Age.ReadHeader(new MemoryStream(binary), o) },
         };

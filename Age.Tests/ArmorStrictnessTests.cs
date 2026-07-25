@@ -44,12 +44,12 @@ public class ArmorStrictnessTests
     }
 
     [Fact]
-    public void OpenRead_RequireArmor_RejectsBinaryInput()
+    public void DecryptReader_RequireArmor_RejectsBinaryInput()
     {
         using var identity = X25519Identity.Generate();
         var binary = Age.Encrypt(Plaintext, identity.Recipient);
 
-        Assert.Throws<AgeFormatException>(() => Age.OpenRead(new MemoryStream(binary), Required, identity));
+        Assert.Throws<AgeFormatException>(() => Age.DecryptReader(new MemoryStream(binary), Required, identity));
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class ArmorStrictnessTests
     }
 
     [Fact]
-    public async Task OpenReadAsync_FailingOnArmoredInput_DisposesTheDearmorWrapper()
+    public async Task DecryptReaderAsync_FailingOnArmoredInput_DisposesTheDearmorWrapper()
     {
         // Armored input means the async path owns a dearmor wrapper; a failure after
         // it is built must still release it rather than leaking on the error path.
@@ -141,7 +141,7 @@ public class ArmorStrictnessTests
         using var input = new MemoryStream(armored);
 
         await Assert.ThrowsAsync<NoIdentityMatchException>(async () =>
-            await Age.OpenReadAsync(input, [stranger]));
+            await Age.DecryptReaderAsync(input, [stranger]));
     }
 
     // --- the split itself ---

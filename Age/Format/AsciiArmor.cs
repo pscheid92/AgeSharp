@@ -15,7 +15,16 @@ internal static class AsciiArmor
     /// </summary>
     private const int MaxLeadingWhitespace = 1024;
 
-    private static int ProbeSize => MaxLeadingWhitespace + BeginMarker.Length;
+    internal static int ProbeSize => MaxLeadingWhitespace + BeginMarker.Length;
+
+    /// <summary>
+    /// Bytes needed past any leading whitespace to decide. A pull-side probe simply
+    /// reads <see cref="ProbeSize"/> bytes, but a push-side one cannot wait for bytes
+    /// that may never come, so it decides as soon as this many are past the whitespace.
+    /// </summary>
+    internal static int MarkerLength => BeginMarker.Length;
+
+    internal static bool IsArmorWhitespace(byte b) => b is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n';
 
     /// <summary>
     /// Decides whether <paramref name="input"/> is ASCII-armored, returning the stream
@@ -71,10 +80,10 @@ internal static class AsciiArmor
     }
 
     // Pure: does the probe begin (after allowed whitespace) with the armor marker?
-    private static bool StartsWithMarker(ReadOnlySpan<byte> probe)
+    internal static bool StartsWithMarker(ReadOnlySpan<byte> probe)
     {
         var start = 0;
-        while (start < probe.Length && probe[start] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
+        while (start < probe.Length && IsArmorWhitespace(probe[start]))
             start++;
 
         // All whitespace within the probe means either an empty stream or more

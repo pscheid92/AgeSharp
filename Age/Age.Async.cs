@@ -51,7 +51,7 @@ public static partial class Age
     public static async Task DecryptAsync(Stream input, Stream output, IReadOnlyList<IIdentity> identities,
                                           AgeDecryptOptions? options = null, CancellationToken cancellationToken = default)
     {
-        var stream = await OpenReadAsync(input, identities, options, cancellationToken).ConfigureAwait(false);
+        var stream = await DecryptReaderAsync(input, identities, options, cancellationToken).ConfigureAwait(false);
 
         await using (stream.ConfigureAwait(false))
             await stream.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
@@ -67,7 +67,7 @@ public static partial class Age
     /// stream is produced; payload decryption is lazy and asynchronous.
     /// </summary>
     /// <remarks>
-    /// Behaves as <see cref="OpenRead(Stream, IIdentity, ReadOnlySpan{IIdentity})"/> does:
+    /// Behaves as <see cref="DecryptReader(Stream, IIdentity, ReadOnlySpan{IIdentity})"/> does:
     /// <see cref="Stream.CanSeek"/> mirrors the source, and opening a seekable one
     /// authenticates the plaintext length by decrypting the final chunk. Every step,
     /// including that authentication and each chunk read, is asynchronous.
@@ -77,7 +77,7 @@ public static partial class Age
     /// <param name="options">Parsing options; defaults are used when null.</param>
     /// <param name="cancellationToken">Cancels the header read.</param>
     /// <exception cref="ArgumentException">No identities were supplied.</exception>
-    public static async ValueTask<Stream> OpenReadAsync(Stream source, IReadOnlyList<IIdentity> identities,
+    public static async ValueTask<Stream> DecryptReaderAsync(Stream source, IReadOnlyList<IIdentity> identities,
                                                         AgeDecryptOptions? options = null, CancellationToken cancellationToken = default)
     {
         // Validate before touching the stream, so a caller bug never half-consumes it.

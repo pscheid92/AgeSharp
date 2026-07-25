@@ -6,7 +6,7 @@ namespace AgeSharp.Benchmarks;
 /// <summary>
 /// Compares the three encryption shapes over the same plaintext: the eager
 /// one-shot <see cref="Age.Encrypt(System.IO.Stream, System.IO.Stream, System.ReadOnlySpan{IRecipient})"/>,
-/// the push writer <see cref="Age.OpenWrite(System.IO.Stream, System.ReadOnlySpan{IRecipient})"/>,
+/// the push writer <see cref="Age.EncryptWriter(System.IO.Stream, System.ReadOnlySpan{IRecipient})"/>,
 /// and the pull reader <see cref="Age.EncryptReader(System.IO.Stream, IRecipient, System.ReadOnlySpan{IRecipient})"/>.
 /// All three run the same chunked STREAM path, so the numbers isolate the per-shape
 /// buffering overhead.
@@ -39,10 +39,10 @@ public class PushPullBenchmarks
     }
 
     [Benchmark]
-    public void Push_OpenWrite()
+    public void Push_EncryptWriter()
     {
         using var output = new MemoryStream();
-        using var stream = Age.OpenWrite(output, _identity.Recipient);
+        using var stream = Age.EncryptWriter(output, _identity.Recipient);
         stream.Write(_plaintext);
     }
 

@@ -12,11 +12,14 @@ directly using the table below.
   `Age.Recipients`, `Age.Format`, and `Age.Plugin` namespaces are gone.
 - **One facade.** `Age` absorbs the old `AgeEncrypt` and the parsing side of
   `AgeKeygen`. Key generation moves onto the key types themselves.
-- **One decrypt stream.** `Age.OpenRead` replaces both `DecryptReader` and
+- **One decrypt stream.** `DecryptReader` keeps its name but absorbs
   `AgeRandomAccess`: its `CanSeek` mirrors the source, so a seekable input gives
   you `Length`/`Seek` random access with a one-chunk cache.
-- **New: push encryption and async.** `Age.OpenWrite` (writable stream) and
-  `EncryptAsync`/`DecryptAsync`/`OpenReadAsync` are new in 0.3.
+- **A complete streaming grid.** 0.2 had two of the four combinations of
+  operation and direction. 0.3 has all four —
+  `EncryptReader`/`EncryptWriter`/`DecryptReader`/`DecryptWriter` — so either
+  side can drive the transfer for either operation.
+- **New: async.** `EncryptAsync`/`DecryptAsync`/`DecryptReaderAsync` are new in 0.3.
 - **Coherent exceptions.** A small hierarchy under `AgeException` replaces the
   scattered `FormatException`/`AgeHeaderException`/`AgeArmorException`/
   `AgeHmacException`/`AgePayloadException`.
@@ -30,12 +33,13 @@ directly using the table below.
 | `AgeEncrypt.Encrypt(in, out, armor: true, r)` | `Age.Encrypt(in, out, new AgeEncryptOptions { Armor = true }, r)` |
 | `AgeEncrypt.Decrypt(in, out, id)` | `Age.Decrypt(in, out, id)` |
 | `AgeEncrypt.EncryptReader(pt, r)` | `Age.EncryptReader(pt, r)` |
-| `AgeEncrypt.DecryptReader(ct, id)` | `Age.OpenRead(ct, id)` |
-| *(no equivalent)* | `Age.OpenWrite(dest, r)` — push (writable-stream) encryption |
-| *(no equivalent)* | `Age.EncryptAsync` / `Age.DecryptAsync` / `Age.OpenReadAsync` |
+| `AgeEncrypt.DecryptReader(ct, id)` | `Age.DecryptReader(ct, id)` |
+| *(no equivalent)* | `Age.EncryptWriter(dest, r)` — push (writable-stream) encryption |
+| *(no equivalent)* | `Age.DecryptWriter(dest, id)` — push (writable-stream) decryption |
+| *(no equivalent)* | `Age.EncryptAsync` / `Age.DecryptAsync` / `Age.DecryptReaderAsync` |
 | *(no equivalent)* | `byte[] Age.Encrypt(ReadOnlySpan<byte>, r)` / `byte[] Age.Decrypt(ReadOnlySpan<byte>, id)` |
 | `AgeEncrypt.EncryptDetached` / `DecryptDetached` | `Age.EncryptDetached` / `Age.DecryptDetached` |
-| `new AgeRandomAccess(ct, id)` + `ReadAt` / `GetStream` | `Age.OpenRead(ct, id)` → seekable `Stream` (`Length`, `Seek`) |
+| `new AgeRandomAccess(ct, id)` + `ReadAt` / `GetStream` | `Age.DecryptReader(ct, id)` → seekable `Stream` (`Length`, `Seek`) |
 | `AgeHeader.Parse(s)` / `.Recipients` / `.RecipientCount` | `Age.ReadHeader(s)` / `.Stanzas` / `.Stanzas.Count` |
 | `AgeKeygen.Generate()` | `X25519Identity.Generate()` |
 | `AgeKeygen.GeneratePq()` | `MlKem768X25519Identity.Generate()` |
@@ -73,7 +77,7 @@ string prefix and accept every supported format (X25519, ML-KEM-768, SSH, plugin
 Call a concrete type's `Parse` when you want the concrete type back — for example to
 `Dispose` an identity that holds key material.
 
-**Random access.** Anywhere you used `AgeRandomAccess`, use `Age.OpenRead` over a
+**Random access.** Anywhere you used `AgeRandomAccess`, use `Age.DecryptReader` over a
 seekable stream and treat the result as a normal seekable `Stream` (`Length`,
 `Seek`, `Position`). Payload truncation is only detected once a read reaches the
 affected chunk — a seek-and-read that never touches the final chunk cannot observe

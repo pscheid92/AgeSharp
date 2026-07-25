@@ -43,13 +43,13 @@ public class ArmorStreamingTests
     }
 
     [Fact]
-    public async Task OpenReadAsync_Armored_NonSeekable_RoundTrips()
+    public async Task DecryptReaderAsync_Armored_NonSeekable_RoundTrips()
     {
         using var identity = X25519Identity.Generate();
         var plaintext = Payload(120_000);
 
         using var input = new NonSeekableStream(new MemoryStream(Armored(plaintext, identity.Recipient)));
-        await using var stream = await Age.OpenReadAsync(input, [identity]);
+        await using var stream = await Age.DecryptReaderAsync(input, [identity]);
         using var output = new MemoryStream();
         await stream.CopyToAsync(output);
 

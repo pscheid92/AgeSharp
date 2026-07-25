@@ -27,7 +27,7 @@ public class PullBasedTests
     }
 
     [Fact]
-    public void Encrypt_OpenRead_RoundTrip()
+    public void Encrypt_DecryptReader_RoundTrip()
     {
         using var identity = X25519Identity.Generate();
         var plaintext = "pull-based decrypt test"u8.ToArray();
@@ -37,7 +37,7 @@ public class PullBasedTests
         Age.Encrypt(input, ciphertext, identity.Recipient);
 
         ciphertext.Position = 0;
-        using var decryptedStream = Age.OpenRead(ciphertext, identity);
+        using var decryptedStream = Age.DecryptReader(ciphertext, identity);
 
         using var output = new MemoryStream();
         decryptedStream.CopyTo(output);
@@ -59,7 +59,7 @@ public class PullBasedTests
         encryptedStream.CopyTo(ciphertextBuffer);
         ciphertextBuffer.Position = 0;
 
-        using var decryptedStream = Age.OpenRead(ciphertextBuffer, identity);
+        using var decryptedStream = Age.DecryptReader(ciphertextBuffer, identity);
         using var output = new MemoryStream();
         decryptedStream.CopyTo(output);
 
@@ -84,7 +84,7 @@ public class PullBasedTests
 
         // Decrypt
         ciphertext.Position = 0;
-        using var decryptedStream = Age.OpenRead(ciphertext, identity);
+        using var decryptedStream = Age.DecryptReader(ciphertext, identity);
 
         // Also read decrypted one byte at a time
         using var output = new MemoryStream();
@@ -108,7 +108,7 @@ public class PullBasedTests
         encryptedStream.CopyTo(ciphertext);
 
         ciphertext.Position = 0;
-        using var decryptedStream = Age.OpenRead(ciphertext, identity);
+        using var decryptedStream = Age.DecryptReader(ciphertext, identity);
         using var output = new MemoryStream();
         decryptedStream.CopyTo(output);
 
@@ -128,7 +128,7 @@ public class PullBasedTests
         encryptedStream.CopyTo(ciphertext);
 
         ciphertext.Position = 0;
-        using var decryptedStream = Age.OpenRead(ciphertext, identity);
+        using var decryptedStream = Age.DecryptReader(ciphertext, identity);
         using var output = new MemoryStream();
         decryptedStream.CopyTo(output);
 
@@ -185,7 +185,7 @@ public class PullBasedTests
     }
 
     [Fact]
-    public void OpenRead_SeekableSource_IsSeekable()
+    public void DecryptReader_SeekableSource_IsSeekable()
     {
         using var identity = X25519Identity.Generate();
 
@@ -194,7 +194,7 @@ public class PullBasedTests
         Age.Encrypt(input, ciphertext, identity.Recipient);
 
         ciphertext.Position = 0;
-        using var stream = Age.OpenRead(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, identity);
 
         // CanSeek mirrors the source: a seekable MemoryStream yields a seekable stream.
         Assert.True(stream.CanRead);
@@ -216,7 +216,7 @@ public class PullBasedTests
         encryptedStream.CopyTo(ciphertext);
 
         ciphertext.Position = 0;
-        using var decryptedStream = Age.OpenRead(ciphertext, identity);
+        using var decryptedStream = Age.DecryptReader(ciphertext, identity);
         using var output = new MemoryStream();
         decryptedStream.CopyTo(output);
 

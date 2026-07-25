@@ -1336,7 +1336,7 @@ public class DecryptStreamTests
         // A non-seekable source forces the forward-only decrypt path, which detects
         // the missing final chunk as it reads rather than from the stream length.
         using var truncatedStream = new NonSeekableStream(new MemoryStream(truncated));
-        using var reader = Age.OpenRead(truncatedStream, identity);
+        using var reader = Age.DecryptReader(truncatedStream, identity);
 
         var buf = new byte[plaintext.Length];
         Assert.Throws<AgeAuthenticationException>(() =>
@@ -1372,7 +1372,7 @@ public class DecryptStreamTests
         var truncated = ciphertextBytes[..truncateAt];
 
         using var truncatedStream = new NonSeekableStream(new MemoryStream(truncated));
-        using var reader = Age.OpenRead(truncatedStream, identity);
+        using var reader = Age.DecryptReader(truncatedStream, identity);
 
         var buf = new byte[100];
         Assert.Throws<AgeAuthenticationException>(() => reader.Read(buf, 0, buf.Length));
