@@ -185,7 +185,7 @@ public class MlKem768X25519IdentityTests
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
 
-        var stanza = recipient.Wrap(fileKey);
+        var stanza = recipient.Wrap(fileKey)[0];
         Assert.Equal("mlkem768x25519", stanza.Type);
         Assert.Single(stanza.Args);
         Assert.Equal(32, stanza.Body.Length); // 16 key + 16 tag
@@ -204,7 +204,7 @@ public class MlKem768X25519IdentityTests
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
 
-        var stanza = id1.Recipient.Wrap(fileKey);
+        var stanza = id1.Recipient.Wrap(fileKey)[0];
         var unwrapped = id2.Unwrap(stanza);
         Assert.Null(unwrapped);
     }
@@ -218,7 +218,7 @@ public class MlKem768X25519IdentityTests
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
 
-        var x25519Stanza = x25519Identity.Recipient.Wrap(fileKey);
+        var x25519Stanza = x25519Identity.Recipient.Wrap(fileKey)[0];
         var unwrapped = pqIdentity.Unwrap(x25519Stanza);
         Assert.Null(unwrapped);
     }

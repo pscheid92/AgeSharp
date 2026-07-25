@@ -53,7 +53,7 @@ The one-shot `Encrypt`/`Decrypt` overloads and the `byte[]` overloads are thin w
 ### Sans-I/O cores
 
 Header parsing and ASCII armor are byte-fed state machines that never touch a stream:
-`HeaderLineAccumulator`, `ArmorLineAccumulator`, `ArmorDecoder`, `HeaderReader`. This is why the
+`HeaderLineAccumulator`, `ArmorLineAccumulator`, `ArmorDecoder`/`ArmorEncoder`, `HeaderReader`. This is why the
 sync and async paths share all framing, validation, and decoding — only the fill differs. When
 fixing a bug in either path, check whether the fix belongs in the shared core, and whether the
 *other* path needs the same change. Sync/async divergence has been a recurring bug source here.
@@ -75,7 +75,7 @@ O(1) chunk seeks), anything else yields forward-only `DecryptStream`. Two invari
 
 ### Recipients and identities
 
-`IRecipient` wraps a file key into a `Stanza`; `IIdentity` tries to unwrap one. Optional capabilities
+`IRecipient` wraps a file key into one or more `Stanza`s; `IIdentity` tries to unwrap one. Optional capabilities
 are separate interfaces rather than members, so custom types implement only what they need:
 `IRecipientWithLabels` (security labels — all recipients in a file must produce equal label sets)
 and `IIdentityWithRecipient` (derive the public half). `IIdentity` extends `IDisposable` with a
@@ -115,7 +115,7 @@ BCL or BouncyCastle exception reaching a caller is a bug.
 
 ## Layout
 
-`Age/` is the library: `Age.cs` plus `Age.Async.cs` and `Age.Parsing.cs` are the partial facade;
+`Age/` is the library: `Age.cs` plus `Age.Async.cs`, `Age.Parsing.cs`, and `Age.Header.cs` are the partial facade;
 `Crypto/`, `Format/`, `Recipients/`, `Plugin/` hold the implementation. `Age.Cli/` is the CLI,
 `Age.Tests/` the suite, `Age.TestKit/` runs the Community Cryptography Test Vectors from
 `testdata/`, `Age.Benchmarks/` is BenchmarkDotNet.

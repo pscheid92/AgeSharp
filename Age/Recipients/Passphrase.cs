@@ -128,7 +128,7 @@ public sealed class Passphrase : IRecipient, IIdentity
 
     /// <summary>Wraps the file key under a key derived from the passphrase with a fresh salt.</summary>
     /// <exception cref="ObjectDisposedException">The passphrase has been disposed.</exception>
-    public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -142,7 +142,7 @@ public sealed class Passphrase : IRecipient, IIdentity
         CryptographicOperations.ZeroMemory(wrapKey);
 
         var saltB64 = Base64Unpadded.Encode(salt);
-        return new Stanza(StanzaType, [saltB64, _workFactor.ToString()], body);
+        return [new Stanza(StanzaType, [saltB64, _workFactor.ToString()], body)];
     }
 
     private static byte[] Utf8Of(string passphrase)

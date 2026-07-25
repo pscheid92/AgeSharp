@@ -30,7 +30,7 @@ public sealed class SshRsaRecipient : IRecipient
     }
 
     /// <summary>Wraps the file key for this SSH key using RSA-OAEP (SHA-256).</summary>
-    public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
     {
         var oaep = new OaepEncoding(new RsaBlindedEngine(), new Sha256Digest(), new Sha256Digest(),
             Encoding.ASCII.GetBytes(AgeProtocol.SshRsaOaepLabel));
@@ -39,7 +39,7 @@ public sealed class SshRsaRecipient : IRecipient
         var input = fileKey.ToArray();
         var body = oaep.ProcessBlock(input, 0, input.Length);
 
-        return new Stanza(AgeProtocol.SshRsaStanzaType, [_tag], body);
+        return [new Stanza(AgeProtocol.SshRsaStanzaType, [_tag], body)];
     }
 
     /// <summary>Parses an <c>ssh-rsa AAAA…</c> public key line.</summary>

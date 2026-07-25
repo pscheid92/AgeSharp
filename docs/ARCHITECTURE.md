@@ -1,6 +1,6 @@
 # Type map
 
-Sixty types: **26 public**, **34 internal**. This is the inventory — what a consumer can touch,
+Sixty-two types: **26 public**, **36 internal**. This is the inventory — what a consumer can touch,
 what is implementation detail, and which depends on which. For the behavioural rules (stream
 ownership, secret hygiene, sync/async parity) see [CLAUDE.md](../CLAUDE.md).
 
@@ -12,8 +12,9 @@ Everything public lives in the flat `AgeSharp` namespace.
 
 ### The facade — 1 type
 
-`Age` — a `static partial class` split across three files: `Age.cs` (the synchronous surface),
-`Age.Async.cs` (`*Async` counterparts), `Age.Parsing.cs` (`ParseRecipient`/`ParseIdentity`).
+`Age` — a `static partial class` split across four files: `Age.cs` (the synchronous surface),
+`Age.Async.cs` (`*Async` counterparts), `Age.Parsing.cs` (`ParseRecipient`/`ParseIdentity`), and
+`Age.Header.cs` (building and taking apart a header, plus argument validation).
 Every operation enters here. It is the only public type that *does* anything; the rest are
 contracts, data, or key material.
 
@@ -21,7 +22,7 @@ contracts, data, or key material.
 
 | Interface | Purpose |
 |---|---|
-| `IRecipient` | Wrap a file key into a `Stanza`. One method. |
+| `IRecipient` | Wrap a file key into one or more `Stanza`s. One method. |
 | `IRecipientWithLabels : IRecipient` | Opt-in: also return a security label set from the wrap. |
 | `IIdentity : IDisposable` | Try to unwrap a file key from a stanza. `Dispose` has a default no-op. |
 | `IIdentityWithRecipient : IIdentity` | Opt-in: derive the matching public recipient. |
@@ -85,7 +86,7 @@ failed, which includes truncation.
 
 ---
 
-## Internal implementation (34)
+## Internal implementation (36)
 
 ### Streams (9) — the four grid cells plus their armor and payload layers
 
@@ -106,7 +107,8 @@ them as `Stream`.
 ### Format state machines (5) — sans-I/O, byte-fed, never touch a stream
 
 `HeaderLineAccumulator`, `HeaderReader`, `Header` (parse + MAC), `ArmorLineAccumulator`,
-`ArmorDecoder`. These are why the sync and async paths share their logic.
+`ArmorDecoder`, and its counterpart `ArmorEncoder`. These are why the sync and async paths — and
+the pull and push paths — share their logic.
 
 Plus `ArmorGeometry` (O(1) binary-offset → text-position translation), `ArmorFormat` (the shared
 markers and line geometry), and `AsciiArmor` (detection and the armor/dearmor entry points).
@@ -121,7 +123,8 @@ backend switch: `IAeadCipher` with `BclAeadCipher` / `BouncyCastleAeadCipher`, s
 ### Encodings and helpers (5)
 
 `Bech32`, `Base64Unpadded`, `ParseHelpers`, `AgeProtocol` (stanza type strings and HKDF labels),
-`PluginNameValidator`. Plus `PluginConnection` for the plugin wire protocol.
+`PluginNameValidator`. Plus `PluginConnection` for the plugin wire protocol and `PluginProtocol`
+for the parts of it that recipient-v1 and identity-v1 share.
 
 ---
 
@@ -173,7 +176,7 @@ it does not call `StreamEncryption` or `AeadCipher`. Key derivation reaches `Cry
 
 ## Where to start reading
 
-1. `Age/Age.cs` — the facade. Every entry point, and the argument-validation funnel (`Combine`, `Materialize`).
+1. `Age/Age.cs` — the facade, every entry point; `Age.Header.cs` for the work behind it.
 2. `Age/Recipients/IRecipient.cs` and `IIdentity.cs` — the two contracts everything else serves; about 40 lines together.
 3. `Age/Recipients/X25519Recipient.cs` and `X25519Identity.cs` — the simplest complete pair, and the model the others follow.
 4. `Age/Crypto/StreamEncryption.cs` — the STREAM chunking every payload path shares.

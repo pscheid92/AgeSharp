@@ -351,16 +351,20 @@ Implement `IRecipient` and `IIdentity` to integrate custom key types, remote sec
 ```csharp
 public class MyRecipient : IRecipient
 {
-    public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
     {
         // Wrap the file key using your custom scheme
-        return new Stanza("MyType", ["arg1"], wrappedKey);
+        return [new Stanza("MyType", ["arg1"], wrappedKey)];
     }
 }
 
+// Returning several stanzas is how one recipient can stand for a group, offer multiple
+// formats, or proxy for something else — an age plugin may legitimately produce more
+// than one. Most implementations return exactly one.
+
 // To carry security labels (as the post-quantum recipient does, so it can't be
 // mixed with classical recipients), also implement IRecipientWithLabels:
-//     (Stanza, IReadOnlyCollection<string>) WrapWithLabels(ReadOnlySpan<byte> fileKey)
+//     (IReadOnlyList<Stanza>, IReadOnlyCollection<string>) WrapWithLabels(ReadOnlySpan<byte> fileKey)
 
 public class MyIdentity : IIdentity
 {

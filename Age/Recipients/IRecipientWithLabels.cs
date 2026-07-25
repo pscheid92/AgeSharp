@@ -9,7 +9,6 @@ namespace AgeSharp;
 /// </summary>
 public interface IRecipientWithLabels : IRecipient
 {
-    /// <summary>Wraps the file key, returning the stanza and this wrapping's label set.</summary>
-    /// <returns>The wrapped stanza and its (non-empty) label set.</returns>
-    (Stanza stanza, IReadOnlyCollection<string> labels) WrapWithLabels(ReadOnlySpan<byte> fileKey);
+    /// <summary>Wraps the file key, returning the stanzas and this wrapping's label set.</summary>
+    (IReadOnlyList<Stanza> stanzas, IReadOnlyCollection<string> labels) WrapWithLabels(ReadOnlySpan<byte> fileKey);
 }

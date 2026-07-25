@@ -41,7 +41,7 @@ public class SecretHygieneTests
         var passphrase = new Passphrase("to-be-wiped", LowWorkFactor);
         passphrase.Dispose();
 
-        Assert.Throws<ObjectDisposedException>(() => passphrase.Wrap(new byte[16]));
+        Assert.Throws<ObjectDisposedException>(() => passphrase.Wrap(new byte[16])[0]);
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class SecretHygieneTests
     public void UnwrapAfterDispose_Throws()
     {
         using var live = new Passphrase("pw", LowWorkFactor);
-        var stanza = live.Wrap(new byte[16]);
+        var stanza = live.Wrap(new byte[16])[0];
 
         var disposed = new Passphrase("pw", LowWorkFactor);
         disposed.Dispose();
@@ -101,8 +101,8 @@ public class SecretHygieneTests
         using var fromString = new Passphrase("pw");
         using var fromSpan = new Passphrase("pw".AsSpan());
 
-        Assert.Equal("18", fromString.Wrap(new byte[16]).Args[1]);
-        Assert.Equal("18", fromSpan.Wrap(new byte[16]).Args[1]);
+        Assert.Equal("18", fromString.Wrap(new byte[16])[0].Args[1]);
+        Assert.Equal("18", fromSpan.Wrap(new byte[16])[0].Args[1]);
     }
 
     [Fact]

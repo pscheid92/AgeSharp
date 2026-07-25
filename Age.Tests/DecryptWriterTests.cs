@@ -318,7 +318,7 @@ public class DecryptWriterTests
         RandomNumberGenerator.Fill(fileKey);
 
         var header = new Header();
-        header.Stanzas.Add(identity.Recipient.Wrap(fileKey));
+        header.Stanzas.Add(identity.Recipient.Wrap(fileKey)[0]);
         using var headerBytes = new MemoryStream();
         header.WriteTo(headerBytes, fileKey);
 

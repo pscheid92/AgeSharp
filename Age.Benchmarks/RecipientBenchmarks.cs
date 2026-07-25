@@ -27,16 +27,16 @@ public class RecipientBenchmarks
         // X25519
         _x25519Identity = X25519Identity.Generate();
         _x25519Recipient = _x25519Identity.Recipient;
-        _x25519Stanza = _x25519Recipient.Wrap(_fileKey);
+        _x25519Stanza = _x25519Recipient.Wrap(_fileKey)[0];
 
         // ML-KEM-768-X25519
         _mlKemIdentity = MlKem768X25519Identity.Generate();
         _mlKemRecipient = _mlKemIdentity.Recipient;
-        _mlKemStanza = _mlKemRecipient.Wrap(_fileKey);
+        _mlKemStanza = _mlKemRecipient.Wrap(_fileKey)[0];
 
         // scrypt (workFactor: 10 to keep benchmarks fast)
         _passphrase = new Passphrase("benchmark-passphrase", 10);
-        _scryptStanza = _passphrase.Wrap(_fileKey);
+        _scryptStanza = _passphrase.Wrap(_fileKey)[0];
     }
 
     [GlobalCleanup]
@@ -49,7 +49,7 @@ public class RecipientBenchmarks
     [Benchmark]
     public Stanza X25519Wrap()
     {
-        return _x25519Recipient.Wrap(_fileKey);
+        return _x25519Recipient.Wrap(_fileKey)[0];
     }
 
     [Benchmark]
@@ -61,7 +61,7 @@ public class RecipientBenchmarks
     [Benchmark]
     public Stanza MlKem768X25519Wrap()
     {
-        return _mlKemRecipient.Wrap(_fileKey);
+        return _mlKemRecipient.Wrap(_fileKey)[0];
     }
 
     [Benchmark]
@@ -73,7 +73,7 @@ public class RecipientBenchmarks
     [Benchmark]
     public Stanza ScryptWrap()
     {
-        return _passphrase.Wrap(_fileKey);
+        return _passphrase.Wrap(_fileKey)[0];
     }
 
     [Benchmark]

@@ -18,13 +18,13 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
     /// <summary>Wraps the file key by running the plugin binary (recipient-v1 protocol).</summary>
     /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an error.</exception>
-    public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
     {
         using var conn = new PluginConnection(PluginName, "recipient-v1");
         return WrapWithConnection(conn, fileKey);
     }
 
-    internal Stanza WrapWithConnection(PluginConnection conn, ReadOnlySpan<byte> fileKey)
+    internal IReadOnlyList<Stanza> WrapWithConnection(PluginConnection conn, ReadOnlySpan<byte> fileKey)
     {
         SendWrapRequest(conn, fileKey);
         return ReadWrapResponse(conn);
@@ -37,9 +37,13 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
         conn.WriteStanza("done", [], []);
     }
 
-    private Stanza ReadWrapResponse(PluginConnection conn)
+    private List<Stanza> ReadWrapResponse(PluginConnection conn)
     {
-        Stanza? result = null;
+        // Accumulated, not replaced: one wrap-file-key may answer with several
+        // recipient-stanzas for the same file index (age-plugin.md), which is how a plugin
+        // stands for a group or several hardware slots. Keeping only the last would leave
+        // the other recipients silently unable to decrypt.
+        var stanzas = new List<Stanza>();
 
         while (true)
         {
@@ -48,7 +52,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
             switch (type)
             {
                 case "recipient-stanza":
-                    result = ParseRecipientStanza(args, body);
+                    stanzas.Add(ParseRecipientStanza(args, body));
                     conn.WriteStanza("ok", [], []);
                     break;
 
@@ -56,8 +60,9 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
                     throw new AgePluginException($"plugin error: {Encoding.UTF8.GetString(body)}");
 
                 case "done":
-                    return result
-                           ?? throw new AgePluginException("plugin completed without producing a recipient stanza");
+                    return stanzas.Count > 0
+                        ? stanzas
+                        : throw new AgePluginException("plugin completed without producing a recipient stanza");
 
                 default:
                     PluginProtocol.HandleCommonStanza(conn, callbacks, type, args, body);

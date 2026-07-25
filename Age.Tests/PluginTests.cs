@@ -83,6 +83,29 @@ public class PluginTests
     }
 
     [Fact]
+    public void PluginRecipient_MultipleStanzasForOneFileKey_AreAllKept()
+    {
+        // age-plugin.md allows one wrap-file-key to answer with several recipient-stanzas
+        // at the same file index — how a plugin stands for a group or several hardware
+        // slots. Keeping only the last would leave the others unable to decrypt, with no
+        // error at encryption time.
+        var recipient = new PluginRecipient(MakePluginRecipient("multi"));
+
+        var script = new StringWriter();
+        var writer = new PluginConnection(new StringReader(""), script);
+        writer.WriteStanza("recipient-stanza", ["0", "slot-one", "argA"], [0x01]);
+        writer.WriteStanza("recipient-stanza", ["0", "slot-two", "argB"], [0x02]);
+        writer.WriteStanza("done", [], []);
+
+        var conn = new PluginConnection(new StringReader(script.ToString()), new StringWriter());
+        var stanzas = recipient.WrapWithConnection(conn, new byte[16]);
+
+        Assert.Equal(2, stanzas.Count);
+        Assert.Equal(["slot-one", "slot-two"], stanzas.Select(s => s.Type));
+        Assert.Equal([new byte[] { 0x01 }, new byte[] { 0x02 }], stanzas.Select(s => s.Body.ToArray()));
+    }
+
+    [Fact]
     public void PluginRecipient_ToString_ReturnsOriginalString()
     {
         var str = MakePluginRecipient("yubikey");
@@ -291,7 +314,7 @@ public class PluginTests
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
 
-        var result = recipient.WrapWithConnection(conn, fileKey);
+        var result = recipient.WrapWithConnection(conn, fileKey)[0];
 
         Assert.Equal("X25519", result.Type);
         Assert.Equal(["ephemeral-key-b64"], result.Args);
@@ -336,7 +359,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        var result = recipient.WrapWithConnection(conn, new byte[16]);
+        var result = recipient.WrapWithConnection(conn, new byte[16])[0];
 
         Assert.Equal("X25519", result.Type);
         // Should have sent "unsupported" for the grease stanza
@@ -810,11 +833,11 @@ public class PluginTests
         for (var i = 0; i < 16; i++) fileKey[i] = (byte)i;
 
         // Create a stanza that matches this identity
-        var stanza = identity.Recipient.Wrap(fileKey);
+        var stanza = identity.Recipient.Wrap(fileKey)[0];
 
         // Create a non-matching stanza
         using var other = X25519Identity.Generate();
-        var otherStanza = other.Recipient.Wrap(fileKey);
+        var otherStanza = other.Recipient.Wrap(fileKey)[0];
 
         // Batch unwrap with the matching stanza second (cast to IIdentity for default method)
         var stanzas = new List<Stanza> { otherStanza, stanza };
@@ -828,7 +851,7 @@ public class PluginTests
     {
         using var identity = X25519Identity.Generate();
         using var other = X25519Identity.Generate();
-        var stanza = other.Recipient.Wrap(new byte[16]);
+        var stanza = other.Recipient.Wrap(new byte[16])[0];
 
         var result = ((IIdentity)identity).Unwrap(new List<Stanza> { stanza });
         Assert.Null(result);
@@ -1079,7 +1102,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        var result = recipient.WrapWithConnection(conn, new byte[16]);
+        var result = recipient.WrapWithConnection(conn, new byte[16])[0];
 
         Assert.Equal("X25519", result.Type);
         Assert.Contains("-> fail", capturedOutput.ToString());

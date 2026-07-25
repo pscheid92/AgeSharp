@@ -24,7 +24,8 @@ public static partial class Age
         return array;
     }
 
-    private static (Stanza stanza, IReadOnlyCollection<string> labels) WrapWithLabels(IRecipient recipient, ReadOnlySpan<byte> fileKey)
+    private static (IReadOnlyList<Stanza> stanzas, IReadOnlyCollection<string> labels) WrapWithLabels(
+        IRecipient recipient, ReadOnlySpan<byte> fileKey)
     {
         if (recipient is IRecipientWithLabels labelled)
             return labelled.WrapWithLabels(fileKey);
@@ -55,14 +56,18 @@ public static partial class Age
 
             for (var i = 0; i < recipients.Length; i++)
             {
-                var (stanza, labels) = WrapWithLabels(recipients[i], fileKey);
+                var (stanzas, labels) = WrapWithLabels(recipients[i], fileKey);
+
+                if (stanzas is null || stanzas.Count == 0)
+                    throw new AgeException($"recipient at index {i} produced no stanzas");
 
                 if (i == 0)
                     firstLabels = labels;
                 else if (!LabelSetsEqual(firstLabels!, labels))
                     throw new AgeException("cannot mix recipients with different security labels");
 
-                header.Stanzas.Add(stanza);
+                foreach (var stanza in stanzas)
+                    header.Stanzas.Add(stanza);
             }
 
             if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))

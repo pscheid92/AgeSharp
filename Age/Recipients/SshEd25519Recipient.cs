@@ -27,7 +27,7 @@ public sealed class SshEd25519Recipient : IRecipient
     }
 
     /// <summary>Wraps the file key for this SSH key via tweaked X25519 + ChaCha20-Poly1305.</summary>
-    public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
     {
         // Compute tweak = HKDF(ikm=[], salt=sshWireBytes, info=label, 32)
         var tweak = CryptoHelper.HkdfDerive([], _sshWireBytes, AgeProtocol.SshEd25519HkdfLabel, KeySize);
@@ -55,7 +55,7 @@ public sealed class SshEd25519Recipient : IRecipient
             var zeroNonce = new byte[NonceSize];
             var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
             var ephPubB64 = Base64Unpadded.Encode(ephPubBytes);
-            return new Stanza(AgeProtocol.SshEd25519StanzaType, [_tag, ephPubB64], body);
+            return [new Stanza(AgeProtocol.SshEd25519StanzaType, [_tag, ephPubB64], body)];
         }
         finally
         {

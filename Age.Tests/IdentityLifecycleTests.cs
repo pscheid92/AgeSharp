@@ -75,7 +75,7 @@ public class IdentityLifecycleTests
     public void X25519_Unwrap_AfterDispose_Throws()
     {
         var identity = X25519Identity.Generate();
-        var stanza = identity.Recipient.Wrap(FileKey());
+        var stanza = identity.Recipient.Wrap(FileKey())[0];
         identity.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => identity.Unwrap(stanza));
@@ -85,7 +85,7 @@ public class IdentityLifecycleTests
     public void MlKem_Unwrap_AfterDispose_Throws()
     {
         var identity = MlKem768X25519Identity.Generate();
-        var stanza = identity.Recipient.Wrap(FileKey());
+        var stanza = identity.Recipient.Wrap(FileKey())[0];
         identity.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => identity.Unwrap(stanza));
@@ -131,7 +131,7 @@ public class IdentityLifecycleTests
         identity.Dispose();
 
         Assert.Equal(expected, recipient.ToString());
-        Assert.NotNull(recipient.Wrap(FileKey()));
+        Assert.NotNull(recipient.Wrap(FileKey())[0]);
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public class IdentityLifecycleTests
         identity.Dispose();
 
         Assert.Equal(expected, recipient.ToString());
-        Assert.NotNull(recipient.Wrap(FileKey()));
+        Assert.NotNull(recipient.Wrap(FileKey())[0]);
     }
 
     // --- disposal stays idempotent ---

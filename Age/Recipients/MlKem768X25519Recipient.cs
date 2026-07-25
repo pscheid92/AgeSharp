@@ -44,17 +44,17 @@ public sealed class MlKem768X25519Recipient : IRecipientWithLabels, IParsable<Ml
     ///     (mixing with a classical recipient would leave the file vulnerable to a
     ///     quantum attacker who breaks the classical stanza).
     /// </summary>
-    public (Stanza stanza, IReadOnlyCollection<string> labels) WrapWithLabels(ReadOnlySpan<byte> fileKey)
+    public (IReadOnlyList<Stanza> stanzas, IReadOnlyCollection<string> labels) WrapWithLabels(ReadOnlySpan<byte> fileKey)
     {
         return (Wrap(fileKey), PostQuantumLabels);
     }
 
     /// <summary>Wraps the file key for this recipient via X-Wing HPKE (ML-KEM-768 + X25519).</summary>
-    public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
     {
         var (enc, ct) = HpkeHelper.SealBase(_publicKey, AgeProtocol.MlKemHpkeInfo, fileKey.ToArray());
         var encB64 = Base64Unpadded.Encode(enc);
-        return new Stanza(AgeProtocol.MlKemStanzaType, [encB64], ct);
+        return [new Stanza(AgeProtocol.MlKemStanzaType, [encB64], ct)];
     }
 
     /// <summary>Parses a bech32-encoded recipient (<c>age1pq1…</c>, lowercase).</summary>

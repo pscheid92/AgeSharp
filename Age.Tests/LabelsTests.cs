@@ -115,12 +115,12 @@ public class LabelsTests
     // Carries labels → implements the optional IRecipientWithLabels.
     private sealed class StubRecipient(params string[] labels) : IRecipientWithLabels
     {
-        public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+        public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
         {
-            return new Stanza("test", ["arg"], new byte[32]);
+            return [new Stanza("test", ["arg"], new byte[32])];
         }
 
-        public (Stanza stanza, IReadOnlyCollection<string> labels) WrapWithLabels(ReadOnlySpan<byte> fileKey)
+        public (IReadOnlyList<Stanza> stanzas, IReadOnlyCollection<string> labels) WrapWithLabels(ReadOnlySpan<byte> fileKey)
         {
             return (Wrap(fileKey), labels);
         }
@@ -129,9 +129,9 @@ public class LabelsTests
     // No labels → implements only IRecipient; the engine treats it as empty-set.
     private sealed class PlainRecipient : IRecipient
     {
-        public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+        public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
         {
-            return new Stanza("test", ["arg"], new byte[32]);
+            return [new Stanza("test", ["arg"], new byte[32])];
         }
     }
 }

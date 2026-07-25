@@ -34,7 +34,7 @@ public sealed class X25519Recipient : IRecipient, IParsable<X25519Recipient>
     }
 
     /// <summary>Wraps the file key for this recipient using ephemeral X25519 + ChaCha20-Poly1305.</summary>
-    public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
     {
         // Generate ephemeral X25519 key pair
         var ephemeral = new X25519PrivateKeyParameters(new SecureRandom());
@@ -58,7 +58,7 @@ public sealed class X25519Recipient : IRecipient, IParsable<X25519Recipient>
             var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
 
             var ephPubB64 = Base64Unpadded.Encode(ephPubBytes);
-            return new Stanza(AgeProtocol.X25519StanzaType, [ephPubB64], body);
+            return [new Stanza(AgeProtocol.X25519StanzaType, [ephPubB64], body)];
         }
         finally
         {

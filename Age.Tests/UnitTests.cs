@@ -1051,7 +1051,7 @@ public class PassphraseTests
         var correct = new Passphrase("correct", 10);
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
-        var stanza = correct.Wrap(fileKey);
+        var stanza = correct.Wrap(fileKey)[0];
 
         var wrong = new Passphrase("wrong", 10);
         // Wrong passphrase causes AEAD failure — either throws AgeException or returns null
@@ -1131,7 +1131,7 @@ public class X25519RecipientIdentityTests
         // there too, not left to produce a predictable wrap key.
         var lowOrder = X25519Recipient.Parse(Bech32.Encode("age", new byte[32]));
 
-        Assert.Throws<AgeFormatException>(() => lowOrder.Wrap(new byte[16]));
+        Assert.Throws<AgeFormatException>(() => lowOrder.Wrap(new byte[16])[0]);
     }
 
     [Fact]
@@ -1224,7 +1224,7 @@ public class X25519RecipientIdentityTests
 
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
-        var stanza = id1.Recipient.Wrap(fileKey);
+        var stanza = id1.Recipient.Wrap(fileKey)[0];
 
         // id2 should fail AEAD and return null
         Assert.Null(id2.Unwrap(stanza));
@@ -1287,8 +1287,8 @@ public class AgeTests
         new Random(42).NextBytes(fileKey);
 
         var passphrase = new Passphrase("pass", 10);
-        var scryptStanza = passphrase.Wrap(fileKey);
-        var x25519Stanza = id.Recipient.Wrap(fileKey);
+        var scryptStanza = passphrase.Wrap(fileKey)[0];
+        var x25519Stanza = id.Recipient.Wrap(fileKey)[0];
 
         var header = new Header();
         header.Stanzas.Add(scryptStanza);
@@ -1367,7 +1367,7 @@ public class AgeTests
         new Random(42).NextBytes(fileKey);
 
         using var id = X25519Identity.Generate();
-        var stanza = id.Recipient.Wrap(fileKey);
+        var stanza = id.Recipient.Wrap(fileKey)[0];
         var header = new Header();
         header.Stanzas.Add(stanza);
 
