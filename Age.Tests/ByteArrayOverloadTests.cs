@@ -58,7 +58,7 @@ public class ByteArrayOverloadTests
 
     [Fact]
     public void Encrypt_NoRecipients_Throws()
-        => Assert.Throws<ArgumentException>(() => Age.Encrypt("x"u8.ToArray()));
+        => Assert.Throws<ArgumentException>(() => Age.Encrypt("x"u8.ToArray(), Array.Empty<IRecipient>()));
 
     [Fact]
     public void Decrypt_NoIdentities_Throws()
@@ -66,7 +66,7 @@ public class ByteArrayOverloadTests
         using var identity = X25519Identity.Generate();
         var ciphertext = Age.Encrypt("x"u8.ToArray(), identity.Recipient);
 
-        Assert.Throws<ArgumentException>(() => Age.Decrypt(ciphertext));
+        Assert.Throws<ArgumentException>(() => Age.Decrypt(ciphertext, Array.Empty<IIdentity>()));
     }
 
     [Fact]

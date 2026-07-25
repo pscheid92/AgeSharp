@@ -23,14 +23,15 @@ public static partial class Age
     /// </summary>
     /// <param name="input">The plaintext source. Read once, start to end.</param>
     /// <param name="output">The ciphertext destination.</param>
-    /// <param name="recipients">One or more recipients. Must all produce the same label set (see <see cref="IRecipientWithLabels"/>).</param>
-    /// <exception cref="ArgumentException">No recipients were supplied.</exception>
+    /// <param name="first">The first recipient. Required, so that omitting recipients entirely is a compile error.</param>
+    /// <param name="rest">Any further recipients. All recipients must produce the same label set (see <see cref="IRecipientWithLabels"/>).</param>
+    /// <exception cref="ArgumentNullException"><paramref name="first"/> is null.</exception>
     /// <exception cref="AgeException">
     /// Recipients have mismatched security labels, or a passphrase (scrypt)
     /// recipient was combined with other recipients.
     /// </exception>
-    public static void Encrypt(Stream input, Stream output, params ReadOnlySpan<IRecipient> recipients)
-        => Encrypt(input, output, AgeEncryptOptions.Default, recipients);
+    public static void Encrypt(Stream input, Stream output, IRecipient first, params ReadOnlySpan<IRecipient> rest)
+        => Encrypt(input, output, AgeEncryptOptions.Default, Combine(first, rest));
 
     /// <summary>
     /// Encrypts <paramref name="input"/> and writes the result to <paramref name="output"/>,
@@ -39,12 +40,31 @@ public static partial class Age
     /// <param name="input">The plaintext source.</param>
     /// <param name="output">The ciphertext destination.</param>
     /// <param name="options">Encryption options; <see cref="AgeEncryptOptions.Armor"/> selects armored output.</param>
-    /// <param name="recipients">One or more recipients. Must all produce the same label set (see <see cref="IRecipientWithLabels"/>).</param>
-    public static void Encrypt(Stream input, Stream output, AgeEncryptOptions options, params ReadOnlySpan<IRecipient> recipients)
-    {
-        if (recipients.Length == 0)
-            throw new ArgumentException("at least one recipient is required", nameof(recipients));
+    /// <param name="first">The first recipient.</param>
+    /// <param name="rest">Any further recipients.</param>
+    public static void Encrypt(Stream input, Stream output, AgeEncryptOptions options, IRecipient first, params ReadOnlySpan<IRecipient> rest)
+        => Encrypt(input, output, options, Combine(first, rest));
 
+    /// <summary>
+    /// Encrypts <paramref name="input"/> into <paramref name="output"/> for a
+    /// collection of recipients — the overload to reach for when the recipients
+    /// were assembled at runtime (from a recipients file, say) rather than
+    /// written out at the call site.
+    /// </summary>
+    /// <param name="input">The plaintext source. Read once, start to end.</param>
+    /// <param name="output">The ciphertext destination.</param>
+    /// <param name="recipients">One or more recipients. Must all produce the same label set (see <see cref="IRecipientWithLabels"/>).</param>
+    /// <exception cref="ArgumentNullException"><paramref name="recipients"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="recipients"/> is empty.</exception>
+    public static void Encrypt(Stream input, Stream output, IReadOnlyList<IRecipient> recipients)
+        => Encrypt(input, output, AgeEncryptOptions.Default, recipients);
+
+    /// <summary>
+    /// Encrypts <paramref name="input"/> into <paramref name="output"/> for a
+    /// collection of recipients, applying <paramref name="options"/>.
+    /// </summary>
+    public static void Encrypt(Stream input, Stream output, AgeEncryptOptions options, IReadOnlyList<IRecipient> recipients)
+    {
         using var stream = EncryptReader(input, options, recipients);
         stream.CopyTo(output);
     }
@@ -55,21 +75,42 @@ public static partial class Age
     /// </summary>
     /// <param name="input">The age-encrypted source (binary or ASCII-armored).</param>
     /// <param name="output">The plaintext destination.</param>
-    /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
-    /// <exception cref="ArgumentException">No identities were supplied.</exception>
+    /// <param name="first">The first identity. Required, so that omitting identities entirely is a compile error.</param>
+    /// <param name="rest">Any further identities. All are tried against the file's recipient stanzas.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="first"/> is null.</exception>
     /// <exception cref="NoIdentityMatchException">None of the identities matched any stanza.</exception>
     /// <exception cref="AgeFormatException">The header is malformed.</exception>
     /// <exception cref="AgeAuthenticationException">The header MAC failed verification.</exception>
     /// <exception cref="AgeFormatException">The input is armored and the armor is malformed.</exception>
     /// <exception cref="AgeAuthenticationException">The payload is malformed, truncated, or authentication failed.</exception>
-    public static void Decrypt(Stream input, Stream output, params ReadOnlySpan<IIdentity> identities)
-        => Decrypt(input, output, AgeDecryptOptions.Default, identities);
+    public static void Decrypt(Stream input, Stream output, IIdentity first, params ReadOnlySpan<IIdentity> rest)
+        => Decrypt(input, output, AgeDecryptOptions.Default, Combine(first, rest));
 
     /// <summary>
     /// Decrypts an age-encrypted <paramref name="input"/> into <paramref name="output"/>,
-    /// applying <paramref name="options"/> (the header-size limits).
+    /// applying <paramref name="options"/> (armor strictness and the header-size limits).
     /// </summary>
-    public static void Decrypt(Stream input, Stream output, AgeDecryptOptions options, params ReadOnlySpan<IIdentity> identities)
+    public static void Decrypt(Stream input, Stream output, AgeDecryptOptions options, IIdentity first, params ReadOnlySpan<IIdentity> rest)
+        => Decrypt(input, output, options, Combine(first, rest));
+
+    /// <summary>
+    /// Decrypts an age-encrypted <paramref name="input"/> into <paramref name="output"/>
+    /// using a collection of identities — the overload to reach for when the
+    /// identities were loaded at runtime rather than written out at the call site.
+    /// </summary>
+    /// <param name="input">The age-encrypted source (binary or ASCII-armored).</param>
+    /// <param name="output">The plaintext destination.</param>
+    /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="identities"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="identities"/> is empty.</exception>
+    public static void Decrypt(Stream input, Stream output, IReadOnlyList<IIdentity> identities)
+        => Decrypt(input, output, AgeDecryptOptions.Default, identities);
+
+    /// <summary>
+    /// Decrypts an age-encrypted <paramref name="input"/> into <paramref name="output"/>
+    /// using a collection of identities, applying <paramref name="options"/>.
+    /// </summary>
+    public static void Decrypt(Stream input, Stream output, AgeDecryptOptions options, IReadOnlyList<IIdentity> identities)
     {
         using var stream = OpenRead(input, options, identities);
         stream.CopyTo(output);
@@ -84,16 +125,35 @@ public static partial class Age
     /// (secrets, database fields) that skips the <see cref="MemoryStream"/> ceremony.
     /// </summary>
     /// <param name="plaintext">The plaintext to encrypt.</param>
-    /// <param name="recipients">One or more recipients. Must all produce the same label set.</param>
-    /// <exception cref="ArgumentException">No recipients were supplied.</exception>
-    public static byte[] Encrypt(ReadOnlySpan<byte> plaintext, params ReadOnlySpan<IRecipient> recipients)
-        => Encrypt(plaintext, AgeEncryptOptions.Default, recipients);
+    /// <param name="first">The first recipient. Required, so that omitting recipients entirely is a compile error.</param>
+    /// <param name="rest">Any further recipients. All must produce the same label set.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="first"/> is null.</exception>
+    public static byte[] Encrypt(ReadOnlySpan<byte> plaintext, IRecipient first, params ReadOnlySpan<IRecipient> rest)
+        => Encrypt(plaintext, AgeEncryptOptions.Default, Combine(first, rest));
 
     /// <summary>
     /// Encrypts <paramref name="plaintext"/> into a new byte array, applying
     /// <paramref name="options"/> (e.g. ASCII armor).
     /// </summary>
-    public static byte[] Encrypt(ReadOnlySpan<byte> plaintext, AgeEncryptOptions options, params ReadOnlySpan<IRecipient> recipients)
+    public static byte[] Encrypt(ReadOnlySpan<byte> plaintext, AgeEncryptOptions options, IRecipient first, params ReadOnlySpan<IRecipient> rest)
+        => Encrypt(plaintext, options, Combine(first, rest));
+
+    /// <summary>
+    /// Encrypts <paramref name="plaintext"/> into a new byte array for a collection
+    /// of recipients.
+    /// </summary>
+    /// <param name="plaintext">The plaintext to encrypt.</param>
+    /// <param name="recipients">One or more recipients. Must all produce the same label set.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="recipients"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="recipients"/> is empty.</exception>
+    public static byte[] Encrypt(ReadOnlySpan<byte> plaintext, IReadOnlyList<IRecipient> recipients)
+        => Encrypt(plaintext, AgeEncryptOptions.Default, recipients);
+
+    /// <summary>
+    /// Encrypts <paramref name="plaintext"/> into a new byte array for a collection
+    /// of recipients, applying <paramref name="options"/>.
+    /// </summary>
+    public static byte[] Encrypt(ReadOnlySpan<byte> plaintext, AgeEncryptOptions options, IReadOnlyList<IRecipient> recipients)
     {
         // Copy into an owned buffer so the plaintext can be zeroed afterwards; the
         // returned ciphertext is not secret.
@@ -114,23 +174,42 @@ public static partial class Age
     /// <summary>
     /// Decrypts age <paramref name="ciphertext"/> and returns the plaintext as a
     /// new byte array. The buffer-in, buffer-out counterpart to
-    /// <see cref="Encrypt(ReadOnlySpan{byte}, ReadOnlySpan{IRecipient})"/>; armored
-    /// input is auto-detected.
+    /// <see cref="Encrypt(ReadOnlySpan{byte}, IRecipient, ReadOnlySpan{IRecipient})"/>;
+    /// armored input is auto-detected.
     /// </summary>
     /// <param name="ciphertext">The age ciphertext (binary or ASCII-armored).</param>
-    /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
-    /// <exception cref="ArgumentException">No identities were supplied.</exception>
+    /// <param name="first">The first identity. Required, so that omitting identities entirely is a compile error.</param>
+    /// <param name="rest">Any further identities. All are tried against the file's recipient stanzas.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="first"/> is null.</exception>
     /// <exception cref="NoIdentityMatchException">None of the identities matched any stanza.</exception>
     /// <exception cref="AgeFormatException">The header or armor is malformed.</exception>
     /// <exception cref="AgeAuthenticationException">The header MAC or a payload chunk failed authentication.</exception>
-    public static byte[] Decrypt(ReadOnlySpan<byte> ciphertext, params ReadOnlySpan<IIdentity> identities)
-        => Decrypt(ciphertext, AgeDecryptOptions.Default, identities);
+    public static byte[] Decrypt(ReadOnlySpan<byte> ciphertext, IIdentity first, params ReadOnlySpan<IIdentity> rest)
+        => Decrypt(ciphertext, AgeDecryptOptions.Default, Combine(first, rest));
 
     /// <summary>
     /// Decrypts age <paramref name="ciphertext"/> into a new byte array, applying
-    /// <paramref name="options"/> (the header-size limits).
+    /// <paramref name="options"/> (armor strictness and the header-size limits).
     /// </summary>
-    public static byte[] Decrypt(ReadOnlySpan<byte> ciphertext, AgeDecryptOptions options, params ReadOnlySpan<IIdentity> identities)
+    public static byte[] Decrypt(ReadOnlySpan<byte> ciphertext, AgeDecryptOptions options, IIdentity first, params ReadOnlySpan<IIdentity> rest)
+        => Decrypt(ciphertext, options, Combine(first, rest));
+
+    /// <summary>
+    /// Decrypts age <paramref name="ciphertext"/> into a new byte array using a
+    /// collection of identities.
+    /// </summary>
+    /// <param name="ciphertext">The age ciphertext (binary or ASCII-armored).</param>
+    /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="identities"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="identities"/> is empty.</exception>
+    public static byte[] Decrypt(ReadOnlySpan<byte> ciphertext, IReadOnlyList<IIdentity> identities)
+        => Decrypt(ciphertext, AgeDecryptOptions.Default, identities);
+
+    /// <summary>
+    /// Decrypts age <paramref name="ciphertext"/> into a new byte array using a
+    /// collection of identities, applying <paramref name="options"/>.
+    /// </summary>
+    public static byte[] Decrypt(ReadOnlySpan<byte> ciphertext, AgeDecryptOptions options, IReadOnlyList<IIdentity> identities)
     {
         using var input = new MemoryStream(ciphertext.ToArray());
         using var output = new MemoryStream();
@@ -150,15 +229,31 @@ public static partial class Age
     /// ASCII armor is a container around a whole age file, which a detached header
     /// and payload are not, so there is nothing
     /// <see cref="AgeEncryptOptions"/> could configure here.
-    /// <see cref="DecryptDetached(Stream, Stream, Stream, AgeDecryptOptions, ReadOnlySpan{IIdentity})"/>
+    /// <see cref="DecryptDetached(Stream, Stream, Stream, AgeDecryptOptions, IIdentity, ReadOnlySpan{IIdentity})"/>
     /// does take options, because it parses a header.
     /// </remarks>
-    public static void EncryptDetached(Stream input, Stream headerOutput, Stream payloadOutput, params ReadOnlySpan<IRecipient> recipients)
-    {
-        if (recipients.Length == 0)
-            throw new ArgumentException("at least one recipient is required", nameof(recipients));
+    /// <param name="input">The plaintext source.</param>
+    /// <param name="headerOutput">The destination for the age header.</param>
+    /// <param name="payloadOutput">The destination for the encrypted payload.</param>
+    /// <param name="first">The first recipient. Required, so that omitting recipients entirely is a compile error.</param>
+    /// <param name="rest">Any further recipients.</param>
+    public static void EncryptDetached(Stream input, Stream headerOutput, Stream payloadOutput, IRecipient first,
+                                       params ReadOnlySpan<IRecipient> rest)
+        => EncryptDetached(input, headerOutput, payloadOutput, Combine(first, rest));
 
-        var (header, fileKey) = BuildHeaderAndFileKey(recipients);
+    /// <summary>
+    /// Encrypts <paramref name="input"/> to a detached header and payload for a
+    /// collection of recipients.
+    /// </summary>
+    /// <param name="input">The plaintext source.</param>
+    /// <param name="headerOutput">The destination for the age header.</param>
+    /// <param name="payloadOutput">The destination for the encrypted payload.</param>
+    /// <param name="recipients">One or more recipients. Must all produce the same label set.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="recipients"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="recipients"/> is empty.</exception>
+    public static void EncryptDetached(Stream input, Stream headerOutput, Stream payloadOutput, IReadOnlyList<IRecipient> recipients)
+    {
+        var (header, fileKey) = BuildHeaderAndFileKey(Materialize(recipients, nameof(recipients), "recipient"));
         try
         {
             header.WriteTo(headerOutput, fileKey);
@@ -178,10 +273,11 @@ public static partial class Age
 
     /// <summary>
     /// Decrypts an age file whose header and payload are stored separately
-    /// (the inverse of <see cref="EncryptDetached"/>).
+    /// (the inverse of <see cref="EncryptDetached(Stream, Stream, Stream, IRecipient, ReadOnlySpan{IRecipient})"/>).
     /// </summary>
-    public static void DecryptDetached(Stream headerInput, Stream payloadInput, Stream output, params ReadOnlySpan<IIdentity> identities)
-        => DecryptDetached(headerInput, payloadInput, output, AgeDecryptOptions.Default, identities);
+    public static void DecryptDetached(Stream headerInput, Stream payloadInput, Stream output, IIdentity first,
+                                       params ReadOnlySpan<IIdentity> rest)
+        => DecryptDetached(headerInput, payloadInput, output, AgeDecryptOptions.Default, Combine(first, rest));
 
     /// <summary>
     /// Decrypts an age file whose header and payload are stored separately,
@@ -189,12 +285,31 @@ public static partial class Age
     /// the detached header.
     /// </summary>
     public static void DecryptDetached(Stream headerInput, Stream payloadInput, Stream output, AgeDecryptOptions options,
-                                       params ReadOnlySpan<IIdentity> identities)
-    {
-        if (identities.Length == 0)
-            throw new ArgumentException("at least one identity is required", nameof(identities));
+                                       IIdentity first, params ReadOnlySpan<IIdentity> rest)
+        => DecryptDetached(headerInput, payloadInput, output, options, Combine(first, rest));
 
-        var fileKey = UnwrapFileKey(headerInput, identities, options);
+    /// <summary>
+    /// Decrypts an age file whose header and payload are stored separately, using a
+    /// collection of identities.
+    /// </summary>
+    /// <param name="headerInput">The detached age header.</param>
+    /// <param name="payloadInput">The detached encrypted payload.</param>
+    /// <param name="output">The plaintext destination.</param>
+    /// <param name="identities">One or more identities tried against the header's recipient stanzas.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="identities"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="identities"/> is empty.</exception>
+    public static void DecryptDetached(Stream headerInput, Stream payloadInput, Stream output,
+                                       IReadOnlyList<IIdentity> identities)
+        => DecryptDetached(headerInput, payloadInput, output, AgeDecryptOptions.Default, identities);
+
+    /// <summary>
+    /// Decrypts an age file whose header and payload are stored separately, using a
+    /// collection of identities and applying <paramref name="options"/>.
+    /// </summary>
+    public static void DecryptDetached(Stream headerInput, Stream payloadInput, Stream output, AgeDecryptOptions options,
+                                       IReadOnlyList<IIdentity> identities)
+    {
+        var fileKey = UnwrapFileKey(headerInput, Materialize(identities, nameof(identities), "identity"), options);
         try
         {
             var payloadNonce = new byte[PayloadNonceSize];
@@ -233,26 +348,44 @@ public static partial class Age
     /// Dispose the returned stream when done.
     /// </summary>
     /// <param name="plaintext">The plaintext source.</param>
-    /// <param name="recipients">One or more recipients.</param>
-    public static Stream EncryptReader(Stream plaintext, params ReadOnlySpan<IRecipient> recipients)
-        => EncryptReader(plaintext, AgeEncryptOptions.Default, recipients);
+    /// <param name="first">The first recipient. Required, so that omitting recipients entirely is a compile error.</param>
+    /// <param name="rest">Any further recipients.</param>
+    public static Stream EncryptReader(Stream plaintext, IRecipient first, params ReadOnlySpan<IRecipient> rest)
+        => EncryptReader(plaintext, AgeEncryptOptions.Default, Combine(first, rest));
 
     /// <summary>
     /// Returns a readable <see cref="Stream"/> that produces age ciphertext,
     /// optionally ASCII-armored per <paramref name="options"/>, as the caller reads from it.
     /// </summary>
-    public static Stream EncryptReader(Stream plaintext, AgeEncryptOptions options, params ReadOnlySpan<IRecipient> recipients)
+    public static Stream EncryptReader(Stream plaintext, AgeEncryptOptions options, IRecipient first, params ReadOnlySpan<IRecipient> rest)
+        => EncryptReader(plaintext, options, Combine(first, rest));
+
+    /// <summary>
+    /// Returns a readable <see cref="Stream"/> that produces age ciphertext for a
+    /// collection of recipients as the caller reads from it.
+    /// </summary>
+    /// <param name="plaintext">The plaintext source.</param>
+    /// <param name="recipients">One or more recipients.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="recipients"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="recipients"/> is empty.</exception>
+    public static Stream EncryptReader(Stream plaintext, IReadOnlyList<IRecipient> recipients)
+        => EncryptReader(plaintext, AgeEncryptOptions.Default, recipients);
+
+    /// <summary>
+    /// Returns a readable <see cref="Stream"/> that produces age ciphertext for a
+    /// collection of recipients, applying <paramref name="options"/>.
+    /// </summary>
+    public static Stream EncryptReader(Stream plaintext, AgeEncryptOptions options, IReadOnlyList<IRecipient> recipients)
     {
-        if (recipients.Length == 0)
-            throw new ArgumentException("at least one recipient is required", nameof(recipients));
+        var recipientArray = Materialize(recipients, nameof(recipients), "recipient");
 
         if (options.Armor)
         {
-            var ciphertextStream = EncryptReader(plaintext, AgeEncryptOptions.Default, recipients);
+            var ciphertextStream = EncryptReader(plaintext, recipientArray);
             return new ArmorStream(ciphertextStream);
         }
 
-        var (header, fileKey) = BuildHeaderAndFileKey(recipients);
+        var (header, fileKey) = BuildHeaderAndFileKey(recipientArray);
 
         using var headerMs = new MemoryStream();
         header.WriteTo(headerMs, fileKey);
@@ -276,24 +409,42 @@ public static partial class Age
     /// finalizes the age payload; <paramref name="destination"/> is never disposed.
     /// </summary>
     /// <param name="destination">The ciphertext destination. Left open when the returned stream is disposed.</param>
-    /// <param name="recipients">One or more recipients.</param>
-    /// <exception cref="ArgumentException">No recipients were supplied.</exception>
-    public static Stream OpenWrite(Stream destination, params ReadOnlySpan<IRecipient> recipients)
-        => OpenWrite(destination, AgeEncryptOptions.Default, recipients);
+    /// <param name="first">The first recipient. Required, so that omitting recipients entirely is a compile error.</param>
+    /// <param name="rest">Any further recipients.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="first"/> is null.</exception>
+    public static Stream OpenWrite(Stream destination, IRecipient first, params ReadOnlySpan<IRecipient> rest)
+        => OpenWrite(destination, AgeEncryptOptions.Default, Combine(first, rest));
 
     /// <summary>
     /// Returns a writable <see cref="Stream"/> that encrypts the plaintext written
     /// to it and forwards age ciphertext — optionally ASCII-armored per
     /// <paramref name="options"/> — to <paramref name="destination"/>.
-    /// See <see cref="OpenWrite(Stream, ReadOnlySpan{IRecipient})"/> for the
+    /// See <see cref="OpenWrite(Stream, IRecipient, ReadOnlySpan{IRecipient})"/> for
+    /// the lifecycle and stream-ownership contract.
+    /// </summary>
+    public static Stream OpenWrite(Stream destination, AgeEncryptOptions options, IRecipient first, params ReadOnlySpan<IRecipient> rest)
+        => OpenWrite(destination, options, Combine(first, rest));
+
+    /// <summary>
+    /// Returns a writable <see cref="Stream"/> that encrypts plaintext written to it
+    /// for a collection of recipients. See
+    /// <see cref="OpenWrite(Stream, IRecipient, ReadOnlySpan{IRecipient})"/> for the
     /// lifecycle and stream-ownership contract.
     /// </summary>
-    public static Stream OpenWrite(Stream destination, AgeEncryptOptions options, params ReadOnlySpan<IRecipient> recipients)
-    {
-        if (recipients.Length == 0)
-            throw new ArgumentException("at least one recipient is required", nameof(recipients));
+    /// <param name="destination">The ciphertext destination. Left open when the returned stream is disposed.</param>
+    /// <param name="recipients">One or more recipients.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="recipients"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="recipients"/> is empty.</exception>
+    public static Stream OpenWrite(Stream destination, IReadOnlyList<IRecipient> recipients)
+        => OpenWrite(destination, AgeEncryptOptions.Default, recipients);
 
-        var (header, fileKey) = BuildHeaderAndFileKey(recipients);
+    /// <summary>
+    /// Returns a writable <see cref="Stream"/> that encrypts plaintext written to it
+    /// for a collection of recipients, applying <paramref name="options"/>.
+    /// </summary>
+    public static Stream OpenWrite(Stream destination, AgeEncryptOptions options, IReadOnlyList<IRecipient> recipients)
+    {
+        var (header, fileKey) = BuildHeaderAndFileKey(Materialize(recipients, nameof(recipients), "recipient"));
 
         using var headerMs = new MemoryStream();
         header.WriteTo(headerMs, fileKey);
@@ -329,31 +480,52 @@ public static partial class Age
     /// truncated payload is rejected here rather than on reaching the missing tail.
     /// </remarks>
     /// <param name="source">The age-encrypted source (binary or ASCII-armored).</param>
-    /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
-    /// <exception cref="ArgumentException">No identities were supplied.</exception>
+    /// <param name="first">The first identity. Required, so that omitting identities entirely is a compile error.</param>
+    /// <param name="rest">Any further identities. All are tried against the file's recipient stanzas.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="first"/> is null.</exception>
     /// <exception cref="NoIdentityMatchException">None of the identities matched any stanza.</exception>
     /// <exception cref="AgeFormatException">The header (or armor) is malformed.</exception>
     /// <exception cref="AgeAuthenticationException">The header MAC failed, or a seekable source's payload is truncated or structurally impossible.</exception>
-    public static Stream OpenRead(Stream source, params ReadOnlySpan<IIdentity> identities)
-        => OpenRead(source, AgeDecryptOptions.Default, identities);
+    public static Stream OpenRead(Stream source, IIdentity first, params ReadOnlySpan<IIdentity> rest)
+        => OpenRead(source, AgeDecryptOptions.Default, Combine(first, rest));
 
     /// <summary>
     /// Returns a readable plaintext <see cref="Stream"/>, applying
-    /// <paramref name="options"/> (the header-size limits) while parsing.
-    /// See <see cref="OpenRead(Stream, ReadOnlySpan{IIdentity})"/> for the
+    /// <paramref name="options"/> (armor strictness and the header-size limits) while
+    /// parsing. See <see cref="OpenRead(Stream, IIdentity, ReadOnlySpan{IIdentity})"/>
+    /// for the seekability and truncation-detection contract.
+    /// </summary>
+    public static Stream OpenRead(Stream source, AgeDecryptOptions options, IIdentity first, params ReadOnlySpan<IIdentity> rest)
+        => OpenRead(source, options, Combine(first, rest));
+
+    /// <summary>
+    /// Returns a readable plaintext <see cref="Stream"/> over an age-encrypted
+    /// <paramref name="source"/> using a collection of identities. See
+    /// <see cref="OpenRead(Stream, IIdentity, ReadOnlySpan{IIdentity})"/> for the
     /// seekability and truncation-detection contract.
     /// </summary>
-    public static Stream OpenRead(Stream source, AgeDecryptOptions options, params ReadOnlySpan<IIdentity> identities)
+    /// <param name="source">The age-encrypted source (binary or ASCII-armored).</param>
+    /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="identities"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="identities"/> is empty.</exception>
+    public static Stream OpenRead(Stream source, IReadOnlyList<IIdentity> identities)
+        => OpenRead(source, AgeDecryptOptions.Default, identities);
+
+    /// <summary>
+    /// Returns a readable plaintext <see cref="Stream"/> over an age-encrypted
+    /// <paramref name="source"/> using a collection of identities, applying
+    /// <paramref name="options"/>.
+    /// </summary>
+    public static Stream OpenRead(Stream source, AgeDecryptOptions options, IReadOnlyList<IIdentity> identities)
     {
-        if (identities.Length == 0)
-            throw new ArgumentException("at least one identity is required", nameof(identities));
+        var identityArray = Materialize(identities, nameof(identities), "identity");
 
         var (binaryInput, needsDispose) = DeArmorIfNeeded(source, options);
         byte[]? payloadKey = null;
 
         try
         {
-            var (fileKey, reader) = UnwrapHeaderFromReader(binaryInput, identities, options);
+            var (fileKey, reader) = UnwrapHeaderFromReader(binaryInput, identityArray, options);
             var payloadNonce = ReadPayloadNonce(reader);
             payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
             CryptographicOperations.ZeroMemory(fileKey);
@@ -389,6 +561,36 @@ public static partial class Age
     /// <param name="options">Parsing options (the header-size limits).</param>
     public static AgeHeader ReadHeader(Stream source, AgeDecryptOptions options) =>
         AgeHeader.Parse(source, options);
+
+    // Splices a `first, params rest` pair back into the single sequence the
+    // implementations work over. Taking the first element as its own parameter is
+    // what makes "I forgot the recipients" a compile error rather than an
+    // ArgumentException at runtime; the cost is this one small array per call,
+    // on a path that already allocates a header.
+    private static T[] Combine<T>(T first, ReadOnlySpan<T> rest)
+    {
+        ArgumentNullException.ThrowIfNull(first, nameof(first));
+
+        var all = new T[rest.Length + 1];
+        all[0] = first;
+        rest.CopyTo(all.AsSpan(1));
+        return all;
+    }
+
+    // Validates a caller-supplied collection and hands back an array the span-based
+    // internals can consume. An array passes through without copying — which is the
+    // common case, since every `first, params rest` overload arrives via Combine.
+    // The emptiness guard lives here, and only here: the params overloads cannot
+    // produce an empty sequence, so this is the one shape that still needs checking.
+    private static T[] Materialize<T>(IReadOnlyList<T> items, string paramName, string noun)
+    {
+        ArgumentNullException.ThrowIfNull(items, paramName);
+
+        if (items.Count == 0)
+            throw new ArgumentException($"at least one {noun} is required", paramName);
+
+        return items as T[] ?? [.. items];
+    }
 
     // Wrap a recipient and get its label set. Recipients that don't implement
     // IRecipientWithLabels are treated as having an empty set (mirrors the
