@@ -185,18 +185,50 @@ public class ExceptionContractTests
     }
 
     [Fact]
-    public void Armor_PaddingOnFullLine_ThrowsFormat()
+    public void Armor_PaddingOnFullLine_IsAccepted()
     {
-        // A 64-char line must decode to exactly 48 bytes; embedded padding decodes
-        // successfully but is non-canonical.
-        using var identity = X25519Identity.Generate();
-        var body = new string('A', 62) + "==";
+        // This test used to assert the opposite, encoding a wrong rule: that a
+        // 64-character line must decode to exactly 48 bytes. It need not. A final
+        // chunk of 46 or 47 bytes encodes to a full 64 columns *with* padding, which
+        // is what our own encoder emits — and both age and rage read it back.
+        var body = new string('A', 62) + "==";   // canonical: 46 zero bytes
         var armored = $"-----BEGIN AGE ENCRYPTED FILE-----\n{body}\n-----END AGE ENCRYPTED FILE-----\n";
         using var input = new MemoryStream(Encoding.ASCII.GetBytes(armored));
+        using var dearmored = AsciiArmor.Dearmor(input, new AgeDecryptOptions().MaxArmorLineBytes);
 
-        var ex = Assert.Throws<AgeFormatException>(() =>
-            Age.Decrypt(input, new MemoryStream(), identity));
-        Assert.Contains("non-canonical base64 in armor", ex.Message);
+        using var output = new MemoryStream();
+        dearmored.CopyTo(output);
+
+        Assert.Equal(46, output.Length);
+        Assert.All(output.ToArray(), b => Assert.Equal(0, b));
+    }
+
+    [Fact]
+    public void Armor_FullWidthPaddedLine_MustStillBeLast()
+    {
+        // Padding ends the body no matter the line's width, so anything after it is
+        // malformed — the rule the width test was standing in for.
+        var padded = new string('A', 62) + "==";
+        var armored = $"-----BEGIN AGE ENCRYPTED FILE-----\n{padded}\n{new string('A', 64)}\n-----END AGE ENCRYPTED FILE-----\n";
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes(armored));
+        using var dearmored = AsciiArmor.Dearmor(input, new AgeDecryptOptions().MaxArmorLineBytes);
+
+        var ex = Assert.Throws<AgeFormatException>(() => dearmored.CopyTo(Stream.Null));
+        Assert.Contains("continues after", ex.Message);
+    }
+
+    [Fact]
+    public void Armor_NonCanonicalPaddingOnFullLine_IsStillRejected()
+    {
+        // Full width does not exempt a line from the padding check: 'B' leaves the
+        // bits the two '=' claim are unused set.
+        var body = new string('A', 61) + "B==";
+        var armored = $"-----BEGIN AGE ENCRYPTED FILE-----\n{body}\n-----END AGE ENCRYPTED FILE-----\n";
+        using var input = new MemoryStream(Encoding.ASCII.GetBytes(armored));
+        using var dearmored = AsciiArmor.Dearmor(input, new AgeDecryptOptions().MaxArmorLineBytes);
+
+        var ex = Assert.Throws<AgeFormatException>(() => dearmored.CopyTo(Stream.Null));
+        Assert.Contains("non-canonical", ex.Message);
     }
 
     [Fact]
