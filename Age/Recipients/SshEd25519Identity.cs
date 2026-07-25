@@ -6,18 +6,18 @@ using Org.BouncyCastle.Crypto.Parameters;
 namespace AgeSharp;
 
 /// <summary>
-/// An identity backed by an ssh-ed25519 private key, converted to X25519 for the
-/// age <c>ssh-ed25519</c> recipient type. Disposing zeroes the converted key.
+///     An identity backed by an ssh-ed25519 private key, converted to X25519 for the
+///     age <c>ssh-ed25519</c> recipient type. Disposing zeroes the converted key.
 /// </summary>
 public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
 {
     private const int KeySize = 32;
     private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
+    private readonly byte[] _sshWireBytes;
+    private readonly string _tag;
 
     private readonly byte[] _x25519PrivateKey;
     private readonly byte[] _x25519PublicKey;
-    private readonly byte[] _sshWireBytes;
-    private readonly string _tag;
     private bool _disposed;
 
     private SshEd25519Identity(byte[] x25519PrivateKey, byte[] x25519PublicKey, byte[] sshWireBytes)
@@ -39,7 +39,7 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
             // (Unwrap throws), and per-type exceptions to that rule are the kind
             // nobody remembers.
             ObjectDisposedException.ThrowIf(_disposed, this);
-            return new(_sshWireBytes, _x25519PublicKey);
+            return new SshEd25519Recipient(_sshWireBytes, _x25519PublicKey);
         }
     }
 
@@ -47,38 +47,9 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
     // for interface members.
     IRecipient IIdentityWithRecipient.Recipient => Recipient;
 
-    /// <summary>Parses an ssh-ed25519 private key from PEM text (OpenSSH format).</summary>
-    /// <exception cref="AgeFormatException">The text is not a valid ssh-ed25519 private key.</exception>
-    public static SshEd25519Identity Parse(string pemText)
-    {
-        var (keyType, publicWireBytes, privateKey) = SshKeyParser.ParsePrivateKey(pemText);
-
-        if (keyType != "ssh-ed25519")
-            throw new AgeFormatException($"expected ssh-ed25519 private key, got {keyType}");
-
-        if (privateKey is not Ed25519PrivateKeyParameters ed25519Private)
-            throw new AgeFormatException("declared ssh-ed25519 but the key data is a different type");
-
-        // Convert Ed25519 private key seed → X25519 private key
-        var x25519Private = Ed25519Converter.PrivateKeyToX25519(ed25519Private.GetEncoded());
-
-        // Derive X25519 public key from the X25519 private key
-        var x25519PrivateParam = new X25519PrivateKeyParameters(x25519Private);
-        var x25519Pub = x25519PrivateParam.GeneratePublicKey().GetEncoded();
-
-        return new SshEd25519Identity(x25519Private, x25519Pub, publicWireBytes);
-    }
-
     /// <summary>
-    /// Tries to parse an ssh-ed25519 private key from PEM text. Returns false
-    /// instead of throwing when the input is null or malformed.
-    /// </summary>
-    public static bool TryParse([NotNullWhen(true)] string? pemText, [MaybeNullWhen(false)] out SshEd25519Identity result) =>
-        ParseHelpers.TryParse(pemText, Parse, out result);
-
-    /// <summary>
-    /// Attempts to unwrap the file key from an <c>ssh-ed25519</c> stanza. Returns
-    /// null for stanzas of other types or addressed to a different SSH key (tag mismatch).
+    ///     Attempts to unwrap the file key from an <c>ssh-ed25519</c> stanza. Returns
+    ///     null for stanzas of other types or addressed to a different SSH key (tag mismatch).
     /// </summary>
     /// <exception cref="AgeFormatException">The stanza claims to be ssh-ed25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
@@ -101,7 +72,8 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
         var ephPubBytes = ParseHelpers.DecodeArg(stanza.Args[1], KeySize, "ssh-ed25519 ephemeral key");
 
         if (stanza.Body.Length != WrappedKeySize)
-            throw new AgeFormatException($"ssh-ed25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
+            throw new AgeFormatException(
+                $"ssh-ed25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
 
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
         var privateKey = new X25519PrivateKeyParameters(_x25519PrivateKey);
@@ -146,5 +118,37 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
 
         _disposed = true;
         CryptographicOperations.ZeroMemory(_x25519PrivateKey);
+    }
+
+    /// <summary>Parses an ssh-ed25519 private key from PEM text (OpenSSH format).</summary>
+    /// <exception cref="AgeFormatException">The text is not a valid ssh-ed25519 private key.</exception>
+    public static SshEd25519Identity Parse(string pemText)
+    {
+        var (keyType, publicWireBytes, privateKey) = SshKeyParser.ParsePrivateKey(pemText);
+
+        if (keyType != "ssh-ed25519")
+            throw new AgeFormatException($"expected ssh-ed25519 private key, got {keyType}");
+
+        if (privateKey is not Ed25519PrivateKeyParameters ed25519Private)
+            throw new AgeFormatException("declared ssh-ed25519 but the key data is a different type");
+
+        // Convert Ed25519 private key seed → X25519 private key
+        var x25519Private = Ed25519Converter.PrivateKeyToX25519(ed25519Private.GetEncoded());
+
+        // Derive X25519 public key from the X25519 private key
+        var x25519PrivateParam = new X25519PrivateKeyParameters(x25519Private);
+        var x25519Pub = x25519PrivateParam.GeneratePublicKey().GetEncoded();
+
+        return new SshEd25519Identity(x25519Private, x25519Pub, publicWireBytes);
+    }
+
+    /// <summary>
+    ///     Tries to parse an ssh-ed25519 private key from PEM text. Returns false
+    ///     instead of throwing when the input is null or malformed.
+    /// </summary>
+    public static bool TryParse([NotNullWhen(true)] string? pemText,
+        [MaybeNullWhen(false)] out SshEd25519Identity result)
+    {
+        return ParseHelpers.TryParse(pemText, Parse, out result);
     }
 }

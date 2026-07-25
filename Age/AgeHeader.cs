@@ -1,33 +1,32 @@
-
 namespace AgeSharp;
 
 /// <summary>
-/// The parsed header of an age file: its recipient stanzas and layout facts.
-/// Obtained via <see cref="Age.ReadHeader(System.IO.Stream)"/> without decrypting (and without
-/// verifying the header MAC, which requires an identity).
+///     The parsed header of an age file: its recipient stanzas and layout facts.
+///     Obtained via <see cref="Age.ReadHeader(System.IO.Stream)" /> without decrypting (and without
+///     verifying the header MAC, which requires an identity).
 /// </summary>
 public sealed class AgeHeader
 {
-    /// <summary>The recipient stanzas, in file order.</summary>
-    public IReadOnlyList<Stanza> Stanzas { get; }
-
-    /// <summary>
-    /// Offset of the first payload byte (the payload nonce) in the <em>binary</em>
-    /// age encoding. For a binary file this is a file offset; when
-    /// <see cref="IsArmored"/> is true it refers to the dearmored byte stream,
-    /// not the armored file.
-    /// </summary>
-    public long PayloadOffset { get; }
-
-    /// <summary>Whether the input was wrapped in ASCII armor.</summary>
-    public bool IsArmored { get; }
-
     private AgeHeader(IReadOnlyList<Stanza> stanzas, long payloadOffset, bool isArmored)
     {
         Stanzas = stanzas;
         PayloadOffset = payloadOffset;
         IsArmored = isArmored;
     }
+
+    /// <summary>The recipient stanzas, in file order.</summary>
+    public IReadOnlyList<Stanza> Stanzas { get; }
+
+    /// <summary>
+    ///     Offset of the first payload byte (the payload nonce) in the <em>binary</em>
+    ///     age encoding. For a binary file this is a file offset; when
+    ///     <see cref="IsArmored" /> is true it refers to the dearmored byte stream,
+    ///     not the armored file.
+    /// </summary>
+    public long PayloadOffset { get; }
+
+    /// <summary>Whether the input was wrapped in ASCII armor.</summary>
+    public bool IsArmored { get; }
 
     // Parses the header of an age file (binary, or armored when the stream is
     // seekable) without decrypting it. Public entry point is Age.ReadHeader.
@@ -36,7 +35,7 @@ public sealed class AgeHeader
         // Lookahead-based detection, shared with the decrypt paths: armored input is
         // recognised on any stream, seekable or not. The dearmor wrapper is disposed
         // below; `input` itself is never disposed.
-        var (source, isArmored) = AsciiArmor.Detect(input, requireArmored: options.RequireArmor);
+        var (source, isArmored) = AsciiArmor.Detect(input, options.RequireArmor);
         var binaryInput = isArmored ? AsciiArmor.Dearmor(source, options.MaxArmorLineBytes) : source;
         var needsDispose = isArmored;
 

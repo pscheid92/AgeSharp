@@ -1,15 +1,13 @@
-using System.Linq;
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Cross-implementation interop tests against the reference <c>age</c> CLI, driven through the
-/// <see cref="AgeCli"/> helper so each case is a data row rather than repeated process plumbing.
-/// Every test skips cleanly when age is not on PATH. The size rows deliberately straddle the
-/// 64 KiB STREAM chunk boundary — where a chunk-nonce or final-flag bug would surface — and the
-/// encrypt direction (age-sharp → age) covers ground the decrypt-only CCTV vectors do not.
+///     Cross-implementation interop tests against the reference <c>age</c> CLI, driven through the
+///     <see cref="AgeCli" /> helper so each case is a data row rather than repeated process plumbing.
+///     Every test skips cleanly when age is not on PATH. The size rows deliberately straddle the
+///     64 KiB STREAM chunk boundary — where a chunk-nonce or final-flag bug would surface — and the
+///     encrypt direction (age-sharp → age) covers ground the decrypt-only CCTV vectors do not.
 /// </summary>
 public class InteropTests
 {
@@ -107,7 +105,7 @@ public class InteropTests
         using var c = X25519Identity.Generate();
         var plaintext = MakePlaintext(4096);
 
-        var ciphertext = EncryptWithCSharp(plaintext, armored: false, a.Recipient, b.Recipient, c.Recipient);
+        var ciphertext = EncryptWithCSharp(plaintext, false, a.Recipient, b.Recipient, c.Recipient);
 
         foreach (var identity in new[] { a, b, c })
             Assert.Equal(plaintext, AgeCli.Decrypt(identity.ToSecretString(), ciphertext));
@@ -123,7 +121,7 @@ public class InteropTests
         using var c = X25519Identity.Generate();
         var plaintext = MakePlaintext(4096);
 
-        var ciphertext = AgeCli.Encrypt(plaintext, armored: false,
+        var ciphertext = AgeCli.Encrypt(plaintext, false,
             a.Recipient.ToString(), b.Recipient.ToString(), c.Recipient.ToString());
 
         Assert.Equal(plaintext, DecryptWithCSharp(ciphertext, a));
@@ -146,9 +144,9 @@ public class InteropTests
         // the classic stanza, defeating the point of the PQ recipient. age-sharp and the reference
         // age CLI both refuse the combination — this locks in that the two agree on that policy.
         Assert.Throws<AgeException>(() =>
-            EncryptWithCSharp(plaintext, armored: false, x25519.Recipient, pq.Recipient));
+            EncryptWithCSharp(plaintext, false, x25519.Recipient, pq.Recipient));
         Assert.Throws<InvalidOperationException>(() =>
-            AgeCli.Encrypt(plaintext, armored: false, x25519.Recipient.ToString(), pq.Recipient.ToString()));
+            AgeCli.Encrypt(plaintext, false, x25519.Recipient.ToString(), pq.Recipient.ToString()));
     }
 
     // --- ML-KEM-768-X25519: both directions, binary + armored ---

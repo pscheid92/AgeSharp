@@ -1,4 +1,3 @@
-using AgeSharp;
 using BenchmarkDotNet.Attributes;
 
 namespace AgeSharp.Benchmarks;
@@ -6,14 +5,14 @@ namespace AgeSharp.Benchmarks;
 [MemoryDiagnoser]
 public class EncryptDecryptBenchmarks
 {
-    [Params(1024, 65_536, 1_048_576)]
-    public int DataSize;
+    [Params(1024, 65_536, 1_048_576)] public int DataSize;
+
+    private byte[] _armoredCiphertext = null!;
+    private byte[] _ciphertext = null!;
 
     private X25519Identity _identity = null!;
-    private X25519Recipient _recipient = null!;
     private byte[] _plaintext = null!;
-    private byte[] _ciphertext = null!;
-    private byte[] _armoredCiphertext = null!;
+    private X25519Recipient _recipient = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -35,7 +34,10 @@ public class EncryptDecryptBenchmarks
     }
 
     [GlobalCleanup]
-    public void Cleanup() => _identity.Dispose();
+    public void Cleanup()
+    {
+        _identity.Dispose();
+    }
 
     [Benchmark]
     public void Encrypt()

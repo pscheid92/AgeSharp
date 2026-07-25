@@ -1,4 +1,3 @@
-using AgeSharp;
 using BenchmarkDotNet.Attributes;
 
 namespace AgeSharp.Benchmarks;
@@ -8,12 +7,12 @@ public class RandomAccessBenchmarks
 {
     private const int DataSize = 1_048_576; // 1 MB
     private const int ReadSize = 4096;
+    private byte[] _ciphertext = null!;
 
     private X25519Identity _identity = null!;
-    private byte[] _ciphertext = null!;
-    private Stream _reader = null!;
     private long _plaintextLength;
     private long[] _randomOffsets = null!;
+    private Stream _reader = null!;
     private long _sink; // consumes Read results so they aren't optimized away
 
     [GlobalSetup]

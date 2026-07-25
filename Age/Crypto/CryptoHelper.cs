@@ -13,20 +13,20 @@ internal static class CryptoHelper
     private const int Sha256Size = 32;
 
     /// <summary>
-    /// Computes an X25519 shared secret — the single agreement path, used by every
-    /// caller so the all-zero rule is stated once. A low-order or identity public
-    /// point yields an all-zero shared secret, which the age spec says the
-    /// implementation MUST reject.
+    ///     Computes an X25519 shared secret — the single agreement path, used by every
+    ///     caller so the all-zero rule is stated once. A low-order or identity public
+    ///     point yields an all-zero shared secret, which the age spec says the
+    ///     implementation MUST reject.
     /// </summary>
     /// <remarks>
-    /// BouncyCastle rejects that case itself by throwing
-    /// <see cref="InvalidOperationException"/>, normalized here into an
-    /// <see cref="AgeFormatException"/> so a crafted stanza can't leak a raw BCL
-    /// exception through decryption. The explicit all-zero check that follows is
-    /// belt-and-suspenders: the spec's requirement is on us, not on the backend, and
-    /// this way it does not silently lapse if a future BouncyCastle — or a different
-    /// backend — returns the zero secret instead of throwing. The caller owns the
-    /// returned secret and must zero it after use.
+    ///     BouncyCastle rejects that case itself by throwing
+    ///     <see cref="InvalidOperationException" />, normalized here into an
+    ///     <see cref="AgeFormatException" /> so a crafted stanza can't leak a raw BCL
+    ///     exception through decryption. The explicit all-zero check that follows is
+    ///     belt-and-suspenders: the spec's requirement is on us, not on the backend, and
+    ///     this way it does not silently lapse if a future BouncyCastle — or a different
+    ///     backend — returns the zero secret instead of throwing. The caller owns the
+    ///     returned secret and must zero it after use.
     /// </remarks>
     public static byte[] X25519Agree(X25519PrivateKeyParameters privateKey, X25519PublicKeyParameters publicKey)
     {
@@ -65,7 +65,7 @@ internal static class CryptoHelper
     }
 
     public static void ChaChaEncrypt(IAeadCipher cipher, ReadOnlySpan<byte> nonce,
-                                      ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
+        ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
     {
         cipher.Encrypt(nonce, plaintext,
             ciphertextWithTag[..plaintext.Length],
@@ -73,7 +73,7 @@ internal static class CryptoHelper
     }
 
     public static void ChaChaEncrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce,
-                                      ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
+        ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
     {
         using var cipher = AeadCipher.Create(key);
         ChaChaEncrypt(cipher, nonce, plaintext, ciphertextWithTag);
@@ -87,7 +87,7 @@ internal static class CryptoHelper
     }
 
     public static bool ChaChaDecrypt(IAeadCipher cipher, ReadOnlySpan<byte> nonce,
-                                      ReadOnlySpan<byte> ciphertextWithTag, Span<byte> plaintext)
+        ReadOnlySpan<byte> ciphertextWithTag, Span<byte> plaintext)
     {
         if (ciphertextWithTag.Length < ChaChaTagSize)
             return false;
@@ -110,7 +110,7 @@ internal static class CryptoHelper
     }
 
     public static bool ChaChaDecrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce,
-                                      ReadOnlySpan<byte> ciphertextWithTag, Span<byte> plaintext)
+        ReadOnlySpan<byte> ciphertextWithTag, Span<byte> plaintext)
     {
         using var cipher = AeadCipher.Create(key);
         return ChaChaDecrypt(cipher, nonce, ciphertextWithTag, plaintext);

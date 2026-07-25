@@ -1,12 +1,11 @@
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Every synchronous entry point that can act on <see cref="AgeDecryptOptions"/> takes it
-/// the same way — a second overload with the options positional, before the params
-/// span — and the options it takes actually reach the parser.
+///     Every synchronous entry point that can act on <see cref="AgeDecryptOptions" /> takes it
+///     the same way — a second overload with the options positional, before the params
+///     span — and the options it takes actually reach the parser.
 /// </summary>
 public class OptionsConventionTests
 {
@@ -14,8 +13,10 @@ public class OptionsConventionTests
     // through rather than silently replaced by the default.
     private static AgeDecryptOptions Tiny => new() { MaxHeaderBytes = 32 };
 
-    private static byte[] Ciphertext(IRecipient recipient, bool armor = false) =>
-        Age.Encrypt("options"u8, new AgeEncryptOptions { Armor = armor }, recipient);
+    private static byte[] Ciphertext(IRecipient recipient, bool armor = false)
+    {
+        return Age.Encrypt("options"u8, new AgeEncryptOptions { Armor = armor }, recipient);
+    }
 
     [Fact]
     public void ReadHeader_OptionsOverload_AppliesTheLimit()
@@ -68,7 +69,7 @@ public class OptionsConventionTests
 
         using var output = new MemoryStream();
         Age.DecryptDetached(new MemoryStream(header), new MemoryStream(payload), output,
-                            new AgeDecryptOptions { MaxHeaderBytes = 1024 * 1024 }, identity);
+            new AgeDecryptOptions { MaxHeaderBytes = 1024 * 1024 }, identity);
 
         Assert.Equal("detached"u8.ToArray(), output.ToArray());
     }
@@ -81,7 +82,8 @@ public class OptionsConventionTests
         // require it to be honoured. A hardcoded default would let these pass.
         var ex = Record.Exception(() => call(Tiny));
 
-        Assert.True(ex is AgeFormatException, $"{name} ignored the options it was given (got {ex?.GetType().Name ?? "no exception"})");
+        Assert.True(ex is AgeFormatException,
+            $"{name} ignored the options it was given (got {ex?.GetType().Name ?? "no exception"})");
     }
 
     public static TheoryData<string, Action<AgeDecryptOptions>> OptionsRespectingEntryPoints()
@@ -93,22 +95,28 @@ public class OptionsConventionTests
 
         return new TheoryData<string, Action<AgeDecryptOptions>>
         {
-            { "Decrypt(stream)", o =>
+            {
+                "Decrypt(stream)", o =>
                 {
                     using var id = X25519Identity.Parse(secret);
                     Age.Decrypt(new MemoryStream(binary), new MemoryStream(), o, id);
-                } },
-            { "Decrypt(byte[])", o =>
+                }
+            },
+            {
+                "Decrypt(byte[])", o =>
                 {
                     using var id = X25519Identity.Parse(secret);
                     Age.Decrypt(binary, o, id);
-                } },
-            { "DecryptReader", o =>
+                }
+            },
+            {
+                "DecryptReader", o =>
                 {
                     using var id = X25519Identity.Parse(secret);
                     Age.DecryptReader(new MemoryStream(binary), o, id).Dispose();
-                } },
-            { "ReadHeader", o => Age.ReadHeader(new MemoryStream(binary), o) },
+                }
+            },
+            { "ReadHeader", o => Age.ReadHeader(new MemoryStream(binary), o) }
         };
     }
 

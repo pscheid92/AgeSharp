@@ -9,8 +9,8 @@ using Org.BouncyCastle.Crypto.Parameters;
 namespace AgeSharp;
 
 /// <summary>
-/// A recipient backed by an ssh-rsa public key (an <c>authorized_keys</c> line,
-/// at least 2048 bits), encrypting via the age <c>ssh-rsa</c> recipient type (RSA-OAEP).
+///     A recipient backed by an ssh-rsa public key (an <c>authorized_keys</c> line,
+///     at least 2048 bits), encrypting via the age <c>ssh-rsa</c> recipient type (RSA-OAEP).
 /// </summary>
 public sealed class SshRsaRecipient : IRecipient
 {
@@ -22,10 +22,24 @@ public sealed class SshRsaRecipient : IRecipient
     internal SshRsaRecipient(RsaKeyParameters publicKey, byte[] sshWireBytes)
     {
         if (publicKey.Modulus.BitLength < MinKeyBits)
-            throw new ArgumentException($"RSA key must be at least {MinKeyBits} bits, got {publicKey.Modulus.BitLength}");
+            throw new ArgumentException(
+                $"RSA key must be at least {MinKeyBits} bits, got {publicKey.Modulus.BitLength}");
 
         _publicKey = publicKey;
         _tag = SshKeyParser.ComputeTag(sshWireBytes);
+    }
+
+    /// <summary>Wraps the file key for this SSH key using RSA-OAEP (SHA-256).</summary>
+    public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+    {
+        var oaep = new OaepEncoding(new RsaBlindedEngine(), new Sha256Digest(), new Sha256Digest(),
+            Encoding.ASCII.GetBytes(AgeProtocol.SshRsaOaepLabel));
+
+        oaep.Init(true, _publicKey);
+        var input = fileKey.ToArray();
+        var body = oaep.ProcessBlock(input, 0, input.Length);
+
+        return new Stanza(AgeProtocol.SshRsaStanzaType, [_tag], body);
     }
 
     /// <summary>Parses an <c>ssh-rsa AAAA…</c> public key line.</summary>
@@ -47,21 +61,12 @@ public sealed class SshRsaRecipient : IRecipient
     }
 
     /// <summary>
-    /// Tries to parse an <c>ssh-rsa AAAA…</c> public key line. Returns false
-    /// instead of throwing when the input is null, malformed, or a weak key.
+    ///     Tries to parse an <c>ssh-rsa AAAA…</c> public key line. Returns false
+    ///     instead of throwing when the input is null, malformed, or a weak key.
     /// </summary>
-    public static bool TryParse([NotNullWhen(true)] string? authorizedKeysLine, [MaybeNullWhen(false)] out SshRsaRecipient result) =>
-        ParseHelpers.TryParse(authorizedKeysLine, Parse, out result);
-
-    /// <summary>Wraps the file key for this SSH key using RSA-OAEP (SHA-256).</summary>
-    public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+    public static bool TryParse([NotNullWhen(true)] string? authorizedKeysLine,
+        [MaybeNullWhen(false)] out SshRsaRecipient result)
     {
-        var oaep = new OaepEncoding(new RsaBlindedEngine(), new Sha256Digest(), new Sha256Digest(), Encoding.ASCII.GetBytes(AgeProtocol.SshRsaOaepLabel));
-
-        oaep.Init(true, _publicKey);
-        var input = fileKey.ToArray();
-        var body = oaep.ProcessBlock(input, 0, input.Length);
-
-        return new Stanza(AgeProtocol.SshRsaStanzaType, [_tag], body);
+        return ParseHelpers.TryParse(authorizedKeysLine, Parse, out result);
     }
 }

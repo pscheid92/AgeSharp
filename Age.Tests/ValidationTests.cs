@@ -1,18 +1,30 @@
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Argument and invariant validation on the public entry points: the encrypt-side
-/// scrypt-must-be-alone rule, empty identity lists, and <see cref="Stanza"/>
-/// constructor input validation.
+///     Argument and invariant validation on the public entry points: the encrypt-side
+///     scrypt-must-be-alone rule, empty identity lists, and <see cref="Stanza" />
+///     constructor input validation.
 /// </summary>
 public class ValidationTests
 {
     private const int LowWorkFactor = 10;
 
-    private static MemoryStream Plaintext() => new("hello"u8.ToArray());
+    // --- empty collections are a caller bug, not "no match" ---
+    //
+    // Omitting recipients/identities *entirely* no longer reaches these guards: the
+    // `first, params rest` overloads make that a compile error. What survives is the
+    // collection overload, where emptiness is only knowable at runtime — so these
+    // tests now pin the one shape that still needs a guard.
+
+    private static readonly IIdentity[] NoIdentities = [];
+    private static readonly IRecipient[] NoRecipients = [];
+
+    private static MemoryStream Plaintext()
+    {
+        return new MemoryStream("hello"u8.ToArray());
+    }
 
     private static MemoryStream EncryptTo(IRecipient recipient)
     {
@@ -77,16 +89,6 @@ public class ValidationTests
 
         Assert.Equal("hello"u8.ToArray(), decrypted.ToArray());
     }
-
-    // --- empty collections are a caller bug, not "no match" ---
-    //
-    // Omitting recipients/identities *entirely* no longer reaches these guards: the
-    // `first, params rest` overloads make that a compile error. What survives is the
-    // collection overload, where emptiness is only knowable at runtime — so these
-    // tests now pin the one shape that still needs a guard.
-
-    private static readonly IIdentity[] NoIdentities = [];
-    private static readonly IRecipient[] NoRecipients = [];
 
     [Fact]
     public void Decrypt_NoIdentities_ThrowsArgumentException()
@@ -184,10 +186,10 @@ public class ValidationTests
     }
 
     [Theory]
-    [InlineData("")]            // empty type is unrepresentable
-    [InlineData("my type")]     // space changes argument framing
-    [InlineData("my\ntype")]    // newline injects header lines
-    [InlineData("tüpe")]   // outside printable ASCII
+    [InlineData("")] // empty type is unrepresentable
+    [InlineData("my type")] // space changes argument framing
+    [InlineData("my\ntype")] // newline injects header lines
+    [InlineData("tüpe")] // outside printable ASCII
     public void Stanza_Ctor_InvalidType_ThrowsArgumentException(string type)
     {
         Assert.Throws<ArgumentException>(() => new Stanza(type, [], []));

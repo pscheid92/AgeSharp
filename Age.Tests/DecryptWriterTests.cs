@@ -1,15 +1,16 @@
-using AgeSharp;
+using System.Security.Cryptography;
+using System.Text;
 using AgeSharp.Crypto;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// <see cref="Age.DecryptWriter"/> — the push half of decryption. Its distinguishing
-/// risk is that nothing is known up front: framing, header, nonce, and chunks are all
-/// discovered from bytes as they arrive, and the final chunk is only recognisable as
-/// final at dispose. These tests push ciphertext in shapes that stress those seams —
-/// byte-at-a-time, exact chunk multiples, and truncation.
+///     <see cref="Age.DecryptWriter" /> — the push half of decryption. Its distinguishing
+///     risk is that nothing is known up front: framing, header, nonce, and chunks are all
+///     discovered from bytes as they arrive, and the final chunk is only recognisable as
+///     final at dispose. These tests push ciphertext in shapes that stress those seams —
+///     byte-at-a-time, exact chunk multiples, and truncation.
 /// </summary>
 public class DecryptWriterTests
 {
@@ -28,8 +29,10 @@ public class DecryptWriterTests
         using var output = new MemoryStream();
 
         using (var writer = Age.DecryptWriter(output, identity))
+        {
             for (var offset = 0; offset < ciphertext.Length; offset += writeSize)
                 writer.Write(ciphertext.AsSpan(offset, Math.Min(writeSize, ciphertext.Length - offset)));
+        }
 
         return output.ToArray();
     }
@@ -37,7 +40,7 @@ public class DecryptWriterTests
     // --- round trips ---------------------------------------------------------
 
     [Theory]
-    [InlineData(0)]           // empty plaintext — the one case where an empty final chunk is legal
+    [InlineData(0)] // empty plaintext — the one case where an empty final chunk is legal
     [InlineData(1)]
     [InlineData(1000)]
     public void RoundTrip_SmallPayloads(int length)
@@ -49,9 +52,9 @@ public class DecryptWriterTests
     }
 
     [Theory]
-    [InlineData(-1)]  // one byte under a chunk
-    [InlineData(0)]   // exactly one chunk — the boundary the hold-back rule turns on
-    [InlineData(1)]   // one byte over
+    [InlineData(-1)] // one byte under a chunk
+    [InlineData(0)] // exactly one chunk — the boundary the hold-back rule turns on
+    [InlineData(1)] // one byte over
     public void RoundTrip_AtTheChunkBoundary(int delta)
     {
         using var identity = X25519Identity.Generate();
@@ -81,7 +84,7 @@ public class DecryptWriterTests
     // --- write granularity is not allowed to matter --------------------------
 
     [Theory]
-    [InlineData(1)]      // byte at a time: every stage transition lands mid-write
+    [InlineData(1)] // byte at a time: every stage transition lands mid-write
     [InlineData(7)]
     [InlineData(64)]
     [InlineData(4096)]
@@ -101,7 +104,7 @@ public class DecryptWriterTests
         var plaintext = Pattern(ChunkSize + 1);
         var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
 
-        Assert.Equal(plaintext, PushDecrypt(ciphertext, identity, writeSize: 1));
+        Assert.Equal(plaintext, PushDecrypt(ciphertext, identity, 1));
     }
 
     // --- armor ---------------------------------------------------------------
@@ -125,7 +128,7 @@ public class DecryptWriterTests
         var plaintext = Pattern(ChunkSize + 777);
         var armored = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
 
-        Assert.Equal(plaintext, PushDecrypt(armored, identity, writeSize: 1));
+        Assert.Equal(plaintext, PushDecrypt(armored, identity, 1));
     }
 
     [Fact]
@@ -154,7 +157,9 @@ public class DecryptWriterTests
 
         using var output = new MemoryStream();
         using (var writer = Age.DecryptWriter(output, options, identity))
+        {
             writer.Write(armored);
+        }
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -243,7 +248,7 @@ public class DecryptWriterTests
     private static byte[] HeaderAndNonce(byte[] ciphertext)
     {
         var offset = (int)Age.ReadHeader(new MemoryStream(ciphertext)).PayloadOffset;
-        return ciphertext[..(offset + 16)];   // header + payload nonce, zero chunks
+        return ciphertext[..(offset + 16)]; // header + payload nonce, zero chunks
     }
 
     [Fact]
@@ -269,7 +274,7 @@ public class DecryptWriterTests
         using var identity = X25519Identity.Generate();
         var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
         var offset = (int)Age.ReadHeader(new MemoryStream(ciphertext)).PayloadOffset;
-        var stub = ciphertext[..(offset + 16 + 5)];   // five bytes is not even a tag
+        var stub = ciphertext[..(offset + 16 + 5)]; // five bytes is not even a tag
 
         using var output = new MemoryStream();
 
@@ -310,7 +315,7 @@ public class DecryptWriterTests
         using var identity = X25519Identity.Generate();
 
         var fileKey = new byte[16];
-        System.Security.Cryptography.RandomNumberGenerator.Fill(fileKey);
+        RandomNumberGenerator.Fill(fileKey);
 
         var header = new Header();
         header.Stanzas.Add(identity.Recipient.Wrap(fileKey));
@@ -318,11 +323,11 @@ public class DecryptWriterTests
         header.WriteTo(headerBytes, fileKey);
 
         var nonce = new byte[16];
-        System.Security.Cryptography.RandomNumberGenerator.Fill(nonce);
+        RandomNumberGenerator.Fill(nonce);
         var payloadKey = CryptoHelper.HkdfDerive(fileKey, nonce, "payload", 32);
 
-        var full = StreamEncryption.EncryptChunk(payloadKey, 0, isFinal: false, new byte[ChunkSize]);
-        var emptyFinal = StreamEncryption.EncryptChunk(payloadKey, 1, isFinal: true, []);
+        var full = StreamEncryption.EncryptChunk(payloadKey, 0, false, new byte[ChunkSize]);
+        var emptyFinal = StreamEncryption.EncryptChunk(payloadKey, 1, true, []);
         var forged = (byte[])[.. headerBytes.ToArray(), .. nonce, .. full, .. emptyFinal];
 
         using var output = new MemoryStream();
@@ -358,7 +363,7 @@ public class DecryptWriterTests
         // to real bytes at end of input, and the missing end marker is what rejects it.
         using var identity = X25519Identity.Generate();
         var armored = Age.Encrypt(Pattern(4000), new AgeEncryptOptions { Armor = true }, identity.Recipient);
-        var text = System.Text.Encoding.ASCII.GetString(armored);
+        var text = Encoding.ASCII.GetString(armored);
 
         var lines = text.Split('\n');
         var cut = string.Join('\n', lines[..(lines.Length / 2)]) + "\n" + lines[lines.Length / 2][..20];
@@ -368,7 +373,7 @@ public class DecryptWriterTests
         Assert.Throws<AgeFormatException>(() =>
         {
             using var writer = Age.DecryptWriter(output, identity);
-            writer.Write(System.Text.Encoding.ASCII.GetBytes(cut));
+            writer.Write(Encoding.ASCII.GetBytes(cut));
         });
     }
 
@@ -439,7 +444,9 @@ public class DecryptWriterTests
         using var output = new MemoryStream();
 
         using (var writer = Age.DecryptWriter(output, identity))
+        {
             source.CopyTo(writer);
+        }
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -453,7 +460,9 @@ public class DecryptWriterTests
         using var inner = new MemoryStream();
         var output = new DisposeTrackingStream(inner);
         using (var writer = Age.DecryptWriter(output, identity))
+        {
             writer.Write(ciphertext);
+        }
 
         Assert.False(output.WasDisposed);
     }
@@ -484,7 +493,9 @@ public class DecryptWriterTests
         using var output = new MemoryStream();
 
         await using (var writer = Age.DecryptWriter(output, identity))
+        {
             await writer.WriteAsync(ciphertext);
+        }
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -502,8 +513,10 @@ public class DecryptWriterTests
         await using var output = new ThrowOnSyncIoStream(inner);
 
         await using (var writer = Age.DecryptWriter(output, identity))
+        {
             for (var offset = 0; offset < ciphertext.Length; offset += 8192)
                 await writer.WriteAsync(ciphertext.AsMemory(offset, Math.Min(8192, ciphertext.Length - offset)));
+        }
 
         Assert.Equal(plaintext, inner.ToArray());
     }
@@ -523,30 +536,6 @@ public class DecryptWriterTests
         await writer.DisposeAsync();
 
         Assert.Equal(plaintext, inner.ToArray());
-    }
-
-    private sealed class DisposeTrackingStream(Stream inner) : Stream
-    {
-        public bool WasDisposed { get; private set; }
-
-        public override bool CanRead => inner.CanRead;
-        public override bool CanSeek => false;
-        public override bool CanWrite => inner.CanWrite;
-        public override long Length => inner.Length;
-        public override long Position { get => inner.Position; set => throw new NotSupportedException(); }
-
-        public override void Write(byte[] buffer, int offset, int count) => inner.Write(buffer, offset, count);
-        public override void Write(ReadOnlySpan<byte> buffer) => inner.Write(buffer);
-        public override void Flush() => inner.Flush();
-        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing) WasDisposed = true;
-            base.Dispose(disposing);
-        }
     }
 
     [Fact]
@@ -614,9 +603,106 @@ public class DecryptWriterTests
         {
             using var output = new MemoryStream();
             using (var writer = open(output))
+            {
                 writer.Write(ciphertext);
+            }
 
             Assert.Equal(plaintext, output.ToArray());
+        }
+    }
+
+    [Fact]
+    public void EmptyPlaintext_TouchesTheDestination()
+    {
+        using var identity = X25519Identity.Generate();
+        var ciphertext = Age.Encrypt(ReadOnlySpan<byte>.Empty, identity.Recipient);
+        var destination = new TouchRecorder();
+
+        using (var writer = Age.DecryptWriter(destination, identity))
+        {
+            writer.Write(ciphertext);
+        }
+
+        Assert.True(destination.Touched);
+    }
+
+    [Fact]
+    public async Task EmptyPlaintext_TouchesTheDestination_Async()
+    {
+        using var identity = X25519Identity.Generate();
+        var ciphertext = Age.Encrypt(ReadOnlySpan<byte>.Empty, identity.Recipient);
+        var destination = new TouchRecorder();
+
+        await using (var writer = Age.DecryptWriter(destination, identity))
+        {
+            await writer.WriteAsync(ciphertext);
+        }
+
+        Assert.True(destination.Touched);
+    }
+
+    // --- the grid is closed --------------------------------------------------
+
+    [Fact]
+    public void EveryCellOfTheStreamingGridExists()
+    {
+        var members = typeof(Age).GetMethods().Select(m => m.Name).ToHashSet();
+
+        Assert.Contains("EncryptReader", members);
+        Assert.Contains("EncryptWriter", members);
+        Assert.Contains("DecryptReader", members);
+        Assert.Contains("DecryptWriter", members);
+    }
+
+    private sealed class DisposeTrackingStream(Stream inner) : Stream
+    {
+        public bool WasDisposed { get; private set; }
+
+        public override bool CanRead => inner.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => inner.CanWrite;
+        public override long Length => inner.Length;
+
+        public override long Position
+        {
+            get => inner.Position;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            inner.Write(buffer, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            inner.Write(buffer);
+        }
+
+        public override void Flush()
+        {
+            inner.Flush();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            return inner.Read(buffer, offset, count);
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) WasDisposed = true;
+            base.Dispose(disposing);
         }
     }
 
@@ -633,10 +719,22 @@ public class DecryptWriterTests
         public override bool CanSeek => false;
         public override bool CanWrite => true;
         public override long Length => 0;
-        public override long Position { get => 0; set { } }
 
-        public override void Write(byte[] buffer, int offset, int count) => Touched = true;
-        public override void Write(ReadOnlySpan<byte> buffer) => Touched = true;
+        public override long Position
+        {
+            get => 0;
+            set { }
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            Touched = true;
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            Touched = true;
+        }
 
         public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
@@ -644,48 +742,23 @@ public class DecryptWriterTests
             return ValueTask.CompletedTask;
         }
 
-        public override void Flush() { }
-        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-    }
+        public override void Flush()
+        {
+        }
 
-    [Fact]
-    public void EmptyPlaintext_TouchesTheDestination()
-    {
-        using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(ReadOnlySpan<byte>.Empty, identity.Recipient);
-        var destination = new TouchRecorder();
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
 
-        using (var writer = Age.DecryptWriter(destination, identity))
-            writer.Write(ciphertext);
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotSupportedException();
+        }
 
-        Assert.True(destination.Touched);
-    }
-
-    [Fact]
-    public async Task EmptyPlaintext_TouchesTheDestination_Async()
-    {
-        using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(ReadOnlySpan<byte>.Empty, identity.Recipient);
-        var destination = new TouchRecorder();
-
-        await using (var writer = Age.DecryptWriter(destination, identity))
-            await writer.WriteAsync(ciphertext);
-
-        Assert.True(destination.Touched);
-    }
-
-    // --- the grid is closed --------------------------------------------------
-
-    [Fact]
-    public void EveryCellOfTheStreamingGridExists()
-    {
-        var members = typeof(Age).GetMethods().Select(m => m.Name).ToHashSet();
-
-        Assert.Contains("EncryptReader", members);
-        Assert.Contains("EncryptWriter", members);
-        Assert.Contains("DecryptReader", members);
-        Assert.Contains("DecryptWriter", members);
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
     }
 }

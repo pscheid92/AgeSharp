@@ -1,7 +1,6 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.TestKit;
@@ -34,21 +33,19 @@ public class CctvTestRunner
         _ = name; // Used for test display
         var (metadata, identityStrings, ageFileBytes) = ParseTestFile(path);
 
-        string expect = metadata["expect"];
-        string? passphrase = metadata.GetValueOrDefault("passphrase");
-        string? payloadHash = metadata.GetValueOrDefault("payload");
+        var expect = metadata["expect"];
+        var passphrase = metadata.GetValueOrDefault("passphrase");
+        var payloadHash = metadata.GetValueOrDefault("payload");
 
         // Build identities
         var identities = new List<IIdentity>();
         foreach (var identityStr in identityStrings)
-        {
             if (identityStr.StartsWith("AGE-SECRET-KEY-PQ-", StringComparison.OrdinalIgnoreCase))
                 identities.Add(MlKem768X25519Identity.Parse(identityStr));
             else if (identityStr.StartsWith("AGE-SECRET-KEY-1", StringComparison.OrdinalIgnoreCase))
                 identities.Add(X25519Identity.Parse(identityStr));
             else if (identityStr.StartsWith("-----BEGIN"))
                 identities.Add(Age.ParseIdentity(identityStr));
-        }
         if (passphrase != null)
             identities.Add(new Passphrase(passphrase));
 
@@ -147,7 +144,8 @@ public class CctvTestRunner
             Age.Decrypt(input, output, identities.ToArray()));
     }
 
-    private static (Dictionary<string, string> metadata, List<string> identityStrings, byte[] ageFileBytes) ParseTestFile(string path)
+    private static (Dictionary<string, string> metadata, List<string> identityStrings, byte[] ageFileBytes)
+        ParseTestFile(string path)
     {
         // The file consists of:
         // 1. Header lines (key: value pairs)
@@ -157,11 +155,11 @@ public class CctvTestRunner
 
         var metadata = new Dictionary<string, string>();
         var identityStrings = new List<string>();
-        int pos = 0;
+        var pos = 0;
 
         while (pos < allBytes.Length)
         {
-            int lineEnd = Array.IndexOf(allBytes, (byte)'\n', pos);
+            var lineEnd = Array.IndexOf(allBytes, (byte)'\n', pos);
             if (lineEnd < 0) break;
 
             if (lineEnd == pos)
@@ -173,11 +171,11 @@ public class CctvTestRunner
             var line = Encoding.UTF8.GetString(allBytes, pos, lineEnd - pos);
             pos = lineEnd + 1;
 
-            int colonIdx = line.IndexOf(": ");
+            var colonIdx = line.IndexOf(": ");
             if (colonIdx >= 0)
             {
-                string key = line[..colonIdx];
-                string value = line[(colonIdx + 2)..];
+                var key = line[..colonIdx];
+                var value = line[(colonIdx + 2)..];
                 if (key == "identity")
                     identityStrings.Add(value);
                 metadata[key] = value;
@@ -189,9 +187,7 @@ public class CctvTestRunner
 
         // Handle zlib compression
         if (metadata.TryGetValue("compressed", out var compression) && compression == "zlib")
-        {
             bodyBytes = ZlibDecompress(bodyBytes);
-        }
 
         return (metadata, identityStrings, bodyBytes);
     }

@@ -1,12 +1,12 @@
 using System.Security.Cryptography;
 using System.Text;
-using AgeSharp;
 
 namespace AgeSharp.Cli;
 
 internal static class AgeCommand
 {
-    public static int Execute(bool encrypt, bool armor, bool passphrase, string[] recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath)
+    public static int Execute(bool encrypt, bool armor, bool passphrase, string[] recipients, string[] recipientFiles,
+        string[] identityFiles, string? outputPath, string? inputPath)
     {
         var parsedRecipients = recipients.Select(ParseRecipient).ToList();
 
@@ -15,7 +15,8 @@ internal static class AgeCommand
             : Decrypt(passphrase, identityFiles, outputPath, inputPath);
     }
 
-    private static int Encrypt(bool armor, bool passphrase, List<IRecipient> recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath)
+    private static int Encrypt(bool armor, bool passphrase, List<IRecipient> recipients, string[] recipientFiles,
+        string[] identityFiles, string? outputPath, string? inputPath)
     {
         var callbacks = new CliPluginCallbacks();
 
@@ -44,7 +45,8 @@ internal static class AgeCommand
         return 0;
     }
 
-    private static void CollectRecipientsFromFiles(string[] recipientFiles, string[] identityFiles, List<IRecipient> recipients, IPluginCallbacks callbacks)
+    private static void CollectRecipientsFromFiles(string[] recipientFiles, string[] identityFiles,
+        List<IRecipient> recipients, IPluginCallbacks callbacks)
     {
         foreach (var file in recipientFiles)
         {
@@ -56,12 +58,11 @@ internal static class AgeCommand
         {
             var identities = LoadIdentities(file, callbacks);
             foreach (var id in identities)
-            {
                 if (GetRecipientFromIdentity(id) is { } recipient)
                     recipients.Add(recipient);
                 else
-                    Console.Error.WriteLine("warning: skipping identity without public recipient extraction (plugin identity)");
-            }
+                    Console.Error.WriteLine(
+                        "warning: skipping identity without public recipient extraction (plugin identity)");
         }
     }
 
@@ -112,17 +113,23 @@ internal static class AgeCommand
             if (identityFiles.Length == 0)
                 throw new AgeException("missing identity (-i required for decryption, or use -p for passphrase)");
 
-            identities.AddRange(from file in identityFiles from id in LoadIdentities(file, callbacks) select id is Passphrase ? new RejectScryptIdentity() : id);
+            identities.AddRange(from file in identityFiles
+                from id in LoadIdentities(file, callbacks)
+                select id is Passphrase ? new RejectScryptIdentity() : id);
         }
 
         return identities;
     }
 
-    private static IRecipient? GetRecipientFromIdentity(IIdentity identity) =>
-        identity is IIdentityWithRecipient withRecipient ? withRecipient.Recipient : null;
+    private static IRecipient? GetRecipientFromIdentity(IIdentity identity)
+    {
+        return identity is IIdentityWithRecipient withRecipient ? withRecipient.Recipient : null;
+    }
 
-    private static IRecipient ParseRecipient(string s) =>
-        Age.ParseRecipient(s, new CliPluginCallbacks());
+    private static IRecipient ParseRecipient(string s)
+    {
+        return Age.ParseRecipient(s, new CliPluginCallbacks());
+    }
 
     private static List<IIdentity> LoadIdentities(string path, IPluginCallbacks callbacks)
     {
@@ -156,7 +163,7 @@ internal static class AgeCommand
 
         while (true)
         {
-            var key = Console.ReadKey(intercept: true);
+            var key = Console.ReadKey(true);
             switch (key.Key)
             {
                 case ConsoleKey.Enter:
@@ -192,15 +199,19 @@ internal static class AgeCommand
         return string.Join("-", parts);
     }
 
-    private static Stream OpenInput(string? path) =>
-        path is not null ? File.OpenRead(path) : Console.OpenStandardInput();
+    private static Stream OpenInput(string? path)
+    {
+        return path is not null ? File.OpenRead(path) : Console.OpenStandardInput();
+    }
 
-    private static Stream OpenOutput(string? path) =>
-        path is not null ? new LazyFileStream(path) : Console.OpenStandardOutput();
+    private static Stream OpenOutput(string? path)
+    {
+        return path is not null ? new LazyFileStream(path) : Console.OpenStandardOutput();
+    }
 
     /// <summary>
-    /// A passphrase identity that lazily prompts the user on first use.
-    /// Used for <c>age -d -p</c> mode.
+    ///     A passphrase identity that lazily prompts the user on first use.
+    ///     Used for <c>age -d -p</c> mode.
     /// </summary>
     private sealed class LazyPassphraseIdentity : IIdentity
     {
@@ -214,27 +225,32 @@ internal static class AgeCommand
     }
 
     /// <summary>
-    /// An identity wrapper that rejects scrypt stanzas when using identity files.
-    /// Prevents passphrase-encrypted files from being accidentally decrypted with <c>-i</c>.
+    ///     An identity wrapper that rejects scrypt stanzas when using identity files.
+    ///     Prevents passphrase-encrypted files from being accidentally decrypted with <c>-i</c>.
     /// </summary>
     private sealed class RejectScryptIdentity : IIdentity
     {
-        public byte[]? Unwrap(Stanza stanza) =>
-            stanza.Type == "scrypt"
+        public byte[]? Unwrap(Stanza stanza)
+        {
+            return stanza.Type == "scrypt"
                 ? throw new AgeException("passphrase-encrypted file can't be decrypted with -i; use -p instead")
                 : null;
+        }
     }
 
     /// <summary>
-    /// A stream that lazily creates the output file on first write.
-    /// Prevents creating empty output files on errors.
+    ///     A stream that lazily creates the output file on first write.
+    ///     Prevents creating empty output files on errors.
     /// </summary>
     private sealed class LazyFileStream : Stream
     {
         private readonly string _path;
         private FileStream? _inner;
 
-        public LazyFileStream(string path) => _path = path;
+        public LazyFileStream(string path)
+        {
+            _path = path;
+        }
 
         private FileStream Inner => _inner ??= File.Create(_path);
 
@@ -249,12 +265,35 @@ internal static class AgeCommand
             set => Inner.Position = value;
         }
 
-        public override void Flush() => _inner?.Flush();
-        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => Inner.SetLength(value);
-        public override void Write(byte[] buffer, int offset, int count) => Inner.Write(buffer, offset, count);
-        public override void Write(ReadOnlySpan<byte> buffer) => Inner.Write(buffer);
+        public override void Flush()
+        {
+            _inner?.Flush();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void SetLength(long value)
+        {
+            Inner.SetLength(value);
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            Inner.Write(buffer, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            Inner.Write(buffer);
+        }
 
         protected override void Dispose(bool disposing)
         {
@@ -264,12 +303,14 @@ internal static class AgeCommand
     }
 
     /// <summary>
-    /// Console-based implementation of <see cref="IPluginCallbacks"/> for CLI use.
+    ///     Console-based implementation of <see cref="IPluginCallbacks" /> for CLI use.
     /// </summary>
     private sealed class CliPluginCallbacks : IPluginCallbacks
     {
-        public void DisplayMessage(string message) =>
+        public void DisplayMessage(string message)
+        {
             Console.Error.WriteLine(message);
+        }
 
         public string RequestValue(string prompt, bool secret)
         {

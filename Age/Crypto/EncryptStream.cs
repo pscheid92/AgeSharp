@@ -3,31 +3,25 @@ using System.Security.Cryptography;
 
 namespace AgeSharp.Crypto;
 
-internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byte[] payloadKey, Stream plaintext) : Stream
+internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byte[] payloadKey, Stream plaintext)
+    : Stream
 {
-    private enum State
-    {
-        Preamble,
-        Chunks,
-        Done
-    }
-
     private const int PlaintextBufferSize = StreamEncryption.ChunkSize + 1;
     private const int CiphertextBufferSize = StreamEncryption.EncryptedChunkSize;
-
-    private State _state = State.Preamble;
-    private readonly byte[] _preamble = [..headerBytes, ..payloadNonce];
-    private int _preambleOffset;
+    private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
+    private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
 
     // Chunk buffering — rented from the shared pool, reused across chunks
     private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(PlaintextBufferSize);
-    private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
-    private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
+    private readonly byte[] _preamble = [.. headerBytes, .. payloadNonce];
     private int _chunkLength;
     private int _chunkOffset;
     private long _counter;
     private bool _emittedFinal;
     private bool _pendingByte;
+    private int _preambleOffset;
+
+    private State _state = State.Preamble;
 
     public override bool CanRead => true;
     public override bool CanSeek => false;
@@ -41,14 +35,15 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
     }
 
     public override int Read(byte[] buffer, int offset, int count)
-        => Read(buffer.AsSpan(offset, count));
+    {
+        return Read(buffer.AsSpan(offset, count));
+    }
 
     public override int Read(Span<byte> buffer)
     {
         var totalRead = 0;
 
         while (totalRead < buffer.Length)
-        {
             switch (_state)
             {
                 case State.Preamble:
@@ -58,7 +53,8 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
                 case State.Chunks:
                     if (!EnsureChunkAvailable())
                         return totalRead;
-                    totalRead += EmitBuffer(_ciphertextBuffer.AsSpan(0, _chunkLength), ref _chunkOffset, buffer[totalRead..]);
+                    totalRead += EmitBuffer(_ciphertextBuffer.AsSpan(0, _chunkLength), ref _chunkOffset,
+                        buffer[totalRead..]);
                     break;
 
                 case State.Done:
@@ -67,20 +63,20 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
                 default:
                     throw new ArgumentOutOfRangeException();
             }
-        }
 
         return totalRead;
     }
 
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    {
+        return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    }
 
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
         var totalRead = 0;
 
         while (totalRead < buffer.Length)
-        {
             switch (_state)
             {
                 case State.Preamble:
@@ -90,7 +86,8 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
                 case State.Chunks:
                     if (!await EnsureChunkAvailableAsync(cancellationToken).ConfigureAwait(false))
                         return totalRead;
-                    totalRead += EmitBuffer(_ciphertextBuffer.AsSpan(0, _chunkLength), ref _chunkOffset, buffer.Span[totalRead..]);
+                    totalRead += EmitBuffer(_ciphertextBuffer.AsSpan(0, _chunkLength), ref _chunkOffset,
+                        buffer.Span[totalRead..]);
                     break;
 
                 case State.Done:
@@ -99,7 +96,6 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
                 default:
                     throw new ArgumentOutOfRangeException();
             }
-        }
 
         return totalRead;
     }
@@ -141,7 +137,8 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
             return false;
         }
 
-        EncryptChunk(await ReadFromPlaintextAsync(_plaintextBuffer, StreamEncryption.ChunkSize + 1, cancellationToken).ConfigureAwait(false));
+        EncryptChunk(await ReadFromPlaintextAsync(_plaintextBuffer, StreamEncryption.ChunkSize + 1, cancellationToken)
+            .ConfigureAwait(false));
         return true;
     }
 
@@ -206,7 +203,8 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
 
         while (total < count)
         {
-            var read = await plaintext.ReadAsync(buffer.AsMemory(total, count - total), cancellationToken).ConfigureAwait(false);
+            var read = await plaintext.ReadAsync(buffer.AsMemory(total, count - total), cancellationToken)
+                .ConfigureAwait(false);
 
             if (read == 0)
                 break;
@@ -245,12 +243,25 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
     {
     }
 
-    public override long Seek(long offset, SeekOrigin origin) =>
+    public override long Seek(long offset, SeekOrigin origin)
+    {
         throw new NotSupportedException();
+    }
 
-    public override void SetLength(long value) =>
+    public override void SetLength(long value)
+    {
         throw new NotSupportedException();
+    }
 
-    public override void Write(byte[] buffer, int offset, int count) =>
+    public override void Write(byte[] buffer, int offset, int count)
+    {
         throw new NotSupportedException();
+    }
+
+    private enum State
+    {
+        Preamble,
+        Chunks,
+        Done
+    }
 }

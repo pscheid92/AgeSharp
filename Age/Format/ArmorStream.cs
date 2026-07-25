@@ -9,16 +9,14 @@ internal sealed class ArmorStream : Stream
 
     private static readonly byte[] BeginBytes = Encoding.ASCII.GetBytes("-----BEGIN AGE ENCRYPTED FILE-----\n");
     private static readonly byte[] EndBytes = Encoding.ASCII.GetBytes("-----END AGE ENCRYPTED FILE-----\n");
-
-    private enum Phase { Begin, Body, End, Done }
+    private readonly byte[] _scratch = new byte[CharsPerLine + 1];
 
     private readonly Stream _source;
     private readonly byte[] _sourceScratch = new byte[ArmorFormat.BytesPerLine];
-    private readonly byte[] _scratch = new byte[CharsPerLine + 1];
-    private int _scratchOffset;
-    private int _scratchLength;
-    private Phase _phase = Phase.Begin;
     private bool _disposed;
+    private Phase _phase = Phase.Begin;
+    private int _scratchLength;
+    private int _scratchOffset;
 
     public ArmorStream(Stream source)
     {
@@ -37,7 +35,9 @@ internal sealed class ArmorStream : Stream
     }
 
     public override int Read(byte[] buffer, int offset, int count)
-        => Read(buffer.AsSpan(offset, count));
+    {
+        return Read(buffer.AsSpan(offset, count));
+    }
 
     public override int Read(Span<byte> buffer)
     {
@@ -60,7 +60,9 @@ internal sealed class ArmorStream : Stream
     }
 
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    {
+        return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    }
 
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
@@ -100,7 +102,6 @@ internal sealed class ArmorStream : Stream
         _scratchOffset = 0;
 
         while (true)
-        {
             switch (_phase)
             {
                 case Phase.Begin:
@@ -114,6 +115,7 @@ internal sealed class ArmorStream : Stream
                         _phase = Phase.End;
                         continue;
                     }
+
                     EncodeBodyLine(read);
                     return true;
 
@@ -128,7 +130,6 @@ internal sealed class ArmorStream : Stream
                 default:
                     throw new InvalidOperationException($"unknown armor phase: {_phase}");
             }
-        }
     }
 
     private async ValueTask<bool> FillScratchAsync(CancellationToken cancellationToken)
@@ -136,7 +137,6 @@ internal sealed class ArmorStream : Stream
         _scratchOffset = 0;
 
         while (true)
-        {
             switch (_phase)
             {
                 case Phase.Begin:
@@ -150,6 +150,7 @@ internal sealed class ArmorStream : Stream
                         _phase = Phase.End;
                         continue;
                     }
+
                     EncodeBodyLine(read);
                     return true;
 
@@ -164,7 +165,6 @@ internal sealed class ArmorStream : Stream
                 default:
                     throw new InvalidOperationException($"unknown armor phase: {_phase}");
             }
-        }
     }
 
     private void EmitMarker(byte[] marker, Phase next)
@@ -190,6 +190,7 @@ internal sealed class ArmorStream : Stream
             if (read == 0) break;
             total += read;
         }
+
         return total;
     }
 
@@ -198,10 +199,13 @@ internal sealed class ArmorStream : Stream
         var total = 0;
         while (total < _sourceScratch.Length)
         {
-            var read = await _source.ReadAsync(_sourceScratch.AsMemory(total, _sourceScratch.Length - total), cancellationToken).ConfigureAwait(false);
+            var read = await _source
+                .ReadAsync(_sourceScratch.AsMemory(total, _sourceScratch.Length - total), cancellationToken)
+                .ConfigureAwait(false);
             if (read == 0) break;
             total += read;
         }
+
         return total;
     }
 
@@ -227,8 +231,30 @@ internal sealed class ArmorStream : Stream
         await base.DisposeAsync().ConfigureAwait(false);
     }
 
-    public override void Flush() { }
-    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-    public override void SetLength(long value) => throw new NotSupportedException();
-    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    public override void Flush()
+    {
+    }
+
+    public override long Seek(long offset, SeekOrigin origin)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override void SetLength(long value)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override void Write(byte[] buffer, int offset, int count)
+    {
+        throw new NotSupportedException();
+    }
+
+    private enum Phase
+    {
+        Begin,
+        Body,
+        End,
+        Done
+    }
 }

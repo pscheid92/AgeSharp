@@ -86,7 +86,7 @@ internal static class StreamEncryption
     }
 
     internal static void EncryptChunk(IAeadCipher cipher, long counter, bool isFinal,
-                                       ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
+        ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
     {
         Span<byte> nonce = stackalloc byte[NonceSize];
         MakeNonce(counter, isFinal, nonce);
@@ -94,14 +94,15 @@ internal static class StreamEncryption
     }
 
     internal static void EncryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal,
-                                       ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
+        ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
     {
         Span<byte> nonce = stackalloc byte[NonceSize];
         MakeNonce(counter, isFinal, nonce);
         CryptoHelper.ChaChaEncrypt(payloadKey, nonce, plaintext, ciphertextWithTag);
     }
 
-    internal static byte[] EncryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal, ReadOnlySpan<byte> plaintext)
+    internal static byte[] EncryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal,
+        ReadOnlySpan<byte> plaintext)
     {
         var output = new byte[plaintext.Length + TagSize];
         EncryptChunk(payloadKey, counter, isFinal, plaintext, output);
@@ -109,7 +110,7 @@ internal static class StreamEncryption
     }
 
     internal static void DecryptChunk(IAeadCipher cipher, long counter, bool isFinal,
-                                       ReadOnlySpan<byte> ciphertext, Span<byte> plaintext)
+        ReadOnlySpan<byte> ciphertext, Span<byte> plaintext)
     {
         Span<byte> nonce = stackalloc byte[NonceSize];
         MakeNonce(counter, isFinal, nonce);
@@ -119,7 +120,7 @@ internal static class StreamEncryption
     }
 
     internal static void DecryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal,
-                                       ReadOnlySpan<byte> ciphertext, Span<byte> plaintext)
+        ReadOnlySpan<byte> ciphertext, Span<byte> plaintext)
     {
         Span<byte> nonce = stackalloc byte[NonceSize];
         MakeNonce(counter, isFinal, nonce);
@@ -128,7 +129,8 @@ internal static class StreamEncryption
             throw new AgeAuthenticationException($"chunk {counter} authentication failed (final={isFinal})");
     }
 
-    internal static byte[] DecryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal, ReadOnlySpan<byte> ciphertext)
+    internal static byte[] DecryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal,
+        ReadOnlySpan<byte> ciphertext)
     {
         if (ciphertext.Length < TagSize)
             throw new AgeAuthenticationException($"chunk {counter} authentication failed (final={isFinal})");

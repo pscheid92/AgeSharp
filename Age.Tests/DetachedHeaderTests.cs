@@ -1,4 +1,4 @@
-using AgeSharp;
+using System.Text;
 using Xunit;
 
 namespace AgeSharp.Tests;
@@ -177,7 +177,7 @@ public class DetachedHeaderTests
     [Fact]
     public void AgeHeader_Parse_ScryptStanza()
     {
-        var recipient = new Passphrase("test passphrase", workFactor: 10);
+        var recipient = new Passphrase("test passphrase", 10);
         var plaintext = "scrypt header test"u8.ToArray();
 
         using var input = new MemoryStream(plaintext);
@@ -214,7 +214,7 @@ public class DetachedHeaderTests
     public void AgeHeader_Parse_WrapsFormatException()
     {
         var text = "age-encryption.org/v1\n-> test\n@@@@\n\n--- AAAA\n";
-        using var stream = new MemoryStream(System.Text.Encoding.ASCII.GetBytes(text));
+        using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
 
         var ex = Assert.Throws<AgeFormatException>(() => Age.ReadHeader(stream));
         Assert.Contains("header parse error", ex.Message);
@@ -226,12 +226,41 @@ public class DetachedHeaderTests
         public override bool CanSeek => false;
         public override bool CanWrite => false;
         public override long Length => throw new NotSupportedException();
-        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
-        public override void Flush() { }
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-        protected override void Dispose(bool disposing) { if (disposing) inner.Dispose(); base.Dispose(disposing); }
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            return inner.Read(buffer, offset, count);
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) inner.Dispose();
+            base.Dispose(disposing);
+        }
     }
 }

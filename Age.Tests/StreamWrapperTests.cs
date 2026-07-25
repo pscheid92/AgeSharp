@@ -1,15 +1,17 @@
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Contract of <c>PeekableStream</c>: lookahead that can be replayed, which is what
-/// lets armor detection work without seeking.
+///     Contract of <c>PeekableStream</c>: lookahead that can be replayed, which is what
+///     lets armor detection work without seeking.
 /// </summary>
 public class StreamWrapperTests
 {
-    private static byte[] Bytes(params byte[] values) => values;
+    private static byte[] Bytes(params byte[] values)
+    {
+        return values;
+    }
 
     // --- PeekableStream ---
 
@@ -73,8 +75,8 @@ public class StreamWrapperTests
         peekable.Peek(new byte[2]);
 
         var buffer = new byte[4];
-        var first = peekable.Read(buffer, 0, 4);      // replayed prefix
-        var second = peekable.Read(buffer, first, 4 - first);  // passed through
+        var first = peekable.Read(buffer, 0, 4); // replayed prefix
+        var second = peekable.Read(buffer, first, 4 - first); // passed through
 
         Assert.Equal(4, first + second);
         Assert.Equal(Bytes(1, 2, 3, 4), buffer);
@@ -140,7 +142,7 @@ public class StreamWrapperTests
 
         Span<byte> second = stackalloc byte[4];
         Assert.Equal(4, peekable.Peek(second));
-        Assert.Equal<byte[]>([1, 2, 3, 4], second.ToArray());
+        Assert.Equal([1, 2, 3, 4], second.ToArray());
 
         var all = new byte[6];
         var total = 0;
@@ -153,7 +155,7 @@ public class StreamWrapperTests
             total += read;
         }
 
-        Assert.Equal<byte[]>([1, 2, 3, 4, 5, 6], all);
+        Assert.Equal([1, 2, 3, 4, 5, 6], all);
     }
 
     [Fact]
@@ -166,7 +168,7 @@ public class StreamWrapperTests
 
         var second = new byte[4];
         Assert.Equal(4, await peekable.PeekAsync(second));
-        Assert.Equal<byte[]>([1, 2, 3, 4], second);
+        Assert.Equal([1, 2, 3, 4], second);
 
         var all = new byte[6];
         var total = 0;
@@ -179,6 +181,6 @@ public class StreamWrapperTests
             total += read;
         }
 
-        Assert.Equal<byte[]>([1, 2, 3, 4, 5, 6], all);
+        Assert.Equal([1, 2, 3, 4, 5, 6], all);
     }
 }

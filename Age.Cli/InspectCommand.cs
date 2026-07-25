@@ -1,10 +1,15 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using AgeSharp;
 
 namespace AgeSharp.Cli;
 
-internal record InspectOutput(string File, string Version, bool Armored, bool PostQuantum, InspectRecipient[] Recipients, InspectSize Size);
+internal record InspectOutput(
+    string File,
+    string Version,
+    bool Armored,
+    bool PostQuantum,
+    InspectRecipient[] Recipients,
+    InspectSize Size);
 
 internal record InspectRecipient(int Index, string Type, string[] Args);
 
@@ -12,6 +17,13 @@ internal record InspectSize(long Header, long Overhead, long Payload, long Total
 
 internal static class InspectCommand
 {
+    private const int PayloadNonceSize = 16;
+    private const int ChunkSize = 64 * 1024;
+    private const int TagSize = 16;
+    private const int EncryptedChunkSize = ChunkSize + TagSize;
+
+    private static readonly HashSet<string> PostQuantumTypes = ["mlkem768x25519"];
+
     public static int Execute(string? filePath, bool json)
     {
         var (rawInput, displayName) = filePath is not null
@@ -37,13 +49,6 @@ internal static class InspectCommand
         return 0;
     }
 
-    private const int PayloadNonceSize = 16;
-    private const int ChunkSize = 64 * 1024;
-    private const int TagSize = 16;
-    private const int EncryptedChunkSize = ChunkSize + TagSize;
-
-    private static readonly HashSet<string> PostQuantumTypes = ["mlkem768x25519"];
-
     private static void PrintHuman(AgeHeader header, string displayName, long totalSize)
     {
         Console.WriteLine($"{displayName} is an age file, version \"age-encryption.org/v1\".");
@@ -61,7 +66,7 @@ internal static class InspectCommand
         Console.WriteLine(hasPq
             ? "This file uses post-quantum encryption."
             : "This file does NOT use post-quantum encryption.");
-        
+
         Console.WriteLine();
 
         var sizes = ComputeSizes(header, totalSize);
@@ -82,18 +87,16 @@ internal static class InspectCommand
         var sizes = ComputeSizes(header, totalSize);
 
         var obj = new InspectOutput(
-            File: displayName,
-            Version: "age-encryption.org/v1",
-            Armored: header.IsArmored,
-            PostQuantum: header.Stanzas.Any(s => PostQuantumTypes.Contains(s.Type)),
-            Recipients: header.Stanzas.Select((s, i) => new InspectRecipient(i, s.Type, [.. s.Args])).ToArray(),
-            Size: new InspectSize(sizes.Header, sizes.Overhead, sizes.Payload, sizes.Total)
+            displayName,
+            "age-encryption.org/v1",
+            header.IsArmored,
+            header.Stanzas.Any(s => PostQuantumTypes.Contains(s.Type)),
+            header.Stanzas.Select((s, i) => new InspectRecipient(i, s.Type, [.. s.Args])).ToArray(),
+            new InspectSize(sizes.Header, sizes.Overhead, sizes.Payload, sizes.Total)
         );
 
         Console.WriteLine(JsonSerializer.Serialize(obj, InspectJsonContext.Default.InspectOutput));
     }
-
-    private record SizeBreakdown(long Header, long Overhead, long Payload, long Total);
 
     private static SizeBreakdown ComputeSizes(AgeHeader header, long totalSize)
     {
@@ -116,8 +119,12 @@ internal static class InspectCommand
         return PayloadNonceSize + totalChunks * TagSize;
     }
 
-    private static void Error(string msg) =>
+    private static void Error(string msg)
+    {
         Console.Error.WriteLine($"age-inspect: {msg}");
+    }
+
+    private record SizeBreakdown(long Header, long Overhead, long Payload, long Total);
 }
 
 [JsonSerializable(typeof(InspectOutput))]

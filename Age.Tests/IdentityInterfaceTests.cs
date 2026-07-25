@@ -1,12 +1,11 @@
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Pins the two identity interface contracts:
-/// <see cref="IIdentity"/> extends <see cref="IDisposable"/> with a no-op default, and
-/// <see cref="IIdentityWithRecipient"/> exposes the public half without a concrete-type switch.
+///     Pins the two identity interface contracts:
+///     <see cref="IIdentity" /> extends <see cref="IDisposable" /> with a no-op default, and
+///     <see cref="IIdentityWithRecipient" /> exposes the public half without a concrete-type switch.
 /// </summary>
 public class IdentityInterfaceTests
 {
@@ -39,7 +38,9 @@ public class IdentityInterfaceTests
 
         X25519Identity captured;
         using (var parsed = Age.ParseIdentity(secret))
+        {
             captured = (X25519Identity)parsed;
+        }
 
         Assert.Throws<ObjectDisposedException>(() => captured.ToSecretString());
     }
@@ -126,12 +127,15 @@ public class IdentityInterfaceTests
         return new TheoryData<IIdentity, string>
         {
             { x25519, x25519.Recipient.ToString() },
-            { mlkem, mlkem.Recipient.ToString() },
+            { mlkem, mlkem.Recipient.ToString() }
         };
     }
 
     private sealed class MinimalIdentity : IIdentity
     {
-        public byte[]? Unwrap(Stanza stanza) => null;
+        public byte[]? Unwrap(Stanza stanza)
+        {
+            return null;
+        }
     }
 }

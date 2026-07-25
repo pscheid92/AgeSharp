@@ -1,27 +1,38 @@
 namespace AgeSharp;
 
 /// <summary>
-/// A read-only pass-through stream that lets the first bytes of a source be
-/// inspected and then read again. This is what makes armor detection work on a
-/// pipe or socket: deciding whether input is armored needs <em>lookahead</em>,
-/// not seeking, and lookahead is available on every stream.
+///     A read-only pass-through stream that lets the first bytes of a source be
+///     inspected and then read again. This is what makes armor detection work on a
+///     pipe or socket: deciding whether input is armored needs <em>lookahead</em>,
+///     not seeking, and lookahead is available on every stream.
 /// </summary>
 /// <remarks>
-/// Ownership follows the library-wide rule: this wrapper never disposes the
-/// stream it wraps. It holds only a small managed buffer, so leaving one
-/// undisposed leaks nothing.
+///     Ownership follows the library-wide rule: this wrapper never disposes the
+///     stream it wraps. It holds only a small managed buffer, so leaving one
+///     undisposed leaks nothing.
 /// </remarks>
 internal sealed class PeekableStream(Stream inner) : Stream
 {
-    private byte[] _peeked = [];
-    private int _offset;
     private int _length;
+    private int _offset;
+    private byte[] _peeked = [];
+
+    public override bool CanRead => true;
+    public override bool CanSeek => false;
+    public override bool CanWrite => false;
+    public override long Length => throw new NotSupportedException();
+
+    public override long Position
+    {
+        get => throw new NotSupportedException();
+        set => throw new NotSupportedException();
+    }
 
     /// <summary>
-    /// Reads up to <paramref name="destination"/>.Length bytes and copies them
-    /// there <em>without consuming them</em> — a subsequent <see cref="Read(Span{byte})"/>
-    /// returns the same bytes first. Returns the number of bytes available, which
-    /// is short only at end of stream.
+    ///     Reads up to <paramref name="destination" />.Length bytes and copies them
+    ///     there <em>without consuming them</em> — a subsequent <see cref="Read(Span{byte})" />
+    ///     returns the same bytes first. Returns the number of bytes available, which
+    ///     is short only at end of stream.
     /// </summary>
     public int Peek(Span<byte> destination)
     {
@@ -39,7 +50,7 @@ internal sealed class PeekableStream(Stream inner) : Stream
         return Serve(destination);
     }
 
-    /// <summary>Asynchronous counterpart to <see cref="Peek"/>.</summary>
+    /// <summary>Asynchronous counterpart to <see cref="Peek" />.</summary>
     public async ValueTask<int> PeekAsync(Memory<byte> destination, CancellationToken cancellationToken = default)
     {
         var needed = Grow(destination.Length);
@@ -47,7 +58,7 @@ internal sealed class PeekableStream(Stream inner) : Stream
         while (_length < needed)
         {
             var read = await inner.ReadAsync(_peeked.AsMemory(_length, needed - _length), cancellationToken)
-                                  .ConfigureAwait(false);
+                .ConfigureAwait(false);
             if (read == 0)
                 break;
 
@@ -80,7 +91,9 @@ internal sealed class PeekableStream(Stream inner) : Stream
     }
 
     public override int Read(byte[] buffer, int offset, int count)
-        => Read(buffer.AsSpan(offset, count));
+    {
+        return Read(buffer.AsSpan(offset, count));
+    }
 
     public override int Read(Span<byte> buffer)
     {
@@ -92,7 +105,9 @@ internal sealed class PeekableStream(Stream inner) : Stream
     }
 
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    {
+        return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    }
 
     public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
@@ -114,19 +129,22 @@ internal sealed class PeekableStream(Stream inner) : Stream
         return toCopy;
     }
 
-    public override bool CanRead => true;
-    public override bool CanSeek => false;
-    public override bool CanWrite => false;
-    public override long Length => throw new NotSupportedException();
-
-    public override long Position
+    public override void Flush()
     {
-        get => throw new NotSupportedException();
-        set => throw new NotSupportedException();
     }
 
-    public override void Flush() { }
-    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-    public override void SetLength(long value) => throw new NotSupportedException();
-    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    public override long Seek(long offset, SeekOrigin origin)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override void SetLength(long value)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override void Write(byte[] buffer, int offset, int count)
+    {
+        throw new NotSupportedException();
+    }
 }

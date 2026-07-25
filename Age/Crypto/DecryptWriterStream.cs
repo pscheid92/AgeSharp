@@ -4,78 +4,79 @@ using System.Security.Cryptography;
 namespace AgeSharp.Crypto;
 
 /// <summary>
-/// Push-side decryptor: a write-only <see cref="Stream"/> that consumes age
-/// ciphertext and writes plaintext to a destination. The mirror of
-/// <see cref="EncryptWriterStream"/>, and the fourth cell of the streaming grid.
+///     Push-side decryptor: a write-only <see cref="Stream" /> that consumes age
+///     ciphertext and writes plaintext to a destination. The mirror of
+///     <see cref="EncryptWriterStream" />, and the fourth cell of the streaming grid.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Unlike the other three, setup cannot be eager: nothing is known until enough
-/// bytes have been pushed. The stream walks three stages as they arrive — armor
-/// framing, then the header (unwrapped once its MAC line lands), then the payload
-/// nonce, then STREAM chunks. A caller error such as "no identity matches" therefore
-/// surfaces from a <c>Write</c> rather than from the factory.
-/// </para>
-/// <para>
-/// A full encrypted chunk is decrypted as non-final only once one further byte
-/// proves it is not the last; the rest is held so <see cref="Dispose(bool)"/> can
-/// decrypt it with the final flag set. That is the same hold-back
-/// <see cref="EncryptWriterStream"/> performs, and it is what makes truncation
-/// detectable: a file cut short leaves a chunk that never gets its final flag.
-/// </para>
-/// <para>
-/// Memory is bounded: one chunk buffer pair plus the header, which must be buffered
-/// whole in any case to verify its MAC.
-/// </para>
+///     <para>
+///         Unlike the other three, setup cannot be eager: nothing is known until enough
+///         bytes have been pushed. The stream walks three stages as they arrive — armor
+///         framing, then the header (unwrapped once its MAC line lands), then the payload
+///         nonce, then STREAM chunks. A caller error such as "no identity matches" therefore
+///         surfaces from a <c>Write</c> rather than from the factory.
+///     </para>
+///     <para>
+///         A full encrypted chunk is decrypted as non-final only once one further byte
+///         proves it is not the last; the rest is held so <see cref="Dispose(bool)" /> can
+///         decrypt it with the final flag set. That is the same hold-back
+///         <see cref="EncryptWriterStream" /> performs, and it is what makes truncation
+///         detectable: a file cut short leaves a chunk that never gets its final flag.
+///     </para>
+///     <para>
+///         Memory is bounded: one chunk buffer pair plus the header, which must be buffered
+///         whole in any case to verify its MAC.
+///     </para>
 /// </remarks>
 internal sealed class DecryptWriterStream : Stream
 {
-    private enum Stage
-    {
-        Header,
-        Nonce,
-        Payload,
-    }
-
-    private enum Framing
-    {
-        Undecided,
-        Binary,
-        Armored,
-    }
-
     // One byte past a full chunk: enough to prove the chunk is not the last.
     private const int HoldSize = StreamEncryption.EncryptedChunkSize + 1;
 
     private readonly Stream _destination;
+
+    private readonly HeaderLineAccumulator _headerLines;
     private readonly IIdentity[] _identities;
     private readonly AgeDecryptOptions _options;
 
-    private Framing _framing = Framing.Undecided;
-    private byte[]? _probe = new byte[AsciiArmor.ProbeSize];
-    private int _probeLength;
+    private readonly byte[] _payloadNonce = new byte[Age.PayloadNonceSize];
+    private byte[]? _armorDecoded;
+    private ArmorDecoder? _armorDecoder;
 
     private ArmorLineAccumulator? _armorLines;
-    private ArmorDecoder? _armorDecoder;
-    private byte[]? _armorDecoded;
-
-    private readonly HeaderLineAccumulator _headerLines;
-    private Stage _stage = Stage.Header;
+    private byte[]? _chunkBuffer;
+    private int _chunkLength;
+    private IAeadCipher? _cipher;
+    private long _counter;
+    private bool _disposed;
+    private bool _faulted;
     private byte[]? _fileKey;
 
-    private readonly byte[] _payloadNonce = new byte[Age.PayloadNonceSize];
+    private bool _finalized;
+
+    private Framing _framing = Framing.Undecided;
+
+    private bool _inAsyncWrite;
     private int _nonceLength;
 
     private byte[]? _payloadKey;
-    private IAeadCipher? _cipher;
-    private byte[]? _chunkBuffer;
-    private byte[]? _plaintextBuffer;
-    private int _chunkLength;
-    private long _counter;
 
-    private bool _finalized;
-    private bool _faulted;
-    private bool _disposed;
+    // --- output -------------------------------------------------------------
+
+    // Plaintext is staged here rather than written straight out, so the one shared
+    // decrypt path can serve both the sync and async writes: sync drains inline,
+    // async drains with an await after Consume returns.
+    private MemoryStream? _pending;
+
+    // Whether WriteOut ran since the last drain. Tracked apart from the staged length
+    // because Finish deliberately writes an empty span: keying the drain off
+    // _pending.Length would make "nothing was produced" and "empty was produced on
+    // purpose" indistinguishable, and silently drop the latter.
+    private bool _pendingWrite;
+    private byte[]? _plaintextBuffer;
+    private byte[]? _probe = new byte[AsciiArmor.ProbeSize];
+    private int _probeLength;
+    private Stage _stage = Stage.Header;
 
     public DecryptWriterStream(Stream destination, IIdentity[] identities, AgeDecryptOptions options)
     {
@@ -97,7 +98,9 @@ internal sealed class DecryptWriterStream : Stream
     }
 
     public override void Write(byte[] buffer, int offset, int count)
-        => Write(buffer.AsSpan(offset, count));
+    {
+        Write(buffer.AsSpan(offset, count));
+    }
 
     public override void Write(ReadOnlySpan<byte> buffer)
     {
@@ -118,7 +121,9 @@ internal sealed class DecryptWriterStream : Stream
     }
 
     public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        => WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    {
+        return WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    }
 
     public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
@@ -210,7 +215,8 @@ internal sealed class DecryptWriterStream : Stream
         var armored = AsciiArmor.StartsWithMarker(probe.AsSpan(0, length));
 
         if (_options.RequireArmor && !armored)
-            throw new AgeFormatException("input is not ASCII-armored, but AgeDecryptOptions.RequireArmor required it to be");
+            throw new AgeFormatException(
+                "input is not ASCII-armored, but AgeDecryptOptions.RequireArmor required it to be");
 
         if (armored)
         {
@@ -253,7 +259,7 @@ internal sealed class DecryptWriterStream : Stream
             {
                 Stage.Header => FeedHeader(data),
                 Stage.Nonce => FeedNonce(data),
-                _ => FeedPayload(data),
+                _ => FeedPayload(data)
             };
     }
 
@@ -277,7 +283,7 @@ internal sealed class DecryptWriterStream : Stream
     // the same code the pull path runs — not a second implementation.
     private void UnwrapHeader()
     {
-        using var buffered = new MemoryStream(_headerLines.RawBytes.ToArray(), writable: false);
+        using var buffered = new MemoryStream(_headerLines.RawBytes.ToArray(), false);
         var reader = new HeaderReader(buffered, _options.MaxHeaderLineBytes, _options.MaxHeaderBytes);
 
         _fileKey = Age.UnwrapHeader(reader, _identities);
@@ -316,7 +322,7 @@ internal sealed class DecryptWriterStream : Stream
 
         // The held byte proves more ciphertext follows, so this chunk is not final.
         if (_chunkLength == HoldSize)
-            DecryptChunk(isFinal: false);
+            DecryptChunk(false);
 
         return data[take..];
     }
@@ -351,19 +357,6 @@ internal sealed class DecryptWriterStream : Stream
         return plaintextLength;
     }
 
-    // --- output -------------------------------------------------------------
-
-    // Plaintext is staged here rather than written straight out, so the one shared
-    // decrypt path can serve both the sync and async writes: sync drains inline,
-    // async drains with an await after Consume returns.
-    private MemoryStream? _pending;
-
-    // Whether WriteOut ran since the last drain. Tracked apart from the staged length
-    // because Finish deliberately writes an empty span: keying the drain off
-    // _pending.Length would make "nothing was produced" and "empty was produced on
-    // purpose" indistinguishable, and silently drop the latter.
-    private bool _pendingWrite;
-
     private void WriteOut(ReadOnlySpan<byte> plaintext)
     {
         if (_inAsyncWrite)
@@ -375,8 +368,6 @@ internal sealed class DecryptWriterStream : Stream
 
         _destination.Write(plaintext);
     }
-
-    private bool _inAsyncWrite;
 
     private async ValueTask DrainAsync(CancellationToken cancellationToken)
     {
@@ -426,7 +417,7 @@ internal sealed class DecryptWriterStream : Stream
         if (_counter == 0 && _chunkLength == 0)
             throw new AgeAuthenticationException("payload is empty (no chunks)");
 
-        var plaintextLength = DecryptChunk(isFinal: true);
+        var plaintextLength = DecryptChunk(true);
 
         // An empty final chunk is legal only when it is the sole chunk.
         if (plaintextLength == 0 && _counter > 1)
@@ -526,7 +517,32 @@ internal sealed class DecryptWriterStream : Stream
         return _destination.FlushAsync(cancellationToken);
     }
 
-    public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-    public override void SetLength(long value) => throw new NotSupportedException();
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override long Seek(long offset, SeekOrigin origin)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override void SetLength(long value)
+    {
+        throw new NotSupportedException();
+    }
+
+    private enum Stage
+    {
+        Header,
+        Nonce,
+        Payload
+    }
+
+    private enum Framing
+    {
+        Undecided,
+        Binary,
+        Armored
+    }
 }

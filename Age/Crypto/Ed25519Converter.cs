@@ -6,8 +6,8 @@ namespace AgeSharp.Crypto;
 internal static class Ed25519Converter
 {
     /// <summary>
-    /// Converts an Ed25519 public key (32 bytes, Edwards y-coordinate) to an X25519 public key
-    /// (32 bytes, Montgomery u-coordinate) using the birational map: u = (1 + y) / (1 - y) mod p.
+    ///     Converts an Ed25519 public key (32 bytes, Edwards y-coordinate) to an X25519 public key
+    ///     (32 bytes, Montgomery u-coordinate) using the birational map: u = (1 + y) / (1 - y) mod p.
     /// </summary>
     public static byte[] PublicKeyToX25519(byte[] ed25519PublicKey)
     {
@@ -27,10 +27,10 @@ internal static class Ed25519Converter
         var one = new int[X25519Field.Size];
         X25519Field.One(one);
 
-        var numerator = new int[X25519Field.Size];   // 1 + y
+        var numerator = new int[X25519Field.Size]; // 1 + y
         X25519Field.Add(one, y, numerator);
 
-        var denominator = new int[X25519Field.Size];  // 1 - y
+        var denominator = new int[X25519Field.Size]; // 1 - y
         X25519Field.Sub(one, y, denominator);
 
         var invDenom = new int[X25519Field.Size];
@@ -47,8 +47,8 @@ internal static class Ed25519Converter
     }
 
     /// <summary>
-    /// Converts an Ed25519 private key seed (32 bytes) to an X25519 private key (32 bytes).
-    /// This is SHA-512(seed)[0..32]; X25519 functions apply clamping automatically.
+    ///     Converts an Ed25519 private key seed (32 bytes) to an X25519 private key (32 bytes).
+    ///     This is SHA-512(seed)[0..32]; X25519 functions apply clamping automatically.
     /// </summary>
     public static byte[] PrivateKeyToX25519(byte[] ed25519Seed)
     {

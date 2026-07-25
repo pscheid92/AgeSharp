@@ -1,14 +1,14 @@
-using AgeSharp;
+using System.Text;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Random access through ASCII armor. Armor is order-preserving and
-/// position-computable — 48 binary bytes per 64 base64 columns, only the final line
-/// short — so a binary offset translates to a text position arithmetically. These
-/// tests pin that the translation agrees with reading forward, at the boundaries
-/// where the arithmetic is easiest to get wrong.
+///     Random access through ASCII armor. Armor is order-preserving and
+///     position-computable — 48 binary bytes per 64 base64 columns, only the final line
+///     short — so a binary offset translates to a text position arithmetically. These
+///     tests pin that the translation agrees with reading forward, at the boundaries
+///     where the arithmetic is easiest to get wrong.
 /// </summary>
 public class ArmoredRandomAccessTests
 {
@@ -21,8 +21,10 @@ public class ArmoredRandomAccessTests
         return data;
     }
 
-    private static MemoryStream Armored(byte[] plaintext, IRecipient recipient) =>
-        new(Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, recipient));
+    private static MemoryStream Armored(byte[] plaintext, IRecipient recipient)
+    {
+        return new MemoryStream(Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, recipient));
+    }
 
     private static byte[] ReadAt(Stream stream, long offset, int count)
     {
@@ -81,8 +83,8 @@ public class ArmoredRandomAccessTests
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
-    [InlineData(BytesPerArmorLine - 1)]   // last byte of the first armor line
-    [InlineData(BytesPerArmorLine)]       // first byte of the second
+    [InlineData(BytesPerArmorLine - 1)] // last byte of the first armor line
+    [InlineData(BytesPerArmorLine)] // first byte of the second
     [InlineData(BytesPerArmorLine + 1)]
     [InlineData(BytesPerArmorLine * 7 + 13)]
     [InlineData(40_000)]
@@ -177,10 +179,10 @@ public class ArmoredRandomAccessTests
     // --- sizes where the geometry is degenerate ------------------------------
 
     [Theory]
-    [InlineData(0)]                        // empty plaintext
+    [InlineData(0)] // empty plaintext
     [InlineData(1)]
-    [InlineData(BytesPerArmorLine)]        // exactly one armor line of payload
-    [InlineData(BytesPerArmorLine * 3)]    // exact multiple: no short final line
+    [InlineData(BytesPerArmorLine)] // exactly one armor line of payload
+    [InlineData(BytesPerArmorLine * 3)] // exact multiple: no short final line
     public void SmallAndExactSizes_ReportTheRightLength(int size)
     {
         using var identity = X25519Identity.Generate();
@@ -221,8 +223,8 @@ public class ArmoredRandomAccessTests
         var plaintext = Pattern(20_000);
 
         var lf = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
-        var crlf = System.Text.Encoding.ASCII.GetBytes(
-            System.Text.Encoding.ASCII.GetString(lf).Replace("\n", "\r\n"));
+        var crlf = Encoding.ASCII.GetBytes(
+            Encoding.ASCII.GetString(lf).Replace("\n", "\r\n"));
 
         using var source = new MemoryStream(crlf);
         using var stream = Age.DecryptReader(source, identity);
@@ -304,7 +306,7 @@ public class ArmoredRandomAccessTests
         await using var source = new ThrowOnSyncIoStream(inner);
         await using var stream = await Age.DecryptReaderAsync(source, [identity]);
 
-        stream.Position = 20_001;   // deliberately not on an armor line boundary
+        stream.Position = 20_001; // deliberately not on an armor line boundary
 
         var buffer = new byte[100];
         var total = 0;
@@ -329,13 +331,13 @@ public class ArmoredRandomAccessTests
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(20_000);
 
-        var text = System.Text.Encoding.ASCII.GetString(
+        var text = Encoding.ASCII.GetString(
             Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient));
 
         var lines = text.Split('\n').ToList();
-        lines[5] = lines[5][..32];   // corrupt the geometry mid-body
+        lines[5] = lines[5][..32]; // corrupt the geometry mid-body
 
-        using var source = new MemoryStream(System.Text.Encoding.ASCII.GetBytes(string.Join('\n', lines)));
+        using var source = new MemoryStream(Encoding.ASCII.GetBytes(string.Join('\n', lines)));
 
         Assert.ThrowsAny<AgeException>(() =>
         {

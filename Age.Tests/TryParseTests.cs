@@ -1,21 +1,32 @@
 using System.Text;
-using AgeSharp;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Crypto.Utilities;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities.IO.Pem;
 using Xunit;
+using PemWriter = Org.BouncyCastle.OpenSsl.PemWriter;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// The TryParse contract: true + a usable value for valid input, false — never
-/// an exception — for null or malformed input; and the bech32 four are usable
-/// through generic <see cref="IParsable{TSelf}"/> code.
+///     The TryParse contract: true + a usable value for valid input, false — never
+///     an exception — for null or malformed input; and the bech32 four are usable
+///     through generic <see cref="IParsable{TSelf}" /> code.
 /// </summary>
 public class TryParseTests
 {
+    // --- bech32 four: every malformed case the Parse tests cover returns false ---
+
+    // Fixed vectors: malformed inputs must be deterministic — a mutation of a
+    // randomly generated key can collide with the original (e.g. replacing the
+    // last char with one it already has), turning the test flaky.
+    private const string ValidSecret = "AGE-SECRET-KEY-18RJY3RWGJ434MU5AP9NVSWYCHFT7NRA75L5X4LAYJ4V0Q8QXQD7QZTMR59";
+    private const string ValidRecipient = "age1j0lauh038m0thy3lq0yvhnzehhy08s45nxwzk2f9hukgzucsw3ps60kslt";
+
+    private const string ValidPqSecret =
+        "AGE-SECRET-KEY-PQ-10CMEPS4C0AVQEQTEMKTK6HSPZWVXQL4RVSHYTE9HHA63G2DMEV7SXPGM0S";
     // --- bech32 four: valid input round-trips ---
 
     [Fact]
@@ -58,25 +69,19 @@ public class TryParseTests
         Assert.Equal(recipientStr, parsed.ToString());
     }
 
-    // --- bech32 four: every malformed case the Parse tests cover returns false ---
-
-    // Fixed vectors: malformed inputs must be deterministic — a mutation of a
-    // randomly generated key can collide with the original (e.g. replacing the
-    // last char with one it already has), turning the test flaky.
-    private const string ValidSecret = "AGE-SECRET-KEY-18RJY3RWGJ434MU5AP9NVSWYCHFT7NRA75L5X4LAYJ4V0Q8QXQD7QZTMR59";
-    private const string ValidRecipient = "age1j0lauh038m0thy3lq0yvhnzehhy08s45nxwzk2f9hukgzucsw3ps60kslt";
-    private const string ValidPqSecret = "AGE-SECRET-KEY-PQ-10CMEPS4C0AVQEQTEMKTK6HSPZWVXQL4RVSHYTE9HHA63G2DMEV7SXPGM0S";
-
-    public static TheoryData<string?> MalformedX25519IdentityInputs() =>
-    [
-        null,
-        "",
-        "not bech32 at all",
-        ValidSecret.ToLowerInvariant(),   // must be uppercase
-        ValidRecipient,                   // wrong HRP (recipient)
-        ValidPqSecret,                    // wrong HRP (PQ secret)
-        ValidSecret[..^1] + "X",          // checksum broken (last char is '9')
-    ];
+    public static TheoryData<string?> MalformedX25519IdentityInputs()
+    {
+        return
+        [
+            null,
+            "",
+            "not bech32 at all",
+            ValidSecret.ToLowerInvariant(), // must be uppercase
+            ValidRecipient, // wrong HRP (recipient)
+            ValidPqSecret, // wrong HRP (PQ secret)
+            ValidSecret[..^1] + "X" // checksum broken (last char is '9')
+        ];
+    }
 
     [Theory]
     [MemberData(nameof(MalformedX25519IdentityInputs))]
@@ -86,15 +91,18 @@ public class TryParseTests
         Assert.Null(result);
     }
 
-    public static TheoryData<string?> MalformedX25519RecipientInputs() =>
-    [
-        null,
-        "",
-        "age1",                              // no data
-        ValidRecipient.ToUpperInvariant(),   // must be lowercase
-        ValidSecret,                         // wrong HRP (secret key)
-        ValidRecipient[..^1] + "x",          // checksum broken (last char is 't')
-    ];
+    public static TheoryData<string?> MalformedX25519RecipientInputs()
+    {
+        return
+        [
+            null,
+            "",
+            "age1", // no data
+            ValidRecipient.ToUpperInvariant(), // must be lowercase
+            ValidSecret, // wrong HRP (secret key)
+            ValidRecipient[..^1] + "x" // checksum broken (last char is 't')
+        ];
+    }
 
     [Theory]
     [MemberData(nameof(MalformedX25519RecipientInputs))]
@@ -107,7 +115,7 @@ public class TryParseTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData("AGE-SECRET-KEY-1QQQQQQQQ")]  // X25519 HRP, not PQ
+    [InlineData("AGE-SECRET-KEY-1QQQQQQQQ")] // X25519 HRP, not PQ
     public void MlKem768X25519Identity_TryParse_Malformed_ReturnsFalse(string? input)
     {
         Assert.False(MlKem768X25519Identity.TryParse(input, out var result));
@@ -124,10 +132,15 @@ public class TryParseTests
 
     // --- generic IParsable usage ---
 
-    private static T ParseVia<T>(string s) where T : IParsable<T> => T.Parse(s, null);
+    private static T ParseVia<T>(string s) where T : IParsable<T>
+    {
+        return T.Parse(s, null);
+    }
 
     private static bool TryParseVia<T>(string? s, out T? result) where T : IParsable<T>
-        => T.TryParse(s, null, out result);
+    {
+        return T.TryParse(s, null, out result);
+    }
 
     [Fact]
     public void IParsable_Works_In_Generic_Context()
@@ -206,10 +219,10 @@ public class TryParseTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData("ssh-ed25519")]                       // missing key field
-    [InlineData("ssh-ed25519 !!!notbase64!!!")]       // invalid base64
-    [InlineData("ssh-ed25519 AAAA")]                  // valid base64, garbage blob
-    [InlineData("ssh-dss AAAAB3NzaC1kc3M ignored")]   // unsupported type
+    [InlineData("ssh-ed25519")] // missing key field
+    [InlineData("ssh-ed25519 !!!notbase64!!!")] // invalid base64
+    [InlineData("ssh-ed25519 AAAA")] // valid base64, garbage blob
+    [InlineData("ssh-dss AAAAB3NzaC1kc3M ignored")] // unsupported type
     public void SshEd25519Recipient_TryParse_Malformed_ReturnsFalse(string? input)
     {
         Assert.False(SshEd25519Recipient.TryParse(input, out var result));
@@ -230,7 +243,7 @@ public class TryParseTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("no pem here")]
-    [InlineData("BEGIN OPENSSH PRIVATE KEY")]         // marker without PEM structure
+    [InlineData("BEGIN OPENSSH PRIVATE KEY")] // marker without PEM structure
     public void SshEd25519Identity_TryParse_Malformed_ReturnsFalse(string? input)
     {
         Assert.False(SshEd25519Identity.TryParse(input, out var result));
@@ -313,10 +326,10 @@ public class TryParseTests
         var keyPair = generator.GenerateKeyPair();
         var privateKey = (Ed25519PrivateKeyParameters)keyPair.Private;
 
-        var wireBytes = Org.BouncyCastle.Crypto.Utilities.OpenSshPublicKeyUtilities.EncodePublicKey(keyPair.Public);
+        var wireBytes = OpenSshPublicKeyUtilities.EncodePublicKey(keyPair.Public);
         var authorizedKeys = $"ssh-ed25519 {Convert.ToBase64String(wireBytes)} test@example";
 
-        var blob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(privateKey);
+        var blob = OpenSshPrivateKeyUtilities.EncodePrivateKey(privateKey);
         return (authorizedKeys, BuildOpenSshPem(blob));
     }
 
@@ -326,11 +339,11 @@ public class TryParseTests
         generator.Init(new KeyGenerationParameters(new SecureRandom(), bits));
         var keyPair = generator.GenerateKeyPair();
 
-        var wireBytes = Org.BouncyCastle.Crypto.Utilities.OpenSshPublicKeyUtilities.EncodePublicKey(keyPair.Public);
+        var wireBytes = OpenSshPublicKeyUtilities.EncodePublicKey(keyPair.Public);
         var authorizedKeys = $"ssh-rsa {Convert.ToBase64String(wireBytes)} test@example";
 
         using var sw = new StringWriter();
-        new Org.BouncyCastle.OpenSsl.PemWriter(sw).WriteObject(keyPair.Private);
+        new PemWriter(sw).WriteObject(keyPair.Private);
         return (authorizedKeys, sw.ToString());
     }
 

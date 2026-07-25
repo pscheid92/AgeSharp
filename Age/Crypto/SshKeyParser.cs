@@ -10,12 +10,14 @@ internal static class SshKeyParser
 {
     // age spec: SSH stanza tags use the first 4 bytes of SHA-256(publicKeyWireBytes)
     private const int FingerprintLength = 4;
+
     /// <summary>
-    /// Parses an SSH public key from an authorized_keys line.
-    /// Returns (keyType, wireBytes, publicKeyParameter).
-    /// wireBytes is the raw SSH wire format bytes (the base64-decoded middle section).
+    ///     Parses an SSH public key from an authorized_keys line.
+    ///     Returns (keyType, wireBytes, publicKeyParameter).
+    ///     wireBytes is the raw SSH wire format bytes (the base64-decoded middle section).
     /// </summary>
-    public static (string keyType, byte[] wireBytes, AsymmetricKeyParameter publicKey) ParsePublicKey(string authorizedKeysLine)
+    public static (string keyType, byte[] wireBytes, AsymmetricKeyParameter publicKey) ParsePublicKey(
+        string authorizedKeysLine)
     {
         var parts = authorizedKeysLine.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 2)
@@ -35,11 +37,12 @@ internal static class SshKeyParser
     }
 
     /// <summary>
-    /// Parses an SSH private key from PEM text.
-    /// Returns (keyType, publicWireBytes, privateKeyParameter).
-    /// Supports OpenSSH format (-----BEGIN OPENSSH PRIVATE KEY-----) and PKCS#8/PKCS#1.
+    ///     Parses an SSH private key from PEM text.
+    ///     Returns (keyType, publicWireBytes, privateKeyParameter).
+    ///     Supports OpenSSH format (-----BEGIN OPENSSH PRIVATE KEY-----) and PKCS#8/PKCS#1.
     /// </summary>
-    public static (string keyType, byte[] publicWireBytes, AsymmetricKeyParameter privateKey) ParsePrivateKey(string pemText)
+    public static (string keyType, byte[] publicWireBytes, AsymmetricKeyParameter privateKey) ParsePrivateKey(
+        string pemText)
     {
         AsymmetricKeyParameter privateKey;
 
@@ -48,7 +51,7 @@ internal static class SshKeyParser
             // OpenSSH format: extract the base64 blob and parse
             var pemReader = new PemReader(new StringReader(pemText));
             var pemObject = Guard("invalid PEM structure", pemReader.ReadPemObject)
-                ?? throw new AgeFormatException("failed to read PEM object");
+                            ?? throw new AgeFormatException("failed to read PEM object");
 
             // Also covers passphrase-protected keys, which BouncyCastle rejects
             privateKey = Guard("invalid OpenSSH private key",
@@ -90,8 +93,8 @@ internal static class SshKeyParser
     }
 
     /// <summary>
-    /// Computes the SSH key fingerprint tag used in age stanzas.
-    /// tag = base64_unpadded(SHA-256(wireBytes)[:4])
+    ///     Computes the SSH key fingerprint tag used in age stanzas.
+    ///     tag = base64_unpadded(SHA-256(wireBytes)[:4])
     /// </summary>
     public static string ComputeTag(byte[] wireBytes)
     {

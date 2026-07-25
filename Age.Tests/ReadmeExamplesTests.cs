@@ -1,12 +1,11 @@
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// The README's examples, compiled and run. They are the first thing anyone copies,
-/// and ten PRs reshaped this API in a single day — several claims went stale without
-/// anything failing. A compiler is a better reviewer than a careful reread.
+///     The README's examples, compiled and run. They are the first thing anyone copies,
+///     and ten PRs reshaped this API in a single day — several claims went stale without
+///     anything failing. A compiler is a better reviewer than a careful reread.
 /// </summary>
 public class ReadmeExamplesTests
 {
@@ -26,8 +25,8 @@ public class ReadmeExamplesTests
 
         Assert.Equal("Hello, age!"u8.ToArray(), decrypted.ToArray());
 
-        byte[] ciphertext = Age.Encrypt("secret"u8, recipient);
-        byte[] plaintext = Age.Decrypt(ciphertext, identity);
+        var ciphertext = Age.Encrypt("secret"u8, recipient);
+        var plaintext = Age.Decrypt(ciphertext, identity);
         Assert.Equal("secret"u8.ToArray(), plaintext);
     }
 
@@ -39,7 +38,7 @@ public class ReadmeExamplesTests
         var ciphertext = Age.Encrypt("hi"u8, passphrase);
         Assert.Equal("hi"u8.ToArray(), Age.Decrypt(ciphertext, passphrase));
 
-        char[] typed = "typed-in".ToCharArray();
+        var typed = "typed-in".ToCharArray();
         using var fromSpan = new Passphrase(typed, 10);
         Array.Clear(typed);
         Assert.NotNull(fromSpan);
@@ -56,7 +55,7 @@ public class ReadmeExamplesTests
 
         using var output = new MemoryStream();
         Age.Decrypt(new MemoryStream(encrypted.ToArray()), output,
-                    new AgeDecryptOptions { RequireArmor = true }, identity);
+            new AgeDecryptOptions { RequireArmor = true }, identity);
 
         Assert.Equal("hi"u8.ToArray(), output.ToArray());
     }
@@ -81,7 +80,7 @@ public class ReadmeExamplesTests
         using var encrypted2 = new MemoryStream();
         Age.Encrypt(input2, encrypted2, recipients);
         Age.Encrypt(new MemoryStream("hi"u8.ToArray()), new MemoryStream(),
-                    new AgeEncryptOptions { Armor = true }, recipients);
+            new AgeEncryptOptions { Armor = true }, recipients);
 
         Assert.NotEqual(0, encrypted2.Length);
     }
@@ -101,7 +100,9 @@ public class ReadmeExamplesTests
         // encrypt / push
         using var destination = new MemoryStream();
         using (var stream = Age.EncryptWriter(destination, recipient))
+        {
             new MemoryStream(plaintext).CopyTo(stream);
+        }
 
         // decrypt / pull
         using var decryptedStream = Age.DecryptReader(new MemoryStream(ciphertext.ToArray()), identity);
@@ -112,7 +113,10 @@ public class ReadmeExamplesTests
         // decrypt / push
         using var pushOut = new MemoryStream();
         using (var stream = Age.DecryptWriter(pushOut, identity))
+        {
             new MemoryStream(destination.ToArray()).CopyTo(stream);
+        }
+
         Assert.Equal(plaintext, pushOut.ToArray());
     }
 
@@ -185,8 +189,8 @@ public class ReadmeExamplesTests
     {
         using var generated = X25519Identity.Generate();
 
-        IRecipient recipient = Age.ParseRecipient(generated.Recipient.ToString());
-        IIdentity identity = Age.ParseIdentity(generated.ToSecretString());
+        var recipient = Age.ParseRecipient(generated.Recipient.ToString());
+        var identity = Age.ParseIdentity(generated.ToSecretString());
 
         Assert.NotNull(recipient);
         Assert.NotNull(identity);
@@ -238,8 +242,16 @@ public class ReadmeExamplesTests
             Age.Decrypt(input, output, stranger);
             Assert.Fail("expected a mismatch");
         }
-        catch (NoIdentityMatchException) { }
-        catch (AgeAuthenticationException) { Assert.Fail("wrong branch"); }
-        catch (AgeFormatException) { Assert.Fail("wrong branch"); }
+        catch (NoIdentityMatchException)
+        {
+        }
+        catch (AgeAuthenticationException)
+        {
+            Assert.Fail("wrong branch");
+        }
+        catch (AgeFormatException)
+        {
+            Assert.Fail("wrong branch");
+        }
     }
 }

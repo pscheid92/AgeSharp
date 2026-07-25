@@ -7,16 +7,16 @@ using BcChaCha20Poly1305 = Org.BouncyCastle.Crypto.Modes.ChaCha20Poly1305;
 namespace AgeSharp.Crypto;
 
 /// <summary>
-/// <see cref="IAeadCipher"/> backed by BouncyCastle's managed ChaCha20-Poly1305. Works on
-/// every platform including browser/WebAssembly, at the cost of ~2x lower throughput and a
-/// small per-call allocation versus the native cipher. Selected automatically when the
-/// platform cipher is unavailable, or explicitly via <see cref="AeadBackend.Portable"/>.
+///     <see cref="IAeadCipher" /> backed by BouncyCastle's managed ChaCha20-Poly1305. Works on
+///     every platform including browser/WebAssembly, at the cost of ~2x lower throughput and a
+///     small per-call allocation versus the native cipher. Selected automatically when the
+///     platform cipher is unavailable, or explicitly via <see cref="AeadBackend.Portable" />.
 /// </summary>
 /// <remarks>
-/// BouncyCastle's <see cref="KeyParameter"/> holds an internal copy of the key that has no
-/// public zeroing path, so — unlike the native cipher — the key material lingers until GC.
-/// This is inherent to BouncyCastle (see the same limitation noted for RSA in
-/// <c>SshRsaIdentity</c>) and only applies to the opt-in portable backend.
+///     BouncyCastle's <see cref="KeyParameter" /> holds an internal copy of the key that has no
+///     public zeroing path, so — unlike the native cipher — the key material lingers until GC.
+///     This is inherent to BouncyCastle (see the same limitation noted for RSA in
+///     <c>SshRsaIdentity</c>) and only applies to the opt-in portable backend.
 /// </remarks>
 internal sealed class BouncyCastleAeadCipher : IAeadCipher
 {
@@ -26,7 +26,10 @@ internal sealed class BouncyCastleAeadCipher : IAeadCipher
     private readonly BcChaCha20Poly1305 _cipher = new();
     private readonly KeyParameter _key;
 
-    public BouncyCastleAeadCipher(ReadOnlySpan<byte> key) => _key = new KeyParameter(key.ToArray());
+    public BouncyCastleAeadCipher(ReadOnlySpan<byte> key)
+    {
+        _key = new KeyParameter(key.ToArray());
+    }
 
     public void Encrypt(ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> plaintext, Span<byte> ciphertext, Span<byte> tag)
     {
@@ -43,11 +46,12 @@ internal sealed class BouncyCastleAeadCipher : IAeadCipher
         }
         finally
         {
-            ArrayPool<byte>.Shared.Return(scratch, clearArray: true);
+            ArrayPool<byte>.Shared.Return(scratch, true);
         }
     }
 
-    public void Decrypt(ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> tag, Span<byte> plaintext)
+    public void Decrypt(ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> tag,
+        Span<byte> plaintext)
     {
         _cipher.Init(false, new AeadParameters(_key, MacSizeBits, nonce.ToArray()));
 
@@ -71,8 +75,8 @@ internal sealed class BouncyCastleAeadCipher : IAeadCipher
         }
         finally
         {
-            ArrayPool<byte>.Shared.Return(input, clearArray: true);
-            ArrayPool<byte>.Shared.Return(output, clearArray: true);
+            ArrayPool<byte>.Shared.Return(input, true);
+            ArrayPool<byte>.Shared.Return(output, true);
         }
     }
 

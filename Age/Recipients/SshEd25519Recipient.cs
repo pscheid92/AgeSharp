@@ -7,8 +7,8 @@ using Org.BouncyCastle.Security;
 namespace AgeSharp;
 
 /// <summary>
-/// A recipient backed by an ssh-ed25519 public key (an <c>authorized_keys</c>
-/// line), encrypting via the age <c>ssh-ed25519</c> recipient type.
+///     A recipient backed by an ssh-ed25519 public key (an <c>authorized_keys</c>
+///     line), encrypting via the age <c>ssh-ed25519</c> recipient type.
 /// </summary>
 public sealed class SshEd25519Recipient : IRecipient
 {
@@ -16,8 +16,8 @@ public sealed class SshEd25519Recipient : IRecipient
     private const int NonceSize = 12;
 
     private readonly byte[] _sshWireBytes;
-    private readonly byte[] _x25519PublicKey;
     private readonly string _tag;
+    private readonly byte[] _x25519PublicKey;
 
     internal SshEd25519Recipient(byte[] sshWireBytes, byte[] x25519PublicKey)
     {
@@ -25,29 +25,6 @@ public sealed class SshEd25519Recipient : IRecipient
         _x25519PublicKey = x25519PublicKey;
         _tag = SshKeyParser.ComputeTag(sshWireBytes);
     }
-
-    /// <summary>Parses an <c>ssh-ed25519 AAAA…</c> public key line.</summary>
-    /// <exception cref="AgeFormatException">The line is not a valid ssh-ed25519 public key.</exception>
-    public static SshEd25519Recipient Parse(string authorizedKeysLine)
-    {
-        var (keyType, wireBytes, pubKey) = SshKeyParser.ParsePublicKey(authorizedKeysLine);
-
-        if (keyType != "ssh-ed25519")
-            throw new AgeFormatException($"expected ssh-ed25519, got {keyType}");
-
-        if (pubKey is not Ed25519PublicKeyParameters ed25519Pub)
-            throw new AgeFormatException("declared ssh-ed25519 but the key data is a different type");
-
-        var x25519Pub = Ed25519Converter.PublicKeyToX25519(ed25519Pub.GetEncoded());
-        return new SshEd25519Recipient(wireBytes, x25519Pub);
-    }
-
-    /// <summary>
-    /// Tries to parse an <c>ssh-ed25519 AAAA…</c> public key line. Returns false
-    /// instead of throwing when the input is null or malformed.
-    /// </summary>
-    public static bool TryParse([NotNullWhen(true)] string? authorizedKeysLine, [MaybeNullWhen(false)] out SshEd25519Recipient result) =>
-        ParseHelpers.TryParse(authorizedKeysLine, Parse, out result);
 
     /// <summary>Wraps the file key for this SSH key via tweaked X25519 + ChaCha20-Poly1305.</summary>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
@@ -87,5 +64,31 @@ public sealed class SshEd25519Recipient : IRecipient
             CryptographicOperations.ZeroMemory(tweakedKey);
             CryptographicOperations.ZeroMemory(tweak);
         }
+    }
+
+    /// <summary>Parses an <c>ssh-ed25519 AAAA…</c> public key line.</summary>
+    /// <exception cref="AgeFormatException">The line is not a valid ssh-ed25519 public key.</exception>
+    public static SshEd25519Recipient Parse(string authorizedKeysLine)
+    {
+        var (keyType, wireBytes, pubKey) = SshKeyParser.ParsePublicKey(authorizedKeysLine);
+
+        if (keyType != "ssh-ed25519")
+            throw new AgeFormatException($"expected ssh-ed25519, got {keyType}");
+
+        if (pubKey is not Ed25519PublicKeyParameters ed25519Pub)
+            throw new AgeFormatException("declared ssh-ed25519 but the key data is a different type");
+
+        var x25519Pub = Ed25519Converter.PublicKeyToX25519(ed25519Pub.GetEncoded());
+        return new SshEd25519Recipient(wireBytes, x25519Pub);
+    }
+
+    /// <summary>
+    ///     Tries to parse an <c>ssh-ed25519 AAAA…</c> public key line. Returns false
+    ///     instead of throwing when the input is null or malformed.
+    /// </summary>
+    public static bool TryParse([NotNullWhen(true)] string? authorizedKeysLine,
+        [MaybeNullWhen(false)] out SshEd25519Recipient result)
+    {
+        return ParseHelpers.TryParse(authorizedKeysLine, Parse, out result);
     }
 }

@@ -22,10 +22,8 @@ internal static class Bech32
             var b = chk >> 25;
             chk = ((chk & 0x1ffffff) << 5) ^ v;
             for (var i = 0; i < 5; i++)
-            {
                 if (((b >> i) & 1) != 0)
                     chk ^= Generator[i];
-            }
         }
 
         return chk;
@@ -112,7 +110,6 @@ internal static class Bech32
         // BIP-173: "Decoders MUST NOT accept strings where some characters are uppercase and some are lowercase."
         bool hasLower = false, hasUpper = false;
         foreach (var c in bech)
-        {
             switch (c)
             {
                 case >= 'a' and <= 'z':
@@ -122,7 +119,6 @@ internal static class Bech32
                     hasUpper = true;
                     break;
             }
-        }
 
         if (hasLower && hasUpper)
             throw new AgeFormatException("invalid bech32 string: mixed case");

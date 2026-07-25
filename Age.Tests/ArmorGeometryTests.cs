@@ -1,24 +1,27 @@
 using System.Text;
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Geometry resolution and the fallbacks around it. Every case where the layout
-/// cannot be trusted must yield a forward-only stream rather than a seekable one
-/// with wrong offsets — falling back is always safe, guessing is not.
+///     Geometry resolution and the fallbacks around it. Every case where the layout
+///     cannot be trusted must yield a forward-only stream rather than a seekable one
+///     with wrong offsets — falling back is always safe, guessing is not.
 /// </summary>
 public class ArmorGeometryTests
 {
-    private static Stream Dearmor(string text) =>
-        AsciiArmor.Dearmor(new MemoryStream(Encoding.ASCII.GetBytes(text)),
-                           new AgeDecryptOptions().MaxArmorLineBytes);
+    private static Stream Dearmor(string text)
+    {
+        return AsciiArmor.Dearmor(new MemoryStream(Encoding.ASCII.GetBytes(text)),
+            new AgeDecryptOptions().MaxArmorLineBytes);
+    }
 
-    private static string Armor(params string[] bodyLines) =>
-        "-----BEGIN AGE ENCRYPTED FILE-----\n"
-        + string.Concat(bodyLines.Select(l => l + "\n"))
-        + "-----END AGE ENCRYPTED FILE-----\n";
+    private static string Armor(params string[] bodyLines)
+    {
+        return "-----BEGIN AGE ENCRYPTED FILE-----\n"
+               + string.Concat(bodyLines.Select(l => l + "\n"))
+               + "-----END AGE ENCRYPTED FILE-----\n";
+    }
 
     // --- resolvable ----------------------------------------------------------
 
@@ -101,7 +104,7 @@ public class ArmorGeometryTests
     public void NonSeekableSource_IsNotSeekable()
     {
         using var inner = new MemoryStream(Encoding.ASCII.GetBytes(Armor(new string('A', 64))));
-        using var stream = AsciiArmor.Dearmor(new NonSeekableStream(inner), 65536);
+        using var stream = AsciiArmor.Dearmor(new NonSeekableStream(inner));
 
         Assert.False(stream.CanSeek);
         Assert.Throws<NotSupportedException>(() => stream.Length);
@@ -171,7 +174,7 @@ public class ArmorGeometryTests
         // as "cannot resolve" and hands back a forward-only stream.
         var text = Encoding.ASCII.GetBytes(Armor(new string('A', 64), "AAAA"));
         using var lying = new OverstatedLengthStream(new MemoryStream(text), text.Length + 4096);
-        using var stream = AsciiArmor.Dearmor(lying, 65536);
+        using var stream = AsciiArmor.Dearmor(lying);
 
         Assert.False(stream.CanSeek);
     }
@@ -191,14 +194,28 @@ public class ArmorGeometryTests
     public void FinalLineWithoutATrailingNewline_StillDecodes()
     {
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\n"
-                 + new string('A', 64) + "\n"
-                 + "-----END AGE ENCRYPTED FILE-----";   // no trailing newline
+                   + new string('A', 64) + "\n"
+                   + "-----END AGE ENCRYPTED FILE-----"; // no trailing newline
 
         using var stream = Dearmor(text);
         using var output = new MemoryStream();
         stream.CopyTo(output);
 
         Assert.Equal(48, output.Length);
+    }
+
+    [Fact]
+    public void CrlfTerminators_ChangeTheStride()
+    {
+        var text = "-----BEGIN AGE ENCRYPTED FILE-----\r\n"
+                   + new string('A', 64) + "\r\n"
+                   + "AAAA\r\n"
+                   + "-----END AGE ENCRYPTED FILE-----\r\n";
+
+        using var stream = Dearmor(text);
+
+        Assert.True(stream.CanSeek);
+        Assert.Equal(48 + 3, stream.Length);
     }
 
     private sealed class OverstatedLengthStream(Stream inner, long claimedLength) : Stream
@@ -214,25 +231,33 @@ public class ArmorGeometryTests
             set => inner.Position = Math.Min(value, inner.Length);
         }
 
-        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
-        public override int Read(Span<byte> buffer) => inner.Read(buffer);
-        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
-        public override void Flush() { }
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-    }
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            return inner.Read(buffer, offset, count);
+        }
 
-    [Fact]
-    public void CrlfTerminators_ChangeTheStride()
-    {
-        var text = "-----BEGIN AGE ENCRYPTED FILE-----\r\n"
-                 + new string('A', 64) + "\r\n"
-                 + "AAAA\r\n"
-                 + "-----END AGE ENCRYPTED FILE-----\r\n";
+        public override int Read(Span<byte> buffer)
+        {
+            return inner.Read(buffer);
+        }
 
-        using var stream = Dearmor(text);
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            return inner.Seek(offset, origin);
+        }
 
-        Assert.True(stream.CanSeek);
-        Assert.Equal(48 + 3, stream.Length);
+        public override void Flush()
+        {
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
     }
 }

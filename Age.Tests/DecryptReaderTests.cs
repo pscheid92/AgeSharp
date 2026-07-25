@@ -1,13 +1,12 @@
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Tests for the unified <see cref="Age.DecryptReader(System.IO.Stream, System.ReadOnlySpan{IIdentity})"/>
-/// decrypt stream: seekable random access over a seekable source (ported from the old
-/// <c>AgeRandomAccess</c> suite), the one-chunk cache, forward-only behavior over a
-/// non-seekable source, and truncation-detection semantics.
+///     Tests for the unified <see cref="Age.DecryptReader(System.IO.Stream, System.ReadOnlySpan{IIdentity})" />
+///     decrypt stream: seekable random access over a seekable source (ported from the old
+///     <c>AgeRandomAccess</c> suite), the one-chunk cache, forward-only behavior over a
+///     non-seekable source, and truncation-detection semantics.
 /// </summary>
 public class DecryptReaderTests
 {
@@ -31,6 +30,7 @@ public class DecryptReaderTests
             if (read == 0) break;
             total += read;
         }
+
         return total == count ? buf : buf[..total];
     }
 
@@ -122,10 +122,10 @@ public class DecryptReaderTests
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
         using var stream = Age.DecryptReader(ciphertext, identity);
 
-        Assert.Equal(plaintext.AsSpan(32768, 100).ToArray(), ReadAt(stream, 32768, 100));   // mid first chunk
-        Assert.Equal(plaintext.AsSpan(65530, 100).ToArray(), ReadAt(stream, 65530, 100));   // across chunk 0/1
-        Assert.Equal(plaintext[..1], ReadAt(stream, 0, 1));                                  // first byte
-        Assert.Equal(plaintext[^1..], ReadAt(stream, plaintext.Length - 1, 1));             // last byte
+        Assert.Equal(plaintext.AsSpan(32768, 100).ToArray(), ReadAt(stream, 32768, 100)); // mid first chunk
+        Assert.Equal(plaintext.AsSpan(65530, 100).ToArray(), ReadAt(stream, 65530, 100)); // across chunk 0/1
+        Assert.Equal(plaintext[..1], ReadAt(stream, 0, 1)); // first byte
+        Assert.Equal(plaintext[^1..], ReadAt(stream, plaintext.Length - 1, 1)); // last byte
     }
 
     [Fact]
@@ -293,7 +293,7 @@ public class DecryptReaderTests
         var plaintext = new byte[100_000];
         new Random(42).NextBytes(plaintext);
 
-        using var ciphertext = Encrypt(plaintext, identity.Recipient, armor: true);
+        using var ciphertext = Encrypt(plaintext, identity.Recipient, true);
         using var stream = Age.DecryptReader(ciphertext, identity);
 
         Assert.True(stream.CanSeek);
@@ -383,7 +383,7 @@ public class DecryptReaderTests
         // chunk math trusts Length, so loading the (over-sized) final chunk hits the
         // "could not read full chunk" guard — now while opening, since that is when
         // the final chunk is read to authenticate the length.
-        using var lying = new InflatedLengthStream(new MemoryStream(ciphertextBytes), extra: 64);
+        using var lying = new InflatedLengthStream(new MemoryStream(ciphertextBytes), 64);
 
         Assert.Throws<AgeAuthenticationException>(() => Age.DecryptReader(lying, identity));
     }
@@ -406,8 +406,6 @@ public class DecryptReaderTests
     {
         public long TotalBytesRead { get; private set; }
 
-        public void Reset() => TotalBytesRead = 0;
-
         public override bool CanRead => true;
         public override bool CanSeek => true;
         public override bool CanWrite => false;
@@ -417,6 +415,11 @@ public class DecryptReaderTests
         {
             get => inner.Position;
             set => inner.Position = value;
+        }
+
+        public void Reset()
+        {
+            TotalBytesRead = 0;
         }
 
         public override int Read(byte[] buffer, int offset, int count)
@@ -433,10 +436,24 @@ public class DecryptReaderTests
             return n;
         }
 
-        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
-        public override void Flush() { }
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            return inner.Seek(offset, origin);
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     /// <summary>A seekable stream that reports a Length larger than its backing data can deliver.</summary>
@@ -453,11 +470,33 @@ public class DecryptReaderTests
             set => inner.Position = value;
         }
 
-        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
-        public override int Read(Span<byte> buffer) => inner.Read(buffer);
-        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
-        public override void Flush() { }
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            return inner.Read(buffer, offset, count);
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            return inner.Read(buffer);
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            return inner.Seek(offset, origin);
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
     }
 }

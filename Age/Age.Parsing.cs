@@ -7,9 +7,9 @@ namespace AgeSharp;
 public static partial class Age
 {
     /// <summary>
-    /// Parses a single recipient string: X25519 (<c>age1…</c>), ML-KEM-768-X25519
-    /// (<c>age1pq1…</c>), a plugin recipient (<c>age1&lt;name&gt;1…</c>), or an SSH
-    /// public key (an <c>ssh-ed25519</c> / <c>ssh-rsa</c> authorized_keys line).
+    ///     Parses a single recipient string: X25519 (<c>age1…</c>), ML-KEM-768-X25519
+    ///     (<c>age1pq1…</c>), a plugin recipient (<c>age1&lt;name&gt;1…</c>), or an SSH
+    ///     public key (an <c>ssh-ed25519</c> / <c>ssh-rsa</c> authorized_keys line).
     /// </summary>
     /// <exception cref="AgeFormatException">The string is not a recognized recipient.</exception>
     public static IRecipient ParseRecipient(string s, IPluginCallbacks? plugins = null)
@@ -31,9 +31,9 @@ public static partial class Age
     }
 
     /// <summary>
-    /// Parses a single identity string: X25519 (<c>AGE-SECRET-KEY-1…</c>),
-    /// ML-KEM-768-X25519 (<c>AGE-SECRET-KEY-PQ-1…</c>), a plugin identity
-    /// (<c>AGE-PLUGIN-…</c>), or an SSH private key in PEM form.
+    ///     Parses a single identity string: X25519 (<c>AGE-SECRET-KEY-1…</c>),
+    ///     ML-KEM-768-X25519 (<c>AGE-SECRET-KEY-PQ-1…</c>), a plugin identity
+    ///     (<c>AGE-PLUGIN-…</c>), or an SSH private key in PEM form.
     /// </summary>
     /// <exception cref="AgeFormatException">The string is not a recognized identity.</exception>
     public static IIdentity ParseIdentity(string s, IPluginCallbacks? plugins = null)
@@ -51,32 +51,41 @@ public static partial class Age
     }
 
     /// <summary>Tries to parse a recipient string. Returns false instead of throwing.</summary>
-    public static bool TryParseRecipient([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out IRecipient result) =>
-        ParseHelpers.TryParse(s, static x => ParseRecipient(x), out result);
+    public static bool TryParseRecipient([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out IRecipient result)
+    {
+        return ParseHelpers.TryParse(s, static x => ParseRecipient(x), out result);
+    }
 
     /// <summary>Tries to parse an identity string. Returns false instead of throwing.</summary>
-    public static bool TryParseIdentity([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out IIdentity result) =>
-        ParseHelpers.TryParse(s, static x => ParseIdentity(x), out result);
+    public static bool TryParseIdentity([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out IIdentity result)
+    {
+        return ParseHelpers.TryParse(s, static x => ParseIdentity(x), out result);
+    }
 
     /// <summary>
-    /// Parses a recipients file: one recipient per line, with blank lines and
-    /// <c>#</c> comments ignored. The returned array converts implicitly to the
-    /// <c>ReadOnlySpan&lt;IRecipient&gt;</c> the <see cref="Encrypt(Stream, Stream, IRecipient, ReadOnlySpan{IRecipient})"/>
-    /// overloads accept.
+    ///     Parses a recipients file: one recipient per line, with blank lines and
+    ///     <c>#</c> comments ignored. The returned array converts implicitly to the
+    ///     <c>ReadOnlySpan&lt;IRecipient&gt;</c> the
+    ///     <see cref="Encrypt(Stream, Stream, IRecipient, ReadOnlySpan{IRecipient})" />
+    ///     overloads accept.
     /// </summary>
-    public static IRecipient[] ParseRecipients(string text, IPluginCallbacks? plugins = null) =>
-        NonBlankLines(text).Select(line => ParseRecipient(line, plugins)).ToArray();
+    public static IRecipient[] ParseRecipients(string text, IPluginCallbacks? plugins = null)
+    {
+        return NonBlankLines(text).Select(line => ParseRecipient(line, plugins)).ToArray();
+    }
 
     /// <summary>
-    /// Parses a plaintext identity file: one identity per line, with blank lines
-    /// and <c>#</c> comments ignored.
+    ///     Parses a plaintext identity file: one identity per line, with blank lines
+    ///     and <c>#</c> comments ignored.
     /// </summary>
-    public static IIdentity[] ParseIdentities(string text, IPluginCallbacks? plugins = null) =>
-        NonBlankLines(text).Select(line => ParseIdentity(line, plugins)).ToArray();
+    public static IIdentity[] ParseIdentities(string text, IPluginCallbacks? plugins = null)
+    {
+        return NonBlankLines(text).Select(line => ParseIdentity(line, plugins)).ToArray();
+    }
 
     /// <summary>
-    /// Decrypts a passphrase-protected identity file and parses the identities it
-    /// contains.
+    ///     Decrypts a passphrase-protected identity file and parses the identities it
+    ///     contains.
     /// </summary>
     public static IIdentity[] DecryptIdentities(Stream source, string passphrase, IPluginCallbacks? plugins = null)
     {
@@ -85,10 +94,12 @@ public static partial class Age
         return ParseIdentities(Encoding.UTF8.GetString(output.ToArray()), plugins);
     }
 
-    private static IEnumerable<string> NonBlankLines(string text) =>
-        text.Split('\n')
+    private static IEnumerable<string> NonBlankLines(string text)
+    {
+        return text.Split('\n')
             .Select(line => line.TrimEnd('\r'))
             .Where(line => line.Length > 0 && !line.StartsWith('#'));
+    }
 
     private static IRecipient ParseSshRecipient(string authorizedKeysLine)
     {

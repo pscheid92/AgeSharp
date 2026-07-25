@@ -1,4 +1,4 @@
-using AgeSharp;
+using System.Text;
 using AgeSharp.Crypto;
 using Xunit;
 
@@ -8,33 +8,15 @@ public class PluginTests
 {
     // Helper to create a valid Bech32 plugin recipient string
     private static string MakePluginRecipient(string name)
-        => Bech32.Encode($"age1{name}", new byte[] { 0x01, 0x02, 0x03 });
+    {
+        return Bech32.Encode($"age1{name}", new byte[] { 0x01, 0x02, 0x03 });
+    }
 
     // Helper to create a valid Bech32 plugin identity string (encode lowercase, then uppercase the whole thing)
     private static string MakePluginIdentity(string name)
-        => Bech32.Encode($"age-plugin-{name.ToLowerInvariant()}-", new byte[] { 0x01, 0x02, 0x03 }).ToUpperInvariant();
-
-    private sealed class TestCallbacks : IPluginCallbacks
     {
-        public List<string> Messages { get; } = new();
-        public List<(string Prompt, bool Secret)> SecretRequests { get; } = new();
-        public string? SecretResponse { get; set; }
-        public List<(string Message, string Yes, string? No)> Confirmations { get; } = new();
-        public bool ConfirmResponse { get; set; } = true;
-
-        public void DisplayMessage(string message) => Messages.Add(message);
-
-        public string RequestValue(string prompt, bool secret)
-        {
-            SecretRequests.Add((prompt, secret));
-            return SecretResponse ?? "";
-        }
-
-        public bool Confirm(string message, string yes, string? no)
-        {
-            Confirmations.Add((message, yes, no));
-            return ConfirmResponse;
-        }
+        return Bech32.Encode($"age-plugin-{name.ToLowerInvariant()}-", new byte[] { 0x01, 0x02, 0x03 })
+            .ToUpperInvariant();
     }
 
     // --- Plugin name extraction ---
@@ -127,9 +109,9 @@ public class PluginTests
     // --- Plugin name validation (security: prevents arbitrary executable paths) ---
 
     [Theory]
-    [InlineData("pwn/pwn")]   // forward slash -> relative path to Process.Start
-    [InlineData("pwn\\pwn")]  // backslash (Windows separator)
-    [InlineData("a b")]       // space
+    [InlineData("pwn/pwn")] // forward slash -> relative path to Process.Start
+    [InlineData("pwn\\pwn")] // backslash (Windows separator)
+    [InlineData("a b")] // space
     public void PluginRecipient_ExtractPluginName_InvalidChars_Throws(string name)
     {
         // Valid bech32 (valid checksum), but the name carries a disallowed character.
@@ -158,7 +140,7 @@ public class PluginTests
     [Theory]
     [InlineData("yubikey")]
     [InlineData("fido2hmac")]
-    [InlineData("se-cure_plugin.v2")]  // hyphen, underscore, dot, digit are all allowed
+    [InlineData("se-cure_plugin.v2")] // hyphen, underscore, dot, digit are all allowed
     public void ExtractPluginName_ValidNames_Accepted(string name)
     {
         Assert.Equal(name, PluginRecipient.ExtractPluginName(MakePluginRecipient(name)));
@@ -173,11 +155,11 @@ public class PluginTests
     }
 
     [Theory]
-    [InlineData("")]          // empty
-    [InlineData("pwn/pwn")]   // forward slash
-    [InlineData("pwn\\pwn")]  // backslash
-    [InlineData("a b")]       // space
-    [InlineData("a\tb")]      // tab
+    [InlineData("")] // empty
+    [InlineData("pwn/pwn")] // forward slash
+    [InlineData("pwn\\pwn")] // backslash
+    [InlineData("a b")] // space
+    [InlineData("a\tb")] // tab
     public void PluginNameValidator_RejectsInvalid(string name)
     {
         Assert.False(PluginNameValidator.IsValid(name));
@@ -257,7 +239,7 @@ public class PluginTests
     {
         // Body that encodes to more than 64 chars (>= 49 bytes)
         var body = new byte[64];
-        for (int i = 0; i < body.Length; i++) body[i] = (byte)(i & 0xFF);
+        for (var i = 0; i < body.Length; i++) body[i] = (byte)(i & 0xFF);
 
         var buffer = new StringWriter();
         var conn = new PluginConnection(new StringReader(""), buffer);
@@ -293,7 +275,7 @@ public class PluginTests
         var recipientStr = MakePluginRecipient("test");
         var recipient = new PluginRecipient(recipientStr);
         var fileKey = new byte[16];
-        for (int i = 0; i < 16; i++) fileKey[i] = (byte)i;
+        for (var i = 0; i < 16; i++) fileKey[i] = (byte)i;
 
         // Prepare plugin responses: recipient-stanza, then done
         var wrappedBody = new byte[] { 0xAA, 0xBB, 0xCC };
@@ -330,7 +312,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("error", [], System.Text.Encoding.UTF8.GetBytes("something went wrong"));
+        mockConn.WriteStanza("error", [], Encoding.UTF8.GetBytes("something went wrong"));
         var pluginResponse = pluginOutput.ToString();
 
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
@@ -370,7 +352,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("msg", [], System.Text.Encoding.UTF8.GetBytes("Touch your YubiKey"));
+        mockConn.WriteStanza("msg", [], Encoding.UTF8.GetBytes("Touch your YubiKey"));
         mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -391,7 +373,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("request-secret", [], System.Text.Encoding.UTF8.GetBytes("Enter PIN:"));
+        mockConn.WriteStanza("request-secret", [], Encoding.UTF8.GetBytes("Enter PIN:"));
         mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -415,7 +397,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("request-secret", [], System.Text.Encoding.UTF8.GetBytes("Enter PIN:"));
+        mockConn.WriteStanza("request-secret", [], Encoding.UTF8.GetBytes("Enter PIN:"));
         mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -436,7 +418,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("request-public", [], System.Text.Encoding.UTF8.GetBytes("Enter your name:"));
+        mockConn.WriteStanza("request-public", [], Encoding.UTF8.GetBytes("Enter your name:"));
         mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -447,7 +429,7 @@ public class PluginTests
 
         Assert.Single(callbacks.SecretRequests);
         Assert.Equal("Enter your name:", callbacks.SecretRequests[0].Prompt);
-        Assert.False(callbacks.SecretRequests[0].Secret);   // public value is not masked
+        Assert.False(callbacks.SecretRequests[0].Secret); // public value is not masked
         Assert.Contains("-> ok", capturedOutput.ToString());
     }
 
@@ -459,7 +441,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("request-public", [], System.Text.Encoding.UTF8.GetBytes("Enter your name:"));
+        mockConn.WriteStanza("request-public", [], Encoding.UTF8.GetBytes("Enter your name:"));
         mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -494,8 +476,11 @@ public class PluginTests
     {
         var identityStr = MakePluginIdentity("test");
         var identity = new PluginIdentity(identityStr);
-        var fileKey = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-                                   0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
+        var fileKey = new byte[]
+        {
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+            0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10
+        };
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -538,7 +523,7 @@ public class PluginTests
         var stanzas = new List<Stanza>
         {
             new("X25519", ["a1"], new byte[] { 0x01 }),
-            new("scrypt", ["a2", "18"], new byte[] { 0x02 }),
+            new("scrypt", ["a2", "18"], new byte[] { 0x02 })
         };
 
         var capturedOutput = new StringWriter();
@@ -577,7 +562,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("error", ["internal"], System.Text.Encoding.UTF8.GetBytes("plugin crashed"));
+        mockConn.WriteStanza("error", ["internal"], Encoding.UTF8.GetBytes("plugin crashed"));
         var pluginResponse = pluginOutput.ToString();
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
@@ -594,7 +579,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("error", ["identity"], System.Text.Encoding.UTF8.GetBytes("wrong key"));
+        mockConn.WriteStanza("error", ["identity"], Encoding.UTF8.GetBytes("wrong key"));
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
 
@@ -637,7 +622,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("request-secret", [], System.Text.Encoding.UTF8.GetBytes("Enter PIN:"));
+        mockConn.WriteStanza("request-secret", [], Encoding.UTF8.GetBytes("Enter PIN:"));
         mockConn.WriteStanza("file-key", ["0"], fileKey);
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -660,7 +645,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("request-public", [], System.Text.Encoding.UTF8.GetBytes("Enter your name:"));
+        mockConn.WriteStanza("request-public", [], Encoding.UTF8.GetBytes("Enter your name:"));
         mockConn.WriteStanza("file-key", ["0"], fileKey);
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -671,7 +656,7 @@ public class PluginTests
 
         Assert.Single(callbacks.SecretRequests);
         Assert.Equal("Enter your name:", callbacks.SecretRequests[0].Prompt);
-        Assert.False(callbacks.SecretRequests[0].Secret);   // public value is not masked
+        Assert.False(callbacks.SecretRequests[0].Secret); // public value is not masked
     }
 
     [Fact]
@@ -683,7 +668,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("msg", [], System.Text.Encoding.UTF8.GetBytes("Touch your YubiKey"));
+        mockConn.WriteStanza("msg", [], Encoding.UTF8.GetBytes("Touch your YubiKey"));
         mockConn.WriteStanza("file-key", ["0"], new byte[16]);
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -705,7 +690,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("confirm", ["yes-btn"], System.Text.Encoding.UTF8.GetBytes("Allow?"));
+        mockConn.WriteStanza("confirm", ["yes-btn"], Encoding.UTF8.GetBytes("Allow?"));
         var pluginResponse = pluginOutput.ToString();
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
@@ -822,7 +807,7 @@ public class PluginTests
         // Use a real X25519 identity to verify the default batch method works
         using var identity = X25519Identity.Generate();
         var fileKey = new byte[16];
-        for (int i = 0; i < 16; i++) fileKey[i] = (byte)i;
+        for (var i = 0; i < 16; i++) fileKey[i] = (byte)i;
 
         // Create a stanza that matches this identity
         var stanza = identity.Recipient.Wrap(fileKey);
@@ -894,7 +879,8 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("confirm", [Base64Unpadded.Encode("yes-btn"u8), Base64Unpadded.Encode("no-btn"u8)], System.Text.Encoding.UTF8.GetBytes("Allow access?"));
+        mockConn.WriteStanza("confirm", [Base64Unpadded.Encode("yes-btn"u8), Base64Unpadded.Encode("no-btn"u8)],
+            Encoding.UTF8.GetBytes("Allow access?"));
         mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -919,7 +905,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("confirm", [Base64Unpadded.Encode("yes-btn"u8)], System.Text.Encoding.UTF8.GetBytes("Allow?"));
+        mockConn.WriteStanza("confirm", [Base64Unpadded.Encode("yes-btn"u8)], Encoding.UTF8.GetBytes("Allow?"));
         mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -941,7 +927,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("confirm", [], System.Text.Encoding.UTF8.GetBytes("Allow?"));
+        mockConn.WriteStanza("confirm", [], Encoding.UTF8.GetBytes("Allow?"));
         mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -965,7 +951,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("confirm", ["yes-btn"], System.Text.Encoding.UTF8.GetBytes("Allow?"));
+        mockConn.WriteStanza("confirm", ["yes-btn"], Encoding.UTF8.GetBytes("Allow?"));
         var pluginResponse = pluginOutput.ToString();
 
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
@@ -981,7 +967,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("confirm", [], System.Text.Encoding.UTF8.GetBytes("Allow?"));
+        mockConn.WriteStanza("confirm", [], Encoding.UTF8.GetBytes("Allow?"));
         mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -1000,7 +986,7 @@ public class PluginTests
     {
         // 48 bytes encodes to exactly 64 base64 chars — tests the extra empty final line branch
         var body = new byte[48];
-        for (int i = 0; i < body.Length; i++) body[i] = (byte)i;
+        for (var i = 0; i < body.Length; i++) body[i] = (byte)i;
 
         var buffer = new StringWriter();
         var conn = new PluginConnection(new StringReader(""), buffer);
@@ -1086,7 +1072,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("msg", [], System.Text.Encoding.UTF8.GetBytes("info"));
+        mockConn.WriteStanza("msg", [], Encoding.UTF8.GetBytes("info"));
         mockConn.WriteStanza("recipient-stanza", ["0", "X25519"], new byte[] { 0x01 });
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -1118,7 +1104,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("msg", [], System.Text.Encoding.UTF8.GetBytes("info"));
+        mockConn.WriteStanza("msg", [], Encoding.UTF8.GetBytes("info"));
         mockConn.WriteStanza("file-key", ["0"], fileKey);
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -1140,7 +1126,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("request-secret", [], System.Text.Encoding.UTF8.GetBytes("PIN:"));
+        mockConn.WriteStanza("request-secret", [], Encoding.UTF8.GetBytes("PIN:"));
         mockConn.WriteStanza("file-key", ["0"], new byte[16]);
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -1162,7 +1148,7 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("confirm", [], System.Text.Encoding.UTF8.GetBytes("Allow?"));
+        mockConn.WriteStanza("confirm", [], Encoding.UTF8.GetBytes("Allow?"));
         mockConn.WriteStanza("file-key", ["0"], new byte[16]);
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -1186,7 +1172,8 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("confirm", [Base64Unpadded.Encode("yes-btn"u8), Base64Unpadded.Encode("no-btn"u8)], System.Text.Encoding.UTF8.GetBytes("Allow?"));
+        mockConn.WriteStanza("confirm", [Base64Unpadded.Encode("yes-btn"u8), Base64Unpadded.Encode("no-btn"u8)],
+            Encoding.UTF8.GetBytes("Allow?"));
         mockConn.WriteStanza("file-key", ["0"], fileKey);
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
@@ -1237,5 +1224,31 @@ public class PluginTests
     {
         var badStr = Bech32.Encode("not-a-plugin-", new byte[] { 0x01 });
         Assert.Throws<AgeFormatException>(() => PluginIdentity.ExtractPluginName(badStr));
+    }
+
+    private sealed class TestCallbacks : IPluginCallbacks
+    {
+        public List<string> Messages { get; } = new();
+        public List<(string Prompt, bool Secret)> SecretRequests { get; } = new();
+        public string? SecretResponse { get; set; }
+        public List<(string Message, string Yes, string? No)> Confirmations { get; } = new();
+        public bool ConfirmResponse { get; set; } = true;
+
+        public void DisplayMessage(string message)
+        {
+            Messages.Add(message);
+        }
+
+        public string RequestValue(string prompt, bool secret)
+        {
+            SecretRequests.Add((prompt, secret));
+            return SecretResponse ?? "";
+        }
+
+        public bool Confirm(string message, string yes, string? no)
+        {
+            Confirmations.Add((message, yes, no));
+            return ConfirmResponse;
+        }
     }
 }

@@ -1,4 +1,3 @@
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
@@ -142,7 +141,8 @@ public class PullBasedTests
         var plaintext = "armored pull test"u8.ToArray();
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = Age.EncryptReader(input, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        using var encryptedStream =
+            Age.EncryptReader(input, new AgeEncryptOptions { Armor = true }, identity.Recipient);
 
         using var ciphertext = new MemoryStream();
         encryptedStream.CopyTo(ciphertext);
@@ -233,7 +233,8 @@ public class PullBasedTests
         new Random(42).NextBytes(plaintext);
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = Age.EncryptReader(input, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        using var encryptedStream =
+            Age.EncryptReader(input, new AgeEncryptOptions { Armor = true }, identity.Recipient);
 
         using var ciphertext = new MemoryStream();
         encryptedStream.CopyTo(ciphertext);
@@ -256,7 +257,8 @@ public class PullBasedTests
         new Random(42).NextBytes(plaintext);
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = Age.EncryptReader(input, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        using var encryptedStream =
+            Age.EncryptReader(input, new AgeEncryptOptions { Armor = true }, identity.Recipient);
 
         using var ciphertext = new MemoryStream();
         var oneByte = new byte[1];
@@ -290,13 +292,13 @@ public class PullBasedTests
         new Random(7).NextBytes(fixedCiphertext);
 
         using var pullSource = new MemoryStream(fixedCiphertext);
-        using var pullArmor = new AgeSharp.ArmorStream(pullSource);
+        using var pullArmor = new ArmorStream(pullSource);
         using var pullOut = new MemoryStream();
         pullArmor.CopyTo(pullOut);
 
         using var pushSource = new MemoryStream(fixedCiphertext);
         using var pushOut = new MemoryStream();
-        AgeSharp.AsciiArmor.Armor(pushSource, pushOut);
+        AsciiArmor.Armor(pushSource, pushOut);
 
         Assert.Equal(pushOut.ToArray(), pullOut.ToArray());
     }

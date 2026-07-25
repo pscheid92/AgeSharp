@@ -4,11 +4,11 @@ using System.Text;
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Locates the reference <c>age</c> / <c>age-keygen</c> CLI binaries used by the interop
-/// tests by searching <c>PATH</c>, and drives <c>age</c> for encrypt/decrypt so interop tests
-/// read as data rather than repeated process plumbing. CI installs age onto PATH explicitly;
-/// local shells get it via Homebrew's <c>shellenv</c>. When age is not on PATH the tests skip
-/// cleanly rather than falsely passing.
+///     Locates the reference <c>age</c> / <c>age-keygen</c> CLI binaries used by the interop
+///     tests by searching <c>PATH</c>, and drives <c>age</c> for encrypt/decrypt so interop tests
+///     read as data rather than repeated process plumbing. CI installs age onto PATH explicitly;
+///     local shells get it via Homebrew's <c>shellenv</c>. When age is not on PATH the tests skip
+///     cleanly rather than falsely passing.
 /// </summary>
 internal static class AgeCli
 {
@@ -18,7 +18,7 @@ internal static class AgeCli
     public static bool Available => AgePath is not null;
     public static bool KeygenAvailable => AgeKeygenPath is not null;
 
-    /// <summary>Encrypts <paramref name="plaintext"/> with the reference age CLI to one or more recipients.</summary>
+    /// <summary>Encrypts <paramref name="plaintext" /> with the reference age CLI to one or more recipients.</summary>
     public static byte[] Encrypt(byte[] plaintext, bool armored, params string[] recipients)
     {
         var input = WriteTemp(plaintext);
@@ -33,6 +33,7 @@ internal static class AgeCli
                 args.Add("-r");
                 args.Add(recipient);
             }
+
             args.Add("-o");
             args.Add(output);
             args.Add(input);
@@ -47,7 +48,7 @@ internal static class AgeCli
         }
     }
 
-    /// <summary>Decrypts <paramref name="ciphertext"/> with the reference age CLI using the given identity-file contents.</summary>
+    /// <summary>Decrypts <paramref name="ciphertext" /> with the reference age CLI using the given identity-file contents.</summary>
     public static byte[] Decrypt(string identityFileText, byte[] ciphertext)
     {
         var key = WriteTemp(Encoding.UTF8.GetBytes(identityFileText));
@@ -73,7 +74,7 @@ internal static class AgeCli
         var psi = new ProcessStartInfo(AgePath!)
         {
             RedirectStandardError = true,
-            UseShellExecute = false,
+            UseShellExecute = false
         };
         foreach (var arg in args)
             psi.ArgumentList.Add(arg);
@@ -110,7 +111,7 @@ internal static class AgeCli
         var fileName = OperatingSystem.IsWindows() ? name + ".exe" : name;
 
         foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "")
-                     .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                 .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var candidate = Path.Combine(dir, fileName);
             if (File.Exists(candidate))

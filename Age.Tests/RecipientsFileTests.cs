@@ -1,4 +1,3 @@
-using AgeSharp;
 using AgeSharp.Crypto;
 using Xunit;
 
@@ -8,7 +7,9 @@ public class RecipientsFileTests
 {
     // Found by brute force: a real X25519 key whose recipient's bech32 data happens to start
     // with "pq", so the string begins "age1pq" exactly like an ML-KEM-768 recipient does.
-    private const string PqLookalikeIdentity = "AGE-SECRET-KEY-1LRKLPKJT609NGXMQ8FJ2T985FU95PK29M9YZRPAW4WWZ5WWZWFRSNV7M2H";
+    private const string PqLookalikeIdentity =
+        "AGE-SECRET-KEY-1LRKLPKJT609NGXMQ8FJ2T985FU95PK29M9YZRPAW4WWZ5WWZWFRSNV7M2H";
+
     private const string PqLookalikeRecipient = "age1pqw26wvuhkqsmmqh0flpkkt7hmn2mrwmr83v84fm8zjmalnqavuq2tj4sg";
 
     [Fact]
@@ -51,15 +52,15 @@ public class RecipientsFileTests
         var sshKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGJQGjgPbMDwrhAEaWNKLdSIHAxiKJDtMCmLj7Zeg844 test@host";
 
         var text = $"""
-            # X25519
-            {x25519.Recipient}
+                    # X25519
+                    {x25519.Recipient}
 
-            # PQ
-            {pq.Recipient}
+                    # PQ
+                    {pq.Recipient}
 
-            # SSH
-            {sshKey}
-            """;
+                    # SSH
+                    {sshKey}
+                    """;
 
         var parsed = Age.ParseRecipients(text);
         Assert.Equal(3, parsed.Length);

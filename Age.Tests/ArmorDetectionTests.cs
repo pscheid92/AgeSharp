@@ -1,13 +1,12 @@
 using System.Text;
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Armor detection uses lookahead rather than seeking, so armored input is
-/// recognised on any stream — a pipe, a socket, an HTTP response body — not just
-/// on one that happens to support <see cref="Stream.Seek"/>.
+///     Armor detection uses lookahead rather than seeking, so armored input is
+///     recognised on any stream — a pipe, a socket, an HTTP response body — not just
+///     on one that happens to support <see cref="Stream.Seek" />.
 /// </summary>
 public class ArmorDetectionTests
 {
@@ -128,7 +127,9 @@ public class ArmorDetectionTests
 
         using var input = new MemoryStream(armored);
         using (var output = new MemoryStream())
+        {
             Age.Decrypt(input, output, identity);
+        }
 
         Assert.True(input.CanRead);
         input.Position = 0;

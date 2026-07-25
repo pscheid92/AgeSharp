@@ -1,45 +1,45 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <LangVersion>14</LangVersion>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <AssemblyName>AgeSharp</AssemblyName>
-    <RootNamespace>AgeSharp</RootNamespace>
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <LangVersion>14</LangVersion>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <AssemblyName>AgeSharp</AssemblyName>
+        <RootNamespace>AgeSharp</RootNamespace>
 
-    <PackageId>AgeSharp</PackageId>
-    <Authors>pscheid92</Authors>
-    <Description>A C# implementation of the age file encryption format</Description>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/pscheid92/AgeSharp</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/pscheid92/AgeSharp</PackageProjectUrl>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageTags>age;encryption;cryptography</PackageTags>
-  </PropertyGroup>
+        <PackageId>AgeSharp</PackageId>
+        <Authors>pscheid92</Authors>
+        <Description>A C# implementation of the age file encryption format</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <RepositoryUrl>https://github.com/pscheid92/AgeSharp</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/pscheid92/AgeSharp</PackageProjectUrl>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageTags>age;encryption;cryptography</PackageTags>
+    </PropertyGroup>
 
-  <!-- Test hook: `dotnet test -p:ForcePortableAead=true` builds the library with the managed
-       ChaCha20-Poly1305 backend as the default, so the suite exercises the browser/WASM path.
-       Never defined in a normal or packaged build. -->
-  <PropertyGroup Condition="'$(ForcePortableAead)' == 'true'">
-    <DefineConstants>$(DefineConstants);FORCE_PORTABLE_AEAD</DefineConstants>
-  </PropertyGroup>
+    <!-- Test hook: `dotnet test -p:ForcePortableAead=true` builds the library with the managed
+         ChaCha20-Poly1305 backend as the default, so the suite exercises the browser/WASM path.
+         Never defined in a normal or packaged build. -->
+    <PropertyGroup Condition="'$(ForcePortableAead)' == 'true'">
+        <DefineConstants>$(DefineConstants);FORCE_PORTABLE_AEAD</DefineConstants>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
-    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
 
-  <ItemGroup>
-    <InternalsVisibleTo Include="Age.Tests" />
-  </ItemGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="Age.Tests"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <None Include="../README.md" Pack="true" PackagePath="/" />
-  </ItemGroup>
+    <ItemGroup>
+        <None Include="../README.md" Pack="true" PackagePath="/"/>
+    </ItemGroup>
 
 </Project>

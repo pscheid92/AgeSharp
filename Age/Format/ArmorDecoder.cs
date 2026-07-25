@@ -3,15 +3,15 @@ using System.Buffers;
 namespace AgeSharp;
 
 /// <summary>
-/// Sans-I/O decoder for the ASCII armor format: it is fed whole lines and returns
-/// the bytes each one decodes to, enforcing the format's structure as it goes —
-/// the begin marker (after any blank lines), the 64-column body with canonical
-/// base64, the end marker, and the rule that nothing but whitespace may follow.
+///     Sans-I/O decoder for the ASCII armor format: it is fed whole lines and returns
+///     the bytes each one decodes to, enforcing the format's structure as it goes —
+///     the begin marker (after any blank lines), the 64-column body with canonical
+///     base64, the end marker, and the rule that nothing but whitespace may follow.
 /// </summary>
 /// <remarks>
-/// Holding the prologue here rather than reading it eagerly is what lets the
-/// dearmor path be genuinely asynchronous: no line is read until the caller reads,
-/// so nothing does blocking I/O on the caller's stream.
+///     Holding the prologue here rather than reading it eagerly is what lets the
+///     dearmor path be genuinely asynchronous: no line is read until the caller reads,
+///     so nothing does blocking I/O on the caller's stream.
 /// </remarks>
 internal sealed class ArmorDecoder
 {
@@ -21,21 +21,15 @@ internal sealed class ArmorDecoder
     private static readonly SearchValues<char> Base64Chars =
         SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=");
 
-    private enum State
-    {
-        BeforeMarker,
-        Body,
-        AfterEnd,
-    }
-
-    private State _state = State.BeforeMarker;
     private bool _sawFinalLine;
 
+    private State _state = State.BeforeMarker;
+
     /// <summary>
-    /// Feeds one complete line and writes what it decodes to into
-    /// <paramref name="destination"/> (at most <see cref="MaxDecodedPerLine"/> bytes).
-    /// Returns the number of bytes written; marker, blank, and trailing lines
-    /// produce none.
+    ///     Feeds one complete line and writes what it decodes to into
+    ///     <paramref name="destination" /> (at most <see cref="MaxDecodedPerLine" /> bytes).
+    ///     Returns the number of bytes written; marker, blank, and trailing lines
+    ///     produce none.
     /// </summary>
     /// <exception cref="AgeFormatException">The line violates the armor format.</exception>
     public int ProcessLine(ReadOnlySpan<char> line, Span<byte> destination)
@@ -71,14 +65,14 @@ internal sealed class ArmorDecoder
     }
 
     /// <summary>
-    /// Places the decoder directly in the body, for a reader that has seeked past the
-    /// begin marker rather than reading through it.
+    ///     Places the decoder directly in the body, for a reader that has seeked past the
+    ///     begin marker rather than reading through it.
     /// </summary>
     /// <remarks>
-    /// Lines skipped this way are never validated — the position was computed from
-    /// the fixed armor geometry, so a file that violates it yields bytes that fail
-    /// AEAD authentication rather than decoding to something plausible. Forward reads
-    /// still validate every line they pass through.
+    ///     Lines skipped this way are never validated — the position was computed from
+    ///     the fixed armor geometry, so a file that violates it yields bytes that fail
+    ///     AEAD authentication rather than decoding to something plausible. Forward reads
+    ///     still validate every line they pass through.
     /// </remarks>
     public void ResumeInBody()
     {
@@ -87,8 +81,8 @@ internal sealed class ArmorDecoder
     }
 
     /// <summary>
-    /// Signals end of input. The armor must have been closed by an end marker;
-    /// anything else means the data was truncated.
+    ///     Signals end of input. The armor must have been closed by an end marker;
+    ///     anything else means the data was truncated.
     /// </summary>
     /// <exception cref="AgeFormatException">The armor ended before its end marker.</exception>
     public void FinishAtEof()
@@ -168,15 +162,25 @@ internal sealed class ArmorDecoder
             throw new AgeFormatException("non-canonical base64 in armor");
     }
 
-    private static int Base64Value(char c) => c switch
+    private static int Base64Value(char c)
     {
-        >= 'A' and <= 'Z' => c - 'A',
-        >= 'a' and <= 'z' => c - 'a' + 26,
-        >= '0' and <= '9' => c - '0' + 52,
-        '+' => 62,
-        '/' => 63,
-        // Unreachable: ValidateBodyLine has already rejected anything outside the
-        // base64 alphabet. Present only to make the switch exhaustive.
-        _ => throw new AgeFormatException($"invalid base64 character: '{c}'"),
-    };
+        return c switch
+        {
+            >= 'A' and <= 'Z' => c - 'A',
+            >= 'a' and <= 'z' => c - 'a' + 26,
+            >= '0' and <= '9' => c - '0' + 52,
+            '+' => 62,
+            '/' => 63,
+            // Unreachable: ValidateBodyLine has already rejected anything outside the
+            // base64 alphabet. Present only to make the switch exhaustive.
+            _ => throw new AgeFormatException($"invalid base64 character: '{c}'")
+        };
+    }
+
+    private enum State
+    {
+        BeforeMarker,
+        Body,
+        AfterEnd
+    }
 }

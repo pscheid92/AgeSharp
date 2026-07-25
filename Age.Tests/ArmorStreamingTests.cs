@@ -1,18 +1,19 @@
 using System.Text;
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// The dearmor path is sans-I/O: line framing and decoding are driven from either a
-/// synchronous or an asynchronous fill, so armored input streams on both paths with
-/// no buffering and no blocking I/O on the caller's stream.
+///     The dearmor path is sans-I/O: line framing and decoding are driven from either a
+///     synchronous or an asynchronous fill, so armored input streams on both paths with
+///     no buffering and no blocking I/O on the caller's stream.
 /// </summary>
 public class ArmorStreamingTests
 {
-    private static byte[] Armored(byte[] plaintext, IRecipient recipient) =>
-        Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, recipient);
+    private static byte[] Armored(byte[] plaintext, IRecipient recipient)
+    {
+        return Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, recipient);
+    }
 
     private static byte[] Payload(int size, int seed = 3)
     {
@@ -26,10 +27,10 @@ public class ArmorStreamingTests
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
-    [InlineData(47)]        // one short line
-    [InlineData(48)]        // exactly one full armor line
+    [InlineData(47)] // one short line
+    [InlineData(48)] // exactly one full armor line
     [InlineData(49)]
-    [InlineData(70_000)]    // spans several source refills and a STREAM chunk boundary
+    [InlineData(70_000)] // spans several source refills and a STREAM chunk boundary
     public async Task DecryptAsync_Armored_RoundTrips(int size)
     {
         using var identity = X25519Identity.Generate();
@@ -228,8 +229,8 @@ public class ArmorStreamingTests
     }
 
     [Theory]
-    [InlineData("AB+=")]   // '+' as the final data character before padding
-    [InlineData("A/==")]   // '/' as the final data character before padding
+    [InlineData("AB+=")] // '+' as the final data character before padding
+    [InlineData("A/==")] // '/' as the final data character before padding
     public void NonCanonicalPadding_OnEveryAlphabetCharacter_IsRejected(string finalLine)
     {
         // Decodes as base64, but the bits the padding claims are unused are not zero.
@@ -241,15 +242,9 @@ public class ArmorStreamingTests
         Assert.Contains("non-canonical", ex.Message);
     }
 
-    /// <summary>A stream that returns at most <paramref name="chunk"/> bytes per read.</summary>
+    /// <summary>A stream that returns at most <paramref name="chunk" /> bytes per read.</summary>
     private sealed class DripStream(Stream inner, int chunk) : Stream
     {
-        public override int Read(byte[] buffer, int offset, int count)
-            => inner.Read(buffer, offset, Math.Min(count, chunk));
-
-        public override int Read(Span<byte> buffer)
-            => inner.Read(buffer[..Math.Min(buffer.Length, chunk)]);
-
         public override bool CanRead => true;
         public override bool CanSeek => false;
         public override bool CanWrite => false;
@@ -261,9 +256,33 @@ public class ArmorStreamingTests
             set => throw new NotSupportedException();
         }
 
-        public override void Flush() { }
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            return inner.Read(buffer, offset, Math.Min(count, chunk));
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            return inner.Read(buffer[..Math.Min(buffer.Length, chunk)]);
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
     }
 }

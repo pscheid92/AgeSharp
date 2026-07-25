@@ -4,14 +4,14 @@ using AgeSharp.Crypto;
 namespace AgeSharp;
 
 /// <summary>
-/// An identity handled by an external <c>age-plugin-*</c> binary. Unwrapping
-/// spawns the plugin named in the identity's HRP (e.g. <c>AGE-PLUGIN-YUBIKEY-1…</c>
-/// runs <c>age-plugin-yubikey</c>) and drives the identity-v1 protocol.
+///     An identity handled by an external <c>age-plugin-*</c> binary. Unwrapping
+///     spawns the plugin named in the identity's HRP (e.g. <c>AGE-PLUGIN-YUBIKEY-1…</c>
+///     runs <c>age-plugin-yubikey</c>) and drives the identity-v1 protocol.
 /// </summary>
 /// <param name="identity">The plugin identity string (<c>AGE-PLUGIN-&lt;NAME&gt;-1…</c>).</param>
 /// <param name="callbacks">
-/// Optional UI callbacks for interactive plugins (PIN prompts, touch
-/// confirmation); when null, interactive requests are answered with failure.
+///     Optional UI callbacks for interactive plugins (PIN prompts, touch
+///     confirmation); when null, interactive requests are answered with failure.
 /// </param>
 public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks = null) : IIdentity
 {
@@ -20,12 +20,14 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
 
     /// <summary>Attempts to unwrap a single stanza by running the plugin binary.</summary>
     /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an internal error.</exception>
-    public byte[]? Unwrap(Stanza stanza) =>
-        Unwrap([stanza]);
+    public byte[]? Unwrap(Stanza stanza)
+    {
+        return Unwrap([stanza]);
+    }
 
     /// <summary>
-    /// Attempts to unwrap any of the stanzas in a single plugin session — one
-    /// process launch for the whole header, as the plugin protocol intends.
+    ///     Attempts to unwrap any of the stanzas in a single plugin session — one
+    ///     process launch for the whole header, as the plugin protocol intends.
     /// </summary>
     /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an internal error.</exception>
     public byte[]? Unwrap(IReadOnlyList<Stanza> stanzas)
@@ -118,7 +120,7 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
             // request-secret masks the input; request-public does not. Same flow otherwise.
             case "request-secret":
             case "request-public":
-                var value = callbacks!.RequestValue(Encoding.UTF8.GetString(body), secret: type == "request-secret");
+                var value = callbacks!.RequestValue(Encoding.UTF8.GetString(body), type == "request-secret");
                 conn.WriteStanza("ok", [], Encoding.UTF8.GetBytes(value));
                 break;
 
@@ -170,18 +172,22 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
     }
 
     /// <summary>
-    /// Returns the raw <c>AGE-PLUGIN-…</c> identity string, e.g. for writing to an
-    /// identity file. Treat it as a secret: depending on the plugin it may encode
-    /// key material rather than just a hardware handle.
+    ///     Returns the raw <c>AGE-PLUGIN-…</c> identity string, e.g. for writing to an
+    ///     identity file. Treat it as a secret: depending on the plugin it may encode
+    ///     key material rather than just a hardware handle.
     /// </summary>
-    public string ToSecretString() =>
-        identity;
+    public string ToSecretString()
+    {
+        return identity;
+    }
 
     /// <summary>
-    /// Returns a redacted representation naming only the plugin, so accidental
-    /// logging cannot leak the identity string. Use <see cref="ToSecretString"/>
-    /// to export it.
+    ///     Returns a redacted representation naming only the plugin, so accidental
+    ///     logging cannot leak the identity string. Use <see cref="ToSecretString" />
+    ///     to export it.
     /// </summary>
-    public override string ToString() =>
-        $"PluginIdentity({PluginName})";
+    public override string ToString()
+    {
+        return $"PluginIdentity({PluginName})";
+    }
 }

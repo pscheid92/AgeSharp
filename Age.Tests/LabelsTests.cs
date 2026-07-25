@@ -1,41 +1,30 @@
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// The label-set contract on encryption: all recipients must carry the same
-/// label set, compared order-insensitively with set semantics.
+///     The label-set contract on encryption: all recipients must carry the same
+///     label set, compared order-insensitively with set semantics.
 /// </summary>
 public class LabelsTests
 {
-    // Carries labels → implements the optional IRecipientWithLabels.
-    private sealed class StubRecipient(params string[] labels) : IRecipientWithLabels
-    {
-        public Stanza Wrap(ReadOnlySpan<byte> fileKey) =>
-            new("test", ["arg"], new byte[32]);
-
-        public (Stanza stanza, IReadOnlyCollection<string> labels) WrapWithLabels(ReadOnlySpan<byte> fileKey) =>
-            (Wrap(fileKey), labels);
-    }
-
-    // No labels → implements only IRecipient; the engine treats it as empty-set.
-    private sealed class PlainRecipient : IRecipient
-    {
-        public Stanza Wrap(ReadOnlySpan<byte> fileKey) => new("test", ["arg"], new byte[32]);
-    }
-
     [Fact]
-    public void PlainRecipients_MixFreely() =>
+    public void PlainRecipients_MixFreely()
+    {
         Encrypt(new PlainRecipient(), new PlainRecipient());
+    }
 
     [Fact]
-    public void PlainRecipient_TreatedAsEmpty_MatchesEmptyLabelSet() =>
+    public void PlainRecipient_TreatedAsEmpty_MatchesEmptyLabelSet()
+    {
         Encrypt(new PlainRecipient(), new StubRecipient());
+    }
 
     [Fact]
-    public void PlainRecipient_RejectedAgainstLabelled() =>
+    public void PlainRecipient_RejectedAgainstLabelled()
+    {
         AssertRejected(new PlainRecipient(), new StubRecipient("a"));
+    }
 
     private static void Encrypt(params IRecipient[] recipients)
     {
@@ -51,36 +40,52 @@ public class LabelsTests
     }
 
     [Fact]
-    public void EqualSets_SameOrder_Allowed() =>
+    public void EqualSets_SameOrder_Allowed()
+    {
         Encrypt(new StubRecipient("a", "b"), new StubRecipient("a", "b"));
+    }
 
     [Fact]
-    public void EqualSets_DifferentOrder_Allowed() =>
+    public void EqualSets_DifferentOrder_Allowed()
+    {
         Encrypt(new StubRecipient("a", "b"), new StubRecipient("b", "a"));
+    }
 
     [Fact]
-    public void Duplicates_CollapseToSet() =>
+    public void Duplicates_CollapseToSet()
+    {
         Encrypt(new StubRecipient("a", "a"), new StubRecipient("a"));
+    }
 
     [Fact]
-    public void Subset_Rejected() =>
+    public void Subset_Rejected()
+    {
         AssertRejected(new StubRecipient("a"), new StubRecipient("a", "b"));
+    }
 
     [Fact]
-    public void Superset_Rejected() =>
+    public void Superset_Rejected()
+    {
         AssertRejected(new StubRecipient("a", "b"), new StubRecipient("a"));
+    }
 
     [Fact]
-    public void Disjoint_Rejected() =>
+    public void Disjoint_Rejected()
+    {
         AssertRejected(new StubRecipient("a"), new StubRecipient("b"));
+    }
 
     [Fact]
-    public void EmptyVsNonEmpty_Rejected() =>
+    public void EmptyVsNonEmpty_Rejected()
+    {
         AssertRejected(new StubRecipient(), new StubRecipient("a"));
+    }
 
     [Fact]
-    public void SingleRecipient_AnyLabels_Allowed() =>
+    public void SingleRecipient_AnyLabels_Allowed()
+    {
         Encrypt(new StubRecipient("anything", "goes", "alone"));
+    }
 
     [Fact]
     public void TwoPqRecipients_Allowed()
@@ -105,5 +110,28 @@ public class LabelsTests
         using var pq = MlKem768X25519Identity.Generate();
         using var classical = X25519Identity.Generate();
         AssertRejected(pq.Recipient, classical.Recipient);
+    }
+
+    // Carries labels → implements the optional IRecipientWithLabels.
+    private sealed class StubRecipient(params string[] labels) : IRecipientWithLabels
+    {
+        public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+        {
+            return new Stanza("test", ["arg"], new byte[32]);
+        }
+
+        public (Stanza stanza, IReadOnlyCollection<string> labels) WrapWithLabels(ReadOnlySpan<byte> fileKey)
+        {
+            return (Wrap(fileKey), labels);
+        }
+    }
+
+    // No labels → implements only IRecipient; the engine treats it as empty-set.
+    private sealed class PlainRecipient : IRecipient
+    {
+        public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+        {
+            return new Stanza("test", ["arg"], new byte[32]);
+        }
     }
 }

@@ -4,36 +4,34 @@ using System.Security.Cryptography;
 namespace AgeSharp.Crypto;
 
 /// <summary>
-/// Seekable plaintext view over a seekable binary age ciphertext. The plaintext
-/// length is derived from the ciphertext layout, <c>Seek</c> maps a plaintext
-/// position to the containing 64 KiB STREAM chunk, and the most recently decrypted
-/// chunk is cached so repeated small reads within a chunk decrypt it only once.
+///     Seekable plaintext view over a seekable binary age ciphertext. The plaintext
+///     length is derived from the ciphertext layout, <c>Seek</c> maps a plaintext
+///     position to the containing 64 KiB STREAM chunk, and the most recently decrypted
+///     chunk is cached so repeated small reads within a chunk decrypt it only once.
 /// </summary>
 /// <remarks>
-/// Truncation of the payload can only be detected once a read actually reaches the
-/// affected chunk (its authentication tag fails). A structurally impossible payload
-/// — empty, or a final chunk too small to hold its tag — is rejected eagerly by the
-/// constructor.
+///     Truncation of the payload can only be detected once a read actually reaches the
+///     affected chunk (its authentication tag fails). A structurally impossible payload
+///     — empty, or a final chunk too small to hold its tag — is rejected eagerly by the
+///     constructor.
 /// </remarks>
 internal sealed class SeekableDecryptStream : Stream
 {
-    private readonly byte[] _payloadKey;
-    private readonly Stream _ciphertext;
-    private readonly bool _ownsStream;
-    private readonly long _payloadStart;
-    private readonly long _totalEncrypted;
-    private readonly long _totalChunks;
-    private readonly long _plaintextLength;
-    private readonly IAeadCipher _cipher;
-
     // One-chunk cache: the decrypted plaintext of _cachedChunkIndex (or -1 when empty).
     private readonly byte[] _chunkPlaintext;
+    private readonly IAeadCipher _cipher;
+    private readonly Stream _ciphertext;
     private readonly byte[] _encChunk;
+    private readonly bool _ownsStream;
+    private readonly byte[] _payloadKey;
+    private readonly long _payloadStart;
+    private readonly long _totalChunks;
+    private readonly long _totalEncrypted;
     private long _cachedChunkIndex = -1;
     private int _cachedLength;
+    private bool _disposed;
 
     private long _position;
-    private bool _disposed;
 
     private SeekableDecryptStream(byte[] payloadKey, Stream ciphertext, long payloadStart, bool ownsStream)
     {
@@ -49,19 +47,34 @@ internal sealed class SeekableDecryptStream : Stream
         // Both computations can reject a structurally impossible payload; run them
         // before renting buffers so a rejection leaks nothing back to the pool.
         _totalChunks = ComputeTotalChunks(_totalEncrypted);
-        _plaintextLength = ComputePlaintextLength(_totalEncrypted);
+        Length = ComputePlaintextLength(_totalEncrypted);
 
         _chunkPlaintext = ArrayPool<byte>.Shared.Rent(StreamEncryption.ChunkSize);
         _encChunk = ArrayPool<byte>.Shared.Rent(StreamEncryption.EncryptedChunkSize);
         _cipher = AeadCipher.Create(payloadKey);
     }
 
+    public override bool CanRead => true;
+    public override bool CanSeek => true;
+    public override bool CanWrite => false;
+    public override long Length { get; }
+
+    public override long Position
+    {
+        get => _position;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            _position = value;
+        }
+    }
+
     /// <summary>
-    /// Opens the stream, authenticating the plaintext length before returning.
+    ///     Opens the stream, authenticating the plaintext length before returning.
     /// </summary>
     /// <exception cref="AgeAuthenticationException">
-    /// The payload is structurally impossible, or its final chunk does not
-    /// authenticate as a final chunk — meaning the ciphertext was truncated.
+    ///     The payload is structurally impossible, or its final chunk does not
+    ///     authenticate as a final chunk — meaning the ciphertext was truncated.
     /// </exception>
     public static SeekableDecryptStream Create(byte[] payloadKey, Stream ciphertext, long payloadStart, bool ownsStream)
     {
@@ -82,10 +95,10 @@ internal sealed class SeekableDecryptStream : Stream
         return stream;
     }
 
-    /// <summary>Asynchronous counterpart to <see cref="Create"/>.</summary>
+    /// <summary>Asynchronous counterpart to <see cref="Create" />.</summary>
     public static async ValueTask<SeekableDecryptStream> CreateAsync(byte[] payloadKey, Stream ciphertext,
-                                                                     long payloadStart, bool ownsStream,
-                                                                     CancellationToken cancellationToken)
+        long payloadStart, bool ownsStream,
+        CancellationToken cancellationToken)
     {
         var stream = new SeekableDecryptStream(payloadKey, ciphertext, payloadStart, ownsStream);
 
@@ -93,7 +106,7 @@ internal sealed class SeekableDecryptStream : Stream
         {
             var (encChunkSize, chunkStart) = stream.FinalChunkLayout();
             await stream.ReadFullyAsync(stream._payloadStart + chunkStart,
-                                        stream._encChunk.AsMemory(0, encChunkSize), cancellationToken).ConfigureAwait(false);
+                stream._encChunk.AsMemory(0, encChunkSize), cancellationToken).ConfigureAwait(false);
             stream.CacheFinalChunk(encChunkSize);
         }
         catch
@@ -105,7 +118,10 @@ internal sealed class SeekableDecryptStream : Stream
         return stream;
     }
 
-    private (int encChunkSize, long chunkStart) FinalChunkLayout() => ChunkLayout(_totalChunks - 1);
+    private (int encChunkSize, long chunkStart) FinalChunkLayout()
+    {
+        return ChunkLayout(_totalChunks - 1);
+    }
 
     // Decrypting the final chunk *as a final chunk* is what authenticates the
     // plaintext length: the chunk layout alone cannot distinguish a truncated file
@@ -131,23 +147,10 @@ internal sealed class SeekableDecryptStream : Stream
         ReleaseResources();
     }
 
-    public override bool CanRead => true;
-    public override bool CanSeek => true;
-    public override bool CanWrite => false;
-    public override long Length => _plaintextLength;
-
-    public override long Position
-    {
-        get => _position;
-        set
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(value);
-            _position = value;
-        }
-    }
-
     public override int Read(byte[] buffer, int offset, int count)
-        => Read(buffer.AsSpan(offset, count));
+    {
+        return Read(buffer.AsSpan(offset, count));
+    }
 
     public override int Read(Span<byte> buffer)
     {
@@ -155,7 +158,7 @@ internal sealed class SeekableDecryptStream : Stream
 
         var totalRead = 0;
 
-        while (totalRead < buffer.Length && _position >= 0 && _position < _plaintextLength)
+        while (totalRead < buffer.Length && _position >= 0 && _position < Length)
         {
             var chunkIndex = _position / StreamEncryption.ChunkSize;
             var offsetInChunk = (int)(_position % StreamEncryption.ChunkSize);
@@ -177,7 +180,9 @@ internal sealed class SeekableDecryptStream : Stream
     }
 
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    {
+        return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    }
 
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
@@ -185,7 +190,7 @@ internal sealed class SeekableDecryptStream : Stream
 
         var totalRead = 0;
 
-        while (totalRead < buffer.Length && _position >= 0 && _position < _plaintextLength)
+        while (totalRead < buffer.Length && _position >= 0 && _position < Length)
         {
             var chunkIndex = _position / StreamEncryption.ChunkSize;
             var offsetInChunk = (int)(_position % StreamEncryption.ChunkSize);
@@ -223,7 +228,8 @@ internal sealed class SeekableDecryptStream : Stream
             return;
 
         var (encChunkSize, chunkStart) = ChunkLayout(chunkIndex);
-        await ReadFullyAsync(_payloadStart + chunkStart, _encChunk.AsMemory(0, encChunkSize), cancellationToken).ConfigureAwait(false);
+        await ReadFullyAsync(_payloadStart + chunkStart, _encChunk.AsMemory(0, encChunkSize), cancellationToken)
+            .ConfigureAwait(false);
         _cachedLength = DecryptLoadedChunk(chunkIndex, encChunkSize);
         _cachedChunkIndex = chunkIndex;
     }
@@ -264,7 +270,7 @@ internal sealed class SeekableDecryptStream : Stream
     {
         _ciphertext.Position = position;
 
-        if (_ciphertext.ReadAtLeast(destination, destination.Length, throwOnEndOfStream: false) < destination.Length)
+        if (_ciphertext.ReadAtLeast(destination, destination.Length, false) < destination.Length)
             throw new AgeAuthenticationException($"could not read full chunk at offset {position}");
     }
 
@@ -272,8 +278,8 @@ internal sealed class SeekableDecryptStream : Stream
     {
         _ciphertext.Position = position;
 
-        var read = await _ciphertext.ReadAtLeastAsync(destination, destination.Length, throwOnEndOfStream: false,
-                                                      cancellationToken).ConfigureAwait(false);
+        var read = await _ciphertext.ReadAtLeastAsync(destination, destination.Length, false,
+            cancellationToken).ConfigureAwait(false);
 
         if (read < destination.Length)
             throw new AgeAuthenticationException($"could not read full chunk at offset {position}");
@@ -285,7 +291,7 @@ internal sealed class SeekableDecryptStream : Stream
         {
             SeekOrigin.Begin => offset,
             SeekOrigin.Current => _position + offset,
-            SeekOrigin.End => _plaintextLength + offset,
+            SeekOrigin.End => Length + offset,
             _ => throw new ArgumentOutOfRangeException(nameof(origin))
         };
 
@@ -332,8 +338,15 @@ internal sealed class SeekableDecryptStream : Stream
     {
     }
 
-    public override void SetLength(long value) => throw new NotSupportedException();
-    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    public override void SetLength(long value)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override void Write(byte[] buffer, int offset, int count)
+    {
+        throw new NotSupportedException();
+    }
 
     // The final chunk carries only a tag when the plaintext is empty; every other
     // chunk pairs ChunkSize bytes with a tag. These mirror the layout that the

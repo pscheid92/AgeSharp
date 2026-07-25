@@ -1,13 +1,13 @@
-using AgeSharp;
+using System.Text;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Push-encryption tests for <see cref="Age.EncryptWriter(System.IO.Stream, System.ReadOnlySpan{IRecipient})"/>
-/// and its armored variant. Covers the Phase-4 edge-case matrix — dispose-without-write,
-/// plaintext at exact 64 KiB multiples, double dispose, write-after-dispose — plus the
-/// stream-ownership contract and an interop cross-check against the reference age CLI.
+///     Push-encryption tests for <see cref="Age.EncryptWriter(System.IO.Stream, System.ReadOnlySpan{IRecipient})" />
+///     and its armored variant. Covers the Phase-4 edge-case matrix — dispose-without-write,
+///     plaintext at exact 64 KiB multiples, double dispose, write-after-dispose — plus the
+///     stream-ownership contract and an interop cross-check against the reference age CLI.
 /// </summary>
 public class PushBasedTests
 {
@@ -23,7 +23,10 @@ public class PushBasedTests
     {
         using var destination = new MemoryStream();
         using (var stream = Age.EncryptWriter(destination, new AgeEncryptOptions { Armor = armored }, recipients))
+        {
             stream.Write(plaintext, 0, plaintext.Length);
+        }
+
         return destination.ToArray();
     }
 
@@ -76,7 +79,7 @@ public class PushBasedTests
         var plaintext = new byte[size];
         new Random(42).NextBytes(plaintext);
 
-        var ciphertext = EncryptWithEncryptWriter(plaintext, armored: false, identity.Recipient);
+        var ciphertext = EncryptWithEncryptWriter(plaintext, false, identity.Recipient);
 
         Assert.Equal(plaintext, DecryptWithCSharp(ciphertext, identity));
     }
@@ -164,7 +167,7 @@ public class PushBasedTests
         using var stream = Age.EncryptWriter(destination, identity.Recipient);
 
         stream.Write("flush"u8);
-        stream.Flush();       // must not finalize — the stream stays writable
+        stream.Flush(); // must not finalize — the stream stays writable
         stream.Write(" more"u8);
     }
 
@@ -212,7 +215,7 @@ public class PushBasedTests
             // Never written to: the begin marker is emitted on dispose alongside the footer.
         }
 
-        var text = System.Text.Encoding.ASCII.GetString(destination.ToArray());
+        var text = Encoding.ASCII.GetString(destination.ToArray());
         Assert.Equal("-----BEGIN AGE ENCRYPTED FILE-----\n-----END AGE ENCRYPTED FILE-----\n", text);
     }
 
@@ -236,8 +239,11 @@ public class PushBasedTests
         using var identity = X25519Identity.Generate();
 
         var destination = new DisposeTrackingStream();
-        using (var stream = Age.EncryptWriter(destination, new AgeEncryptOptions { Armor = armored }, identity.Recipient))
+        using (var stream =
+               Age.EncryptWriter(destination, new AgeEncryptOptions { Armor = armored }, identity.Recipient))
+        {
             stream.Write("do not dispose me"u8);
+        }
 
         Assert.Equal(0, destination.DisposeCount);
         Assert.Equal("do not dispose me"u8.ToArray(), DecryptWithCSharp(destination.ToArray(), identity));
@@ -295,10 +301,10 @@ public class PushBasedTests
     [Fact]
     public void EncryptWriter_Passphrase_RoundTrip()
     {
-        var passphrase = new Passphrase("correct horse battery staple", workFactor: 10);
+        var passphrase = new Passphrase("correct horse battery staple", 10);
         var plaintext = MakePlaintext(2048);
 
-        var ciphertext = EncryptWithEncryptWriter(plaintext, armored: false, passphrase);
+        var ciphertext = EncryptWithEncryptWriter(plaintext, false, passphrase);
 
         Assert.Equal(plaintext, DecryptWithCSharp(ciphertext, passphrase));
     }
@@ -310,7 +316,7 @@ public class PushBasedTests
         using var b = X25519Identity.Generate();
         var plaintext = MakePlaintext(4096);
 
-        var ciphertext = EncryptWithEncryptWriter(plaintext, armored: false, a.Recipient, b.Recipient);
+        var ciphertext = EncryptWithEncryptWriter(plaintext, false, a.Recipient, b.Recipient);
 
         Assert.Equal(plaintext, DecryptWithCSharp(ciphertext, a));
         Assert.Equal(plaintext, DecryptWithCSharp(ciphertext, b));
@@ -339,7 +345,9 @@ public class PushBasedTests
 
         using var actual = new MemoryStream();
         using (var armor = new ArmorWriterStream(actual))
+        {
             armor.Write(data, 0, data.Length);
+        }
 
         Assert.Equal(reference.ToArray(), actual.ToArray());
     }
@@ -392,17 +400,15 @@ public class PushBasedTests
     }
 
     /// <summary>
-    /// A write-only stream that records how many times it was disposed while keeping its
-    /// buffered bytes readable, so tests can assert the push writer left the caller's
-    /// destination open.
+    ///     A write-only stream that records how many times it was disposed while keeping its
+    ///     buffered bytes readable, so tests can assert the push writer left the caller's
+    ///     destination open.
     /// </summary>
     private sealed class DisposeTrackingStream : Stream
     {
         private readonly MemoryStream _inner = new();
 
         public int DisposeCount { get; private set; }
-
-        public byte[] ToArray() => _inner.ToArray();
 
         public override bool CanRead => false;
         public override bool CanSeek => false;
@@ -415,12 +421,40 @@ public class PushBasedTests
             set => _inner.Position = value;
         }
 
-        public override void Write(byte[] buffer, int offset, int count) => _inner.Write(buffer, offset, count);
-        public override void Write(ReadOnlySpan<byte> buffer) => _inner.Write(buffer);
-        public override void Flush() => _inner.Flush();
-        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
+        public byte[] ToArray()
+        {
+            return _inner.ToArray();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            _inner.Write(buffer, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            _inner.Write(buffer);
+        }
+
+        public override void Flush()
+        {
+            _inner.Flush();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
 
         protected override void Dispose(bool disposing)
         {

@@ -12,7 +12,7 @@ internal sealed class Header
     public byte[] Mac { get; private set; } = [];
 
     /// <summary>
-    /// Raw header bytes through "--- " (inclusive, before MAC value) for MAC computation.
+    ///     Raw header bytes through "--- " (inclusive, before MAC value) for MAC computation.
     /// </summary>
     private byte[] HeaderBytesForMac { get; set; } = [];
 

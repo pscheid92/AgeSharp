@@ -1,4 +1,3 @@
-using AgeSharp;
 using AgeSharp.Crypto;
 using Xunit;
 
@@ -25,7 +24,7 @@ public class XWingTests
         new Random(42).NextBytes(seed);
 
         var pk = XWing.GeneratePublicKey(seed);
-        Assert.Equal(XWing.PublicKeySize, pk.Length);  // 1216
+        Assert.Equal(XWing.PublicKeySize, pk.Length); // 1216
     }
 
     [Fact]
@@ -38,7 +37,7 @@ public class XWingTests
         var (ss, enc) = XWing.Encaps(pk);
 
         Assert.Equal(32, ss.Length);
-        Assert.Equal(XWing.EncSize, enc.Length);  // 1120
+        Assert.Equal(XWing.EncSize, enc.Length); // 1120
 
         var ss2 = XWing.Decaps(enc, seed);
         Assert.Equal(ss, ss2);

@@ -7,9 +7,6 @@ namespace AgeSharp.Crypto;
 
 internal static class XWing
 {
-    // X-Wing combiner label: ASCII `\.//^\` (the X-Wing spec domain separator)
-    private static readonly byte[] XWingLabel = @"\.//^\"u8.ToArray();
-
     private const int MlKemPublicKeySize = 1184;
     private const int MlKemCiphertextSize = 1088;
     private const int X25519KeySize = 32;
@@ -17,7 +14,11 @@ internal static class XWing
     private const int MlKemSeedSize = 64;
 
     internal const int PublicKeySize = MlKemPublicKeySize + X25519KeySize;
+
     internal const int EncSize = MlKemCiphertextSize + X25519KeySize;
+
+    // X-Wing combiner label: ASCII `\.//^\` (the X-Wing spec domain separator)
+    private static readonly byte[] XWingLabel = @"\.//^\"u8.ToArray();
 
     public static byte[] GeneratePublicKey(byte[] seed)
     {
@@ -103,7 +104,8 @@ internal static class XWing
         return result;
     }
 
-    private static (MLKemPrivateKeyParameters mlKemPrivate, byte[] seedPQ, X25519PrivateKeyParameters x25519Private, byte[] pkX) ExpandSeed(byte[] seed)
+    private static (MLKemPrivateKeyParameters mlKemPrivate, byte[] seedPQ, X25519PrivateKeyParameters x25519Private,
+        byte[] pkX) ExpandSeed(byte[] seed)
     {
         var shake = new ShakeDigest(256);
         shake.BlockUpdate(seed, 0, X25519KeySize);

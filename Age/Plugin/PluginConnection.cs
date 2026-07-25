@@ -6,12 +6,12 @@ namespace AgeSharp;
 
 internal sealed class PluginConnection : IDisposable
 {
+    private readonly Process? _process;
     private readonly TextReader _reader;
     private readonly TextWriter _writer;
-    private readonly Process? _process;
 
     /// <summary>
-    /// Production constructor: finds age-plugin-{name} on PATH, starts with --age-plugin={stateMachine}.
+    ///     Production constructor: finds age-plugin-{name} on PATH, starts with --age-plugin={stateMachine}.
     /// </summary>
     public PluginConnection(string pluginName, string stateMachine)
     {
@@ -29,12 +29,13 @@ internal sealed class PluginConnection : IDisposable
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
-            CreateNoWindow = true,
+            CreateNoWindow = true
         };
 
         try
         {
-            _process = Process.Start(startInfo) ?? throw new AgePluginException($"failed to start plugin: {binaryName}");
+            _process = Process.Start(startInfo) ??
+                       throw new AgePluginException($"failed to start plugin: {binaryName}");
         }
         catch (Win32Exception ex)
         {
@@ -46,12 +47,30 @@ internal sealed class PluginConnection : IDisposable
     }
 
     /// <summary>
-    /// Test constructor: uses provided streams, no process.
+    ///     Test constructor: uses provided streams, no process.
     /// </summary>
     internal PluginConnection(TextReader reader, TextWriter writer)
     {
         _reader = reader;
         _writer = writer;
+    }
+
+    public void Dispose()
+    {
+        if (_process is null)
+            return;
+
+        try
+        {
+            _process.StandardInput.Close();
+        }
+        catch
+        {
+            // EMPTY
+        }
+
+        _process.WaitForExit(5000);
+        _process.Dispose();
     }
 
     public void WriteStanza(string type, string[] args, byte[] body)
@@ -113,7 +132,8 @@ internal sealed class PluginConnection : IDisposable
 
         while (true)
         {
-            var bodyLine = _reader.ReadLine() ?? throw new AgePluginException("unexpected end of stream while reading stanza body");
+            var bodyLine = _reader.ReadLine() ??
+                           throw new AgePluginException("unexpected end of stream while reading stanza body");
 
             switch (bodyLine.Length)
             {
@@ -139,23 +159,5 @@ internal sealed class PluginConnection : IDisposable
         }
 
         return body;
-    }
-
-    public void Dispose()
-    {
-        if (_process is null)
-            return;
-
-        try
-        {
-            _process.StandardInput.Close();
-        }
-        catch
-        {
-            // EMPTY
-        }
-
-        _process.WaitForExit(5000);
-        _process.Dispose();
     }
 }

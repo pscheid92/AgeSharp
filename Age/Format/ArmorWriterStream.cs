@@ -4,16 +4,16 @@ using System.Text;
 namespace AgeSharp;
 
 /// <summary>
-/// Push-side counterpart to <see cref="ArmorStream"/>: a write-only stream that
-/// ASCII-armors the bytes written to it and forwards the armored text to an
-/// underlying destination. The begin marker is emitted lazily on the first write,
-/// each 48-byte block becomes a 64-column base64 line, and the end marker is
-/// written on <see cref="Dispose(bool)"/>. The destination is never disposed.
+///     Push-side counterpart to <see cref="ArmorStream" />: a write-only stream that
+///     ASCII-armors the bytes written to it and forwards the armored text to an
+///     underlying destination. The begin marker is emitted lazily on the first write,
+///     each 48-byte block becomes a 64-column base64 line, and the end marker is
+///     written on <see cref="Dispose(bool)" />. The destination is never disposed.
 /// </summary>
 /// <remarks>
-/// Output is byte-identical to the pull-side <see cref="ArmorStream"/> (and to the
-/// reference implementation): every base64 line — full or the final short one — is
-/// followed by a newline, and the footer needs no leading newline of its own.
+///     Output is byte-identical to the pull-side <see cref="ArmorStream" /> (and to the
+///     reference implementation): every base64 line — full or the final short one — is
+///     followed by a newline, and the footer needs no leading newline of its own.
 /// </remarks>
 internal sealed class ArmorWriterStream(Stream destination) : Stream
 {
@@ -21,12 +21,12 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
 
     private static readonly byte[] BeginBytes = Encoding.ASCII.GetBytes("-----BEGIN AGE ENCRYPTED FILE-----\n");
     private static readonly byte[] EndBytes = Encoding.ASCII.GetBytes("-----END AGE ENCRYPTED FILE-----\n");
+    private readonly byte[] _encoded = new byte[CharsPerLine + 1]; // 64 base64 chars + '\n'
 
     private readonly byte[] _lineBuffer = new byte[ArmorFormat.BytesPerLine];
-    private readonly byte[] _encoded = new byte[CharsPerLine + 1]; // 64 base64 chars + '\n'
-    private int _lineLength;
     private bool _begun;
     private bool _disposed;
+    private int _lineLength;
 
     public override bool CanRead => false;
     public override bool CanSeek => false;
@@ -40,7 +40,9 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
     }
 
     public override void Write(byte[] buffer, int offset, int count)
-        => Write(buffer.AsSpan(offset, count));
+    {
+        Write(buffer.AsSpan(offset, count));
+    }
 
     public override void Write(ReadOnlySpan<byte> buffer)
     {
@@ -60,9 +62,12 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
     }
 
     public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        => WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    {
+        return WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    }
 
-    public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+    public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer,
+        CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         await EnsureBegunAsync(cancellationToken).ConfigureAwait(false);
@@ -75,7 +80,8 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
             buffer = buffer[take..];
 
             if (_lineLength == ArmorFormat.BytesPerLine)
-                await destination.WriteAsync(_encoded.AsMemory(0, EncodeLine()), cancellationToken).ConfigureAwait(false);
+                await destination.WriteAsync(_encoded.AsMemory(0, EncodeLine()), cancellationToken)
+                    .ConfigureAwait(false);
         }
     }
 
@@ -115,7 +121,7 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
 
             EnsureBegun();
             if (_lineLength > 0)
-                destination.Write(_encoded.AsSpan(0, EncodeLine()));   // final short (or exactly-64) line
+                destination.Write(_encoded.AsSpan(0, EncodeLine())); // final short (or exactly-64) line
             destination.Write(EndBytes);
             // The destination is caller-owned and is deliberately left open.
         }
@@ -131,17 +137,36 @@ internal sealed class ArmorWriterStream(Stream destination) : Stream
 
             await EnsureBegunAsync(default).ConfigureAwait(false);
             if (_lineLength > 0)
-                await destination.WriteAsync(_encoded.AsMemory(0, EncodeLine()), default).ConfigureAwait(false);
-            await destination.WriteAsync(EndBytes, default).ConfigureAwait(false);
+                await destination.WriteAsync(_encoded.AsMemory(0, EncodeLine())).ConfigureAwait(false);
+            await destination.WriteAsync(EndBytes).ConfigureAwait(false);
             // The destination is caller-owned and is deliberately left open.
         }
 
         await base.DisposeAsync().ConfigureAwait(false);
     }
 
-    public override void Flush() => destination.Flush();
-    public override Task FlushAsync(CancellationToken cancellationToken) => destination.FlushAsync(cancellationToken);
-    public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-    public override void SetLength(long value) => throw new NotSupportedException();
+    public override void Flush()
+    {
+        destination.Flush();
+    }
+
+    public override Task FlushAsync(CancellationToken cancellationToken)
+    {
+        return destination.FlushAsync(cancellationToken);
+    }
+
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override long Seek(long offset, SeekOrigin origin)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override void SetLength(long value)
+    {
+        throw new NotSupportedException();
+    }
 }

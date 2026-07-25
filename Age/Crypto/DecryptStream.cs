@@ -5,26 +5,20 @@ namespace AgeSharp.Crypto;
 
 internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool ownsStream) : Stream
 {
-    private enum State
-    {
-        Chunks,
-        Done
-    }
-
     private const int CiphertextBufferSize = StreamEncryption.EncryptedChunkSize + 1;
     private const int PlaintextBufferSize = StreamEncryption.ChunkSize;
-
-    private State _state = State.Chunks;
+    private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
 
     // Chunk buffering — rented from the shared pool, reused across chunks
     private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
     private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(PlaintextBufferSize);
-    private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
+    private long _counter;
+    private bool _disposed;
+    private bool _hasSavedByte;
     private int _plaintextLength;
     private int _plaintextOffset;
-    private long _counter;
-    private bool _hasSavedByte;
-    private bool _disposed;
+
+    private State _state = State.Chunks;
 
     public override bool CanRead => true;
     public override bool CanSeek => false;
@@ -38,7 +32,9 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
     }
 
     public override int Read(byte[] buffer, int offset, int count)
-        => Read(buffer.AsSpan(offset, count));
+    {
+        return Read(buffer.AsSpan(offset, count));
+    }
 
     public override int Read(Span<byte> buffer)
     {
@@ -59,7 +55,9 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
     }
 
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    {
+        return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    }
 
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
@@ -176,7 +174,8 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         const int target = StreamEncryption.EncryptedChunkSize + 1;
         while (total < target)
         {
-            var read = await ciphertext.ReadAsync(_ciphertextBuffer.AsMemory(total, target - total), cancellationToken).ConfigureAwait(false);
+            var read = await ciphertext.ReadAsync(_ciphertextBuffer.AsMemory(total, target - total), cancellationToken)
+                .ConfigureAwait(false);
 
             if (read == 0)
                 break;
@@ -234,12 +233,24 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
     {
     }
 
-    public override long Seek(long offset, SeekOrigin origin) =>
+    public override long Seek(long offset, SeekOrigin origin)
+    {
         throw new NotSupportedException();
+    }
 
-    public override void SetLength(long value) =>
+    public override void SetLength(long value)
+    {
         throw new NotSupportedException();
+    }
 
-    public override void Write(byte[] buffer, int offset, int count) =>
+    public override void Write(byte[] buffer, int offset, int count)
+    {
         throw new NotSupportedException();
+    }
+
+    private enum State
+    {
+        Chunks,
+        Done
+    }
 }

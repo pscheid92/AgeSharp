@@ -1,4 +1,3 @@
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
@@ -89,7 +88,7 @@ public class RoundTripTests
     public void Scrypt_RoundTrip()
     {
         var passphrase = "correct horse battery staple";
-        var recipient = new Passphrase(passphrase, workFactor: 10);
+        var recipient = new Passphrase(passphrase, 10);
 
         var plaintext = "Hello, scrypt age!"u8.ToArray();
 

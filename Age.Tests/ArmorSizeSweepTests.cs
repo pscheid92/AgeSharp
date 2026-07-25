@@ -1,18 +1,17 @@
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Armored round-trips across every residue of the 48-byte armor line, because the
-/// bug this class exists to prevent only appeared at two of them.
+///     Armored round-trips across every residue of the 48-byte armor line, because the
+///     bug this class exists to prevent only appeared at two of them.
 /// </summary>
 /// <remarks>
-/// A final chunk of 46 or 47 bytes encodes to a <em>full</em> 64-column line carrying
-/// base64 padding. The decoder used to assume any 64-column line decodes to exactly
-/// 48 bytes, so it rejected those — meaning AgeSharp could not read roughly one in
-/// twenty-four of its own armored files, nor the equivalent files from age or rage.
-/// Every existing armor test happened to use a size that avoided it.
+///     A final chunk of 46 or 47 bytes encodes to a <em>full</em> 64-column line carrying
+///     base64 padding. The decoder used to assume any 64-column line decodes to exactly
+///     48 bytes, so it rejected those — meaning AgeSharp could not read roughly one in
+///     twenty-four of its own armored files, nor the equivalent files from age or rage.
+///     Every existing armor test happened to use a size that avoided it.
 /// </remarks>
 public class ArmorSizeSweepTests
 {

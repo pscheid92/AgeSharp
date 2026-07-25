@@ -1,44 +1,44 @@
 namespace AgeSharp;
 
 /// <summary>
-/// A read-only stream that lazily decodes ASCII-armored (PEM-like) base64 data.
-/// It pulls raw bytes from the source, frames them into lines with
-/// <see cref="ArmorLineAccumulator"/>, and decodes each line with
-/// <see cref="ArmorDecoder"/> — so memory stays bounded by one 48-byte decoded line
-/// plus a small read buffer, whatever the file's size.
+///     A read-only stream that lazily decodes ASCII-armored (PEM-like) base64 data.
+///     It pulls raw bytes from the source, frames them into lines with
+///     <see cref="ArmorLineAccumulator" />, and decodes each line with
+///     <see cref="ArmorDecoder" /> — so memory stays bounded by one 48-byte decoded line
+///     plus a small read buffer, whatever the file's size.
 /// </summary>
 /// <remarks>
-/// The sync and async read paths differ only in how bytes are fetched from the
-/// source; all framing, validation, and decoding is shared sans-I/O state. That is
-/// what lets armored input be decrypted without any blocking I/O on the caller's
-/// stream. The source is never disposed — ownership stays with the caller.
+///     The sync and async read paths differ only in how bytes are fetched from the
+///     source; all framing, validation, and decoding is shared sans-I/O state. That is
+///     what lets armored input be decrypted without any blocking I/O on the caller's
+///     stream. The source is never disposed — ownership stays with the caller.
 /// </remarks>
 internal sealed class DearmorStream : Stream
 {
     private const int SourceBufferSize = 4096;
 
-    private readonly Stream _source;
-    private readonly int _maxArmorLineBytes;
+    private readonly byte[] _decoded = new byte[ArmorDecoder.MaxDecodedPerLine];
     private readonly ArmorGeometry? _geometry;
-    private ArmorLineAccumulator _lines;
+    private readonly int _maxArmorLineBytes;
+
+    private readonly Stream _source;
+
+    private readonly byte[] _sourceBuffer = new byte[SourceBufferSize];
+    private int _decodedLength;
+    private int _decodedOffset;
     private ArmorDecoder _decoder = new();
+
+    private bool _eof;
+    private ArmorLineAccumulator _lines;
+
+    // Sub-line remainder owed from the last Seek, dropped by the next read.
+    private int _pendingSkip;
 
     // Decoded bytes served so far. Tracked unconditionally: the facade reads it as
     // Position when handing the stream to the seekable decryptor.
     private long _position;
-
-    private readonly byte[] _sourceBuffer = new byte[SourceBufferSize];
-    private int _sourceOffset;
     private int _sourceLength;
-
-    private readonly byte[] _decoded = new byte[ArmorDecoder.MaxDecodedPerLine];
-    private int _decodedOffset;
-    private int _decodedLength;
-
-    private bool _eof;
-
-    // Sub-line remainder owed from the last Seek, dropped by the next read.
-    private int _pendingSkip;
+    private int _sourceOffset;
 
     private DearmorStream(Stream source, int maxArmorLineBytes, ArmorGeometry? geometry)
     {
@@ -51,20 +51,39 @@ internal sealed class DearmorStream : Stream
         _geometry = geometry;
     }
 
+    public override bool CanRead => true;
+    public override bool CanSeek => _geometry is not null;
+    public override bool CanWrite => false;
+
+    public override long Length =>
+        _geometry?.DecodedLength ?? throw new NotSupportedException();
+
+    public override long Position
+    {
+        get => _position;
+        set => Seek(value, SeekOrigin.Begin);
+    }
+
     public static DearmorStream Create(Stream source, int maxArmorLineBytes)
-        => new(source, maxArmorLineBytes, ArmorGeometry.TryResolve(source));
+    {
+        return new DearmorStream(source, maxArmorLineBytes, ArmorGeometry.TryResolve(source));
+    }
 
     /// <summary>
-    /// Asynchronous counterpart to <see cref="Create"/>. Resolving the geometry reads
-    /// the source, and the async decrypt path must not block on the caller's stream.
+    ///     Asynchronous counterpart to <see cref="Create" />. Resolving the geometry reads
+    ///     the source, and the async decrypt path must not block on the caller's stream.
     /// </summary>
     public static async ValueTask<DearmorStream> CreateAsync(Stream source, int maxArmorLineBytes,
-                                                             CancellationToken cancellationToken)
-        => new(source, maxArmorLineBytes,
-               await ArmorGeometry.TryResolveAsync(source, cancellationToken).ConfigureAwait(false));
+        CancellationToken cancellationToken)
+    {
+        return new DearmorStream(source, maxArmorLineBytes,
+            await ArmorGeometry.TryResolveAsync(source, cancellationToken).ConfigureAwait(false));
+    }
 
     public override int Read(byte[] buffer, int offset, int count)
-        => Read(buffer.AsSpan(offset, count));
+    {
+        return Read(buffer.AsSpan(offset, count));
+    }
 
     // Stream's base ReadByte allocates a byte[1] per call, and the header is read one
     // byte at a time — so without this an armored header costs one heap allocation per
@@ -108,7 +127,9 @@ internal sealed class DearmorStream : Stream
     }
 
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    {
+        return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    }
 
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
@@ -205,20 +226,9 @@ internal sealed class DearmorStream : Stream
         _eof = true;
     }
 
-    public override bool CanRead => true;
-    public override bool CanSeek => _geometry is not null;
-    public override bool CanWrite => false;
-
-    public override long Length =>
-        _geometry?.DecodedLength ?? throw new NotSupportedException();
-
-    public override long Position
+    public override void Flush()
     {
-        get => _position;
-        set => Seek(value, SeekOrigin.Begin);
     }
-
-    public override void Flush() { }
 
     public override long Seek(long offset, SeekOrigin origin)
     {
@@ -230,7 +240,7 @@ internal sealed class DearmorStream : Stream
             SeekOrigin.Begin => offset,
             SeekOrigin.Current => _position + offset,
             SeekOrigin.End => _geometry.DecodedLength + offset,
-            _ => throw new ArgumentOutOfRangeException(nameof(origin)),
+            _ => throw new ArgumentOutOfRangeException(nameof(origin))
         };
 
         ArgumentOutOfRangeException.ThrowIfNegative(target, nameof(offset));
@@ -267,6 +277,13 @@ internal sealed class DearmorStream : Stream
         return _position;
     }
 
-    public override void SetLength(long value) => throw new NotSupportedException();
-    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    public override void SetLength(long value)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override void Write(byte[] buffer, int offset, int count)
+    {
+        throw new NotSupportedException();
+    }
 }

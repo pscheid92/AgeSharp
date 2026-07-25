@@ -1,5 +1,3 @@
-using AgeSharp;
-
 namespace AgeSharp.Cli;
 
 internal static class KeygenCommand

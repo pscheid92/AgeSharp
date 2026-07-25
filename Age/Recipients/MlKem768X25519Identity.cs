@@ -5,9 +5,9 @@ using AgeSharp.Crypto;
 namespace AgeSharp;
 
 /// <summary>
-/// A post-quantum ML-KEM-768-X25519 hybrid identity (<c>AGE-SECRET-KEY-PQ-1…</c>),
-/// stored as its 32-byte generation seed. Disposing zeroes the seed; instances
-/// are safe for concurrent <see cref="Unwrap"/> calls.
+///     A post-quantum ML-KEM-768-X25519 hybrid identity (<c>AGE-SECRET-KEY-PQ-1…</c>),
+///     stored as its 32-byte generation seed. Disposing zeroes the seed; instances
+///     are safe for concurrent <see cref="Unwrap" /> calls.
 /// </summary>
 public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable, IParsable<MlKem768X25519Identity>
 {
@@ -16,8 +16,8 @@ public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable
     private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
 
     private readonly byte[] _seed; // 32 bytes
-    private MlKem768X25519Recipient? _recipient;
     private bool _disposed;
+    private MlKem768X25519Recipient? _recipient;
 
     private MlKem768X25519Identity(byte[] seed)
     {
@@ -35,13 +35,59 @@ public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable
             // Costlier than the X25519 case this mirrors: GeneratePublicKey runs a
             // full ML-KEM-768 key generation alongside the X25519 scalar
             // multiplication. See X25519Identity for why this needs no lock.
-            return _recipient ??= new(XWing.GeneratePublicKey(_seed));
+            return _recipient ??= new MlKem768X25519Recipient(XWing.GeneratePublicKey(_seed));
         }
     }
 
     // See X25519Identity: explicit implementation because C# has no covariant returns
     // for interface members.
     IRecipient IIdentityWithRecipient.Recipient => Recipient;
+
+    /// <summary>
+    ///     Attempts to unwrap the file key from an <c>mlkem768x25519</c> stanza.
+    ///     Returns null for stanzas of other types or wrapped for a different recipient.
+    /// </summary>
+    /// <exception cref="AgeFormatException">The stanza claims to be mlkem768x25519 but is malformed.</exception>
+    /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
+    public byte[]? Unwrap(Stanza stanza)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (stanza.Type != AgeProtocol.MlKemStanzaType)
+            return null;
+
+        if (stanza.Args.Count != 1)
+            throw new AgeFormatException(
+                $"mlkem768x25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");
+
+        var enc = ParseHelpers.DecodeArg(stanza.Args[0], XWing.EncSize, "mlkem768x25519 enc");
+
+        return stanza.Body.Length == WrappedKeySize
+            ? HpkeHelper.OpenBase(enc, _seed, AgeProtocol.MlKemHpkeInfo, stanza.Body.ToArray())
+            : throw new AgeFormatException(
+                $"mlkem768x25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
+    }
+
+    /// <summary>Zeroes the secret seed.</summary>
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        CryptographicOperations.ZeroMemory(_seed);
+    }
+
+    static MlKem768X25519Identity IParsable<MlKem768X25519Identity>.Parse(string s, IFormatProvider? provider)
+    {
+        return Parse(s);
+    }
+
+    static bool IParsable<MlKem768X25519Identity>.TryParse(string? s, IFormatProvider? provider,
+        [MaybeNullWhen(false)] out MlKem768X25519Identity result)
+    {
+        return TryParse(s, out result);
+    }
 
     /// <summary>Generates a new identity from a cryptographically secure random seed.</summary>
     public static MlKem768X25519Identity Generate()
@@ -53,25 +99,23 @@ public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable
 
     /// <summary>Parses a bech32-encoded secret seed (<c>AGE-SECRET-KEY-PQ-1…</c>, uppercase).</summary>
     /// <exception cref="AgeFormatException">The string is not a valid ML-KEM-768-X25519 secret key.</exception>
-    public static MlKem768X25519Identity Parse(string s) =>
-        new(ParseHelpers.DecodeSecretKey(s, Hrp, SeedSize, "ML-KEM-768-X25519 seed"));
+    public static MlKem768X25519Identity Parse(string s)
+    {
+        return new MlKem768X25519Identity(ParseHelpers.DecodeSecretKey(s, Hrp, SeedSize, "ML-KEM-768-X25519 seed"));
+    }
 
     /// <summary>
-    /// Tries to parse a bech32-encoded secret seed (<c>AGE-SECRET-KEY-PQ-1…</c>).
-    /// Returns false instead of throwing when the input is null or malformed.
+    ///     Tries to parse a bech32-encoded secret seed (<c>AGE-SECRET-KEY-PQ-1…</c>).
+    ///     Returns false instead of throwing when the input is null or malformed.
     /// </summary>
-    public static bool TryParse([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out MlKem768X25519Identity result) =>
-        ParseHelpers.TryParse(s, Parse, out result);
-
-    static MlKem768X25519Identity IParsable<MlKem768X25519Identity>.Parse(string s, IFormatProvider? provider) =>
-        Parse(s);
-
-    static bool IParsable<MlKem768X25519Identity>.TryParse(string? s, IFormatProvider? provider, [MaybeNullWhen(false)] out MlKem768X25519Identity result) =>
-        TryParse(s, out result);
+    public static bool TryParse([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out MlKem768X25519Identity result)
+    {
+        return ParseHelpers.TryParse(s, Parse, out result);
+    }
 
     /// <summary>
-    /// Returns the bech32-encoded secret seed (<c>AGE-SECRET-KEY-PQ-1…</c>), e.g. for
-    /// writing to an identity file. Handle the result as a secret.
+    ///     Returns the bech32-encoded secret seed (<c>AGE-SECRET-KEY-PQ-1…</c>), e.g. for
+    ///     writing to an identity file. Handle the result as a secret.
     /// </summary>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public string ToSecretString()
@@ -87,49 +131,18 @@ public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable
     }
 
     /// <summary>
-    /// Returns a redacted representation containing only a prefix of the public
-    /// recipient (the full recipient is ~2000 characters), so accidental logging
-    /// or string interpolation cannot leak the secret seed. Use
-    /// <see cref="ToSecretString"/> to export the secret. Once disposed, returns
-    /// <c>MlKem768X25519Identity(disposed)</c> — unlike the other members this
-    /// never throws, because debuggers, loggers, and exception-message formatting
-    /// all call <c>ToString</c> and must not fail on a disposed instance.
+    ///     Returns a redacted representation containing only a prefix of the public
+    ///     recipient (the full recipient is ~2000 characters), so accidental logging
+    ///     or string interpolation cannot leak the secret seed. Use
+    ///     <see cref="ToSecretString" /> to export the secret. Once disposed, returns
+    ///     <c>MlKem768X25519Identity(disposed)</c> — unlike the other members this
+    ///     never throws, because debuggers, loggers, and exception-message formatting
+    ///     all call <c>ToString</c> and must not fail on a disposed instance.
     /// </summary>
-    public override string ToString() =>
-        _disposed
+    public override string ToString()
+    {
+        return _disposed
             ? "MlKem768X25519Identity(disposed)"
             : $"MlKem768X25519Identity({Recipient.ToString()[..24]}…)";
-
-    /// <summary>
-    /// Attempts to unwrap the file key from an <c>mlkem768x25519</c> stanza.
-    /// Returns null for stanzas of other types or wrapped for a different recipient.
-    /// </summary>
-    /// <exception cref="AgeFormatException">The stanza claims to be mlkem768x25519 but is malformed.</exception>
-    /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
-    public byte[]? Unwrap(Stanza stanza)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        if (stanza.Type != AgeProtocol.MlKemStanzaType)
-            return null;
-
-        if (stanza.Args.Count != 1)
-            throw new AgeFormatException($"mlkem768x25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");
-
-        var enc = ParseHelpers.DecodeArg(stanza.Args[0], XWing.EncSize, "mlkem768x25519 enc");
-
-        return stanza.Body.Length == WrappedKeySize
-            ? HpkeHelper.OpenBase(enc, _seed, AgeProtocol.MlKemHpkeInfo, stanza.Body.ToArray())
-            : throw new AgeFormatException($"mlkem768x25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
-    }
-
-    /// <summary>Zeroes the secret seed.</summary>
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-
-        _disposed = true;
-        CryptographicOperations.ZeroMemory(_seed);
     }
 }

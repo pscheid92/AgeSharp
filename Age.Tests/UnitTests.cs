@@ -1,5 +1,4 @@
 using System.Text;
-using AgeSharp;
 using AgeSharp.Crypto;
 using Xunit;
 
@@ -177,7 +176,7 @@ public class HeaderReaderTests
         var stream = new MemoryStream(data);
         var reader = new HeaderReader(stream);
         var buf = new byte[3];
-        int read = reader.ReadPayloadBytes(buf);
+        var read = reader.ReadPayloadBytes(buf);
         Assert.Equal(3, read);
         Assert.Equal(new byte[] { 1, 2, 3 }, buf);
     }
@@ -311,7 +310,7 @@ public class StanzaTests
     [Fact]
     public void Reject_EOF_During_Body_Read()
     {
-        var text = "-> test\n";  // no body lines at all, EOF
+        var text = "-> test\n"; // no body lines at all, EOF
         var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var reader = new HeaderReader(stream);
         Assert.Throws<AgeFormatException>(() => Stanza.Parse(reader));
@@ -519,7 +518,11 @@ public class AsciiArmorTests
         // construction, so that nothing does blocking I/O on an async caller's stream.
         var text = "not a marker\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() =>
+        {
+            using var s = AsciiArmor.Dearmor(stream);
+            ReadAllBytes(s);
+        });
     }
 
     [Fact]
@@ -527,7 +530,11 @@ public class AsciiArmorTests
     {
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\nAAAA\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() =>
+        {
+            using var s = AsciiArmor.Dearmor(stream);
+            ReadAllBytes(s);
+        });
     }
 
     [Fact]
@@ -541,7 +548,11 @@ public class AsciiArmorTests
         // Append trailing non-whitespace
         armored.Write("extra"u8);
         armored.Position = 0;
-        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(armored); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() =>
+        {
+            using var s = AsciiArmor.Dearmor(armored);
+            ReadAllBytes(s);
+        });
     }
 
     [Fact]
@@ -549,7 +560,11 @@ public class AsciiArmorTests
     {
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\n\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() =>
+        {
+            using var s = AsciiArmor.Dearmor(stream);
+            ReadAllBytes(s);
+        });
     }
 
     [Fact]
@@ -557,9 +572,14 @@ public class AsciiArmorTests
     {
         // A single body line far longer than any legal armor line must be rejected
         // without buffering the whole (potentially unbounded) line into memory.
-        var text = "-----BEGIN AGE ENCRYPTED FILE-----\n" + new string('A', new AgeDecryptOptions().MaxArmorLineBytes + 1000) + "\n";
+        var text = "-----BEGIN AGE ENCRYPTED FILE-----\n" +
+                   new string('A', new AgeDecryptOptions().MaxArmorLineBytes + 1000) + "\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        var ex = Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        var ex = Assert.Throws<AgeFormatException>(() =>
+        {
+            using var s = AsciiArmor.Dearmor(stream);
+            ReadAllBytes(s);
+        });
         Assert.Contains("exceeds", ex.Message);
     }
 
@@ -569,7 +589,11 @@ public class AsciiArmorTests
         // The bound must also protect the marker search before the armor body.
         var text = new string('x', new AgeDecryptOptions().MaxArmorLineBytes + 1000);
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() =>
+        {
+            using var s = AsciiArmor.Dearmor(stream);
+            ReadAllBytes(s);
+        });
     }
 
     [Fact]
@@ -590,47 +614,15 @@ public class AsciiArmorTests
         // small (structurally valid) stanzas can't exhaust memory before the MAC
         // is checked. Drive HeaderReader directly with an endless run of short
         // lines: the total-bytes cap must stop it well before it reads forever.
-        using var stream = new RepeatingLineStream(lineLength: 64);
+        using var stream = new RepeatingLineStream(64);
         var reader = new HeaderReader(stream);
         var ex = Assert.Throws<AgeFormatException>(() =>
         {
-            while (reader.ReadLine() is not null) { }
+            while (reader.ReadLine() is not null)
+            {
+            }
         });
         Assert.Contains("exceeds", ex.Message);
-    }
-
-    // Emits an unbounded sequence of identical short lines ("xxx…\n"), each below
-    // the per-line cap, so only the total-header cap can terminate a read loop.
-    private sealed class RepeatingLineStream(int lineLength) : Stream
-    {
-        private readonly byte[] _line = BuildLine(lineLength);
-        private long _pos;
-
-        private static byte[] BuildLine(int length)
-        {
-            var line = new byte[length];
-            Array.Fill(line, (byte)'x');
-            line[length - 1] = (byte)'\n';
-            return line;
-        }
-
-        public override int Read(byte[] buffer, int offset, int count)
-        {
-            for (var i = 0; i < count; i++)
-                buffer[offset + i] = _line[(_pos + i) % _line.Length];
-            _pos += count;
-            return count;
-        }
-
-        public override bool CanRead => true;
-        public override bool CanSeek => false;
-        public override bool CanWrite => false;
-        public override long Length => throw new NotSupportedException();
-        public override long Position { get => _pos; set => throw new NotSupportedException(); }
-        public override void Flush() { }
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     [Fact]
@@ -678,7 +670,11 @@ public class AsciiArmorTests
     {
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\n AAAA\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() =>
+        {
+            using var s = AsciiArmor.Dearmor(stream);
+            ReadAllBytes(s);
+        });
     }
 
     [Fact]
@@ -687,7 +683,11 @@ public class AsciiArmorTests
         var longLine = new string('A', 68); // > 64
         var text = $"-----BEGIN AGE ENCRYPTED FILE-----\n{longLine}\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() =>
+        {
+            using var s = AsciiArmor.Dearmor(stream);
+            ReadAllBytes(s);
+        });
     }
 
     [Fact]
@@ -696,7 +696,11 @@ public class AsciiArmorTests
         // Short line followed by another body line
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\nAA==\nAAAA\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() =>
+        {
+            using var s = AsciiArmor.Dearmor(stream);
+            ReadAllBytes(s);
+        });
     }
 
     [Fact]
@@ -704,7 +708,11 @@ public class AsciiArmorTests
     {
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\n@@@@\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() =>
+        {
+            using var s = AsciiArmor.Dearmor(stream);
+            ReadAllBytes(s);
+        });
     }
 
     [Fact]
@@ -718,7 +726,11 @@ public class AsciiArmorTests
         // Let's try: "AB==" → decodes to [0], canonical for [0] is "AA=="
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\nAB==\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() =>
+        {
+            using var s = AsciiArmor.Dearmor(stream);
+            ReadAllBytes(s);
+        });
     }
 
     [Fact]
@@ -751,6 +763,60 @@ public class AsciiArmorTests
         armored.Position = 0;
         using var dearmored = AsciiArmor.Dearmor(armored);
         Assert.Equal(data, ReadAllBytes(dearmored));
+    }
+
+    // Emits an unbounded sequence of identical short lines ("xxx…\n"), each below
+    // the per-line cap, so only the total-header cap can terminate a read loop.
+    private sealed class RepeatingLineStream(int lineLength) : Stream
+    {
+        private readonly byte[] _line = BuildLine(lineLength);
+        private long _pos;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => _pos;
+            set => throw new NotSupportedException();
+        }
+
+        private static byte[] BuildLine(int length)
+        {
+            var line = new byte[length];
+            Array.Fill(line, (byte)'x');
+            line[length - 1] = (byte)'\n';
+            return line;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            for (var i = 0; i < count; i++)
+                buffer[offset + i] = _line[(_pos + i) % _line.Length];
+            _pos += count;
+            return count;
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
     }
 }
 
@@ -884,7 +950,7 @@ public class PassphraseTests
     [InlineData("20", true, 20)]
     public void ValidateWorkFactor_Valid_Values(string input, bool expectedValid, int expectedValue)
     {
-        var result = Passphrase.ValidateWorkFactor(input, out int workFactor);
+        var result = Passphrase.ValidateWorkFactor(input, out var workFactor);
         Assert.Equal(expectedValid, result);
         Assert.Equal(expectedValue, workFactor);
     }
@@ -982,12 +1048,12 @@ public class PassphraseTests
     public void Unwrap_With_Wrong_Passphrase()
     {
         // Encrypt with one passphrase, try to decrypt with another
-        var correct = new Passphrase("correct", workFactor: 10);
+        var correct = new Passphrase("correct", 10);
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
         var stanza = correct.Wrap(fileKey);
 
-        var wrong = new Passphrase("wrong", workFactor: 10);
+        var wrong = new Passphrase("wrong", 10);
         // Wrong passphrase causes AEAD failure — either throws AgeException or returns null
         try
         {
@@ -1220,7 +1286,7 @@ public class AgeTests
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
 
-        var passphrase = new Passphrase("pass", workFactor: 10);
+        var passphrase = new Passphrase("pass", 10);
         var scryptStanza = passphrase.Wrap(fileKey);
         var x25519Stanza = id.Recipient.Wrap(fileKey);
 

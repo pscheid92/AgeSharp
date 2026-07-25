@@ -3,15 +3,15 @@ using AgeSharp.Crypto;
 namespace AgeSharp;
 
 /// <summary>
-/// One entry in an age file header's recipient list. A stanza carries the
-/// wrapped file key for a single recipient, plus recipient-specific metadata.
+///     One entry in an age file header's recipient list. A stanza carries the
+///     wrapped file key for a single recipient, plus recipient-specific metadata.
 /// </summary>
 /// <remarks>
-/// Stanzas are the extensibility primitive used by custom <see cref="IRecipient"/>
-/// and <see cref="IIdentity"/> implementations to communicate
-/// wrapped keys through the age wire format. The <see cref="Type"/> tag
-/// identifies the recipient kind (<c>"X25519"</c>, <c>"scrypt"</c>, <c>"ssh-ed25519"</c>,
-/// <c>"ssh-rsa"</c>, <c>"mlkem768x25519"</c>, or any custom tag).
+///     Stanzas are the extensibility primitive used by custom <see cref="IRecipient" />
+///     and <see cref="IIdentity" /> implementations to communicate
+///     wrapped keys through the age wire format. The <see cref="Type" /> tag
+///     identifies the recipient kind (<c>"X25519"</c>, <c>"scrypt"</c>, <c>"ssh-ed25519"</c>,
+///     <c>"ssh-rsa"</c>, <c>"mlkem768x25519"</c>, or any custom tag).
 /// </remarks>
 public sealed class Stanza
 {
@@ -19,18 +19,21 @@ public sealed class Stanza
     private readonly byte[] _body;
 
     /// <summary>
-    /// Constructs a stanza with the given type, arguments, and body. The
-    /// <paramref name="args"/> and <paramref name="body"/> arrays are
-    /// defensively copied; later mutations to the caller's arrays do not
-    /// affect this stanza.
+    ///     Constructs a stanza with the given type, arguments, and body. The
+    ///     <paramref name="args" /> and <paramref name="body" /> arrays are
+    ///     defensively copied; later mutations to the caller's arrays do not
+    ///     affect this stanza.
     /// </summary>
     /// <param name="type">The recipient type tag (e.g. "X25519"). Must be printable ASCII.</param>
     /// <param name="args">Recipient-specific arguments (e.g. an ephemeral public key). Each argument must be printable ASCII.</param>
     /// <param name="body">The wrapped key material and any recipient-specific binary payload.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="type"/>, <paramref name="args"/>, or <paramref name="body"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="type" />, <paramref name="args" />, or <paramref name="body" />
+    ///     is null.
+    /// </exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="type"/> or an argument is empty or contains a character outside
-    /// printable ASCII (0x21–0x7E) — spaces and newlines would corrupt the header framing.
+    ///     <paramref name="type" /> or an argument is empty or contains a character outside
+    ///     printable ASCII (0x21–0x7E) — spaces and newlines would corrupt the header framing.
     /// </exception>
     public Stanza(string type, string[] args, byte[] body)
     {
@@ -120,7 +123,8 @@ public sealed class Stanza
 
         while (true)
         {
-            var bodyLine = reader.ReadLine() ?? throw new AgeFormatException("unexpected end of header while reading stanza body");
+            var bodyLine = reader.ReadLine() ??
+                           throw new AgeFormatException("unexpected end of header while reading stanza body");
 
             switch (bodyLine.Length)
             {
@@ -174,6 +178,7 @@ public sealed class Stanza
 
         var invalid = s.IndexOfAnyExceptInRange('!', '~');
         if (invalid >= 0)
-            throw new ArgumentException($"invalid character in stanza type/argument: 0x{(int)s[invalid]:X2}", paramName);
+            throw new ArgumentException($"invalid character in stanza type/argument: 0x{(int)s[invalid]:X2}",
+                paramName);
     }
 }

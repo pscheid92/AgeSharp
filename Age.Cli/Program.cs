@@ -7,11 +7,15 @@ var encryptOption = new Option<bool>("--encrypt", "-e") { Description = "Encrypt
 var decryptOption = new Option<bool>("--decrypt", "-d") { Description = "Decrypt the input" };
 var armorOption = new Option<bool>("--armor", "-a") { Description = "Use ASCII armored format" };
 var passphraseOption = new Option<bool>("--passphrase", "-p") { Description = "Use passphrase-based encryption" };
-var recipientOption = new Option<string[]>("--recipient", "-r") { Description = "Encrypt to recipient (can be repeated)" };
-var recipientsFileOption = new Option<string[]>("--recipients-file", "-R") { Description = "Path to a file with recipients (can be repeated)" };
-var identityOption = new Option<string[]>("--identity", "-i") { Description = "Path to an identity file (can be repeated)" };
+var recipientOption = new Option<string[]>("--recipient", "-r")
+    { Description = "Encrypt to recipient (can be repeated)" };
+var recipientsFileOption = new Option<string[]>("--recipients-file", "-R")
+    { Description = "Path to a file with recipients (can be repeated)" };
+var identityOption = new Option<string[]>("--identity", "-i")
+    { Description = "Path to an identity file (can be repeated)" };
 var outputOption = new Option<string?>("--output", "-o") { Description = "Write output to path" };
-var inputArgument = new Argument<string?>("input") { Arity = ArgumentArity.ZeroOrOne, Description = "Input file (default: stdin)" };
+var inputArgument = new Argument<string?>("input")
+    { Arity = ArgumentArity.ZeroOrOne, Description = "Input file (default: stdin)" };
 
 var rootCommand = new RootCommand("age-sharp: file encryption tool")
 {
@@ -34,8 +38,10 @@ rootCommand.SetAction(parseResult =>
 // --- keygen subcommand ---
 var keygenOutputOption = new Option<string?>("--output", "-o") { Description = "Write the result to path" };
 var convertToPublicOption = new Option<bool>("-y") { Description = "Convert an identity file to a recipients file" };
-var postQuantumOption = new Option<bool>("--pq", "-pq") { Description = "Generate a post-quantum ML-KEM-768 + X25519 key pair" };
-var keygenInputArgument = new Argument<string?>("input") { Arity = ArgumentArity.ZeroOrOne, Description = "Input file (for -y mode)" };
+var postQuantumOption = new Option<bool>("--pq", "-pq")
+    { Description = "Generate a post-quantum ML-KEM-768 + X25519 key pair" };
+var keygenInputArgument = new Argument<string?>("input")
+    { Arity = ArgumentArity.ZeroOrOne, Description = "Input file (for -y mode)" };
 
 var keygenCommand = new Command("keygen", "Generate a new identity")
 {
@@ -53,7 +59,8 @@ rootCommand.Subcommands.Add(keygenCommand);
 
 // --- inspect subcommand ---
 var jsonOption = new Option<bool>("--json") { Description = "Output machine-readable JSON" };
-var inspectInputArgument = new Argument<string?>("file") { Arity = ArgumentArity.ZeroOrOne, Description = "Input file (default: stdin, \"-\" for stdin)" };
+var inspectInputArgument = new Argument<string?>("file")
+    { Arity = ArgumentArity.ZeroOrOne, Description = "Input file (default: stdin, \"-\" for stdin)" };
 
 var inspectCommand = new Command("inspect", "Inspect an age-encrypted file")
 {
@@ -94,10 +101,12 @@ catch (Exception ex)
     return 1;
 }
 
-static string CommandPrefix(ParseResult parsed) =>
-    parsed.CommandResult.Command.Name switch
+static string CommandPrefix(ParseResult parsed)
+{
+    return parsed.CommandResult.Command.Name switch
     {
         "keygen" => "age-keygen",
         "inspect" => "age-inspect",
         _ => "age"
     };
+}

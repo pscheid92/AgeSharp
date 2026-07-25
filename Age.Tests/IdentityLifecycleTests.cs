@@ -1,26 +1,25 @@
 using System.Security.Cryptography;
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Pins the disposal contract for the identity types that derive their public
-/// half from zeroizable secret material: once disposed, every member that would
-/// read that material throws <see cref="ObjectDisposedException"/> rather than
-/// silently returning a value derived from the zeroed buffer.
-/// <para>
-/// Before this contract existed, <c>ToSecretString()</c> on a disposed identity
-/// returned a well-formed bech32 string — correct HRP, valid checksum — encoding
-/// the all-zero key. Writing that to an identity file produced a key file anyone
-/// could derive, with no error anywhere.
-/// </para>
-/// <para>
-/// The SSH identity types keep their public halves outside the zeroized buffer,
-/// so their disposal facts live with their key generators in
-/// <c>SshTests.cs</c> (<c>SshEd25519RecipientIdentityTests</c> /
-/// <c>SshRsaRecipientIdentityTests</c>).
-/// </para>
+///     Pins the disposal contract for the identity types that derive their public
+///     half from zeroizable secret material: once disposed, every member that would
+///     read that material throws <see cref="ObjectDisposedException" /> rather than
+///     silently returning a value derived from the zeroed buffer.
+///     <para>
+///         Before this contract existed, <c>ToSecretString()</c> on a disposed identity
+///         returned a well-formed bech32 string — correct HRP, valid checksum — encoding
+///         the all-zero key. Writing that to an identity file produced a key file anyone
+///         could derive, with no error anywhere.
+///     </para>
+///     <para>
+///         The SSH identity types keep their public halves outside the zeroized buffer,
+///         so their disposal facts live with their key generators in
+///         <c>SshTests.cs</c> (<c>SshEd25519RecipientIdentityTests</c> /
+///         <c>SshRsaRecipientIdentityTests</c>).
+///     </para>
 /// </summary>
 public class IdentityLifecycleTests
 {

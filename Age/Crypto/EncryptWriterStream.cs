@@ -4,38 +4,39 @@ using System.Security.Cryptography;
 namespace AgeSharp.Crypto;
 
 /// <summary>
-/// Push-side encryptor: a write-only <see cref="Stream"/> that consumes plaintext
-/// and writes age ciphertext to a destination, in the spirit of
-/// <see cref="System.IO.Compression.GZipStream"/>. The header and payload nonce
-/// (the <c>preamble</c>) are written lazily on the first write — or on
-/// <see cref="Dispose(bool)"/> when nothing was written — and the STREAM payload
-/// is finalized on dispose.
+///     Push-side encryptor: a write-only <see cref="Stream" /> that consumes plaintext
+///     and writes age ciphertext to a destination, in the spirit of
+///     <see cref="System.IO.Compression.GZipStream" />. The header and payload nonce
+///     (the <c>preamble</c>) are written lazily on the first write — or on
+///     <see cref="Dispose(bool)" /> when nothing was written — and the STREAM payload
+///     is finalized on dispose.
 /// </summary>
 /// <remarks>
-/// A full 64 KiB chunk is emitted as non-final only once more plaintext proves it
-/// is not the last chunk; otherwise it is held so that <see cref="Dispose(bool)"/>
-/// can encrypt it with the final flag set. This keeps the invariant that an empty
-/// final chunk appears only for empty plaintext. The <c>destination</c> supplied by
-/// the facade is never disposed; an armor wrapper created by the facade is.
+///     A full 64 KiB chunk is emitted as non-final only once more plaintext proves it
+///     is not the last chunk; otherwise it is held so that <see cref="Dispose(bool)" />
+///     can encrypt it with the final flag set. This keeps the invariant that an empty
+///     final chunk appears only for empty plaintext. The <c>destination</c> supplied by
+///     the facade is never disposed; an armor wrapper created by the facade is.
 /// </remarks>
 internal sealed class EncryptWriterStream : Stream
 {
+    private readonly IAeadCipher _cipher;
+    private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(StreamEncryption.EncryptedChunkSize);
     private readonly Stream _destination;
     private readonly bool _ownsDestination;
     private readonly byte[] _payloadKey;
-    private readonly byte[] _preamble;
-    private bool _preambleWritten;
 
     private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(StreamEncryption.ChunkSize);
-    private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(StreamEncryption.EncryptedChunkSize);
-    private readonly IAeadCipher _cipher;
+    private readonly byte[] _preamble;
     private int _bufferLength;
     private long _counter;
-
-    private bool _finalized;
     private bool _disposed;
 
-    public EncryptWriterStream(byte[] headerBytes, byte[] payloadNonce, byte[] payloadKey, Stream destination, bool ownsDestination)
+    private bool _finalized;
+    private bool _preambleWritten;
+
+    public EncryptWriterStream(byte[] headerBytes, byte[] payloadNonce, byte[] payloadKey, Stream destination,
+        bool ownsDestination)
     {
         _destination = destination;
         _ownsDestination = ownsDestination;
@@ -56,7 +57,9 @@ internal sealed class EncryptWriterStream : Stream
     }
 
     public override void Write(byte[] buffer, int offset, int count)
-        => Write(buffer.AsSpan(offset, count));
+    {
+        Write(buffer.AsSpan(offset, count));
+    }
 
     public override void Write(ReadOnlySpan<byte> buffer)
     {
@@ -69,7 +72,7 @@ internal sealed class EncryptWriterStream : Stream
             // chunk cannot be the final one — flush it before taking the next bytes.
             if (_bufferLength == StreamEncryption.ChunkSize)
             {
-                var length = EncryptBufferedChunk(isFinal: false);
+                var length = EncryptBufferedChunk(false);
                 _destination.Write(_ciphertextBuffer.AsSpan(0, length));
             }
 
@@ -81,9 +84,12 @@ internal sealed class EncryptWriterStream : Stream
     }
 
     public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        => WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    {
+        return WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    }
 
-    public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+    public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer,
+        CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         await WritePreambleAsync(cancellationToken).ConfigureAwait(false);
@@ -92,8 +98,9 @@ internal sealed class EncryptWriterStream : Stream
         {
             if (_bufferLength == StreamEncryption.ChunkSize)
             {
-                var length = EncryptBufferedChunk(isFinal: false);
-                await _destination.WriteAsync(_ciphertextBuffer.AsMemory(0, length), cancellationToken).ConfigureAwait(false);
+                var length = EncryptBufferedChunk(false);
+                await _destination.WriteAsync(_ciphertextBuffer.AsMemory(0, length), cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             var take = Math.Min(StreamEncryption.ChunkSize - _bufferLength, buffer.Length);
@@ -151,7 +158,7 @@ internal sealed class EncryptWriterStream : Stream
             {
                 _finalized = true;
                 WritePreamble();
-                _destination.Write(_ciphertextBuffer.AsSpan(0, EncryptBufferedChunk(isFinal: true)));
+                _destination.Write(_ciphertextBuffer.AsSpan(0, EncryptBufferedChunk(true)));
             }
 
             if (_ownsDestination)
@@ -181,8 +188,8 @@ internal sealed class EncryptWriterStream : Stream
             {
                 _finalized = true;
                 await WritePreambleAsync(default).ConfigureAwait(false);
-                var length = EncryptBufferedChunk(isFinal: true);
-                await _destination.WriteAsync(_ciphertextBuffer.AsMemory(0, length), default).ConfigureAwait(false);
+                var length = EncryptBufferedChunk(true);
+                await _destination.WriteAsync(_ciphertextBuffer.AsMemory(0, length)).ConfigureAwait(false);
             }
 
             if (_ownsDestination)
@@ -217,7 +224,18 @@ internal sealed class EncryptWriterStream : Stream
         return _destination.FlushAsync(cancellationToken);
     }
 
-    public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-    public override void SetLength(long value) => throw new NotSupportedException();
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override long Seek(long offset, SeekOrigin origin)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override void SetLength(long value)
+    {
+        throw new NotSupportedException();
+    }
 }

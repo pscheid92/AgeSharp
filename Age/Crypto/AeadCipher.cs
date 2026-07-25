@@ -3,21 +3,26 @@ using System.Security.Cryptography;
 namespace AgeSharp.Crypto;
 
 /// <summary>
-/// Factory for <see cref="IAeadCipher"/> instances. Uses the native platform cipher where it is
-/// supported and the managed BouncyCastle cipher otherwise — so browser/WebAssembly works with
-/// no configuration and server/desktop keep the fast, zero-allocation path.
+///     Factory for <see cref="IAeadCipher" /> instances. Uses the native platform cipher where it is
+///     supported and the managed BouncyCastle cipher otherwise — so browser/WebAssembly works with
+///     no configuration and server/desktop keep the fast, zero-allocation path.
 /// </summary>
 internal static class AeadCipher
 {
     /// <summary>Creates a cipher using the default backend for the current platform.</summary>
-    public static IAeadCipher Create(ReadOnlySpan<byte> key) => Create(key, DefaultBackend());
+    public static IAeadCipher Create(ReadOnlySpan<byte> key)
+    {
+        return Create(key, DefaultBackend());
+    }
 
     /// <summary>
-    /// Creates a cipher using an explicit backend. Used by tests to exercise a specific
-    /// implementation regardless of the platform default.
+    ///     Creates a cipher using an explicit backend. Used by tests to exercise a specific
+    ///     implementation regardless of the platform default.
     /// </summary>
-    internal static IAeadCipher Create(ReadOnlySpan<byte> key, AeadBackend backend) =>
-        backend == AeadBackend.Portable ? new BouncyCastleAeadCipher(key) : new BclAeadCipher(key);
+    internal static IAeadCipher Create(ReadOnlySpan<byte> key, AeadBackend backend)
+    {
+        return backend == AeadBackend.Portable ? new BouncyCastleAeadCipher(key) : new BclAeadCipher(key);
+    }
 
     private static AeadBackend DefaultBackend() =>
 #if FORCE_PORTABLE_AEAD

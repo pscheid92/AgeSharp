@@ -1,12 +1,11 @@
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Two properties that are easy to regress silently: that <see cref="Passphrase"/>
-/// holds its secret somewhere it can actually be zeroed, and that deriving a public
-/// key is a one-off rather than a cost paid on every property access.
+///     Two properties that are easy to regress silently: that <see cref="Passphrase" />
+///     holds its secret somewhere it can actually be zeroed, and that deriving a public
+///     key is a one-off rather than a cost paid on every property access.
 /// </summary>
 public class SecretHygieneTests
 {
@@ -80,8 +79,8 @@ public class SecretHygieneTests
     [Fact]
     public void NullPassphrase_ThrowsArgumentNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new Passphrase((string)null!));
-        Assert.Throws<ArgumentNullException>(() => new Passphrase((string)null!, LowWorkFactor));
+        Assert.Throws<ArgumentNullException>(() => new Passphrase(null!));
+        Assert.Throws<ArgumentNullException>(() => new Passphrase(null!, LowWorkFactor));
     }
 
     [Theory]
@@ -168,7 +167,7 @@ public class SecretHygieneTests
     public void RecipientAfterDispose_Throws()
     {
         var identity = X25519Identity.Generate();
-        _ = identity.Recipient;      // populate the cache first
+        _ = identity.Recipient; // populate the cache first
         identity.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => identity.Recipient);

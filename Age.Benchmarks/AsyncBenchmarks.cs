@@ -1,24 +1,23 @@
-using AgeSharp;
 using BenchmarkDotNet.Attributes;
 
 namespace AgeSharp.Benchmarks;
 
 /// <summary>
-/// Measures the overhead of the async facades relative to their synchronous
-/// counterparts over in-memory streams (so the numbers isolate the state-machine
-/// and header-prefill cost, not disk/network latency).
+///     Measures the overhead of the async facades relative to their synchronous
+///     counterparts over in-memory streams (so the numbers isolate the state-machine
+///     and header-prefill cost, not disk/network latency).
 /// </summary>
 [MemoryDiagnoser]
 public class AsyncBenchmarks
 {
-    [Params(65_536, 1_048_576)]
-    public int DataSize;
+    [Params(65_536, 1_048_576)] public int DataSize;
+
+    private byte[] _ciphertext = null!;
+    private IReadOnlyList<IIdentity> _identities = null!;
 
     private X25519Identity _identity = null!;
-    private IReadOnlyList<IRecipient> _recipients = null!;
-    private IReadOnlyList<IIdentity> _identities = null!;
     private byte[] _plaintext = null!;
-    private byte[] _ciphertext = null!;
+    private IReadOnlyList<IRecipient> _recipients = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -36,7 +35,10 @@ public class AsyncBenchmarks
     }
 
     [GlobalCleanup]
-    public void Cleanup() => _identity.Dispose();
+    public void Cleanup()
+    {
+        _identity.Dispose();
+    }
 
     [Benchmark]
     public void EncryptSync()

@@ -1,14 +1,13 @@
 using System.Text;
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Direct tests for the sans-I/O <see cref="HeaderLineAccumulator"/>. The point of
-/// the fill/parse split is that line framing, validation, and the size limits can
-/// be exercised without any stream — sync and async drivers share exactly this
-/// logic.
+///     Direct tests for the sans-I/O <see cref="HeaderLineAccumulator" />. The point of
+///     the fill/parse split is that line framing, validation, and the size limits can
+///     be exercised without any stream — sync and async drivers share exactly this
+///     logic.
 /// </summary>
 public class HeaderLineAccumulatorTests
 {
@@ -61,7 +60,7 @@ public class HeaderLineAccumulatorTests
     [Fact]
     public void Feed_LineExceedingMaxLine_Throws()
     {
-        var acc = new HeaderLineAccumulator(maxLineBytes: 4, MaxHeader);
+        var acc = new HeaderLineAccumulator(4, MaxHeader);
 
         // 4 bytes fit; the 5th non-LF byte on the same line trips the limit.
         for (var i = 0; i < 4; i++)
@@ -72,7 +71,7 @@ public class HeaderLineAccumulatorTests
     [Fact]
     public void Feed_HeaderExceedingMaxHeader_Throws()
     {
-        var acc = new HeaderLineAccumulator(MaxLine, maxHeaderBytes: 3);
+        var acc = new HeaderLineAccumulator(MaxLine, 3);
 
         // Newlines count toward the header total, so 3 bytes are accepted then the 4th throws.
         acc.Feed((byte)'a');

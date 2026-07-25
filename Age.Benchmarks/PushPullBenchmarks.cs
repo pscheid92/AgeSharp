@@ -1,21 +1,20 @@
-using AgeSharp;
 using BenchmarkDotNet.Attributes;
 
 namespace AgeSharp.Benchmarks;
 
 /// <summary>
-/// Compares the three encryption shapes over the same plaintext: the eager
-/// one-shot <see cref="Age.Encrypt(System.IO.Stream, System.IO.Stream, System.ReadOnlySpan{IRecipient})"/>,
-/// the push writer <see cref="Age.EncryptWriter(System.IO.Stream, System.ReadOnlySpan{IRecipient})"/>,
-/// and the pull reader <see cref="Age.EncryptReader(System.IO.Stream, IRecipient, System.ReadOnlySpan{IRecipient})"/>.
-/// All three run the same chunked STREAM path, so the numbers isolate the per-shape
-/// buffering overhead.
+///     Compares the three encryption shapes over the same plaintext: the eager
+///     one-shot <see cref="Age.Encrypt(System.IO.Stream, System.IO.Stream, System.ReadOnlySpan{IRecipient})" />,
+///     the push writer <see cref="Age.EncryptWriter(System.IO.Stream, System.ReadOnlySpan{IRecipient})" />,
+///     and the pull reader <see cref="Age.EncryptReader(System.IO.Stream, IRecipient, System.ReadOnlySpan{IRecipient})" />
+///     .
+///     All three run the same chunked STREAM path, so the numbers isolate the per-shape
+///     buffering overhead.
 /// </summary>
 [MemoryDiagnoser]
 public class PushPullBenchmarks
 {
-    [Params(65_536, 1_048_576)]
-    public int DataSize;
+    [Params(65_536, 1_048_576)] public int DataSize;
 
     private X25519Identity _identity = null!;
     private byte[] _plaintext = null!;
@@ -29,7 +28,10 @@ public class PushPullBenchmarks
     }
 
     [GlobalCleanup]
-    public void Cleanup() => _identity.Dispose();
+    public void Cleanup()
+    {
+        _identity.Dispose();
+    }
 
     [Benchmark]
     public void OneShot()

@@ -1,12 +1,11 @@
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// <see cref="AgeDecryptOptions.RequireArmor"/> is a strictness opt-in, not a
-/// switch: armor is detected automatically either way, so the default accepts both
-/// forms and setting it rejects anything that is not armored.
+///     <see cref="AgeDecryptOptions.RequireArmor" /> is a strictness opt-in, not a
+///     switch: armor is detected automatically either way, so the default accepts both
+///     forms and setting it rejects anything that is not armored.
 /// </summary>
 public class ArmorStrictnessTests
 {

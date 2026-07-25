@@ -15,21 +15,22 @@ namespace AgeSharp.Benchmarks;
 [MemoryDiagnoser]
 public class ChaChaImplBenchmarks
 {
-    private const int ChunkSize = 64 * 1024;   // age STREAM chunk size
+    private const int ChunkSize = 64 * 1024; // age STREAM chunk size
     private const int TagSize = 16;
     private const int NonceSize = 12;
 
-    [Params(65_536, 1_048_576, 16_777_216)]    // 64 KiB, 1 MiB, 16 MiB payloads
+    [Params(65_536, 1_048_576, 16_777_216)] // 64 KiB, 1 MiB, 16 MiB payloads
     public int PayloadSize;
 
-    private byte[] _key = null!;
-    private byte[] _plaintext = null!;
-    private byte[] _output = null!;
-    private byte[] _nonce = null!;
-
-    private BclChaCha _bcl = null!;
     private BcChaCha _bc = null!;
     private KeyParameter _bcKey = null!;
+
+    private BclChaCha _bcl = null!;
+
+    private byte[] _key = null!;
+    private byte[] _nonce = null!;
+    private byte[] _output = null!;
+    private byte[] _plaintext = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -47,7 +48,10 @@ public class ChaChaImplBenchmarks
     }
 
     [GlobalCleanup]
-    public void Cleanup() => _bcl.Dispose();
+    public void Cleanup()
+    {
+        _bcl.Dispose();
+    }
 
     // Platform ChaCha20-Poly1305: span-based one-shot per chunk, no per-chunk allocation.
     [Benchmark(Baseline = true)]

@@ -1,14 +1,13 @@
 using System.Text;
-using AgeSharp;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Tests for the buffer-in, buffer-out one-shot overloads
-/// <see cref="Age.Encrypt(System.ReadOnlySpan{byte}, System.ReadOnlySpan{IRecipient})"/> and
-/// <see cref="Age.Decrypt(System.ReadOnlySpan{byte}, System.ReadOnlySpan{IIdentity})"/>:
-/// round-trip across sizes, the armor option, validation, and an age-CLI interop vector.
+///     Tests for the buffer-in, buffer-out one-shot overloads
+///     <see cref="Age.Encrypt(System.ReadOnlySpan{byte}, System.ReadOnlySpan{IRecipient})" /> and
+///     <see cref="Age.Decrypt(System.ReadOnlySpan{byte}, System.ReadOnlySpan{IIdentity})" />:
+///     round-trip across sizes, the armor option, validation, and an age-CLI interop vector.
 /// </summary>
 public class ByteArrayOverloadTests
 {
@@ -16,8 +15,8 @@ public class ByteArrayOverloadTests
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(100)]
-    [InlineData(65536)]   // exact chunk
-    [InlineData(131073)]  // multi-chunk + tail
+    [InlineData(65536)] // exact chunk
+    [InlineData(131073)] // multi-chunk + tail
     public void Encrypt_Decrypt_RoundTrip(int size)
     {
         using var identity = X25519Identity.Generate();
@@ -58,7 +57,9 @@ public class ByteArrayOverloadTests
 
     [Fact]
     public void Encrypt_NoRecipients_Throws()
-        => Assert.Throws<ArgumentException>(() => Age.Encrypt("x"u8.ToArray(), Array.Empty<IRecipient>()));
+    {
+        Assert.Throws<ArgumentException>(() => Age.Encrypt("x"u8.ToArray(), Array.Empty<IRecipient>()));
+    }
 
     [Fact]
     public void Decrypt_NoIdentities_Throws()
@@ -115,7 +116,7 @@ public class ByteArrayOverloadTests
         var plaintext = new byte[4096];
         new Random(7).NextBytes(plaintext);
 
-        var ciphertext = AgeCli.Encrypt(plaintext, armored: false, identity.Recipient.ToString());
+        var ciphertext = AgeCli.Encrypt(plaintext, false, identity.Recipient.ToString());
 
         Assert.Equal(plaintext, Age.Decrypt(ciphertext, identity));
     }

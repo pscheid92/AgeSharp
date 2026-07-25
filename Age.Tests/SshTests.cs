@@ -1,13 +1,17 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
-using AgeSharp;
 using AgeSharp.Crypto;
+using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Utilities;
+using Org.BouncyCastle.Pkcs;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Utilities.IO.Pem;
+using Org.BouncyCastle.X509;
 using Xunit;
+using PemWriter = Org.BouncyCastle.OpenSsl.PemWriter;
 
 namespace AgeSharp.Tests;
 
@@ -67,7 +71,7 @@ public class Ed25519ConverterTests
     public void PublicKeyToX25519_MultipleKeys_Distinct()
     {
         var results = new List<byte[]>();
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
             var seed = new byte[32];
             new Random(i).NextBytes(seed);
@@ -77,9 +81,9 @@ public class Ed25519ConverterTests
         }
 
         // All results should be distinct
-        for (int i = 0; i < results.Count; i++)
-            for (int j = i + 1; j < results.Count; j++)
-                Assert.NotEqual(results[i], results[j]);
+        for (var i = 0; i < results.Count; i++)
+        for (var j = i + 1; j < results.Count; j++)
+            Assert.NotEqual(results[i], results[j]);
     }
 }
 
@@ -107,7 +111,7 @@ public class SshKeyParserTests
     public void ParsePublicKey_Rsa()
     {
         var rsaGen = new RsaKeyPairGenerator();
-        rsaGen.Init(new Org.BouncyCastle.Crypto.KeyGenerationParameters(new SecureRandom(), 2048));
+        rsaGen.Init(new KeyGenerationParameters(new SecureRandom(), 2048));
         var kp = rsaGen.GenerateKeyPair();
         var wireBytes = OpenSshPublicKeyUtilities.EncodePublicKey(kp.Public);
         var authorizedKeysLine = $"ssh-rsa {Convert.ToBase64String(wireBytes)} test@example.com";
@@ -171,11 +175,11 @@ public class SshKeyParserTests
     {
         // Generate RSA key pair and encode as PKCS#1 PEM
         var rsaGen = new RsaKeyPairGenerator();
-        rsaGen.Init(new Org.BouncyCastle.Crypto.KeyGenerationParameters(new SecureRandom(), 2048));
+        rsaGen.Init(new KeyGenerationParameters(new SecureRandom(), 2048));
         var kp = rsaGen.GenerateKeyPair();
 
         var sw = new StringWriter();
-        var pemWriter = new Org.BouncyCastle.OpenSsl.PemWriter(sw);
+        var pemWriter = new PemWriter(sw);
         pemWriter.WriteObject(kp.Private);
         var pkcs1Pem = sw.ToString();
 
@@ -192,13 +196,13 @@ public class SshKeyParserTests
     {
         // Generate RSA key pair and encode as PKCS#8 PEM
         var rsaGen = new RsaKeyPairGenerator();
-        rsaGen.Init(new Org.BouncyCastle.Crypto.KeyGenerationParameters(new SecureRandom(), 2048));
+        rsaGen.Init(new KeyGenerationParameters(new SecureRandom(), 2048));
         var kp = rsaGen.GenerateKeyPair();
 
-        var pkcs8Info = Org.BouncyCastle.Pkcs.PrivateKeyInfoFactory.CreatePrivateKeyInfo(kp.Private);
+        var pkcs8Info = PrivateKeyInfoFactory.CreatePrivateKeyInfo(kp.Private);
         var sw = new StringWriter();
         var pemWriter = new Org.BouncyCastle.Utilities.IO.Pem.PemWriter(sw);
-        pemWriter.WriteObject(new Org.BouncyCastle.Utilities.IO.Pem.PemObject("PRIVATE KEY", pkcs8Info.GetEncoded()));
+        pemWriter.WriteObject(new PemObject("PRIVATE KEY", pkcs8Info.GetEncoded()));
         var pkcs8Pem = sw.ToString();
 
         Assert.Contains("BEGIN PRIVATE KEY", pkcs8Pem);
@@ -213,13 +217,13 @@ public class SshKeyParserTests
     {
         // A PEM containing a public key (not a private key) should be rejected
         var rsaGen = new RsaKeyPairGenerator();
-        rsaGen.Init(new Org.BouncyCastle.Crypto.KeyGenerationParameters(new SecureRandom(), 2048));
+        rsaGen.Init(new KeyGenerationParameters(new SecureRandom(), 2048));
         var kp = rsaGen.GenerateKeyPair();
 
-        var pubInfo = Org.BouncyCastle.X509.SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(kp.Public);
+        var pubInfo = SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(kp.Public);
         var sw = new StringWriter();
         var pemWriter = new Org.BouncyCastle.Utilities.IO.Pem.PemWriter(sw);
-        pemWriter.WriteObject(new Org.BouncyCastle.Utilities.IO.Pem.PemObject("PUBLIC KEY", pubInfo.GetEncoded()));
+        pemWriter.WriteObject(new PemObject("PUBLIC KEY", pubInfo.GetEncoded()));
         var pubPem = sw.ToString();
 
         Assert.Throws<AgeFormatException>(() => SshKeyParser.ParsePrivateKey(pubPem));
@@ -230,11 +234,11 @@ public class SshKeyParserTests
     {
         // Full round-trip: PKCS#1 PEM → identity → wrap/unwrap
         var rsaGen = new RsaKeyPairGenerator();
-        rsaGen.Init(new Org.BouncyCastle.Crypto.KeyGenerationParameters(new SecureRandom(), 2048));
+        rsaGen.Init(new KeyGenerationParameters(new SecureRandom(), 2048));
         var kp = rsaGen.GenerateKeyPair();
 
         var sw = new StringWriter();
-        var pemWriter = new Org.BouncyCastle.OpenSsl.PemWriter(sw);
+        var pemWriter = new PemWriter(sw);
         pemWriter.WriteObject(kp.Private);
         var pkcs1Pem = sw.ToString();
 
@@ -265,7 +269,7 @@ public class SshEd25519RecipientIdentityTests
         var authorizedKeys = $"ssh-ed25519 {Convert.ToBase64String(wireBytes)} test@example.com";
 
         // Build OpenSSH PEM
-        var privBlob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(priv);
+        var privBlob = OpenSshPrivateKeyUtilities.EncodePrivateKey(priv);
         var pemText = BuildOpenSshPem(privBlob);
 
         return (authorizedKeys, pemText);
@@ -276,10 +280,7 @@ public class SshEd25519RecipientIdentityTests
         var sb = new StringBuilder();
         sb.AppendLine("-----BEGIN OPENSSH PRIVATE KEY-----");
         var b64 = Convert.ToBase64String(blob);
-        for (int i = 0; i < b64.Length; i += 70)
-        {
-            sb.AppendLine(b64.Substring(i, Math.Min(70, b64.Length - i)));
-        }
+        for (var i = 0; i < b64.Length; i += 70) sb.AppendLine(b64.Substring(i, Math.Min(70, b64.Length - i)));
         sb.AppendLine("-----END OPENSSH PRIVATE KEY-----");
         return sb.ToString();
     }
@@ -326,7 +327,7 @@ public class SshEd25519RecipientIdentityTests
         var (_, pemText) = GenerateEd25519KeyPair();
         using var identity = SshEd25519Identity.Parse(pemText);
 
-        var stanza = new AgeSharp.Stanza("X25519", ["arg"], new byte[32]);
+        var stanza = new Stanza("X25519", ["arg"], new byte[32]);
         Assert.Null(identity.Unwrap(stanza));
     }
 
@@ -336,7 +337,7 @@ public class SshEd25519RecipientIdentityTests
         var (_, pemText) = GenerateEd25519KeyPair();
         using var identity = SshEd25519Identity.Parse(pemText);
 
-        var stanza = new AgeSharp.Stanza("ssh-ed25519", ["onlyone"], new byte[32]);
+        var stanza = new Stanza("ssh-ed25519", ["onlyone"], new byte[32]);
         Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
@@ -384,7 +385,7 @@ public class SshEd25519RecipientIdentityTests
     public void Parse_RejectsRsaKey()
     {
         var rsaGen = new RsaKeyPairGenerator();
-        rsaGen.Init(new Org.BouncyCastle.Crypto.KeyGenerationParameters(new SecureRandom(), 2048));
+        rsaGen.Init(new KeyGenerationParameters(new SecureRandom(), 2048));
         var kp = rsaGen.GenerateKeyPair();
         var wireBytes = OpenSshPublicKeyUtilities.EncodePublicKey(kp.Public);
         var authorizedKeys = $"ssh-rsa {Convert.ToBase64String(wireBytes)} test@example.com";
@@ -396,9 +397,9 @@ public class SshEd25519RecipientIdentityTests
     public void IdentityParse_RejectsRsaPem()
     {
         var rsaGen = new RsaKeyPairGenerator();
-        rsaGen.Init(new Org.BouncyCastle.Crypto.KeyGenerationParameters(new SecureRandom(), 2048));
+        rsaGen.Init(new KeyGenerationParameters(new SecureRandom(), 2048));
         var kp = rsaGen.GenerateKeyPair();
-        var privBlob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(kp.Private);
+        var privBlob = OpenSshPrivateKeyUtilities.EncodePrivateKey(kp.Private);
         var pemText = BuildOpenSshPem(privBlob);
 
         Assert.Throws<AgeFormatException>(() => SshEd25519Identity.Parse(pemText));
@@ -417,7 +418,7 @@ public class SshEd25519RecipientIdentityTests
         var goodStanza = recipient.Wrap(fileKey);
 
         // Replace the ephemeral key arg with invalid base64
-        var stanza = new AgeSharp.Stanza("ssh-ed25519", [goodStanza.Args[0], "@@invalid@@"], goodStanza.Body.ToArray());
+        var stanza = new Stanza("ssh-ed25519", [goodStanza.Args[0], "@@invalid@@"], goodStanza.Body.ToArray());
         Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
@@ -433,8 +434,8 @@ public class SshEd25519RecipientIdentityTests
         var goodStanza = recipient.Wrap(fileKey);
 
         // Replace ephemeral key with wrong length (16 bytes instead of 32)
-        var shortKeyB64 = AgeSharp.Crypto.Base64Unpadded.Encode(new byte[16]);
-        var stanza = new AgeSharp.Stanza("ssh-ed25519", [goodStanza.Args[0], shortKeyB64], goodStanza.Body.ToArray());
+        var shortKeyB64 = Base64Unpadded.Encode(new byte[16]);
+        var stanza = new Stanza("ssh-ed25519", [goodStanza.Args[0], shortKeyB64], goodStanza.Body.ToArray());
         Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
@@ -450,7 +451,7 @@ public class SshEd25519RecipientIdentityTests
         var goodStanza = recipient.Wrap(fileKey);
 
         // Replace body with wrong length
-        var stanza = new AgeSharp.Stanza("ssh-ed25519", [.. goodStanza.Args], new byte[16]);
+        var stanza = new Stanza("ssh-ed25519", [.. goodStanza.Args], new byte[16]);
         Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
@@ -466,8 +467,8 @@ public class SshEd25519RecipientIdentityTests
         // All-zero (low-order/identity) ephemeral → all-zero shared secret.
         // Before the guard this leaked BouncyCastle's InvalidOperationException
         // straight through Decrypt, escaping the AgeException contract.
-        var lowOrderEph = AgeSharp.Crypto.Base64Unpadded.Encode(new byte[32]);
-        var stanza = new AgeSharp.Stanza("ssh-ed25519", [goodStanza.Args[0], lowOrderEph], new byte[32]);
+        var lowOrderEph = Base64Unpadded.Encode(new byte[32]);
+        var stanza = new Stanza("ssh-ed25519", [goodStanza.Args[0], lowOrderEph], new byte[32]);
         Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
@@ -531,13 +532,13 @@ public class SshRsaRecipientIdentityTests
     private static (string authorizedKeys, string pemText) GenerateRsaKeyPair()
     {
         var rsaGen = new RsaKeyPairGenerator();
-        rsaGen.Init(new Org.BouncyCastle.Crypto.KeyGenerationParameters(new SecureRandom(), 2048));
+        rsaGen.Init(new KeyGenerationParameters(new SecureRandom(), 2048));
         var kp = rsaGen.GenerateKeyPair();
 
         var wireBytes = OpenSshPublicKeyUtilities.EncodePublicKey(kp.Public);
         var authorizedKeys = $"ssh-rsa {Convert.ToBase64String(wireBytes)} test@example.com";
 
-        var privBlob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(kp.Private);
+        var privBlob = OpenSshPrivateKeyUtilities.EncodePrivateKey(kp.Private);
         var pemText = BuildOpenSshPem(privBlob);
 
         return (authorizedKeys, pemText);
@@ -548,10 +549,7 @@ public class SshRsaRecipientIdentityTests
         var sb = new StringBuilder();
         sb.AppendLine("-----BEGIN OPENSSH PRIVATE KEY-----");
         var b64 = Convert.ToBase64String(blob);
-        for (int i = 0; i < b64.Length; i += 70)
-        {
-            sb.AppendLine(b64.Substring(i, Math.Min(70, b64.Length - i)));
-        }
+        for (var i = 0; i < b64.Length; i += 70) sb.AppendLine(b64.Substring(i, Math.Min(70, b64.Length - i)));
         sb.AppendLine("-----END OPENSSH PRIVATE KEY-----");
         return sb.ToString();
     }
@@ -598,7 +596,7 @@ public class SshRsaRecipientIdentityTests
         var (_, pemText) = GenerateRsaKeyPair();
         using var identity = SshRsaIdentity.Parse(pemText);
 
-        var stanza = new AgeSharp.Stanza("X25519", ["arg"], new byte[32]);
+        var stanza = new Stanza("X25519", ["arg"], new byte[32]);
         Assert.Null(identity.Unwrap(stanza));
     }
 
@@ -608,7 +606,7 @@ public class SshRsaRecipientIdentityTests
         var (_, pemText) = GenerateRsaKeyPair();
         using var identity = SshRsaIdentity.Parse(pemText);
 
-        var stanza = new AgeSharp.Stanza("ssh-rsa", ["tag", "extra"], new byte[256]);
+        var stanza = new Stanza("ssh-rsa", ["tag", "extra"], new byte[256]);
         Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
     }
 
@@ -648,7 +646,7 @@ public class SshRsaRecipientIdentityTests
     public void RejectsSmallKey()
     {
         var rsaGen = new RsaKeyPairGenerator();
-        rsaGen.Init(new Org.BouncyCastle.Crypto.KeyGenerationParameters(new SecureRandom(), 1024));
+        rsaGen.Init(new KeyGenerationParameters(new SecureRandom(), 1024));
         var kp = rsaGen.GenerateKeyPair();
 
         var wireBytes = OpenSshPublicKeyUtilities.EncodePublicKey(kp.Public);
@@ -684,7 +682,7 @@ public class SshRsaRecipientIdentityTests
         var seed = new byte[32];
         RandomNumberGenerator.Fill(seed);
         var priv = new Ed25519PrivateKeyParameters(seed);
-        var privBlob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(priv);
+        var privBlob = OpenSshPrivateKeyUtilities.EncodePrivateKey(priv);
         var pemText = BuildOpenSshPem(privBlob);
 
         Assert.Throws<AgeFormatException>(() => SshRsaIdentity.Parse(pemText));
@@ -706,7 +704,7 @@ public class SshRsaRecipientIdentityTests
         var corruptBody = new byte[stanza.Body.Length];
         // Fill with a value that's less than the modulus but will fail OAEP padding check
         corruptBody[1] = 0x02; // Ensure it's < modulus
-        var corruptStanza = new AgeSharp.Stanza("ssh-rsa", [.. stanza.Args], corruptBody);
+        var corruptStanza = new Stanza("ssh-rsa", [.. stanza.Args], corruptBody);
 
         Assert.Null(identity.Unwrap(corruptStanza));
     }
@@ -726,7 +724,7 @@ public class SshRsaRecipientIdentityTests
         // Body larger than 256 bytes (2048-bit key) triggers "input too large for RSA cipher"
         var oversizedBody = new byte[512];
         RandomNumberGenerator.Fill(oversizedBody);
-        var oversizedStanza = new AgeSharp.Stanza("ssh-rsa", [.. stanza.Args], oversizedBody);
+        var oversizedStanza = new Stanza("ssh-rsa", [.. stanza.Args], oversizedBody);
 
         Assert.Null(identity.Unwrap(oversizedStanza));
     }
@@ -793,10 +791,7 @@ public class SshRoundTripTests
         var sb = new StringBuilder();
         sb.AppendLine("-----BEGIN OPENSSH PRIVATE KEY-----");
         var b64 = Convert.ToBase64String(blob);
-        for (int i = 0; i < b64.Length; i += 70)
-        {
-            sb.AppendLine(b64.Substring(i, Math.Min(70, b64.Length - i)));
-        }
+        for (var i = 0; i < b64.Length; i += 70) sb.AppendLine(b64.Substring(i, Math.Min(70, b64.Length - i)));
         sb.AppendLine("-----END OPENSSH PRIVATE KEY-----");
         return sb.ToString();
     }
@@ -811,7 +806,7 @@ public class SshRoundTripTests
         var wireBytes = OpenSshPublicKeyUtilities.EncodePublicKey(pub);
         var authorizedKeys = $"ssh-ed25519 {Convert.ToBase64String(wireBytes)} test";
 
-        var privBlob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(priv);
+        var privBlob = OpenSshPrivateKeyUtilities.EncodePrivateKey(priv);
         var pemText = BuildOpenSshPem(privBlob);
 
         var recipient = SshEd25519Recipient.Parse(authorizedKeys);
@@ -834,13 +829,13 @@ public class SshRoundTripTests
     public void SshRsa_FullEncryptDecrypt()
     {
         var rsaGen = new RsaKeyPairGenerator();
-        rsaGen.Init(new Org.BouncyCastle.Crypto.KeyGenerationParameters(new SecureRandom(), 2048));
+        rsaGen.Init(new KeyGenerationParameters(new SecureRandom(), 2048));
         var kp = rsaGen.GenerateKeyPair();
 
         var wireBytes = OpenSshPublicKeyUtilities.EncodePublicKey(kp.Public);
         var authorizedKeys = $"ssh-rsa {Convert.ToBase64String(wireBytes)} test";
 
-        var privBlob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(kp.Private);
+        var privBlob = OpenSshPrivateKeyUtilities.EncodePrivateKey(kp.Private);
         var pemText = BuildOpenSshPem(privBlob);
 
         var recipient = SshRsaRecipient.Parse(authorizedKeys);
@@ -871,7 +866,7 @@ public class SshRoundTripTests
         var ed25519Pub = ed25519Priv.GeneratePublicKey();
         var wireBytes = OpenSshPublicKeyUtilities.EncodePublicKey(ed25519Pub);
         var authorizedKeys = $"ssh-ed25519 {Convert.ToBase64String(wireBytes)} test";
-        var privBlob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(ed25519Priv);
+        var privBlob = OpenSshPrivateKeyUtilities.EncodePrivateKey(ed25519Priv);
         var pemText = BuildOpenSshPem(privBlob);
 
         var sshRecipient = SshEd25519Recipient.Parse(authorizedKeys);
@@ -914,7 +909,7 @@ public class SshRoundTripTests
     public void Facade_ParseSshRecipient_Rsa()
     {
         var rsaGen = new RsaKeyPairGenerator();
-        rsaGen.Init(new Org.BouncyCastle.Crypto.KeyGenerationParameters(new SecureRandom(), 2048));
+        rsaGen.Init(new KeyGenerationParameters(new SecureRandom(), 2048));
         var kp = rsaGen.GenerateKeyPair();
         var wireBytes = OpenSshPublicKeyUtilities.EncodePublicKey(kp.Public);
         var line = $"ssh-rsa {Convert.ToBase64String(wireBytes)} test";
@@ -929,7 +924,7 @@ public class SshRoundTripTests
         var seed = new byte[32];
         RandomNumberGenerator.Fill(seed);
         var priv = new Ed25519PrivateKeyParameters(seed);
-        var privBlob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(priv);
+        var privBlob = OpenSshPrivateKeyUtilities.EncodePrivateKey(priv);
         var pemText = BuildOpenSshPem(privBlob);
 
         var identity = Age.ParseIdentity(pemText);
@@ -940,9 +935,9 @@ public class SshRoundTripTests
     public void Facade_ParseSshIdentity_Rsa()
     {
         var rsaGen = new RsaKeyPairGenerator();
-        rsaGen.Init(new Org.BouncyCastle.Crypto.KeyGenerationParameters(new SecureRandom(), 2048));
+        rsaGen.Init(new KeyGenerationParameters(new SecureRandom(), 2048));
         var kp = rsaGen.GenerateKeyPair();
-        var privBlob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(kp.Private);
+        var privBlob = OpenSshPrivateKeyUtilities.EncodePrivateKey(kp.Private);
         var pemText = BuildOpenSshPem(privBlob);
 
         var identity = Age.ParseIdentity(pemText);

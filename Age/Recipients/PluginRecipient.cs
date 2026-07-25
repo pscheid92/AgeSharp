@@ -4,14 +4,14 @@ using AgeSharp.Crypto;
 namespace AgeSharp;
 
 /// <summary>
-/// A recipient handled by an external <c>age-plugin-*</c> binary. Wrapping spawns
-/// the plugin found on <c>PATH</c> for the recipient's HRP (e.g. <c>age1yubikey1…</c>
-/// runs <c>age-plugin-yubikey</c>) and drives the recipient-v1 protocol.
+///     A recipient handled by an external <c>age-plugin-*</c> binary. Wrapping spawns
+///     the plugin found on <c>PATH</c> for the recipient's HRP (e.g. <c>age1yubikey1…</c>
+///     runs <c>age-plugin-yubikey</c>) and drives the recipient-v1 protocol.
 /// </summary>
 /// <param name="recipient">The plugin recipient string (<c>age1&lt;name&gt;1…</c>).</param>
 /// <param name="callbacks">
-/// Optional UI callbacks for interactive plugins; when null, interactive
-/// requests are answered with failure per the plugin protocol.
+///     Optional UI callbacks for interactive plugins; when null, interactive
+///     requests are answered with failure per the plugin protocol.
 /// </param>
 public sealed class PluginRecipient(string recipient, IPluginCallbacks? callbacks = null) : IRecipient
 {
@@ -108,7 +108,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
             // request-secret masks the input; request-public does not. Same flow otherwise.
             case "request-secret":
             case "request-public":
-                var value = callbacks!.RequestValue(Encoding.UTF8.GetString(body), secret: type == "request-secret");
+                var value = callbacks!.RequestValue(Encoding.UTF8.GetString(body), type == "request-secret");
                 conn.WriteStanza("ok", [], Encoding.UTF8.GetBytes(value));
                 break;
 
@@ -160,6 +160,8 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
     }
 
     /// <summary>Returns the plugin recipient string (public data).</summary>
-    public override string ToString() =>
-        recipient;
+    public override string ToString()
+    {
+        return recipient;
+    }
 }

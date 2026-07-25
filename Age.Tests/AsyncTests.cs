@@ -1,14 +1,14 @@
-using AgeSharp;
+using System.Text;
 using Xunit;
 
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Tests for the asynchronous surface: <see cref="Age.EncryptAsync"/>,
-/// <see cref="Age.DecryptAsync"/>, <see cref="Age.DecryptReaderAsync"/>, and the
-/// <c>ReadAsync</c>/<c>WriteAsync</c>/<c>DisposeAsync</c> stream overrides. The
-/// central guarantee — no blocking I/O anywhere on the async paths — is pinned by
-/// running full round-trips through <see cref="ThrowOnSyncIoStream"/>.
+///     Tests for the asynchronous surface: <see cref="Age.EncryptAsync" />,
+///     <see cref="Age.DecryptAsync" />, <see cref="Age.DecryptReaderAsync" />, and the
+///     <c>ReadAsync</c>/<c>WriteAsync</c>/<c>DisposeAsync</c> stream overrides. The
+///     central guarantee — no blocking I/O anywhere on the async paths — is pinned by
+///     running full round-trips through <see cref="ThrowOnSyncIoStream" />.
 /// </summary>
 public class AsyncTests
 {
@@ -36,7 +36,8 @@ public class AsyncTests
 
     // --- Purity: full round-trips through the throw-on-sync-IO harness ---
 
-    private static async Task<byte[]> EncryptAsyncThroughHarness(byte[] plaintext, bool armored, params IRecipient[] recipients)
+    private static async Task<byte[]> EncryptAsyncThroughHarness(byte[] plaintext, bool armored,
+        params IRecipient[] recipients)
     {
         var output = new MemoryStream();
         await Age.EncryptAsync(new ThrowOnSyncIoStream(new MemoryStream(plaintext)), new ThrowOnSyncIoStream(output),
@@ -47,15 +48,21 @@ public class AsyncTests
     private static async Task<byte[]> DecryptAsyncThroughHarness(byte[] ciphertext, params IIdentity[] identities)
     {
         var output = new MemoryStream();
-        await Age.DecryptAsync(new ThrowOnSyncIoStream(new MemoryStream(ciphertext)), new ThrowOnSyncIoStream(output), identities);
+        await Age.DecryptAsync(new ThrowOnSyncIoStream(new MemoryStream(ciphertext)), new ThrowOnSyncIoStream(output),
+            identities);
         return output.ToArray();
     }
 
-    private static async Task<byte[]> EncryptWriterThroughHarness(byte[] plaintext, bool armored, params IRecipient[] recipients)
+    private static async Task<byte[]> EncryptWriterThroughHarness(byte[] plaintext, bool armored,
+        params IRecipient[] recipients)
     {
         var output = new MemoryStream();
-        await using (var stream = Age.EncryptWriter(new ThrowOnSyncIoStream(output), new AgeEncryptOptions { Armor = armored }, recipients))
+        await using (var stream = Age.EncryptWriter(new ThrowOnSyncIoStream(output),
+                         new AgeEncryptOptions { Armor = armored }, recipients))
+        {
             await stream.WriteAsync(plaintext);
+        }
+
         return output.ToArray();
     }
 
@@ -186,7 +193,7 @@ public class AsyncTests
         using var a = X25519Identity.Generate();
         using var b = X25519Identity.Generate();
         var plaintext = MakePlaintext(4096);
-        var ciphertext = await EncryptAsyncThroughHarness(plaintext, armored: false, a.Recipient, b.Recipient);
+        var ciphertext = await EncryptAsyncThroughHarness(plaintext, false, a.Recipient, b.Recipient);
 
         Assert.Equal(plaintext, await DecryptAsyncThroughHarness(ciphertext, a));
         Assert.Equal(plaintext, await DecryptAsyncThroughHarness(ciphertext, b));
@@ -225,15 +232,21 @@ public class AsyncTests
 
     [Fact]
     public async Task EncryptAsync_NoRecipients_Throws()
-        => await Assert.ThrowsAsync<ArgumentException>(() => Age.EncryptAsync(new MemoryStream(), new MemoryStream(), []));
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => Age.EncryptAsync(new MemoryStream(), new MemoryStream(), []));
+    }
 
     [Fact]
     public async Task DecryptAsync_NoIdentities_Throws()
-        => await Assert.ThrowsAsync<ArgumentException>(() => Age.DecryptAsync(new MemoryStream(), new MemoryStream(), []));
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => Age.DecryptAsync(new MemoryStream(), new MemoryStream(), []));
+    }
 
     [Fact]
     public async Task DecryptReaderAsync_NoIdentities_Throws()
-        => await Assert.ThrowsAsync<ArgumentException>(async () => await Age.DecryptReaderAsync(new MemoryStream(), []));
+    {
+        await Assert.ThrowsAsync<ArgumentException>(async () => await Age.DecryptReaderAsync(new MemoryStream(), []));
+    }
 
     [Fact]
     public async Task DecryptAsync_WrongIdentity_Throws()
@@ -254,11 +267,11 @@ public class AsyncTests
         var ciphertext = Age.Encrypt(MakePlaintext(100_000), identity.Recipient);
 
         using var cts = new CancellationTokenSource();
-        var source = new CancelAfterStream(new MemoryStream(ciphertext), cts, cancelAfter: 8); // within the header
+        var source = new CancelAfterStream(new MemoryStream(ciphertext), cts, 8); // within the header
         using var output = new MemoryStream();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => Age.DecryptAsync(source, output, [identity], cancellationToken: cts.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            Age.DecryptAsync(source, output, [identity], cancellationToken: cts.Token));
     }
 
     [Fact]
@@ -268,11 +281,11 @@ public class AsyncTests
         var ciphertext = Age.Encrypt(MakePlaintext(200_000), identity.Recipient); // several chunks
 
         using var cts = new CancellationTokenSource();
-        var source = new CancelAfterStream(new MemoryStream(ciphertext), cts, cancelAfter: 70_000); // deep in the payload
+        var source = new CancelAfterStream(new MemoryStream(ciphertext), cts, 70_000); // deep in the payload
         using var output = new MemoryStream();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => Age.DecryptAsync(source, output, [identity], cancellationToken: cts.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            Age.DecryptAsync(source, output, [identity], cancellationToken: cts.Token));
     }
 
     // --- The byte[] ReadAsync/WriteAsync overloads, FlushAsync, double DisposeAsync ---
@@ -290,6 +303,7 @@ public class AsyncTests
             await writer.WriteAsync(plaintext, 0, plaintext.Length);
             await writer.FlushAsync();
         }
+
         Assert.Equal(plaintext, Age.Decrypt(pushOut.ToArray(), identity));
 
         // Push armor writer directly: WriteAsync(byte[], ...) + FlushAsync.
@@ -299,19 +313,29 @@ public class AsyncTests
             await armorWriter.WriteAsync(new byte[48], 0, 48);
             await armorWriter.FlushAsync();
         }
-        Assert.StartsWith("-----BEGIN AGE ENCRYPTED FILE-----", System.Text.Encoding.ASCII.GetString(armorOut.ToArray()));
+
+        Assert.StartsWith("-----BEGIN AGE ENCRYPTED FILE-----", Encoding.ASCII.GetString(armorOut.ToArray()));
 
         // Pull readers: ReadAsync(byte[], offset, count) — binary (EncryptStream) and armored (ArmorStream).
-        Assert.Equal(plaintext, await ReadAllByteArrayAsync(Age.EncryptReader(new MemoryStream(plaintext), identity.Recipient), identity));
-        Assert.Equal(plaintext, await ReadAllByteArrayAsync(Age.EncryptReader(new MemoryStream(plaintext), new AgeEncryptOptions { Armor = true }, identity.Recipient), identity, decodeCiphertext: true));
+        Assert.Equal(plaintext,
+            await ReadAllByteArrayAsync(Age.EncryptReader(new MemoryStream(plaintext), identity.Recipient), identity));
+        Assert.Equal(plaintext,
+            await ReadAllByteArrayAsync(
+                Age.EncryptReader(new MemoryStream(plaintext), new AgeEncryptOptions { Armor = true },
+                    identity.Recipient), identity, true));
 
         var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
 
         // Decrypt readers: ReadAsync(byte[], ...) — seekable (DecryptReader) and forward-only (DecryptReaderAsync).
         await using (var seekable = Age.DecryptReader(new MemoryStream(ciphertext), identity))
+        {
             Assert.Equal(plaintext, await DrainByteArrayAsync(seekable));
+        }
+
         await using (var forward = await Age.DecryptReaderAsync(new MemoryStream(ciphertext), [identity]))
+        {
             Assert.Equal(plaintext, await DrainByteArrayAsync(forward));
+        }
     }
 
     [Fact]
@@ -336,9 +360,10 @@ public class AsyncTests
     public async Task DecryptReaderAsync_TruncatedHeader_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var bytes = System.Text.Encoding.ASCII.GetBytes("age-encryption.org/v1\n"); // no MAC line
+        var bytes = Encoding.ASCII.GetBytes("age-encryption.org/v1\n"); // no MAC line
 
-        await Assert.ThrowsAsync<AgeFormatException>(async () => await Age.DecryptReaderAsync(new MemoryStream(bytes), [identity]));
+        await Assert.ThrowsAsync<AgeFormatException>(async () =>
+            await Age.DecryptReaderAsync(new MemoryStream(bytes), [identity]));
     }
 
     [Fact]
@@ -348,7 +373,8 @@ public class AsyncTests
         var full = Age.Encrypt("data"u8.ToArray(), identity.Recipient);
         var headerOnly = full[..(int)Age.ReadHeader(new MemoryStream(full)).PayloadOffset]; // header, no nonce
 
-        await Assert.ThrowsAsync<AgeFormatException>(async () => await Age.DecryptReaderAsync(new MemoryStream(headerOnly), [identity]));
+        await Assert.ThrowsAsync<AgeFormatException>(async () =>
+            await Age.DecryptReaderAsync(new MemoryStream(headerOnly), [identity]));
     }
 
     [Fact]
@@ -365,7 +391,8 @@ public class AsyncTests
         await Assert.ThrowsAsync<AgeAuthenticationException>(() => Age.DecryptAsync(source, output, [identity]));
     }
 
-    private static async Task<byte[]> ReadAllByteArrayAsync(Stream ciphertextStream, IIdentity identity, bool decodeCiphertext = false)
+    private static async Task<byte[]> ReadAllByteArrayAsync(Stream ciphertextStream, IIdentity identity,
+        bool decodeCiphertext = false)
     {
         var ciphertext = new MemoryStream();
         await using (ciphertextStream)
@@ -409,8 +436,8 @@ public class AsyncTests
     }
 
     /// <summary>
-    /// A forward-only async stream that cancels the given token once a threshold of
-    /// bytes has been read, so a decrypt can be interrupted mid-header or mid-chunk.
+    ///     A forward-only async stream that cancels the given token once a threshold of
+    ///     bytes has been read, so a decrypt can be interrupted mid-header or mid-chunk.
     /// </summary>
     private sealed class CancelAfterStream(Stream inner, CancellationTokenSource cts, long cancelAfter) : Stream
     {
@@ -428,9 +455,12 @@ public class AsyncTests
         }
 
         public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-            => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+        {
+            return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+        }
 
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var read = await inner.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
@@ -440,10 +470,28 @@ public class AsyncTests
             return read;
         }
 
-        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-        public override void Flush() { }
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
     }
 }

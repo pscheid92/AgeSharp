@@ -1,16 +1,16 @@
 namespace AgeSharp;
 
 /// <summary>
-/// The fixed facts of the ASCII armor format, in one place.
+///     The fixed facts of the ASCII armor format, in one place.
 /// </summary>
 /// <remarks>
-/// These were previously redeclared in each armor type, which is a quiet hazard rather
-/// than mere repetition: <see cref="ArmorGeometry"/> translates a binary offset to a
-/// text position using arithmetic that is only valid while its idea of the line width
-/// matches what <see cref="ArmorDecoder"/> accepts and what the writers emit. Sharing
-/// the constants is what stops those drifting apart under a later edit — a mismatch
-/// would compute offsets that land mid-line, and armor is exactly the layer where that
-/// fails as an authentication error rather than anything legible.
+///     These were previously redeclared in each armor type, which is a quiet hazard rather
+///     than mere repetition: <see cref="ArmorGeometry" /> translates a binary offset to a
+///     text position using arithmetic that is only valid while its idea of the line width
+///     matches what <see cref="ArmorDecoder" /> accepts and what the writers emit. Sharing
+///     the constants is what stops those drifting apart under a later edit — a mismatch
+///     would compute offsets that land mid-line, and armor is exactly the layer where that
+///     fails as an authentication error rather than anything legible.
 /// </remarks>
 internal static class ArmorFormat
 {

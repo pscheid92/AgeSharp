@@ -7,8 +7,8 @@ using Org.BouncyCastle.Security;
 namespace AgeSharp;
 
 /// <summary>
-/// A native age X25519 recipient — the public half of an age key pair
-/// (<c>age1…</c>), used to encrypt. Instances are immutable and safe to share.
+///     A native age X25519 recipient — the public half of an age key pair
+///     (<c>age1…</c>), used to encrypt. Instances are immutable and safe to share.
 /// </summary>
 public sealed class X25519Recipient : IRecipient, IParsable<X25519Recipient>
 {
@@ -22,28 +22,16 @@ public sealed class X25519Recipient : IRecipient, IParsable<X25519Recipient>
         _publicKey = publicKey;
     }
 
-    /// <summary>Parses a bech32-encoded recipient (<c>age1…</c>, lowercase).</summary>
-    /// <exception cref="AgeFormatException">The string is not a valid X25519 recipient.</exception>
-    public static X25519Recipient Parse(string s) =>
-        new(new X25519PublicKeyParameters(
-            ParseHelpers.DecodeRecipientKey(s, Hrp, KeySize, "X25519 public key")));
+    static X25519Recipient IParsable<X25519Recipient>.Parse(string s, IFormatProvider? provider)
+    {
+        return Parse(s);
+    }
 
-    /// <summary>
-    /// Tries to parse a bech32-encoded recipient (<c>age1…</c>). Returns false
-    /// instead of throwing when the input is null or malformed.
-    /// </summary>
-    public static bool TryParse([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out X25519Recipient result) =>
-        ParseHelpers.TryParse(s, Parse, out result);
-
-    static X25519Recipient IParsable<X25519Recipient>.Parse(string s, IFormatProvider? provider) =>
-        Parse(s);
-
-    static bool IParsable<X25519Recipient>.TryParse(string? s, IFormatProvider? provider, [MaybeNullWhen(false)] out X25519Recipient result) =>
-        TryParse(s, out result);
-
-    /// <summary>Returns the bech32-encoded recipient string (<c>age1…</c>).</summary>
-    public override string ToString() =>
-        Bech32.Encode(Hrp, _publicKey.GetEncoded());
+    static bool IParsable<X25519Recipient>.TryParse(string? s, IFormatProvider? provider,
+        [MaybeNullWhen(false)] out X25519Recipient result)
+    {
+        return TryParse(s, out result);
+    }
 
     /// <summary>Wraps the file key for this recipient using ephemeral X25519 + ChaCha20-Poly1305.</summary>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
@@ -77,5 +65,28 @@ public sealed class X25519Recipient : IRecipient, IParsable<X25519Recipient>
             CryptographicOperations.ZeroMemory(wrapKey);
             CryptographicOperations.ZeroMemory(sharedSecret);
         }
+    }
+
+    /// <summary>Parses a bech32-encoded recipient (<c>age1…</c>, lowercase).</summary>
+    /// <exception cref="AgeFormatException">The string is not a valid X25519 recipient.</exception>
+    public static X25519Recipient Parse(string s)
+    {
+        return new X25519Recipient(new X25519PublicKeyParameters(
+            ParseHelpers.DecodeRecipientKey(s, Hrp, KeySize, "X25519 public key")));
+    }
+
+    /// <summary>
+    ///     Tries to parse a bech32-encoded recipient (<c>age1…</c>). Returns false
+    ///     instead of throwing when the input is null or malformed.
+    /// </summary>
+    public static bool TryParse([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out X25519Recipient result)
+    {
+        return ParseHelpers.TryParse(s, Parse, out result);
+    }
+
+    /// <summary>Returns the bech32-encoded recipient string (<c>age1…</c>).</summary>
+    public override string ToString()
+    {
+        return Bech32.Encode(Hrp, _publicKey.GetEncoded());
     }
 }

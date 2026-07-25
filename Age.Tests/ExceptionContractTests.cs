@@ -1,6 +1,5 @@
 using System.Text;
 using AgeSharp.Crypto;
-using AgeSharp;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.OpenSsl;
@@ -10,13 +9,17 @@ using Xunit;
 namespace AgeSharp.Tests;
 
 /// <summary>
-/// Pins the v0.3 exception contract: structure that can't be parsed throws
-/// <see cref="AgeFormatException"/>; parsed structure whose cryptographic
-/// checks fail throws <see cref="AgeAuthenticationException"/>; and every
-/// library exception is catchable as <see cref="AgeException"/>.
+///     Pins the v0.3 exception contract: structure that can't be parsed throws
+///     <see cref="AgeFormatException" />; parsed structure whose cryptographic
+///     checks fail throws <see cref="AgeAuthenticationException" />; and every
+///     library exception is catchable as <see cref="AgeException" />.
 /// </summary>
 public class ExceptionContractTests
 {
+    // Minimal BIP-173 bech32 writer so tests can craft strings with valid
+    // checksums but invalid data-part padding (the library's Encode can only
+    // produce well-formed payloads).
+    private const string Charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
     // --- hierarchy: catch (AgeException) covers everything ---
 
     [Fact]
@@ -122,8 +125,8 @@ public class ExceptionContractTests
         var key = new byte[32];
         new Random(42).NextBytes(key);
 
-        var full = StreamEncryption.EncryptChunk(key, 0, isFinal: false, new byte[StreamEncryption.ChunkSize]);
-        var emptyFinal = StreamEncryption.EncryptChunk(key, 1, isFinal: true, []);
+        var full = StreamEncryption.EncryptChunk(key, 0, false, new byte[StreamEncryption.ChunkSize]);
+        var emptyFinal = StreamEncryption.EncryptChunk(key, 1, true, []);
 
         using var input = new MemoryStream([.. full, .. emptyFinal]);
         var ex = Assert.Throws<AgeAuthenticationException>(() =>
@@ -157,7 +160,7 @@ public class ExceptionContractTests
         // rejected before any cipher work.
         var key = new byte[32];
         Assert.Throws<AgeAuthenticationException>(() =>
-            StreamEncryption.DecryptChunk(key, 0, isFinal: true, new byte[5]));
+            StreamEncryption.DecryptChunk(key, 0, true, new byte[5]));
     }
 
     // --- Format: armor defects ---
@@ -191,7 +194,7 @@ public class ExceptionContractTests
         // 64-character line must decode to exactly 48 bytes. It need not. A final
         // chunk of 46 or 47 bytes encodes to a full 64 columns *with* padding, which
         // is what our own encoder emits — and both age and rage read it back.
-        var body = new string('A', 62) + "==";   // canonical: 46 zero bytes
+        var body = new string('A', 62) + "=="; // canonical: 46 zero bytes
         var armored = $"-----BEGIN AGE ENCRYPTED FILE-----\n{body}\n-----END AGE ENCRYPTED FILE-----\n";
         using var input = new MemoryStream(Encoding.ASCII.GetBytes(armored));
         using var dearmored = AsciiArmor.Dearmor(input, new AgeDecryptOptions().MaxArmorLineBytes);
@@ -209,7 +212,8 @@ public class ExceptionContractTests
         // Padding ends the body no matter the line's width, so anything after it is
         // malformed — the rule the width test was standing in for.
         var padded = new string('A', 62) + "==";
-        var armored = $"-----BEGIN AGE ENCRYPTED FILE-----\n{padded}\n{new string('A', 64)}\n-----END AGE ENCRYPTED FILE-----\n";
+        var armored =
+            $"-----BEGIN AGE ENCRYPTED FILE-----\n{padded}\n{new string('A', 64)}\n-----END AGE ENCRYPTED FILE-----\n";
         using var input = new MemoryStream(Encoding.ASCII.GetBytes(armored));
         using var dearmored = AsciiArmor.Dearmor(input, new AgeDecryptOptions().MaxArmorLineBytes);
 
@@ -314,13 +318,6 @@ public class ExceptionContractTests
         Assert.Contains("expected HRP", ex.Message);
     }
 
-    // --- helpers ---
-
-    private sealed class WrongSizeIdentity : IIdentity
-    {
-        public byte[]? Unwrap(Stanza stanza) => new byte[5];
-    }
-
     private static MemoryStream Encrypt(X25519Identity identity, byte[] plaintext)
     {
         var output = new MemoryStream();
@@ -338,11 +335,6 @@ public class ExceptionContractTests
         Age.EncryptDetached(input, header, payload, identity.Recipient);
         return (header.ToArray(), payload.ToArray());
     }
-
-    // Minimal BIP-173 bech32 writer so tests can craft strings with valid
-    // checksums but invalid data-part padding (the library's Encode can only
-    // produce well-formed payloads).
-    private const string Charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 
     private static string MakeBech32(string hrp, byte[] data5)
     {
@@ -369,11 +361,20 @@ public class ExceptionContractTests
             var top = chk >> 25;
             chk = ((chk & 0x1ffffff) << 5) ^ v;
             for (var i = 0; i < 5; i++)
-            {
                 if (((top >> i) & 1) != 0)
                     chk ^= generator[i];
-            }
         }
+
         return chk;
+    }
+
+    // --- helpers ---
+
+    private sealed class WrongSizeIdentity : IIdentity
+    {
+        public byte[]? Unwrap(Stanza stanza)
+        {
+            return new byte[5];
+        }
     }
 }

@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using AgeSharp;
 using BenchmarkDotNet.Attributes;
 
 namespace AgeSharp.Benchmarks;
@@ -9,16 +8,16 @@ public class RecipientBenchmarks
 {
     private readonly byte[] _fileKey = new byte[16];
 
-    private X25519Identity _x25519Identity = null!;
-    private X25519Recipient _x25519Recipient = null!;
-    private Stanza _x25519Stanza = null!;
-
     private MlKem768X25519Identity _mlKemIdentity = null!;
     private MlKem768X25519Recipient _mlKemRecipient = null!;
     private Stanza _mlKemStanza = null!;
 
     private Passphrase _passphrase = null!;
     private Stanza _scryptStanza = null!;
+
+    private X25519Identity _x25519Identity = null!;
+    private X25519Recipient _x25519Recipient = null!;
+    private Stanza _x25519Stanza = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -36,7 +35,7 @@ public class RecipientBenchmarks
         _mlKemStanza = _mlKemRecipient.Wrap(_fileKey);
 
         // scrypt (workFactor: 10 to keep benchmarks fast)
-        _passphrase = new Passphrase("benchmark-passphrase", workFactor: 10);
+        _passphrase = new Passphrase("benchmark-passphrase", 10);
         _scryptStanza = _passphrase.Wrap(_fileKey);
     }
 
@@ -48,20 +47,38 @@ public class RecipientBenchmarks
     }
 
     [Benchmark]
-    public Stanza X25519Wrap() => _x25519Recipient.Wrap(_fileKey);
+    public Stanza X25519Wrap()
+    {
+        return _x25519Recipient.Wrap(_fileKey);
+    }
 
     [Benchmark]
-    public byte[]? X25519Unwrap() => _x25519Identity.Unwrap(_x25519Stanza);
+    public byte[]? X25519Unwrap()
+    {
+        return _x25519Identity.Unwrap(_x25519Stanza);
+    }
 
     [Benchmark]
-    public Stanza MlKem768X25519Wrap() => _mlKemRecipient.Wrap(_fileKey);
+    public Stanza MlKem768X25519Wrap()
+    {
+        return _mlKemRecipient.Wrap(_fileKey);
+    }
 
     [Benchmark]
-    public byte[]? MlKem768X25519Unwrap() => _mlKemIdentity.Unwrap(_mlKemStanza);
+    public byte[]? MlKem768X25519Unwrap()
+    {
+        return _mlKemIdentity.Unwrap(_mlKemStanza);
+    }
 
     [Benchmark]
-    public Stanza ScryptWrap() => _passphrase.Wrap(_fileKey);
+    public Stanza ScryptWrap()
+    {
+        return _passphrase.Wrap(_fileKey);
+    }
 
     [Benchmark]
-    public byte[]? ScryptUnwrap() => ((IIdentity)_passphrase).Unwrap(_scryptStanza);
+    public byte[]? ScryptUnwrap()
+    {
+        return _passphrase.Unwrap(_scryptStanza);
+    }
 }

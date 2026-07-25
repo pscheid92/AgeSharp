@@ -6,14 +6,16 @@ namespace AgeSharp.Tests;
 
 public class AeadCipherTests
 {
+    private const int TagSize = 16;
+
     // Empty final chunk, sub-block, ChaCha block boundary, and full age chunk size.
     private static readonly int[] Sizes = [0, 1, 63, 64, 65, 100, 65536];
 
-    private const int TagSize = 16;
-
     // AeadBackend is internal, so tests parametrize by a public bool and map inside the body.
-    private static IAeadCipher Create(bool portable, ReadOnlySpan<byte> key) =>
-        AeadCipher.Create(key, portable ? AeadBackend.Portable : AeadBackend.Native);
+    private static IAeadCipher Create(bool portable, ReadOnlySpan<byte> key)
+    {
+        return AeadCipher.Create(key, portable ? AeadBackend.Portable : AeadBackend.Native);
+    }
 
     private static (byte[] key, byte[] nonce, byte[] plaintext) Material(int size)
     {
@@ -28,7 +30,7 @@ public class AeadCipherTests
 
     [Theory]
     [InlineData(false)] // native
-    [InlineData(true)]  // portable
+    [InlineData(true)] // portable
     public void RoundTrip_AllSizes(bool portable)
     {
         foreach (var size in Sizes)
@@ -38,11 +40,15 @@ public class AeadCipherTests
             var tag = new byte[TagSize];
 
             using (var enc = Create(portable, key))
+            {
                 enc.Encrypt(nonce, plaintext, ciphertext, tag);
+            }
 
             var decrypted = new byte[size];
             using (var dec = Create(portable, key))
+            {
                 dec.Decrypt(nonce, ciphertext, tag, decrypted);
+            }
 
             Assert.Equal(plaintext, decrypted);
         }
@@ -75,12 +81,16 @@ public class AeadCipherTests
             var bclCt = new byte[size];
             var bclTag = new byte[TagSize];
             using (var bcl = new BclAeadCipher(key))
+            {
                 bcl.Encrypt(nonce, plaintext, bclCt, bclTag);
+            }
 
             var bcCt = new byte[size];
             var bcTag = new byte[TagSize];
             using (var bc = new BouncyCastleAeadCipher(key))
+            {
                 bc.Encrypt(nonce, plaintext, bcCt, bcTag);
+            }
 
             Assert.Equal(bclCt, bcCt);
             Assert.Equal(bclTag, bcTag);
@@ -88,12 +98,18 @@ public class AeadCipherTests
             // Each backend decrypts the other's output.
             var viaBc = new byte[size];
             using (var bc = new BouncyCastleAeadCipher(key))
+            {
                 bc.Decrypt(nonce, bclCt, bclTag, viaBc);
+            }
+
             Assert.Equal(plaintext, viaBc);
 
             var viaBcl = new byte[size];
             using (var bcl = new BclAeadCipher(key))
+            {
                 bcl.Decrypt(nonce, bcCt, bcTag, viaBcl);
+            }
+
             Assert.Equal(plaintext, viaBcl);
         }
     }
@@ -107,13 +123,15 @@ public class AeadCipherTests
         var ciphertext = new byte[plaintext.Length];
         var tag = new byte[TagSize];
         using (var enc = Create(portable, key))
+        {
             enc.Encrypt(nonce, plaintext, ciphertext, tag);
+        }
 
         tag[0] ^= 0xFF;
 
         using var dec = Create(portable, key);
-        Assert.Throws<AuthenticationTagMismatchException>(
-            () => dec.Decrypt(nonce, ciphertext, tag, new byte[plaintext.Length]));
+        Assert.Throws<AuthenticationTagMismatchException>(() =>
+            dec.Decrypt(nonce, ciphertext, tag, new byte[plaintext.Length]));
     }
 
     [Theory]
@@ -125,13 +143,15 @@ public class AeadCipherTests
         var ciphertext = new byte[plaintext.Length];
         var tag = new byte[TagSize];
         using (var enc = Create(portable, key))
+        {
             enc.Encrypt(nonce, plaintext, ciphertext, tag);
+        }
 
         ciphertext[0] ^= 0xFF;
 
         using var dec = Create(portable, key);
-        Assert.Throws<AuthenticationTagMismatchException>(
-            () => dec.Decrypt(nonce, ciphertext, tag, new byte[plaintext.Length]));
+        Assert.Throws<AuthenticationTagMismatchException>(() =>
+            dec.Decrypt(nonce, ciphertext, tag, new byte[plaintext.Length]));
     }
 
     // Mirrors the streaming path: one cipher instance reused for many chunks with distinct nonces.
