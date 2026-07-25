@@ -18,8 +18,14 @@ internal sealed class DearmorStream : Stream
     private const int SourceBufferSize = 4096;
 
     private readonly Stream _source;
-    private readonly ArmorLineAccumulator _lines;
-    private readonly ArmorDecoder _decoder = new();
+    private readonly int _maxArmorLineBytes;
+    private readonly ArmorGeometry? _geometry;
+    private ArmorLineAccumulator _lines;
+    private ArmorDecoder _decoder = new();
+
+    // Decoded bytes served so far. Tracked unconditionally: the facade reads it as
+    // Position when handing the stream to the seekable decryptor.
+    private long _position;
 
     private readonly byte[] _sourceBuffer = new byte[SourceBufferSize];
     private int _sourceOffset;
@@ -31,11 +37,31 @@ internal sealed class DearmorStream : Stream
 
     private bool _eof;
 
-    public DearmorStream(Stream source, int maxArmorLineBytes)
+    // Sub-line remainder owed from the last Seek, dropped by the next read.
+    private int _pendingSkip;
+
+    private DearmorStream(Stream source, int maxArmorLineBytes, ArmorGeometry? geometry)
     {
         _source = source;
+        _maxArmorLineBytes = maxArmorLineBytes;
         _lines = new ArmorLineAccumulator(maxArmorLineBytes);
+
+        // Null when the source cannot seek, or is not laid out the way offset
+        // translation assumes — either way this stays a forward-only stream.
+        _geometry = geometry;
     }
+
+    public static DearmorStream Create(Stream source, int maxArmorLineBytes)
+        => new(source, maxArmorLineBytes, ArmorGeometry.TryResolve(source));
+
+    /// <summary>
+    /// Asynchronous counterpart to <see cref="Create"/>. Resolving the geometry reads
+    /// the source, and the async decrypt path must not block on the caller's stream.
+    /// </summary>
+    public static async ValueTask<DearmorStream> CreateAsync(Stream source, int maxArmorLineBytes,
+                                                             CancellationToken cancellationToken)
+        => new(source, maxArmorLineBytes,
+               await ArmorGeometry.TryResolveAsync(source, cancellationToken).ConfigureAwait(false));
 
     public override int Read(byte[] buffer, int offset, int count)
         => Read(buffer.AsSpan(offset, count));
@@ -105,6 +131,20 @@ internal sealed class DearmorStream : Stream
     // it produced something (or the caller asked for nothing), meaning Read can return.
     private bool Drain(Span<byte> destination, out int served)
     {
+        if (_pendingSkip > 0)
+        {
+            var skip = Math.Min(_pendingSkip, _decodedLength - _decodedOffset);
+            _decodedOffset += skip;
+            _pendingSkip -= skip;
+
+            if (_pendingSkip > 0)
+            {
+                // The seeked-to line has not been decoded yet; ask for another.
+                served = 0;
+                return false;
+            }
+        }
+
         var available = _decodedLength - _decodedOffset;
 
         if (destination.IsEmpty)
@@ -122,6 +162,7 @@ internal sealed class DearmorStream : Stream
         served = Math.Min(available, destination.Length);
         _decoded.AsSpan(_decodedOffset, served).CopyTo(destination);
         _decodedOffset += served;
+        _position += served;
         return true;
     }
 
@@ -154,18 +195,67 @@ internal sealed class DearmorStream : Stream
     }
 
     public override bool CanRead => true;
-    public override bool CanSeek => false;
+    public override bool CanSeek => _geometry is not null;
     public override bool CanWrite => false;
-    public override long Length => throw new NotSupportedException();
+
+    public override long Length =>
+        _geometry?.DecodedLength ?? throw new NotSupportedException();
 
     public override long Position
     {
-        get => throw new NotSupportedException();
-        set => throw new NotSupportedException();
+        get => _position;
+        set => Seek(value, SeekOrigin.Begin);
     }
 
     public override void Flush() { }
-    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+    public override long Seek(long offset, SeekOrigin origin)
+    {
+        if (_geometry is null)
+            throw new NotSupportedException();
+
+        var target = origin switch
+        {
+            SeekOrigin.Begin => offset,
+            SeekOrigin.Current => _position + offset,
+            SeekOrigin.End => _geometry.DecodedLength + offset,
+            _ => throw new ArgumentOutOfRangeException(nameof(origin)),
+        };
+
+        ArgumentOutOfRangeException.ThrowIfNegative(target, nameof(offset));
+
+        // Jump the source to the start of the line holding the target byte, reset the
+        // sans-I/O state to mid-body, then discard the few bytes before it. Reading
+        // from a line boundary is what keeps this O(1) rather than a re-scan.
+        var lineStart = _geometry.LineStartFor(target);
+        var within = ArmorGeometry.OffsetWithinLine(target);
+
+        _source.Position = lineStart;
+        _lines = new ArmorLineAccumulator(_maxArmorLineBytes);
+        _decoder = new ArmorDecoder();
+        _decoder.ResumeInBody();
+
+        _sourceOffset = 0;
+        _sourceLength = 0;
+        _decodedOffset = 0;
+        _decodedLength = 0;
+        _pendingSkip = 0;
+        _eof = false;
+
+        // The requested position, not the line start it decodes from: the skip below
+        // is an implementation detail, and a caller that seeks then asks for Position
+        // before reading must see what it asked for. Reporting the line start here
+        // makes the next relative seek land mid-line.
+        _position = target;
+
+        // Not discarded here: Stream.Seek is synchronous by contract, so reading now
+        // would block the caller's stream on the async path. The next Read or
+        // ReadAsync drops these bytes instead, whichever the caller uses.
+        _pendingSkip = within;
+
+        return _position;
+    }
+
     public override void SetLength(long value) => throw new NotSupportedException();
     public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 }

@@ -28,6 +28,7 @@
 | Feature | Go | Rust | AgeSharp | Notes |
 |---|:---:|:---:|:---:|---|
 | Seekable decryption (`Age.DecryptReader`) | ✅ | ❌ | ✅ | Seek into encrypted files (e.g. ZIP in age) |
+| Random access through ASCII armor | ❌ | ✅ | ✅ | Offset translation over the fixed armor geometry. rage scans to find the end; AgeSharp probes both ends instead, so opening stays O(1) |
 | Detached header APIs | ✅ | ❌ | ✅ | Extract/decrypt header separately |
 | `age-inspect` | ✅ | ❌ | ✅ | Metadata inspection without decryption |
 | Push-based encryption (`EncryptWriter`) | ✅ | ✅ | ✅ | Writable stream (`WriteCloser`-style); plaintext in, ciphertext out |

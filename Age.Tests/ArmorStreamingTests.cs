@@ -205,8 +205,10 @@ public class ArmorStreamingTests
     }
 
     [Fact]
-    public void DearmorStream_IsForwardOnlyAndReadOnly()
+    public void DearmorStream_IsReadOnly_AndForwardOnlyWithoutResolvableGeometry()
     {
+        // A begin marker with no body and no end marker: seekable source, but the
+        // geometry cannot be resolved, so the stream falls back to forward-only.
         using var source = new MemoryStream("-----BEGIN AGE ENCRYPTED FILE-----\n"u8.ToArray());
         using var dearmored = AsciiArmor.Dearmor(source, new AgeDecryptOptions().MaxArmorLineBytes);
 
@@ -216,11 +218,13 @@ public class ArmorStreamingTests
         dearmored.Flush();
 
         Assert.Throws<NotSupportedException>(() => dearmored.Length);
-        Assert.Throws<NotSupportedException>(() => dearmored.Position);
-        Assert.Throws<NotSupportedException>(() => dearmored.Position = 0);
         Assert.Throws<NotSupportedException>(() => dearmored.Seek(0, SeekOrigin.Begin));
         Assert.Throws<NotSupportedException>(() => dearmored.SetLength(1));
         Assert.Throws<NotSupportedException>(() => dearmored.Write(new byte[1], 0, 1));
+
+        // Position reads back even here — it is just the count of bytes served, and
+        // the facade uses it as the payload offset regardless of seekability.
+        Assert.Equal(0, dearmored.Position);
     }
 
     [Theory]

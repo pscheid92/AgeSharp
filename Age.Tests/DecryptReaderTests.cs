@@ -282,12 +282,13 @@ public class DecryptReaderTests
     // --- Armored sources are forward-only, whatever the transport ---
 
     [Fact]
-    public void ArmoredSeekableSource_IsForwardOnly_AndRoundTrips()
+    public void ArmoredSeekableSource_IsSeekable_AndRoundTrips()
     {
-        // Armor used to be materialized into memory so the decrypt stream could
-        // mirror a seekable source. It now streams instead, so seeking is given up
-        // rather than bought with the file's size in RAM — the same position Go
-        // takes (its armor package exposes only a forward reader).
+        // Armor is an order-preserving, position-computable transform — 48 bytes per
+        // 64 columns, only the last line short — so a binary offset translates to a
+        // text position arithmetically. Seeking costs neither the file's size in RAM
+        // (the 0.2 behaviour) nor a full scan to find the end (rage's approach); the
+        // geometry comes from bounded probes at each end.
         using var identity = X25519Identity.Generate();
         var plaintext = new byte[100_000];
         new Random(42).NextBytes(plaintext);
@@ -295,8 +296,8 @@ public class DecryptReaderTests
         using var ciphertext = Encrypt(plaintext, identity.Recipient, armor: true);
         using var stream = Age.DecryptReader(ciphertext, identity);
 
-        Assert.False(stream.CanSeek);
-        Assert.Throws<NotSupportedException>(() => stream.Length);
+        Assert.True(stream.CanSeek);
+        Assert.Equal(plaintext.Length, stream.Length);
 
         using var output = new MemoryStream();
         stream.CopyTo(output);
