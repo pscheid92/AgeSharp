@@ -31,6 +31,7 @@
 | Detached header APIs | ✅ | ❌ | ✅ | Extract/decrypt header separately |
 | `age-inspect` | ✅ | ❌ | ✅ | Metadata inspection without decryption |
 | Push-based encryption (`EncryptWriter`) | ✅ | ✅ | ✅ | Writable stream (`WriteCloser`-style); plaintext in, ciphertext out |
+| Push-based decryption (`DecryptWriter`) | ❌ | ❌ | ✅ | Writable stream; ciphertext in, plaintext out. Go's `Decrypt` and rage's `Decryptor::decrypt` both return readers only |
 | Pull-based streaming (`EncryptReader` / `DecryptReader`) | ✅ | ✅ | ✅ | Stream-returning API, lazy payload encryption/decryption |
 | Async I/O | ❌ | ✅ | ✅ | `EncryptAsync`/`DecryptAsync`/`DecryptReaderAsync` + async streams; no blocking I/O (`AllowSynchronousIO = false`) |
 

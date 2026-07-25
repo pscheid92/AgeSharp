@@ -28,8 +28,8 @@ and targets .NET 10.
   by a single 64 KiB chunk buffer regardless of input size (1 GiB file uses
   the same working set as a 1 MB file), on the synchronous and asynchronous
   paths alike, and for ASCII-armored input as well as binary
-- Push- and pull-based streaming (`EncryptWriter` / `EncryptReader` / `DecryptReader`)
-  return a readable or writable `Stream` for pipe-and-forget use cases
+- A complete streaming grid — `EncryptReader`/`EncryptWriter`/`DecryptReader`/`DecryptWriter`
+  return a readable or writable `Stream`, so either side can drive the transfer
 - Detached header APIs (`EncryptDetached` / `DecryptDetached`)
 - Seekable decryption — `Age.DecryptReader` over a seekable source seeks into
   encrypted files without reading the whole file
@@ -161,36 +161,58 @@ var recipient = identity.Recipient;
 Age.Encrypt(input, encrypted, recipient);
 ```
 
-### Push-based streaming
+### Streaming
 
-`Age.EncryptWriter` returns a writable `Stream` (GZipStream-style): write plaintext to
-it, and ciphertext is written to the destination. Recipient wrapping runs eagerly;
-the header write is deferred to the first write; disposing finalizes the age file.
+Four members return a `Stream`, one per combination of *which operation* and
+*which side drives*:
+
+|             | you **read** from it | you **write** to it |
+|-------------|----------------------|---------------------|
+| **encrypt** | `Age.EncryptReader(plaintext, recipients)` | `Age.EncryptWriter(destination, recipients)` |
+| **decrypt** | `Age.DecryptReader(source, identities)`    | `Age.DecryptWriter(destination, identities)` |
+
+All four are memory-bounded — a 1 GiB payload costs the same working set as a
+1 MB one — and never dispose the stream you hand them.
+
+**Pull (`*Reader`)** — you drive by reading. Setup is eager; the payload is
+processed chunk-by-chunk on `Read()`.
 
 ```csharp
-// Write plaintext in; ciphertext flows to destination as you write.
-using (var stream = Age.EncryptWriter(destination, recipient))
-    inputStream.CopyTo(stream);   // Dispose finalizes the file (empty input → valid empty file)
-```
-
-### Pull-based streaming
-
-Returns a readable `Stream` — header and key setup is eager, payload encryption/decryption is lazy (chunk-by-chunk on `Read()`).
-
-```csharp
-// Encrypt: returns a Stream you read ciphertext from
+// Encrypt: read ciphertext out of a plaintext source
 using var encryptedStream = Age.EncryptReader(plaintext, recipient);
 encryptedStream.CopyTo(networkStream);
 
-// Decrypt: returns a Stream you read plaintext from
+// Decrypt: read plaintext out of an age source
 using var decryptedStream = Age.DecryptReader(ciphertext, identity);
 decryptedStream.CopyTo(outputStream);
 ```
 
+**Push (`*Writer`)** — you drive by writing, GZipStream-style. Disposing
+finalizes the transfer, and is not optional in either direction.
+
+```csharp
+// Encrypt: write plaintext in, ciphertext lands in destination
+using (var stream = Age.EncryptWriter(destination, recipient))
+    inputStream.CopyTo(stream);   // Dispose finalizes (empty input → valid empty file)
+
+// Decrypt: write age ciphertext in, plaintext lands in destination
+using (var stream = Age.DecryptWriter(destination, identity))
+    networkStream.CopyTo(stream); // Dispose authenticates the final chunk
+```
+
+> **One asymmetry.** `DecryptWriter` cannot set up eagerly — nothing about the
+> file is known until enough bytes have been written. A header that no identity
+> matches therefore throws from a `Write`, not from the factory call. The other
+> three learn their key up front and throw immediately.
+>
+> Disposing it matters for correctness, not just cleanup: the last STREAM chunk
+> is only recognisable as final when the input ends, so a `DecryptWriter` that is
+> never disposed has neither authenticated that chunk nor noticed a truncated file.
+
 > **Stream ownership.** The streaming APIs never dispose the streams you pass in —
-> you own the destination/source and dispose it yourself. Disposing the stream
-> returned by `EncryptWriter`/`DecryptReader`/`EncryptReader` releases only that wrapper
-> (and, for `EncryptWriter`, finalizes the age file); the underlying stream stays open.
+> you own the destination/source and dispose it yourself. Disposing the returned
+> stream releases only that wrapper (and, for the `*Writer` pair, finalizes the
+> transfer); the underlying stream stays open.
 >
 > **Thread-safety.** Recipients and identities are safe for concurrent use across
 > threads. The returned streams are not — like any `Stream`, use one per thread.

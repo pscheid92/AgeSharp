@@ -12,11 +12,14 @@ directly using the table below.
   `Age.Recipients`, `Age.Format`, and `Age.Plugin` namespaces are gone.
 - **One facade.** `Age` absorbs the old `AgeEncrypt` and the parsing side of
   `AgeKeygen`. Key generation moves onto the key types themselves.
-- **One decrypt stream.** `Age.DecryptReader` replaces both `DecryptReader` and
+- **One decrypt stream.** `DecryptReader` keeps its name but absorbs
   `AgeRandomAccess`: its `CanSeek` mirrors the source, so a seekable input gives
   you `Length`/`Seek` random access with a one-chunk cache.
-- **New: push encryption and async.** `Age.EncryptWriter` (writable stream) and
-  `EncryptAsync`/`DecryptAsync`/`DecryptReaderAsync` are new in 0.3.
+- **A complete streaming grid.** 0.2 had two of the four combinations of
+  operation and direction. 0.3 has all four —
+  `EncryptReader`/`EncryptWriter`/`DecryptReader`/`DecryptWriter` — so either
+  side can drive the transfer for either operation.
+- **New: async.** `EncryptAsync`/`DecryptAsync`/`DecryptReaderAsync` are new in 0.3.
 - **Coherent exceptions.** A small hierarchy under `AgeException` replaces the
   scattered `FormatException`/`AgeHeaderException`/`AgeArmorException`/
   `AgeHmacException`/`AgePayloadException`.
@@ -32,6 +35,7 @@ directly using the table below.
 | `AgeEncrypt.EncryptReader(pt, r)` | `Age.EncryptReader(pt, r)` |
 | `AgeEncrypt.DecryptReader(ct, id)` | `Age.DecryptReader(ct, id)` |
 | *(no equivalent)* | `Age.EncryptWriter(dest, r)` — push (writable-stream) encryption |
+| *(no equivalent)* | `Age.DecryptWriter(dest, id)` — push (writable-stream) decryption |
 | *(no equivalent)* | `Age.EncryptAsync` / `Age.DecryptAsync` / `Age.DecryptReaderAsync` |
 | *(no equivalent)* | `byte[] Age.Encrypt(ReadOnlySpan<byte>, r)` / `byte[] Age.Decrypt(ReadOnlySpan<byte>, id)` |
 | `AgeEncrypt.EncryptDetached` / `DecryptDetached` | `Age.EncryptDetached` / `Age.DecryptDetached` |
