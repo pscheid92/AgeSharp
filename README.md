@@ -83,7 +83,7 @@ byte[] plaintext  = Age.Decrypt(ciphertext, identity);
 ### Passphrase encryption
 
 ```csharp
-var passphrase = new Passphrase("correct-horse-battery-staple");
+using var passphrase = new Passphrase("correct-horse-battery-staple");
 
 using var input = new MemoryStream("Hello, age!"u8.ToArray());
 using var encrypted = new MemoryStream();
@@ -92,6 +92,16 @@ Age.Encrypt(input, encrypted, passphrase);
 encrypted.Position = 0;
 using var decrypted = new MemoryStream();
 Age.Decrypt(encrypted, decrypted, passphrase);
+```
+
+`Passphrase` holds its secret as a UTF-8 copy that `Dispose` zeroes, like every
+other key type. For a long-lived instance prefer the `ReadOnlySpan<char>`
+overload — .NET cannot zero a `string`, so one passed in stays in memory:
+
+```csharp
+char[] typed = ReadPassphraseFromConsole();
+using var passphrase = new Passphrase(typed);
+Array.Clear(typed);                            // now nothing holds it in the clear
 ```
 
 ### ASCII armor

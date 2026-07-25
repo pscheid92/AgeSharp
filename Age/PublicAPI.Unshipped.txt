@@ -17,6 +17,7 @@
 *REMOVED*AgeSharp.AgeRandomAccess.ReadAt(long plaintextOffset, System.Span<byte> buffer) -> int
 *REMOVED*AgeSharp.IRecipient.Label.get -> string?
 *REMOVED*AgeSharp.MlKem768X25519Recipient.Label.get -> string!
+*REMOVED*AgeSharp.Passphrase.Passphrase(string! passphrase, int workFactor = 18) -> void
 *REMOVED*AgeSharp.PluginRecipient.Label.get -> string?
 *REMOVED*static AgeSharp.Age.DecryptReader(System.IO.Stream! ciphertext, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> System.IO.Stream!
 AgeSharp.AgeAuthenticationException
@@ -45,6 +46,11 @@ AgeSharp.IIdentityWithRecipient.Recipient.get -> AgeSharp.IRecipient!
 AgeSharp.IRecipientWithLabels
 AgeSharp.IRecipientWithLabels.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> (AgeSharp.Stanza! stanza, System.Collections.Generic.IReadOnlyCollection<string!>! labels)
 AgeSharp.MlKem768X25519Recipient.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> (AgeSharp.Stanza! stanza, System.Collections.Generic.IReadOnlyCollection<string!>! labels)
+AgeSharp.Passphrase.Dispose() -> void
+AgeSharp.Passphrase.Passphrase(System.ReadOnlySpan<char> passphrase) -> void
+AgeSharp.Passphrase.Passphrase(System.ReadOnlySpan<char> passphrase, int workFactor) -> void
+AgeSharp.Passphrase.Passphrase(string! passphrase) -> void
+AgeSharp.Passphrase.Passphrase(string! passphrase, int workFactor) -> void
 static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.AgeDecryptOptions! options, AgeSharp.IIdentity! first, params System.ReadOnlySpan<AgeSharp.IIdentity!> rest) -> void
 static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.AgeDecryptOptions! options, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities) -> void
 static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.IIdentity! first, params System.ReadOnlySpan<AgeSharp.IIdentity!> rest) -> void

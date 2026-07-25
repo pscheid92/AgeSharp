@@ -16,6 +16,7 @@ public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable
     private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
 
     private readonly byte[] _seed; // 32 bytes
+    private MlKem768X25519Recipient? _recipient;
     private bool _disposed;
 
     private MlKem768X25519Identity(byte[] seed)
@@ -30,7 +31,11 @@ public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable
         get
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            return new(XWing.GeneratePublicKey(_seed));
+
+            // Costlier than the X25519 case this mirrors: GeneratePublicKey runs a
+            // full ML-KEM-768 key generation alongside the X25519 scalar
+            // multiplication. See X25519Identity for why this needs no lock.
+            return _recipient ??= new(XWing.GeneratePublicKey(_seed));
         }
     }
 
