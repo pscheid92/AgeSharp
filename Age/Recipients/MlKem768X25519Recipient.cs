@@ -65,10 +65,7 @@ public sealed class MlKem768X25519Recipient : IRecipientWithLabels, IParsable<Ml
             "ML-KEM-768-X25519 public key"));
     }
 
-    /// <summary>
-    ///     Tries to parse a bech32-encoded recipient (<c>age1pq1…</c>). Returns false
-    ///     instead of throwing when the input is null or malformed.
-    /// </summary>
+    /// <summary>Returns false instead of throwing when the input is null or malformed.</summary>
     public static bool TryParse([NotNullWhen(true)] string? s,
         [MaybeNullWhen(false)] out MlKem768X25519Recipient result)
     {

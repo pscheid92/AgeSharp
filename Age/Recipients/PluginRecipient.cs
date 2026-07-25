@@ -8,21 +8,13 @@ namespace AgeSharp;
 ///     the plugin found on <c>PATH</c> for the recipient's HRP (e.g. <c>age1yubikey1…</c>
 ///     runs <c>age-plugin-yubikey</c>) and drives the recipient-v1 protocol.
 /// </summary>
-/// <param name="recipient">The plugin recipient string (<c>age1&lt;name&gt;1…</c>).</param>
-/// <param name="callbacks">
-///     Optional UI callbacks for interactive plugins; when null, interactive
-///     requests are answered with failure per the plugin protocol.
-/// </param>
 public sealed class PluginRecipient(string recipient, IPluginCallbacks? callbacks = null) : IRecipient
 {
     internal string PluginName { get; } =
         ExtractPluginName(recipient);
 
-    // No WrapWithLabels override: plugin-declared labels (the "labels" command
-    // of recipient-v1) are not supported yet, so we inherit the empty-label
-    // default. Correspondingly we do NOT advertise "extension-labels" to the
-    // plugin — the spec requires a client that offers it to enforce the labels
-    // it gets back (age-plugin.md), which we cannot do until this is wired up.
+    // Plugin-declared labels are not supported yet, so "extension-labels" is deliberately not
+// advertised: the spec requires a client offering it to enforce the labels it gets back.
 
     /// <summary>Wraps the file key by running the plugin binary (recipient-v1 protocol).</summary>
     /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an error.</exception>
@@ -94,8 +86,6 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
     {
         switch (type)
         {
-            // Per the age-plugin spec, interactive requests are answered with
-            // fail when the client has no UI to present them
             case "msg" or "request-secret" or "request-public" or "confirm" when callbacks is null:
                 conn.WriteStanza("fail", [], []);
                 break;
@@ -105,7 +95,6 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
                 conn.WriteStanza("ok", [], []);
                 break;
 
-            // request-secret masks the input; request-public does not. Same flow otherwise.
             case "request-secret":
             case "request-public":
                 var value = callbacks!.RequestValue(Encoding.UTF8.GetString(body), type == "request-secret");
@@ -145,17 +134,13 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
     internal static string ExtractPluginName(string recipient)
     {
-        // Bech32-decode to get HRP. For "age1yubikey1...", HRP = "age1yubikey", name = HRP[4..] = "yubikey"
         var (hrp, _) = Bech32.Decode(recipient);
 
-        // A plugin recipient HRP is "age1<name>"; require the "age1" prefix so hrp[4..]
-        // is always in range (a shorter HRP like "age" would otherwise throw).
         var name = hrp.StartsWith("age1")
             ? hrp[4..]
             : throw new AgeFormatException($"invalid plugin recipient HRP: {hrp}");
 
-        // The name becomes the age-plugin-<name> executable path, so reject anything
-        // outside the allowed set (notably path separators) before it reaches Process.Start.
+        // The name reaches Process.Start as age-plugin-<name>.
         return PluginNameValidator.Validate(name);
     }
 

@@ -2,23 +2,16 @@ using System.Security.Cryptography;
 
 namespace AgeSharp.Crypto;
 
-/// <summary>
-///     Factory for <see cref="IAeadCipher" /> instances. Uses the native platform cipher where it is
-///     supported and the managed BouncyCastle cipher otherwise — so browser/WebAssembly works with
-///     no configuration and server/desktop keep the fast, zero-allocation path.
-/// </summary>
+// Picks the AEAD backend: the BCL's where it is available, BouncyCastle where it is not
+// (browser/WASM). Both must pass the whole suite — see ForcePortableAead in Age.csproj.
 internal static class AeadCipher
 {
-    /// <summary>Creates a cipher using the default backend for the current platform.</summary>
     public static IAeadCipher Create(ReadOnlySpan<byte> key)
     {
         return Create(key, DefaultBackend());
     }
 
-    /// <summary>
-    ///     Creates a cipher using an explicit backend. Used by tests to exercise a specific
-    ///     implementation regardless of the platform default.
-    /// </summary>
+    // Backend-explicit overload, for tests that must exercise a specific one.
     internal static IAeadCipher Create(ReadOnlySpan<byte> key, AeadBackend backend)
     {
         return backend == AeadBackend.Portable ? new BouncyCastleAeadCipher(key) : new BclAeadCipher(key);

@@ -4,20 +4,11 @@ namespace AgeSharp;
 
 internal static class AsciiArmor
 {
-    /// <summary>
-    ///     Maximum leading whitespace tolerated before the begin marker. The spec allows
-    ///     leading whitespace but sets no bound; this matches the age CLI's own limit and
-    ///     keeps the detection probe a fixed size, so detection needs no seeking.
-    /// </summary>
     private const int MaxLeadingWhitespace = 1024;
 
     internal static int ProbeSize => MaxLeadingWhitespace + ArmorFormat.BeginMarker.Length;
 
-    /// <summary>
-    ///     Bytes needed past any leading whitespace to decide. A pull-side probe simply
-    ///     reads <see cref="ProbeSize" /> bytes, but a push-side one cannot wait for bytes
-    ///     that may never come, so it decides as soon as this many are past the whitespace.
-    /// </summary>
+    // A push-side probe cannot wait for bytes that may never come.
     internal static int MarkerLength => ArmorFormat.BeginMarker.Length;
 
     internal static bool IsArmorWhitespace(byte b)
@@ -25,13 +16,7 @@ internal static class AsciiArmor
         return b is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n';
     }
 
-    /// <summary>
-    ///     Decides whether <paramref name="input" /> is ASCII-armored, returning the stream
-    ///     to read from afterwards. Detection uses lookahead rather than seeking, so it
-    ///     works on pipes and sockets: a seekable source is probed and rewound (keeping its
-    ///     seekability intact for the binary path), and any other source is wrapped in a
-    ///     <see cref="PeekableStream" /> that replays the probed bytes.
-    /// </summary>
+    // Lookahead rather than seeking, so detection works on pipes.
     public static (Stream source, bool isArmored) Detect(Stream input, bool requireArmored = false)
     {
         var probe = new byte[ProbeSize];
@@ -49,7 +34,6 @@ internal static class AsciiArmor
         return Result(peekable, StartsWithMarker(probe.AsSpan(0, peeked)), requireArmored);
     }
 
-    /// <summary>Asynchronous, purity-safe counterpart to <see cref="Detect" />.</summary>
     public static async ValueTask<(Stream source, bool isArmored)> DetectAsync(Stream input, bool requireArmored,
         CancellationToken cancellationToken)
     {
@@ -68,8 +52,6 @@ internal static class AsciiArmor
         return Result(peekable, StartsWithMarker(probe.AsSpan(0, peeked)), requireArmored);
     }
 
-    // Enforcing the strictness opt-in here keeps it in one place: the decrypt, async
-    // decrypt, and header-inspection paths all detect through these two methods.
     private static (Stream source, bool isArmored) Result(Stream source, bool isArmored, bool requireArmored)
     {
         if (requireArmored && !isArmored)
@@ -79,32 +61,23 @@ internal static class AsciiArmor
         return (source, isArmored);
     }
 
-    // Pure: does the probe begin (after allowed whitespace) with the armor marker?
     internal static bool StartsWithMarker(ReadOnlySpan<byte> probe)
     {
         var start = 0;
         while (start < probe.Length && IsArmorWhitespace(probe[start]))
             start++;
 
-        // All whitespace within the probe means either an empty stream or more
-        // leading whitespace than we accept — neither is armor we can read.
         var rest = probe[start..];
         var marker = Encoding.ASCII.GetBytes(ArmorFormat.BeginMarker);
 
         return rest.Length >= marker.Length && rest[..marker.Length].SequenceEqual(marker);
     }
 
-    /// <summary>
-    ///     Wraps an armored source in a stream that yields the decoded binary bytes.
-    ///     The returned stream never disposes <paramref name="input" /> — ownership of the
-    ///     source stays with the caller, as everywhere else in the library.
-    /// </summary>
     public static Stream Dearmor(Stream input, int maxArmorLineBytes = 64 * 1024)
     {
         return DearmorStream.Create(input, maxArmorLineBytes);
     }
 
-    /// <summary>Asynchronous counterpart to <see cref="Dearmor" />.</summary>
     public static async ValueTask<Stream> DearmorAsync(Stream input, int maxArmorLineBytes,
         CancellationToken cancellationToken)
     {
@@ -136,8 +109,6 @@ internal static class AsciiArmor
         writer.Flush();
     }
 
-    // Fills the buffer, tolerating a short read at end of stream: both callers treat a
-    // short result as "that was all there was" rather than an error.
     private static int ReadChunk(Stream stream, byte[] buffer)
     {
         return stream.ReadAtLeast(buffer, buffer.Length, false);

@@ -10,9 +10,6 @@ internal sealed class PluginConnection : IDisposable
     private readonly TextReader _reader;
     private readonly TextWriter _writer;
 
-    /// <summary>
-    ///     Production constructor: finds age-plugin-{name} on PATH, starts with --age-plugin={stateMachine}.
-    /// </summary>
     public PluginConnection(string pluginName, string stateMachine)
     {
         // Defense in depth: the caller should already have validated the name, but this is
@@ -46,9 +43,7 @@ internal sealed class PluginConnection : IDisposable
         _writer = _process.StandardInput;
     }
 
-    /// <summary>
-    ///     Test constructor: uses provided streams, no process.
-    /// </summary>
+    // For tests: drives the protocol over in-memory pipes instead of a child process.
     internal PluginConnection(TextReader reader, TextWriter writer)
     {
         _reader = reader;

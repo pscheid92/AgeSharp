@@ -3,34 +3,11 @@ using System.Security.Cryptography;
 
 namespace AgeSharp.Crypto;
 
-/// <summary>
-///     Push-side decryptor: a write-only <see cref="Stream" /> that consumes age
-///     ciphertext and writes plaintext to a destination. The mirror of
-///     <see cref="EncryptWriterStream" />, and the fourth cell of the streaming grid.
-/// </summary>
-/// <remarks>
-///     <para>
-///         Unlike the other three, setup cannot be eager: nothing is known until enough
-///         bytes have been pushed. The stream walks three stages as they arrive — armor
-///         framing, then the header (unwrapped once its MAC line lands), then the payload
-///         nonce, then STREAM chunks. A caller error such as "no identity matches" therefore
-///         surfaces from a <c>Write</c> rather than from the factory.
-///     </para>
-///     <para>
-///         A full encrypted chunk is decrypted as non-final only once one further byte
-///         proves it is not the last; the rest is held so <see cref="Dispose(bool)" /> can
-///         decrypt it with the final flag set. That is the same hold-back
-///         <see cref="EncryptWriterStream" /> performs, and it is what makes truncation
-///         detectable: a file cut short leaves a chunk that never gets its final flag.
-///     </para>
-///     <para>
-///         Memory is bounded: one chunk buffer pair plus the header, which must be buffered
-///         whole in any case to verify its MAC.
-///     </para>
-/// </remarks>
+// Setup cannot be eager, so caller errors surface from a Write, not the factory. A full
+// chunk is held back until a further byte proves it is not the last, which is what makes
+// truncation detectable.
 internal sealed class DecryptWriterStream : Stream
 {
-    // One byte past a full chunk: enough to prove the chunk is not the last.
     private const int HoldSize = StreamEncryption.EncryptedChunkSize + 1;
 
     private readonly Stream _destination;
@@ -61,18 +38,9 @@ internal sealed class DecryptWriterStream : Stream
 
     private byte[]? _payloadKey;
 
-    // --- output -------------------------------------------------------------
+    private MemoryStream? _stagedPlaintext;
 
-    // Plaintext is staged here rather than written straight out, so the one shared
-    // decrypt path can serve both the sync and async writes: sync drains inline,
-    // async drains with an await after Consume returns.
-    private MemoryStream? _pending;
-
-    // Whether WriteOut ran since the last drain. Tracked apart from the staged length
-    // because Finish deliberately writes an empty span: keying the drain off
-    // _pending.Length would make "nothing was produced" and "empty was produced on
-    // purpose" indistinguishable, and silently drop the latter.
-    private bool _pendingWrite;
+    private bool _destinationNeedsWrite;
     private byte[]? _plaintextBuffer;
     private byte[]? _probe = new byte[AsciiArmor.ProbeSize];
     private int _probeLength;
@@ -112,9 +80,7 @@ internal sealed class DecryptWriterStream : Stream
         }
         catch
         {
-            // Once the stream has faulted, Dispose must not finalize: doing so would
-            // throw a second, less informative exception out of the `using` and hide
-            // the real one.
+            // Finalizing a faulted stream would hide the real exception behind a truncation complaint.
             _faulted = true;
             throw;
         }
@@ -127,14 +93,9 @@ internal sealed class DecryptWriterStream : Stream
 
     public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        // Decryption is CPU-bound; the only I/O is writing plaintext onward. Keeping
-        // this synchronous would block the caller's destination, so the write path is
-        // shared and only the destination writes differ — see WriteOut.
         ObjectDisposedException.ThrowIf(_disposed, this);
         return ConsumeAsync(buffer, cancellationToken);
     }
-
-    // --- framing ------------------------------------------------------------
 
     private void Consume(ReadOnlySpan<byte> raw)
     {
@@ -151,9 +112,6 @@ internal sealed class DecryptWriterStream : Stream
 
     private async ValueTask ConsumeAsync(ReadOnlyMemory<byte> raw, CancellationToken cancellationToken)
     {
-        // The synchronous path is reused wholesale: with _inAsyncWrite set it stages
-        // plaintext instead of writing it, and the staged bytes are drained here with
-        // a real await. Nothing blocks on the caller's destination.
         _inAsyncWrite = true;
         try
         {
@@ -172,8 +130,6 @@ internal sealed class DecryptWriterStream : Stream
         await DrainAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    // Accumulates into the detection probe, deciding as soon as it is full.
-    // Returns whatever is left over once a decision was made.
     private ReadOnlySpan<byte> BufferProbe(ReadOnlySpan<byte> raw)
     {
         var take = Math.Min(AsciiArmor.ProbeSize - _probeLength, raw.Length);
@@ -187,10 +143,7 @@ internal sealed class DecryptWriterStream : Stream
         return raw[take..];
     }
 
-    // Waiting for the probe to fill would stall every file smaller than it — nothing
-    // would be decrypted, and errors would surface from Dispose instead of the write
-    // that caused them. Only leading whitespace is genuinely ambiguous, so a decision
-    // is possible as soon as marker-length bytes sit past it.
+    // Deciding early: only leading whitespace is ambiguous, and a short file may never fill the probe.
     private bool CanDecideFraming()
     {
         if (_probeLength == AsciiArmor.ProbeSize)
@@ -203,8 +156,6 @@ internal sealed class DecryptWriterStream : Stream
         return _probeLength - start >= AsciiArmor.MarkerLength;
     }
 
-    // A file shorter than the marker never reaches a decision, so this also runs
-    // from Finish().
     private void DecideFraming()
     {
         var probe = _probe!;
@@ -237,8 +188,6 @@ internal sealed class DecryptWriterStream : Stream
             return;
         }
 
-        // Armored: the sans-I/O line accumulator and decoder are byte-fed, so the
-        // same core that drives pull-side dearmor works unchanged when pushed.
         foreach (var b in data)
         {
             if (!_armorLines!.Feed(b))
@@ -249,8 +198,6 @@ internal sealed class DecryptWriterStream : Stream
                 ConsumeBinary(_armorDecoded!.AsSpan(0, decoded));
         }
     }
-
-    // --- stages -------------------------------------------------------------
 
     private void ConsumeBinary(ReadOnlySpan<byte> data)
     {
@@ -267,7 +214,6 @@ internal sealed class DecryptWriterStream : Stream
     {
         for (var i = 0; i < data.Length; i++)
         {
-            // The MAC line is the only header line starting with "---".
             if (_headerLines.Feed(data[i]) is not { } line || !line.StartsWith("---", StringComparison.Ordinal))
                 continue;
 
@@ -278,9 +224,6 @@ internal sealed class DecryptWriterStream : Stream
         return default;
     }
 
-    // Re-parses the buffered header through the shared reader so that stanza
-    // parsing, the scrypt-alone rule, identity matching, and MAC verification are
-    // the same code the pull path runs — not a second implementation.
     private void UnwrapHeader()
     {
         using var buffered = new MemoryStream(_headerLines.RawBytes.ToArray(), false);
@@ -320,7 +263,6 @@ internal sealed class DecryptWriterStream : Stream
         data[..take].CopyTo(_chunkBuffer!.AsSpan(_chunkLength));
         _chunkLength += take;
 
-        // The held byte proves more ciphertext follows, so this chunk is not final.
         if (_chunkLength == HoldSize)
             DecryptChunk(false);
 
@@ -349,7 +291,6 @@ internal sealed class DecryptWriterStream : Stream
         }
         else
         {
-            // Carry the look-ahead byte to the front of the next chunk.
             _chunkBuffer![0] = _chunkBuffer[StreamEncryption.EncryptedChunkSize];
             _chunkLength = 1;
         }
@@ -361,8 +302,8 @@ internal sealed class DecryptWriterStream : Stream
     {
         if (_inAsyncWrite)
         {
-            (_pending ??= new MemoryStream()).Write(plaintext);
-            _pendingWrite = true;
+            (_stagedPlaintext ??= new MemoryStream()).Write(plaintext);
+            _destinationNeedsWrite = true;
             return;
         }
 
@@ -371,31 +312,26 @@ internal sealed class DecryptWriterStream : Stream
 
     private async ValueTask DrainAsync(CancellationToken cancellationToken)
     {
-        if (!_pendingWrite)
+        if (!_destinationNeedsWrite)
             return;
 
-        _pendingWrite = false;
+        _destinationNeedsWrite = false;
 
-        var staged = _pending is null
+        var staged = _stagedPlaintext is null
             ? ReadOnlyMemory<byte>.Empty
-            : _pending.GetBuffer().AsMemory(0, (int)_pending.Length);
+            : _stagedPlaintext.GetBuffer().AsMemory(0, (int)_stagedPlaintext.Length);
 
         await _destination.WriteAsync(staged, cancellationToken).ConfigureAwait(false);
-        _pending?.SetLength(0);
+        _stagedPlaintext?.SetLength(0);
     }
-
-    // --- finalization -------------------------------------------------------
 
     private void Finish()
     {
-        // A stream that already threw has nothing to finalize, and finalizing anyway
-        // would replace the caller's real exception with a truncation complaint.
         if (_finalized || _faulted)
             return;
 
         _finalized = true;
 
-        // A file shorter than the detection probe never triggered a decision.
         if (_framing == Framing.Undecided)
             DecideFraming();
 
@@ -419,12 +355,10 @@ internal sealed class DecryptWriterStream : Stream
 
         var plaintextLength = DecryptChunk(true);
 
-        // An empty final chunk is legal only when it is the sole chunk.
         if (plaintextLength == 0 && _counter > 1)
             throw new AgeAuthenticationException("final STREAM chunk is empty but there were preceding chunks");
 
-        // Touch the destination even for empty plaintext — matters for lazy-creating
-        // writers that only materialize on first write.
+        // A lazy-creating writer must still materialize.
         WriteOut(ReadOnlySpan<byte>.Empty);
     }
 
@@ -498,10 +432,10 @@ internal sealed class DecryptWriterStream : Stream
             _chunkBuffer = null;
         }
 
-        if (_pending is not null)
+        if (_stagedPlaintext is not null)
         {
-            CryptographicOperations.ZeroMemory(_pending.GetBuffer());
-            _pending = null;
+            CryptographicOperations.ZeroMemory(_stagedPlaintext.GetBuffer());
+            _stagedPlaintext = null;
         }
     }
 

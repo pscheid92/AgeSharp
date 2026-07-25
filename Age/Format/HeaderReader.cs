@@ -1,43 +1,20 @@
 namespace AgeSharp;
 
-/// <summary>
-///     Reads header lines from a stream one byte at a time (so it never consumes
-///     payload bytes past the header), delegating all line framing, validation, and
-///     size-limit logic to the sans-I/O <see cref="HeaderLineAccumulator" />. This
-///     class is only the fill step: the single place that touches the stream.
-/// </summary>
-/// <remarks>
-///     The sync path pulls one byte per <see cref="ReadLine" />. The async path calls
-///     <see cref="PrefillAsync" /> first — it reads the whole header (through the MAC
-///     line) into a line buffer using <c>ReadAsync</c>, after which <see cref="ReadLine" />
-///     serves those buffered lines with no further I/O. Both paths feed the same
-///     accumulator, so all parsing (<see cref="Header" />/<see cref="Stanza" />) is shared.
-/// </remarks>
+// Reads header lines and tracks the raw bytes the MAC is computed over. PrefillAsync lets
+// the async path buffer the whole header up front, after which parsing is pure.
 internal sealed class HeaderReader(Stream stream, int maxLineBytes = 64 * 1024, int maxHeaderBytes = 16 * 1024 * 1024)
 {
     private readonly HeaderLineAccumulator _accumulator = new(maxLineBytes, maxHeaderBytes);
     private Queue<string>? _bufferedLines;
     private string? _pushedBack;
 
-    /// <summary>
-    ///     All raw bytes read so far (for MAC computation).
-    /// </summary>
     public ReadOnlySpan<byte> RawBytes => _accumulator.RawBytes;
 
-    /// <summary>
-    ///     Push a line back so the next ReadLine returns it.
-    ///     The raw bytes have already been recorded for this line.
-    /// </summary>
     public void PushBack(string line)
     {
         _pushedBack = line;
     }
 
-    /// <summary>
-    ///     Reads a line terminated by LF (\n). Returns the line without the LF.
-    ///     Returns null at EOF. After <see cref="PrefillAsync" /> this serves the
-    ///     pre-buffered lines and performs no I/O.
-    /// </summary>
     public string? ReadLine()
     {
         if (_pushedBack != null)
@@ -63,12 +40,7 @@ internal sealed class HeaderReader(Stream stream, int maxLineBytes = 64 * 1024, 
         }
     }
 
-    /// <summary>
-    ///     Reads the whole header asynchronously into a line buffer, up to and
-    ///     including the MAC line (the first line starting with "---") or EOF. After
-    ///     this, <see cref="ReadLine" /> replays the buffered lines synchronously and
-    ///     the stream sits at the payload nonce.
-    /// </summary>
+    // Buffers the header so the sync parse that follows does no I/O.
     public async ValueTask PrefillAsync(CancellationToken cancellationToken)
     {
         var lines = new Queue<string>();
@@ -99,10 +71,6 @@ internal sealed class HeaderReader(Stream stream, int maxLineBytes = 64 * 1024, 
         _bufferedLines = lines;
     }
 
-    /// <summary>
-    ///     Read raw bytes directly (for reading the payload nonce after header).
-    ///     These bytes are NOT tracked in RawBytes.
-    /// </summary>
     public int ReadPayloadBytes(Span<byte> buffer)
     {
         var total = 0;
@@ -120,7 +88,6 @@ internal sealed class HeaderReader(Stream stream, int maxLineBytes = 64 * 1024, 
         return total;
     }
 
-    /// <summary>Asynchronous counterpart to <see cref="ReadPayloadBytes" />.</summary>
     public async ValueTask<int> ReadPayloadBytesAsync(Memory<byte> buffer, CancellationToken cancellationToken)
     {
         var total = 0;

@@ -2,12 +2,6 @@ using System.Security.Cryptography;
 
 namespace AgeSharp.Crypto;
 
-/// <summary>
-///     <see cref="IAeadCipher" /> backed by the platform <see cref="ChaCha20Poly1305" /> —
-///     native, hardware-optimized, and zero per-call allocation. Unavailable on browser/WASM
-///     (the constructor throws there); callers select it only when
-///     <see cref="ChaCha20Poly1305.IsSupported" /> is true.
-/// </summary>
 internal sealed class BclAeadCipher : IAeadCipher
 {
     private readonly ChaCha20Poly1305 _cipher;

@@ -3,21 +3,9 @@ using System.Security.Cryptography;
 
 namespace AgeSharp.Crypto;
 
-/// <summary>
-///     Seekable plaintext view over a seekable binary age ciphertext. The plaintext
-///     length is derived from the ciphertext layout, <c>Seek</c> maps a plaintext
-///     position to the containing 64 KiB STREAM chunk, and the most recently decrypted
-///     chunk is cached so repeated small reads within a chunk decrypt it only once.
-/// </summary>
-/// <remarks>
-///     Truncation of the payload can only be detected once a read actually reaches the
-///     affected chunk (its authentication tag fails). A structurally impossible payload
-///     — empty, or a final chunk too small to hold its tag — is rejected eagerly by the
-///     constructor.
-/// </remarks>
+// Seek maps a plaintext position to its 64 KiB chunk; the last decrypted chunk is cached.
 internal sealed class SeekableDecryptStream : Stream
 {
-    // One-chunk cache: the decrypted plaintext of _cachedChunkIndex (or -1 when empty).
     private readonly byte[] _chunkPlaintext;
     private readonly IAeadCipher _cipher;
     private readonly Stream _ciphertext;
@@ -44,8 +32,6 @@ internal sealed class SeekableDecryptStream : Stream
         if (_totalEncrypted == 0)
             throw new AgeAuthenticationException("payload is empty (no chunks)");
 
-        // Both computations can reject a structurally impossible payload; run them
-        // before renting buffers so a rejection leaks nothing back to the pool.
         _totalChunks = ComputeTotalChunks(_totalEncrypted);
         Length = ComputePlaintextLength(_totalEncrypted);
 
@@ -69,13 +55,6 @@ internal sealed class SeekableDecryptStream : Stream
         }
     }
 
-    /// <summary>
-    ///     Opens the stream, authenticating the plaintext length before returning.
-    /// </summary>
-    /// <exception cref="AgeAuthenticationException">
-    ///     The payload is structurally impossible, or its final chunk does not
-    ///     authenticate as a final chunk — meaning the ciphertext was truncated.
-    /// </exception>
     public static SeekableDecryptStream Create(byte[] payloadKey, Stream ciphertext, long payloadStart, bool ownsStream)
     {
         var stream = new SeekableDecryptStream(payloadKey, ciphertext, payloadStart, ownsStream);
@@ -95,7 +74,6 @@ internal sealed class SeekableDecryptStream : Stream
         return stream;
     }
 
-    /// <summary>Asynchronous counterpart to <see cref="Create" />.</summary>
     public static async ValueTask<SeekableDecryptStream> CreateAsync(byte[] payloadKey, Stream ciphertext,
         long payloadStart, bool ownsStream,
         CancellationToken cancellationToken)
@@ -123,24 +101,14 @@ internal sealed class SeekableDecryptStream : Stream
         return ChunkLayout(_totalChunks - 1);
     }
 
-    // Decrypting the final chunk *as a final chunk* is what authenticates the
-    // plaintext length: the chunk layout alone cannot distinguish a truncated file
-    // from a shorter one, because a truncation landing on a chunk boundary produces
-    // a structurally valid payload. Both reference implementations do this, and the
-    // forward-only path already catches truncation when it reaches the last chunk —
-    // without this, the same file behaved differently depending on whether the
-    // caller's stream happened to be seekable.
-    //
-    // The decrypted chunk seeds the cache rather than being thrown away, so a
-    // seek to the end costs nothing extra.
+    // Decrypting the final chunk as final is what authenticates the plaintext length: chunk
+// layout alone cannot tell a truncated file from a shorter one.
     private void CacheFinalChunk(int encChunkSize)
     {
         _cachedLength = DecryptLoadedChunk(_totalChunks - 1, encChunkSize);
         _cachedChunkIndex = _totalChunks - 1;
     }
 
-    // Construction failed after buffers were rented: return them and drop the cipher.
-    // The instance is never handed to a caller, so it can never be disposed twice.
     private void AbandonResources()
     {
         _disposed = true;
@@ -245,8 +213,6 @@ internal sealed class SeekableDecryptStream : Stream
         return (encChunkSize, chunkStart);
     }
 
-    // CPU-only: decrypt the chunk already loaded into _encChunk. Shared by the sync
-    // and async read paths — only the read that filled _encChunk differs.
     private int DecryptLoadedChunk(long chunkIndex, int encChunkSize)
     {
         var isFinal = chunkIndex == _totalChunks - 1;
@@ -257,15 +223,10 @@ internal sealed class SeekableDecryptStream : Stream
             _encChunk.AsSpan(0, encChunkSize),
             _chunkPlaintext.AsSpan(0, plaintextLength));
 
-        // An empty final chunk after preceding chunks is impossible here: the
-        // constructor's ComputePlaintextLength already rejected that layout, so
-        // no such stream is ever built. The check lives there, not per-read.
         return plaintextLength;
     }
 
-    // Short of a full chunk means the payload is truncated, which is an authentication
-    // failure rather than an I/O one — so the end-of-stream case is handled here rather
-    // than letting ReadExactly raise EndOfStreamException.
+    // A short read is truncation, so it must surface as authentication rather than I/O.
     private void ReadFully(long position, Span<byte> destination)
     {
         _ciphertext.Position = position;
@@ -348,9 +309,6 @@ internal sealed class SeekableDecryptStream : Stream
         throw new NotSupportedException();
     }
 
-    // The final chunk carries only a tag when the plaintext is empty; every other
-    // chunk pairs ChunkSize bytes with a tag. These mirror the layout that the
-    // push/pull encrypt paths produce.
     private static long ComputeTotalChunks(long totalEncrypted)
     {
         if (totalEncrypted <= StreamEncryption.EncryptedChunkSize)
@@ -359,7 +317,6 @@ internal sealed class SeekableDecryptStream : Stream
         var fullChunks = totalEncrypted / StreamEncryption.EncryptedChunkSize;
         var remainder = totalEncrypted % StreamEncryption.EncryptedChunkSize;
 
-        // No remainder → the last full-sized chunk is itself the final chunk.
         return remainder == 0 ? fullChunks : fullChunks + 1;
     }
 
@@ -373,10 +330,7 @@ internal sealed class SeekableDecryptStream : Stream
         if (lastChunkPlainSize < 0)
             throw new AgeAuthenticationException("chunk too small for authentication tag");
 
-        // An empty final chunk is only legal when it is the sole chunk (empty
-        // plaintext). Because a read never has to touch a zero-length final chunk,
-        // this layout must be rejected up front or it would slip past unnoticed —
-        // the forward-only path catches the same case as it reads.
+        // A read never touches a zero-length final chunk, so this layout must be rejected here.
         if (lastChunkPlainSize == 0 && fullChunks > 0)
             throw new AgeAuthenticationException("final STREAM chunk is empty but there were preceding chunks");
 

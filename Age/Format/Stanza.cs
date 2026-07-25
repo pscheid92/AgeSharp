@@ -7,11 +7,9 @@ namespace AgeSharp;
 ///     wrapped file key for a single recipient, plus recipient-specific metadata.
 /// </summary>
 /// <remarks>
-///     Stanzas are the extensibility primitive used by custom <see cref="IRecipient" />
-///     and <see cref="IIdentity" /> implementations to communicate
-///     wrapped keys through the age wire format. The <see cref="Type" /> tag
-///     identifies the recipient kind (<c>"X25519"</c>, <c>"scrypt"</c>, <c>"ssh-ed25519"</c>,
-///     <c>"ssh-rsa"</c>, <c>"mlkem768x25519"</c>, or any custom tag).
+///     The extensibility primitive: custom <see cref="IRecipient" /> and
+///     <see cref="IIdentity" /> implementations exchange wrapped keys as stanzas, and
+///     <see cref="Type" /> is the tag identifying the recipient kind.
 /// </remarks>
 public sealed class Stanza
 {
@@ -19,14 +17,9 @@ public sealed class Stanza
     private readonly byte[] _body;
 
     /// <summary>
-    ///     Constructs a stanza with the given type, arguments, and body. The
-    ///     <paramref name="args" /> and <paramref name="body" /> arrays are
-    ///     defensively copied; later mutations to the caller's arrays do not
-    ///     affect this stanza.
+    ///     <paramref name="args" /> and <paramref name="body" /> are defensively copied, so
+    ///     later mutation of the caller's arrays does not affect this stanza.
     /// </summary>
-    /// <param name="type">The recipient type tag (e.g. "X25519"). Must be printable ASCII.</param>
-    /// <param name="args">Recipient-specific arguments (e.g. an ephemeral public key). Each argument must be printable ASCII.</param>
-    /// <param name="body">The wrapped key material and any recipient-specific binary payload.</param>
     /// <exception cref="ArgumentNullException">
     ///     <paramref name="type" />, <paramref name="args" />, or <paramref name="body" />
     ///     is null.

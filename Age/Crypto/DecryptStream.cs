@@ -9,7 +9,6 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
     private const int PlaintextBufferSize = StreamEncryption.ChunkSize;
     private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
 
-    // Chunk buffering — rented from the shared pool, reused across chunks
     private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
     private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(PlaintextBufferSize);
     private long _counter;
@@ -77,8 +76,6 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         return totalRead;
     }
 
-    // Copies any buffered plaintext into dest; returns true when it did so (there
-    // was buffered plaintext), false when the buffer is empty and a chunk is due.
     private bool TryDrain(Span<byte> dest, ref int totalRead)
     {
         if (_plaintextOffset >= _plaintextLength)
@@ -93,8 +90,6 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         return true;
     }
 
-    // CPU-only: decrypt the freshly-read ciphertext chunk. Shared by the sync and
-    // async read paths — only the read that produced bytesRead differs.
     private void ProcessChunk(int bytesRead)
     {
         var prevPlaintextLength = _plaintextLength;
@@ -113,7 +108,6 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         if (chunkLen < StreamEncryption.TagSize)
             throw new AgeAuthenticationException("chunk too small for authentication tag");
 
-        // Save the look-ahead byte before decryption (it sits just past the chunk in the buffer)
         byte savedByte = 0;
         if (!isFinal)
             savedByte = _ciphertextBuffer[StreamEncryption.EncryptedChunkSize];
@@ -125,8 +119,7 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         _plaintextLength = chunkLen - StreamEncryption.TagSize;
         _plaintextOffset = 0;
 
-        // If the new chunk is smaller than the previous one, zero the residual
-        // tail so stale plaintext from the prior chunk doesn't linger.
+        // Zero the residual tail so stale plaintext does not linger.
         if (prevPlaintextLength > _plaintextLength)
             CryptographicOperations.ZeroMemory(
                 _plaintextBuffer.AsSpan(_plaintextLength, prevPlaintextLength - _plaintextLength));
@@ -142,7 +135,6 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         if (!isFinal)
             return;
 
-        // The final chunk can be empty ONLY if it's the first (and only) chunk
         if (_plaintextLength == 0 && _counter > 1)
             throw new AgeAuthenticationException("final STREAM chunk is empty but there were preceding chunks");
 
@@ -191,7 +183,6 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         if (!_hasSavedByte)
             return 0;
 
-        // _ciphertextBuffer[0] already contains the saved byte
         _hasSavedByte = false;
         return 1;
     }

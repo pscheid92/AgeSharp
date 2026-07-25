@@ -11,11 +11,6 @@ public static partial class Age
     ///     <paramref name="output" />. Every stream operation is genuinely asynchronous
     ///     — no blocking I/O on either stream.
     /// </summary>
-    /// <param name="input">The plaintext source. Read once, start to end.</param>
-    /// <param name="output">The ciphertext destination.</param>
-    /// <param name="recipients">One or more recipients. Must all produce the same label set.</param>
-    /// <param name="options">Encryption options; defaults are used when null.</param>
-    /// <param name="cancellationToken">Cancels the operation between stream reads/writes.</param>
     /// <exception cref="ArgumentException">No recipients were supplied.</exception>
     /// <remarks>
     ///     A plugin recipient still performs synchronous child-process I/O while wrapping,
@@ -24,9 +19,6 @@ public static partial class Age
     /// </remarks>
     public static async Task EncryptAsync(Stream input, Stream output, IReadOnlyList<IRecipient> recipients, AgeEncryptOptions? options = null, CancellationToken cancellationToken = default)
     {
-        // EncryptReader builds the header eagerly and touches neither stream, so it
-        // is safe to create synchronously before awaiting — and it validates
-        // recipients for us, so the guards live in exactly one place.
         var stream = EncryptReader(input, recipients, options);
 
         await using (stream.ConfigureAwait(false))
@@ -40,11 +32,6 @@ public static partial class Age
     ///     <paramref name="output" />. Armored input is auto-detected on any
     ///     source, seekable or not. Every stream operation is genuinely asynchronous.
     /// </summary>
-    /// <param name="input">The age-encrypted source (binary or ASCII-armored).</param>
-    /// <param name="output">The plaintext destination.</param>
-    /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
-    /// <param name="options">Parsing options; defaults are used when null.</param>
-    /// <param name="cancellationToken">Cancels the operation between stream reads/writes.</param>
     /// <exception cref="ArgumentException">No identities were supplied.</exception>
     /// <exception cref="NoIdentityMatchException">None of the identities matched any stanza.</exception>
     /// <exception cref="AgeFormatException">The header or armor is malformed.</exception>
@@ -58,8 +45,7 @@ public static partial class Age
             await stream.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
         }
 
-        // Touch output even when the plaintext is empty — matters for lazy-creating
-        // writers that only materialize on first write.
+        // A lazy-creating writer must still materialize.
         await output.WriteAsync(ReadOnlyMemory<byte>.Empty, cancellationToken).ConfigureAwait(false);
     }
 
@@ -74,14 +60,9 @@ public static partial class Age
     ///     authenticates the plaintext length by decrypting the final chunk. Every step,
     ///     including that authentication and each chunk read, is asynchronous.
     /// </remarks>
-    /// <param name="source">The age-encrypted source (binary or ASCII-armored).</param>
-    /// <param name="identities">One or more identities tried against the file's recipient stanzas.</param>
-    /// <param name="options">Parsing options; defaults are used when null.</param>
-    /// <param name="cancellationToken">Cancels the header read.</param>
     /// <exception cref="ArgumentException">No identities were supplied.</exception>
     public static async ValueTask<Stream> DecryptReaderAsync(Stream source, IReadOnlyList<IIdentity> identities, AgeDecryptOptions? options = null, CancellationToken cancellationToken = default)
     {
-        // Validate before touching the stream, so a caller bug never half-consumes it.
         var identityArray = Materialize(identities, nameof(identities), "identity");
         options ??= AgeDecryptOptions.Default;
 
@@ -93,8 +74,6 @@ public static partial class Age
             var reader = new HeaderReader(binaryInput, options.MaxHeaderLineBytes, options.MaxHeaderBytes);
             await reader.PrefillAsync(cancellationToken).ConfigureAwait(false);
 
-            // The header is now buffered, so unwrapping is pure/synchronous and the
-            // span never crosses an await.
             var fileKey = UnwrapHeader(reader, identityArray);
 
             try
@@ -111,9 +90,6 @@ public static partial class Age
                 CryptographicOperations.ZeroMemory(fileKey);
             }
 
-            // Same dispatch as the synchronous path: a seekable source yields a
-            // seekable stream. Both the length authentication below and every chunk
-            // read are asynchronous, so this stays free of blocking I/O.
             return binaryInput.CanSeek
                 ? await SeekableDecryptStream.CreateAsync(payloadKey, binaryInput, binaryInput.Position,
                     needsDispose, cancellationToken).ConfigureAwait(false)
@@ -129,9 +105,6 @@ public static partial class Age
 
     private static async ValueTask<(Stream binaryInput, bool needsDispose)> DeArmorIfNeededAsync(Stream input, AgeDecryptOptions options, CancellationToken cancellationToken)
     {
-        // Identical to the synchronous DeArmorIfNeeded apart from the awaits: the
-        // dearmor is sans-I/O, so armored input streams here too — no buffering, and
-        // no blocking read on the caller's stream.
         var (source, isArmored) = await AsciiArmor.DetectAsync(input, options.RequireArmor, cancellationToken).ConfigureAwait(false);
 
         return isArmored

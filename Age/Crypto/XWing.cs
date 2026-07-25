@@ -17,7 +17,7 @@ internal static class XWing
 
     internal const int EncSize = MlKemCiphertextSize + X25519KeySize;
 
-    // X-Wing combiner label: ASCII `\.//^\` (the X-Wing spec domain separator)
+    // The X-Wing spec's domain separator.
     private static readonly byte[] XWingLabel = @"\.//^\"u8.ToArray();
 
     public static byte[] GeneratePublicKey(byte[] seed)
@@ -41,7 +41,6 @@ internal static class XWing
         var pkM = publicKey[..MlKemPublicKeySize];
         var pkX = publicKey[MlKemPublicKeySize..];
 
-        // ML-KEM-768 encapsulate
         var mlKemPub = MLKemPublicKeyParameters.FromEncoding(MLKemParameters.ml_kem_768, pkM);
         var encapsulator = new MLKemEncapsulator(MLKemParameters.ml_kem_768);
         encapsulator.Init(mlKemPub);
@@ -49,19 +48,15 @@ internal static class XWing
         var ssM = new byte[SharedSecretSize];
         encapsulator.Encapsulate(ctM, 0, MlKemCiphertextSize, ssM, 0, SharedSecretSize);
 
-        // X25519 ephemeral DH. pkX comes from a recipient string, so it can carry a
-        // low-order point; the shared helper rejects the resulting all-zero secret
-        // rather than letting a raw BouncyCastle exception escape.
+        // pkX comes from a recipient string, so it can carry a low-order point.
         var ekX = new X25519PrivateKeyParameters(new SecureRandom());
         var ctX = ekX.GeneratePublicKey().GetEncoded();
         var ssX = CryptoHelper.X25519Agree(ekX, new X25519PublicKeyParameters(pkX));
 
-        // Combine: enc = ct_M || ct_X
         var enc = new byte[EncSize];
         ctM.CopyTo(enc, 0);
         ctX.CopyTo(enc, MlKemCiphertextSize);
 
-        // ss = SHA3-256(ss_M || ss_X || ct_X || pk_X || XWingLabel)
         var sharedSecret = CombineSharedSecret(ssM, ssX, ctX, pkX);
 
         return (sharedSecret, enc);
@@ -77,16 +72,13 @@ internal static class XWing
         var ctM = enc[..MlKemCiphertextSize];
         var ctX = enc[MlKemCiphertextSize..];
 
-        // ML-KEM-768 decapsulate
         var decapsulator = new MLKemDecapsulator(MLKemParameters.ml_kem_768);
         decapsulator.Init(mlKemPrivate);
         var ssM = new byte[SharedSecretSize];
         decapsulator.Decapsulate(ctM, 0, MlKemCiphertextSize, ssM, 0, SharedSecretSize);
 
-        // X25519 DH — the all-zero rejection lives in the shared helper.
         var ssX = CryptoHelper.X25519Agree(x25519Private, new X25519PublicKeyParameters(ctX));
 
-        // ss = SHA3-256(ss_M || ss_X || ct_X || pk_X || XWingLabel)
         return CombineSharedSecret(ssM, ssX, ctX, pkX);
     }
 

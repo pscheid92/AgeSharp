@@ -1,16 +1,6 @@
 namespace AgeSharp;
 
-/// <summary>
-///     A read-only pass-through stream that lets the first bytes of a source be
-///     inspected and then read again. This is what makes armor detection work on a
-///     pipe or socket: deciding whether input is armored needs <em>lookahead</em>,
-///     not seeking, and lookahead is available on every stream.
-/// </summary>
-/// <remarks>
-///     Ownership follows the library-wide rule: this wrapper never disposes the
-///     stream it wraps. It holds only a small managed buffer, so leaving one
-///     undisposed leaks nothing.
-/// </remarks>
+// Lookahead rather than seeking, so armor detection works on a pipe. Never disposes inner.
 internal sealed class PeekableStream(Stream inner) : Stream
 {
     private int _length;
@@ -28,12 +18,6 @@ internal sealed class PeekableStream(Stream inner) : Stream
         set => throw new NotSupportedException();
     }
 
-    /// <summary>
-    ///     Reads up to <paramref name="destination" />.Length bytes and copies them
-    ///     there <em>without consuming them</em> — a subsequent <see cref="Read(Span{byte})" />
-    ///     returns the same bytes first. Returns the number of bytes available, which
-    ///     is short only at end of stream.
-    /// </summary>
     public int Peek(Span<byte> destination)
     {
         var needed = Grow(destination.Length);
@@ -50,7 +34,6 @@ internal sealed class PeekableStream(Stream inner) : Stream
         return Serve(destination);
     }
 
-    /// <summary>Asynchronous counterpart to <see cref="Peek" />.</summary>
     public async ValueTask<int> PeekAsync(Memory<byte> destination, CancellationToken cancellationToken = default)
     {
         var needed = Grow(destination.Length);
@@ -68,10 +51,8 @@ internal sealed class PeekableStream(Stream inner) : Stream
         return Serve(destination.Span);
     }
 
-    // Sizes the buffer to hold `count` bytes past whatever has already been replayed,
-    // and returns that target fill level. Peeking tops the buffer up rather than
-    // replacing it: replacing would drop any peeked-but-not-yet-read bytes on the
-    // floor, and those bytes are gone from the source for good.
+    // Tops the buffer up rather than replacing it: replacing would drop peeked-but-unread
+    // bytes, and the source has already yielded them.
     private int Grow(int count)
     {
         var needed = _offset + count;
@@ -82,7 +63,6 @@ internal sealed class PeekableStream(Stream inner) : Stream
         return needed;
     }
 
-    // Copies the unread window into the caller's buffer without consuming it.
     private int Serve(Span<byte> destination)
     {
         var available = Math.Min(_length - _offset, destination.Length);
@@ -97,9 +77,7 @@ internal sealed class PeekableStream(Stream inner) : Stream
 
     public override int Read(Span<byte> buffer)
     {
-        // Serve the peeked bytes first. Returning fewer bytes than asked for is
-        // allowed by the Stream contract, so this never has to touch the source
-        // while replayed bytes remain — which keeps a blocking read off the path.
+        // A short read is legal, so replayed bytes never force a read on the source.
         var replayed = Drain(buffer);
         return replayed > 0 ? replayed : inner.Read(buffer);
     }

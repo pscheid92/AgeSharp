@@ -1,13 +1,7 @@
 namespace AgeSharp.Crypto;
 
-/// <summary>
-///     Minimal ChaCha20-Poly1305 AEAD abstraction. The method shapes mirror
-///     <see cref="System.Security.Cryptography.ChaCha20Poly1305" /> exactly, so the native
-///     wrapper is a pure pass-through and a managed implementation can be substituted on
-///     platforms — notably browser/WebAssembly — where the platform cipher is unavailable.
-///     Instances are not thread-safe: a single instance is used sequentially, like the
-///     platform cipher.
-/// </summary>
+// One-shot ChaCha20-Poly1305 over a reusable key schedule; the payload path runs this once
+// per chunk, so the key is set up once rather than per call.
 internal interface IAeadCipher : IDisposable
 {
     /// <summary>

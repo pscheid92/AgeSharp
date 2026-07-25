@@ -3,21 +3,8 @@ using System.Security.Cryptography;
 
 namespace AgeSharp.Crypto;
 
-/// <summary>
-///     Push-side encryptor: a write-only <see cref="Stream" /> that consumes plaintext
-///     and writes age ciphertext to a destination, in the spirit of
-///     <see cref="System.IO.Compression.GZipStream" />. The header and payload nonce
-///     (the <c>preamble</c>) are written lazily on the first write — or on
-///     <see cref="Dispose(bool)" /> when nothing was written — and the STREAM payload
-///     is finalized on dispose.
-/// </summary>
-/// <remarks>
-///     A full 64 KiB chunk is emitted as non-final only once more plaintext proves it
-///     is not the last chunk; otherwise it is held so that <see cref="Dispose(bool)" />
-///     can encrypt it with the final flag set. This keeps the invariant that an empty
-///     final chunk appears only for empty plaintext. The <c>destination</c> supplied by
-///     the facade is never disposed; an armor wrapper created by the facade is.
-/// </remarks>
+// The push half of encryption. Holds back a full chunk until more plaintext proves it is
+// not the last, so Dispose can mark the true final chunk.
 internal sealed class EncryptWriterStream : Stream
 {
     private readonly IAeadCipher _cipher;

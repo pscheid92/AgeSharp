@@ -11,7 +11,6 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
     private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
     private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
 
-    // Chunk buffering — rented from the shared pool, reused across chunks
     private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(PlaintextBufferSize);
     private readonly byte[] _preamble = [.. headerBytes, .. payloadNonce];
     private int _chunkLength;
@@ -109,8 +108,6 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         return written;
     }
 
-    // Ensures _ciphertextBuffer[_chunkOffset.._chunkLength] holds emittable bytes;
-    // returns false once the final chunk has been fully emitted. Sync fill path.
     private bool EnsureChunkAvailable()
     {
         if (_chunkOffset < _chunkLength)
@@ -142,8 +139,6 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         return true;
     }
 
-    // CPU-only: encrypt the freshly-read plaintext into _ciphertextBuffer. Shared
-    // by the sync and async fill paths — only the read above differs.
     private void EncryptChunk(int bytesRead)
     {
         var isFinal = bytesRead <= StreamEncryption.ChunkSize;
@@ -163,7 +158,6 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         }
         else
         {
-            // Save the look-ahead byte for the next read
             _plaintextBuffer[0] = _plaintextBuffer[StreamEncryption.ChunkSize];
             _pendingByte = true;
         }
@@ -220,7 +214,6 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         if (!_pendingByte)
             return 0;
 
-        // buffer[0] already contains the pending byte
         _pendingByte = false;
         return 1;
     }

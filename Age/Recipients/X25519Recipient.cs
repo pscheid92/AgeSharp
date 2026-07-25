@@ -75,10 +75,7 @@ public sealed class X25519Recipient : IRecipient, IParsable<X25519Recipient>
             ParseHelpers.DecodeRecipientKey(s, Hrp, KeySize, "X25519 public key")));
     }
 
-    /// <summary>
-    ///     Tries to parse a bech32-encoded recipient (<c>age1…</c>). Returns false
-    ///     instead of throwing when the input is null or malformed.
-    /// </summary>
+    /// <summary>Returns false instead of throwing when the input is null or malformed.</summary>
     public static bool TryParse([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out X25519Recipient result)
     {
         return ParseHelpers.TryParse(s, Parse, out result);

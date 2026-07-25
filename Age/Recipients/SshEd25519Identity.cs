@@ -34,23 +34,15 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
     {
         get
         {
-            // The public halves survive Dispose, so this could still return a
-            // correct recipient — but a disposed identity is unusable by contract
-            // (Unwrap throws), and per-type exceptions to that rule are the kind
-            // nobody remembers.
+            // A disposed identity is unusable by contract, even where the public half survives.
             ObjectDisposedException.ThrowIf(_disposed, this);
             return new SshEd25519Recipient(_sshWireBytes, _x25519PublicKey);
         }
     }
 
-    // See X25519Identity: explicit implementation because C# has no covariant returns
-    // for interface members.
     IRecipient IIdentityWithRecipient.Recipient => Recipient;
 
-    /// <summary>
-    ///     Attempts to unwrap the file key from an <c>ssh-ed25519</c> stanza. Returns
-    ///     null for stanzas of other types or addressed to a different SSH key (tag mismatch).
-    /// </summary>
+    /// <summary>Returns null for stanzas of another type, or wrapped for a different key.</summary>
     /// <exception cref="AgeFormatException">The stanza claims to be ssh-ed25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public byte[]? Unwrap(Stanza stanza)
@@ -63,12 +55,10 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
         if (stanza.Args.Count != 2)
             throw new AgeFormatException($"ssh-ed25519 stanza must have exactly 2 arguments, got {stanza.Args.Count}");
 
-        // Check tag matches
         var stanzaTag = stanza.Args[0];
         if (stanzaTag != _tag)
             return null;
 
-        // Decode ephemeral public key
         var ephPubBytes = ParseHelpers.DecodeArg(stanza.Args[1], KeySize, "ssh-ed25519 ephemeral key");
 
         if (stanza.Body.Length != WrappedKeySize)
@@ -78,21 +68,16 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
         var privateKey = new X25519PrivateKeyParameters(_x25519PrivateKey);
 
-        // rawSS = X25519.ScalarMult(_x25519PrivateKey, ephPub) — guarded against
-        // a low-order/identity ephemeral so a crafted stanza can't leak a raw
-        // BouncyCastle exception through Decrypt.
+        // Guarded against a low-order ephemeral, so a crafted stanza cannot leak a BC exception.
         var rawSS = CryptoHelper.X25519Agree(privateKey, ephPub);
 
-        // tweak = HKDF(ikm=[], salt=sshWireBytes, info=label, 32)
         var tweak = CryptoHelper.HkdfDerive([], _sshWireBytes, AgeProtocol.SshEd25519HkdfLabel, KeySize);
 
-        // tweakedSS = X25519.ScalarMult(tweak, rawSS)
         var tweakPrivate = new X25519PrivateKeyParameters(tweak);
         var rawSSPub = new X25519PublicKeyParameters(rawSS);
 
         var tweakedSS = CryptoHelper.X25519Agree(tweakPrivate, rawSSPub);
 
-        // wrapKey = HKDF(ikm=tweakedSS, salt=ephPub||convertedKey, info=label, 32)
         var salt = (byte[])[.. ephPubBytes, .. _x25519PublicKey];
         var wrapKey = CryptoHelper.HkdfDerive(tweakedSS, salt, AgeProtocol.SshEd25519HkdfLabel, KeySize);
 
@@ -132,20 +117,15 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
         if (privateKey is not Ed25519PrivateKeyParameters ed25519Private)
             throw new AgeFormatException("declared ssh-ed25519 but the key data is a different type");
 
-        // Convert Ed25519 private key seed → X25519 private key
         var x25519Private = Ed25519Converter.PrivateKeyToX25519(ed25519Private.GetEncoded());
 
-        // Derive X25519 public key from the X25519 private key
         var x25519PrivateParam = new X25519PrivateKeyParameters(x25519Private);
         var x25519Pub = x25519PrivateParam.GeneratePublicKey().GetEncoded();
 
         return new SshEd25519Identity(x25519Private, x25519Pub, publicWireBytes);
     }
 
-    /// <summary>
-    ///     Tries to parse an ssh-ed25519 private key from PEM text. Returns false
-    ///     instead of throwing when the input is null or malformed.
-    /// </summary>
+    /// <summary>Returns false instead of throwing when the input is null or malformed.</summary>
     public static bool TryParse([NotNullWhen(true)] string? pemText,
         [MaybeNullWhen(false)] out SshEd25519Identity result)
     {

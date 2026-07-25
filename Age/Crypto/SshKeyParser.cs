@@ -8,14 +8,8 @@ namespace AgeSharp.Crypto;
 
 internal static class SshKeyParser
 {
-    // age spec: SSH stanza tags use the first 4 bytes of SHA-256(publicKeyWireBytes)
     private const int FingerprintLength = 4;
 
-    /// <summary>
-    ///     Parses an SSH public key from an authorized_keys line.
-    ///     Returns (keyType, wireBytes, publicKeyParameter).
-    ///     wireBytes is the raw SSH wire format bytes (the base64-decoded middle section).
-    /// </summary>
     public static (string keyType, byte[] wireBytes, AsymmetricKeyParameter publicKey) ParsePublicKey(
         string authorizedKeysLine)
     {
@@ -36,11 +30,6 @@ internal static class SshKeyParser
         return (keyType, wireBytes, publicKey);
     }
 
-    /// <summary>
-    ///     Parses an SSH private key from PEM text.
-    ///     Returns (keyType, publicWireBytes, privateKeyParameter).
-    ///     Supports OpenSSH format (-----BEGIN OPENSSH PRIVATE KEY-----) and PKCS#8/PKCS#1.
-    /// </summary>
     public static (string keyType, byte[] publicWireBytes, AsymmetricKeyParameter privateKey) ParsePrivateKey(
         string pemText)
     {
@@ -48,18 +37,16 @@ internal static class SshKeyParser
 
         if (pemText.Contains("BEGIN OPENSSH PRIVATE KEY"))
         {
-            // OpenSSH format: extract the base64 blob and parse
             var pemReader = new PemReader(new StringReader(pemText));
             var pemObject = Guard("invalid PEM structure", pemReader.ReadPemObject)
                             ?? throw new AgeFormatException("failed to read PEM object");
 
-            // Also covers passphrase-protected keys, which BouncyCastle rejects
+            // Also covers passphrase-protected keys, which BouncyCastle rejects.
             privateKey = Guard("invalid OpenSSH private key",
                 () => OpenSshPrivateKeyUtilities.ParsePrivateKeyBlob(pemObject.Content));
         }
         else
         {
-            // PKCS#1 or PKCS#8 format
             var pemReader = new PemReader(new StringReader(pemText));
             var obj = Guard("invalid PEM structure", pemReader.ReadObject);
 
@@ -71,7 +58,6 @@ internal static class SshKeyParser
             };
         }
 
-        // Derive public key and encode to SSH wire format
         AsymmetricKeyParameter publicKey;
         string keyType;
         switch (privateKey)
@@ -92,19 +78,15 @@ internal static class SshKeyParser
         return (keyType, publicWireBytes, privateKey);
     }
 
-    /// <summary>
-    ///     Computes the SSH key fingerprint tag used in age stanzas.
-    ///     tag = base64_unpadded(SHA-256(wireBytes)[:4])
-    /// </summary>
+    // Four bytes of SHA-256 over the public key, identifying which SSH key a stanza is for.
+    // This is why ssh-* stanzas are linkable to a known recipient and native age ones are not.
     public static string ComputeTag(byte[] wireBytes)
     {
         var hash = SHA256.HashData(wireBytes);
         return Base64Unpadded.Encode(hash.AsSpan(0, FingerprintLength));
     }
 
-    // BouncyCastle and the BCL throw a zoo of exception types on malformed
-    // input (FormatException, IOException, PemException, Asn1 errors, ...);
-    // inside this parser they are all one thing: unparseable input.
+    // BouncyCastle and the BCL throw many exception types here; all mean unparseable input.
     private static T Guard<T>(string error, Func<T> parse)
     {
         try

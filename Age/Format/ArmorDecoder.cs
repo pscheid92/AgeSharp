@@ -2,20 +2,8 @@ using System.Buffers;
 
 namespace AgeSharp;
 
-/// <summary>
-///     Sans-I/O decoder for the ASCII armor format: it is fed whole lines and returns
-///     the bytes each one decodes to, enforcing the format's structure as it goes —
-///     the begin marker (after any blank lines), the 64-column body with canonical
-///     base64, the end marker, and the rule that nothing but whitespace may follow.
-/// </summary>
-/// <remarks>
-///     Holding the prologue here rather than reading it eagerly is what lets the
-///     dearmor path be genuinely asynchronous: no line is read until the caller reads,
-///     so nothing does blocking I/O on the caller's stream.
-/// </remarks>
 internal sealed class ArmorDecoder
 {
-    /// <summary>Upper bound on what one line can decode to, for sizing a caller's buffer.</summary>
     public const int MaxDecodedPerLine = ArmorFormat.BytesPerLine;
 
     private static readonly SearchValues<char> Base64Chars =
@@ -25,19 +13,11 @@ internal sealed class ArmorDecoder
 
     private State _state = State.BeforeMarker;
 
-    /// <summary>
-    ///     Feeds one complete line and writes what it decodes to into
-    ///     <paramref name="destination" /> (at most <see cref="MaxDecodedPerLine" /> bytes).
-    ///     Returns the number of bytes written; marker, blank, and trailing lines
-    ///     produce none.
-    /// </summary>
-    /// <exception cref="AgeFormatException">The line violates the armor format.</exception>
     public int ProcessLine(ReadOnlySpan<char> line, Span<byte> destination)
     {
         switch (_state)
         {
             case State.BeforeMarker:
-                // Leading blank lines are allowed before the marker.
                 if (line.Trim().Length == 0)
                     return 0;
 
@@ -64,27 +44,13 @@ internal sealed class ArmorDecoder
         }
     }
 
-    /// <summary>
-    ///     Places the decoder directly in the body, for a reader that has seeked past the
-    ///     begin marker rather than reading through it.
-    /// </summary>
-    /// <remarks>
-    ///     Lines skipped this way are never validated — the position was computed from
-    ///     the fixed armor geometry, so a file that violates it yields bytes that fail
-    ///     AEAD authentication rather than decoding to something plausible. Forward reads
-    ///     still validate every line they pass through.
-    /// </remarks>
+    // Lines skipped by seeking are never validated; a violating file fails authentication.
     public void ResumeInBody()
     {
         _state = State.Body;
         _sawFinalLine = false;
     }
 
-    /// <summary>
-    ///     Signals end of input. The armor must have been closed by an end marker;
-    ///     anything else means the data was truncated.
-    /// </summary>
-    /// <exception cref="AgeFormatException">The armor ended before its end marker.</exception>
     public void FinishAtEof()
     {
         switch (_state)
@@ -103,8 +69,6 @@ internal sealed class ArmorDecoder
         if (!Convert.TryFromBase64Chars(line, destination, out var bytesWritten))
             throw new AgeFormatException("invalid base64 in armor");
 
-        // Padding means the payload ran out on this line, whatever its width — so it
-        // is validated wherever it appears, not only on short lines.
         if (line.Contains('='))
             ValidateCanonicalPadding(line);
 
@@ -125,10 +89,8 @@ internal sealed class ArmorDecoder
         if (_sawFinalLine)
             throw new AgeFormatException("armor body continues after a line that ended it");
 
-        // Two things end the body, and the second is easy to miss: a line narrower
-        // than the column width, OR a full-width line carrying base64 padding. A
-        // final chunk of 46 or 47 bytes encodes to exactly 64 characters *with*
-        // padding, so width alone does not prove a line is not the last.
+        // A 46- or 47-byte final chunk encodes to a full 64 characters *with* padding, so width
+// alone does not prove a line is not the last.
         if (line.Length < ArmorFormat.ColumnsPerLine || line[^1] == '=')
             _sawFinalLine = true;
 
@@ -171,8 +133,6 @@ internal sealed class ArmorDecoder
             >= '0' and <= '9' => c - '0' + 52,
             '+' => 62,
             '/' => 63,
-            // Unreachable: ValidateBodyLine has already rejected anything outside the
-            // base64 alphabet. Present only to make the switch exhaustive.
             _ => throw new AgeFormatException($"invalid base64 character: '{c}'")
         };
     }

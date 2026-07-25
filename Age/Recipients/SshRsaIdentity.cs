@@ -33,24 +33,16 @@ public sealed class SshRsaIdentity : IIdentityWithRecipient, IDisposable
     {
         get
         {
-            // Dispose wipes nothing here (see Dispose), so this could still return a
-            // correct recipient — but a disposed identity is unusable by contract
-            // (Unwrap throws), and per-type exceptions to that rule are the kind
-            // nobody remembers.
+            // A disposed identity is unusable by contract, even where the public half survives.
             ObjectDisposedException.ThrowIf(_disposed, this);
             return new SshRsaRecipient(new RsaKeyParameters(false, _privateKey.Modulus, _privateKey.PublicExponent),
                 _sshWireBytes);
         }
     }
 
-    // See X25519Identity: explicit implementation because C# has no covariant returns
-    // for interface members.
     IRecipient IIdentityWithRecipient.Recipient => Recipient;
 
-    /// <summary>
-    ///     Attempts to unwrap the file key from an <c>ssh-rsa</c> stanza. Returns null
-    ///     for stanzas of other types or addressed to a different SSH key (tag mismatch).
-    /// </summary>
+    /// <summary>Returns null for stanzas of another type, or wrapped for a different key.</summary>
     /// <exception cref="AgeFormatException">The stanza claims to be ssh-rsa but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public byte[]? Unwrap(Stanza stanza)
@@ -63,7 +55,6 @@ public sealed class SshRsaIdentity : IIdentityWithRecipient, IDisposable
         if (stanza.Args.Count != 1)
             throw new AgeFormatException($"ssh-rsa stanza must have exactly 1 argument, got {stanza.Args.Count}");
 
-        // Check tag matches
         if (stanza.Args[0] != _tag)
             return null;
 
@@ -110,10 +101,7 @@ public sealed class SshRsaIdentity : IIdentityWithRecipient, IDisposable
         return new SshRsaIdentity(rsaPrivate, publicWireBytes);
     }
 
-    /// <summary>
-    ///     Tries to parse an ssh-rsa private key from PEM text. Returns false
-    ///     instead of throwing when the input is null or malformed.
-    /// </summary>
+    /// <summary>Returns false instead of throwing when the input is null or malformed.</summary>
     public static bool TryParse([NotNullWhen(true)] string? pemText, [MaybeNullWhen(false)] out SshRsaIdentity result)
     {
         return ParseHelpers.TryParse(pemText, Parse, out result);

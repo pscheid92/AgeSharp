@@ -12,22 +12,8 @@ internal static class CryptoHelper
     private const int ChaChaTagSize = 16;
     private const int Sha256Size = 32;
 
-    /// <summary>
-    ///     Computes an X25519 shared secret — the single agreement path, used by every
-    ///     caller so the all-zero rule is stated once. A low-order or identity public
-    ///     point yields an all-zero shared secret, which the age spec says the
-    ///     implementation MUST reject.
-    /// </summary>
-    /// <remarks>
-    ///     BouncyCastle rejects that case itself by throwing
-    ///     <see cref="InvalidOperationException" />, normalized here into an
-    ///     <see cref="AgeFormatException" /> so a crafted stanza can't leak a raw BCL
-    ///     exception through decryption. The explicit all-zero check that follows is
-    ///     belt-and-suspenders: the spec's requirement is on us, not on the backend, and
-    ///     this way it does not silently lapse if a future BouncyCastle — or a different
-    ///     backend — returns the zero secret instead of throwing. The caller owns the
-    ///     returned secret and must zero it after use.
-    /// </remarks>
+    // The single X25519 agreement path: the spec's "MUST reject an all-zero shared secret"
+// is enforced here once. The caller owns the returned secret and must zero it.
     public static byte[] X25519Agree(X25519PrivateKeyParameters privateKey, X25519PublicKeyParameters publicKey)
     {
         var agreement = new X25519Agreement();
@@ -51,12 +37,7 @@ internal static class CryptoHelper
 
     public static byte[] HkdfDerive(ReadOnlySpan<byte> ikm, ReadOnlySpan<byte> salt, string info, int length)
     {
-        // Delegated to BouncyCastle's HkdfBytesGenerator for RFC 5869
-        // correctness across all platforms. .NET's HKDF.DeriveKey uses OpenSSL
-        // on Linux, which rejects empty IKM — but the age spec uses empty
-        // IKM for the SSH-Ed25519 tweak derivation. BouncyCastle handles
-        // this uniformly. HKDF is called once per session, not per chunk,
-        // so the ToArray() allocations here are not a hot path.
+        // .NET's HKDF rejects empty IKM on Linux (OpenSSL), which the ssh-ed25519 derivation needs.
         var hkdf = new HkdfBytesGenerator(new Sha256Digest());
         hkdf.Init(new HkdfParameters(ikm.ToArray(), salt.ToArray(), Encoding.ASCII.GetBytes(info)));
         var result = new byte[length];

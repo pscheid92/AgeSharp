@@ -1,9 +1,5 @@
 namespace AgeSharp.Crypto;
 
-/// <summary>
-///     Selects a ChaCha20-Poly1305 implementation. Internal: the backend is chosen automatically
-///     per platform; there is no public configuration surface.
-/// </summary>
 internal enum AeadBackend
 {
     /// <summary>

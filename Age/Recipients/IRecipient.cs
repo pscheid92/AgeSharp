@@ -10,7 +10,6 @@ public interface IRecipient
     /// <summary>
     ///     Wraps the file key into a stanza. Called once per encryption.
     /// </summary>
-    /// <param name="fileKey">The 16-byte symmetric file key that protects the payload.</param>
     /// <returns>
     ///     A <see cref="Stanza" /> whose <c>Type</c> identifies the recipient kind
     ///     (e.g. "X25519", "scrypt", a custom type) and whose <c>Args</c> and

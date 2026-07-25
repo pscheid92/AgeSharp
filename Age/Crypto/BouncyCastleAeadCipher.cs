@@ -6,18 +6,7 @@ using BcChaCha20Poly1305 = Org.BouncyCastle.Crypto.Modes.ChaCha20Poly1305;
 
 namespace AgeSharp.Crypto;
 
-/// <summary>
-///     <see cref="IAeadCipher" /> backed by BouncyCastle's managed ChaCha20-Poly1305. Works on
-///     every platform including browser/WebAssembly, at the cost of ~2x lower throughput and a
-///     small per-call allocation versus the native cipher. Selected automatically when the
-///     platform cipher is unavailable, or explicitly via <see cref="AeadBackend.Portable" />.
-/// </summary>
-/// <remarks>
-///     BouncyCastle's <see cref="KeyParameter" /> holds an internal copy of the key that has no
-///     public zeroing path, so — unlike the native cipher — the key material lingers until GC.
-///     This is inherent to BouncyCastle (see the same limitation noted for RSA in
-///     <c>SshRsaIdentity</c>) and only applies to the opt-in portable backend.
-/// </remarks>
+// Fallback for runtimes without a platform ChaCha20-Poly1305 (browser/WASM).
 internal sealed class BouncyCastleAeadCipher : IAeadCipher
 {
     private const int TagSize = 16;

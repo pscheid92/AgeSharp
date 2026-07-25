@@ -5,10 +5,8 @@ namespace AgeSharp.Crypto;
 
 internal static class Ed25519Converter
 {
-    /// <summary>
-    ///     Converts an Ed25519 public key (32 bytes, Edwards y-coordinate) to an X25519 public key
-    ///     (32 bytes, Montgomery u-coordinate) using the birational map: u = (1 + y) / (1 - y) mod p.
-    /// </summary>
+    // Ed25519 and X25519 use the same curve in different coordinates; age reuses an SSH key by
+    // converting it rather than requiring a separate one.
     public static byte[] PublicKeyToX25519(byte[] ed25519PublicKey)
     {
         if (ed25519PublicKey.Length != 32)
@@ -46,10 +44,6 @@ internal static class Ed25519Converter
         return result;
     }
 
-    /// <summary>
-    ///     Converts an Ed25519 private key seed (32 bytes) to an X25519 private key (32 bytes).
-    ///     This is SHA-512(seed)[0..32]; X25519 functions apply clamping automatically.
-    /// </summary>
     public static byte[] PrivateKeyToX25519(byte[] ed25519Seed)
     {
         if (ed25519Seed.Length != 32)

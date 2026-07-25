@@ -82,10 +82,7 @@ public sealed class SshEd25519Recipient : IRecipient
         return new SshEd25519Recipient(wireBytes, x25519Pub);
     }
 
-    /// <summary>
-    ///     Tries to parse an <c>ssh-ed25519 AAAA…</c> public key line. Returns false
-    ///     instead of throwing when the input is null or malformed.
-    /// </summary>
+    /// <summary>Returns false instead of throwing when the input is null or malformed.</summary>
     public static bool TryParse([NotNullWhen(true)] string? authorizedKeysLine,
         [MaybeNullWhen(false)] out SshEd25519Recipient result)
     {

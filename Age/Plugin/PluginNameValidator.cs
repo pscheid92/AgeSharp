@@ -1,12 +1,7 @@
 namespace AgeSharp;
 
-/// <summary>
-///     Validation for age plugin names. A plugin name becomes part of the
-///     <c>age-plugin-&lt;name&gt;</c> executable that is launched via <c>Process.Start</c>,
-///     so it must never contain a path separator (or any other character that could turn
-///     that filename into a relative or absolute path). The allowed set mirrors the
-///     reference implementation's <c>validPluginName</c>.
-/// </summary>
+// A plugin name becomes an executable name (age-plugin-<name>), so it is validated before
+// it can reach a process start.
 internal static class PluginNameValidator
 {
     private static bool IsAllowed(char c)
@@ -26,7 +21,6 @@ internal static class PluginNameValidator
         return true;
     }
 
-    /// <summary>Returns <paramref name="name" /> if valid, otherwise throws <see cref="AgeFormatException" />.</summary>
     public static string Validate(string name)
     {
         return IsValid(name)

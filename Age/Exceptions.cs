@@ -1,39 +1,35 @@
 namespace AgeSharp;
 
 /// <summary>
-///     Base class for all errors thrown by this library. The hierarchy follows one
-///     rule: if the input's <em>structure</em> can't be parsed, it is an
-///     <see cref="AgeFormatException" />; if the structure parsed but a
-///     <em>cryptographic check</em> failed, it is an
-///     <see cref="AgeAuthenticationException" />.
+///     Base class for every error this library throws. One rule splits the hierarchy: an
+///     unparseable <em>structure</em> is an <see cref="AgeFormatException" />, a failed
+///     <em>cryptographic check</em> is an <see cref="AgeAuthenticationException" />.
 /// </summary>
 public class AgeException : Exception
 {
-    /// <summary>Creates the exception with a message.</summary>
+    /// <inheritdoc />
     public AgeException(string message) : base(message)
     {
     }
 
-    /// <summary>Creates the exception with a message and the underlying cause.</summary>
+    /// <inheritdoc />
     public AgeException(string message, Exception inner) : base(message, inner)
     {
     }
 }
 
 /// <summary>
-///     The input's structure could not be parsed: a malformed header, stanza, or
-///     ASCII armor; a parsing limit exceeded; a missing payload nonce; or an
-///     invalid key, recipient, or identity string. Thrown by <c>Parse</c> methods
-///     and while reading a file's header.
+///     The input's structure could not be parsed: malformed header, stanza, or armor; a
+///     parsing limit exceeded; or an invalid key, recipient, or identity string.
 /// </summary>
 public class AgeFormatException : AgeException
 {
-    /// <summary>Creates the exception with a message.</summary>
+    /// <inheritdoc />
     public AgeFormatException(string message) : base(message)
     {
     }
 
-    /// <summary>Creates the exception with a message and the underlying cause.</summary>
+    /// <inheritdoc />
     public AgeFormatException(string message, Exception inner) : base(message, inner)
     {
     }
@@ -48,12 +44,12 @@ public class AgeFormatException : AgeException
 /// </summary>
 public class AgeAuthenticationException : AgeException
 {
-    /// <summary>Creates the exception with a message.</summary>
+    /// <inheritdoc />
     public AgeAuthenticationException(string message) : base(message)
     {
     }
 
-    /// <summary>Creates the exception with a message and the underlying cause.</summary>
+    /// <inheritdoc />
     public AgeAuthenticationException(string message, Exception inner) : base(message, inner)
     {
     }
@@ -71,12 +67,12 @@ public class NoIdentityMatchException : AgeException
 /// <summary>An age plugin failed to start, misbehaved, or reported an internal error.</summary>
 public class AgePluginException : AgeException
 {
-    /// <summary>Creates the exception with a message.</summary>
+    /// <inheritdoc />
     public AgePluginException(string message) : base(message)
     {
     }
 
-    /// <summary>Creates the exception with a message and the underlying cause.</summary>
+    /// <inheritdoc />
     public AgePluginException(string message, Exception inner) : base(message, inner)
     {
     }

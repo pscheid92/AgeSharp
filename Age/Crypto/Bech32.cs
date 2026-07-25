@@ -4,15 +4,11 @@ namespace AgeSharp.Crypto;
 // Reference: https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
 internal static class Bech32
 {
-    // BIP-173: "We use the same character set as in base32 [RFC 4648], but in a different order."
     private const string Charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 
-    // BIP-173: Generator polynomial coefficients for the BCH code used in the checksum.
-    private static readonly int[] Generator =
+    private static readonly int[] BchGeneratorPolynomial =
         [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
 
-    // BIP-173: "The values [...] are fed into a feedback mechanism [...] xored into a checksum."
-    // Computes the BCH checksum over the expanded HRP + data. Valid data produces polymod == 1.
     private static int Polymod(ReadOnlySpan<byte> values)
     {
         var chk = 1;
@@ -23,14 +19,12 @@ internal static class Bech32
             chk = ((chk & 0x1ffffff) << 5) ^ v;
             for (var i = 0; i < 5; i++)
                 if (((b >> i) & 1) != 0)
-                    chk ^= Generator[i];
+                    chk ^= BchGeneratorPolynomial[i];
         }
 
         return chk;
     }
 
-    // BIP-173: Expand the HRP into two halves — high bits (>> 5) and low bits (& 31) —
-    // separated by a zero byte. This is fed into Polymod to bind the checksum to the HRP.
     private static byte[] HrpExpand(string hrp)
     {
         var ret = new byte[hrp.Length * 2 + 1];
@@ -45,7 +39,7 @@ internal static class Bech32
         return ret;
     }
 
-    // BIP-173: "A valid Bech32 string [...] MUST pass this check: polymod(hrpExpand(hrp) || data) == 1"
+    // BIP-173: valid iff polymod(hrpExpand(hrp) || data) == 1.
     private static bool VerifyChecksum(string hrp, ReadOnlySpan<byte> data)
     {
         var hrpExp = HrpExpand(hrp);
@@ -57,8 +51,7 @@ internal static class Bech32
         return Polymod(combined) == 1;
     }
 
-    // BIP-173: Compute 6-byte checksum such that polymod(hrpExpand(hrp) || data || checksum) == 1.
-    // The XOR with 1 ensures the all-zero checksum is not valid.
+    // The XOR with 1 is what makes an all-zero checksum invalid.
     private static byte[] CreateChecksum(string hrp, ReadOnlySpan<byte> data)
     {
         var hrpExp = HrpExpand(hrp);
@@ -76,8 +69,6 @@ internal static class Bech32
         return ret;
     }
 
-    // BIP-173: Encode as HRP + "1" + base32(data) + checksum.
-    // The separator "1" is the last occurrence of "1" in the string.
     public static string Encode(string hrp, ReadOnlySpan<byte> data)
     {
         var lowerHrp = hrp.ToLowerInvariant();
@@ -98,11 +89,8 @@ internal static class Bech32
         return new string(result);
     }
 
-    // BIP-173: Decode by finding the last "1" separator, validating the checksum,
-    // and converting the 5-bit data back to 8-bit bytes.
     public static (string Hrp, byte[] Data) Decode(string bech)
     {
-        // BIP-173: "The last '1' in the string is the separator."
         var sepPos = bech.LastIndexOf('1');
         if (sepPos < 1 || sepPos + 7 > bech.Length)
             throw new AgeFormatException("invalid bech32 string: separator not found or invalid position");
@@ -140,15 +128,12 @@ internal static class Bech32
         if (!VerifyChecksum(hrp, data5))
             throw new AgeFormatException("invalid bech32 checksum");
 
-        // Strip checksum
         var data5NoCheck = data5[..^6];
         var data8 = ConvertBits(data5NoCheck, 5, 8, false);
 
         return (hrp, data8);
     }
 
-    // BIP-173: General power-of-2 base conversion. Regroups bits from fromBits-sized groups
-    // to toBits-sized groups. Used for 8-bit <-> 5-bit conversion.
     private static byte[] ConvertBits(ReadOnlySpan<byte> data, int fromBits, int toBits, bool pad)
     {
         var acc = 0;

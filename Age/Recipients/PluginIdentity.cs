@@ -8,11 +8,6 @@ namespace AgeSharp;
 ///     spawns the plugin named in the identity's HRP (e.g. <c>AGE-PLUGIN-YUBIKEY-1…</c>
 ///     runs <c>age-plugin-yubikey</c>) and drives the identity-v1 protocol.
 /// </summary>
-/// <param name="identity">The plugin identity string (<c>AGE-PLUGIN-&lt;NAME&gt;-1…</c>).</param>
-/// <param name="callbacks">
-///     Optional UI callbacks for interactive plugins (PIN prompts, touch
-///     confirmation); when null, interactive requests are answered with failure.
-/// </param>
 public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks = null) : IIdentity
 {
     internal string PluginName { get; } =
@@ -92,7 +87,6 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
         if (args.Length > 0 && args[0] == "internal")
             throw new AgePluginException($"plugin internal error: {Encoding.UTF8.GetString(body)}");
 
-        // Identity errors mean this identity doesn't match — return null
         conn.WriteStanza("ok", [], []);
     }
 
@@ -106,8 +100,6 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
     {
         switch (type)
         {
-            // Per the age-plugin spec, interactive requests are answered with
-            // fail when the client has no UI to present them
             case "msg" or "request-secret" or "request-public" or "confirm" when callbacks is null:
                 conn.WriteStanza("fail", [], []);
                 break;
@@ -117,7 +109,6 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
                 conn.WriteStanza("ok", [], []);
                 break;
 
-            // request-secret masks the input; request-public does not. Same flow otherwise.
             case "request-secret":
             case "request-public":
                 var value = callbacks!.RequestValue(Encoding.UTF8.GetString(body), type == "request-secret");
@@ -157,17 +148,13 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
 
     internal static string ExtractPluginName(string identity)
     {
-        // Bech32-decode to get HRP. For "AGE-PLUGIN-YUBIKEY-1...", HRP = "age-plugin-yubikey-", name = HRP[11..^1] = "yubikey"
         var (hrp, _) = Bech32.Decode(identity);
 
-        // A plugin identity HRP is "age-plugin-<name>-"; require both affixes (with room
-        // between them) so the hrp[11..^1] slice can't run out of range on a malformed value.
         var name = hrp.StartsWith("age-plugin-") && hrp.EndsWith("-") && hrp.Length > 11
             ? hrp[11..^1]
             : throw new AgeFormatException($"invalid plugin identity HRP: {hrp}");
 
-        // The name becomes the age-plugin-<name> executable path, so reject anything
-        // outside the allowed set (notably path separators) before it reaches Process.Start.
+        // The name reaches Process.Start as age-plugin-<name>.
         return PluginNameValidator.Validate(name);
     }
 
@@ -181,11 +168,7 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
         return identity;
     }
 
-    /// <summary>
-    ///     Returns a redacted representation naming only the plugin, so accidental
-    ///     logging cannot leak the identity string. Use <see cref="ToSecretString" />
-    ///     to export it.
-    /// </summary>
+    /// <summary>Redacted: shows only the public half, so logging cannot leak the secret. Never throws.</summary>
     public override string ToString()
     {
         return $"PluginIdentity({PluginName})";

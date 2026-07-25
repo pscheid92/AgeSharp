@@ -11,9 +11,6 @@ internal sealed class Header
     public List<Stanza> Stanzas { get; } = new();
     public byte[] Mac { get; private set; } = [];
 
-    /// <summary>
-    ///     Raw header bytes through "--- " (inclusive, before MAC value) for MAC computation.
-    /// </summary>
     private byte[] HeaderBytesForMac { get; set; } = [];
 
     public static Header Parse(HeaderReader reader)
@@ -25,7 +22,6 @@ internal sealed class Header
         if (versionLine != VersionLine)
             throw new AgeFormatException($"unsupported version: {versionLine}");
 
-        // Read stanzas until we hit the MAC line
         while (true)
         {
             var line = reader.ReadLine() ?? throw new AgeFormatException("unexpected end of header");
@@ -70,8 +66,8 @@ internal sealed class Header
         if (header.Mac.Length != 32)
             throw new AgeFormatException($"MAC must be 32 bytes, got {header.Mac.Length}");
 
-        // The Go reference computes MAC over everything through "---" (no trailing space).
-        // The raw bytes include "--- <mac_b64>\n", so strip the suffix.
+        // The MAC covers everything through "---", no trailing space; the raw bytes include the
+// "--- <mac>\n" line, so strip that suffix.
         var allRaw = reader.RawBytes;
         var macSuffix = Encoding.ASCII.GetBytes(" " + macB64 + "\n");
         header.HeaderBytesForMac = allRaw[..^macSuffix.Length].ToArray();
@@ -86,10 +82,8 @@ internal sealed class Header
 
     public static byte[] ComputeMac(ReadOnlySpan<byte> fileKey, ReadOnlySpan<byte> headerBytes)
     {
-        // HKDF-SHA-256(ikm=fileKey, salt="", info="header") → hmac_key (32 bytes)
         var hmacKeyBytes = CryptoHelper.HkdfDerive(fileKey, ReadOnlySpan<byte>.Empty, "header", 32);
 
-        // HMAC-SHA-256(key=hmac_key, message=headerBytes)
         return CryptoHelper.HmacSha256(hmacKeyBytes, headerBytes);
     }
 
@@ -108,7 +102,6 @@ internal sealed class Header
         writer.Write("---");
         writer.Flush();
 
-        // Compute MAC over everything written so far (through "---", no trailing space)
         var headerBytesForMac = headerStream.ToArray();
         var mac = ComputeMac(fileKey, headerBytesForMac);
 
@@ -117,7 +110,6 @@ internal sealed class Header
         writer.Write('\n');
         writer.Flush();
 
-        // Write to actual output
         headerStream.Position = 0;
         headerStream.CopyTo(stream);
     }

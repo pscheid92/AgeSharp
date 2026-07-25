@@ -3,18 +3,6 @@ using System.Text;
 
 namespace AgeSharp;
 
-/// <summary>
-///     Push-side counterpart to <see cref="ArmorStream" />: a write-only stream that
-///     ASCII-armors the bytes written to it and forwards the armored text to an
-///     underlying destination. The begin marker is emitted lazily on the first write,
-///     each 48-byte block becomes a 64-column base64 line, and the end marker is
-///     written on <see cref="Dispose(bool)" />. The destination is never disposed.
-/// </summary>
-/// <remarks>
-///     Output is byte-identical to the pull-side <see cref="ArmorStream" /> (and to the
-///     reference implementation): every base64 line — full or the final short one — is
-///     followed by a newline, and the footer needs no leading newline of its own.
-/// </remarks>
 internal sealed class ArmorWriterStream(Stream destination) : Stream
 {
     private const int CharsPerLine = 64;

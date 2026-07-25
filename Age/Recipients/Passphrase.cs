@@ -12,11 +12,9 @@ namespace AgeSharp;
 ///     only recipient of a file (enforced on both encrypt and decrypt).
 /// </summary>
 /// <remarks>
-///     The passphrase is held as a UTF-8 byte copy that <see cref="Dispose" /> zeroes,
-///     matching how every other secret-holding type in the library behaves. Prefer the
-///     <see cref="Passphrase(ReadOnlySpan{char})" /> overload for long-lived
-///     instances: a <see cref="string" /> argument cannot be zeroed by this class or by
-///     anyone else, so it stays in memory until the GC happens to reuse the pages.
+///     Prefer the <see cref="Passphrase(ReadOnlySpan{char})" /> overload for long-lived
+///     instances: a <see cref="string" /> cannot be zeroed by anyone, so it lingers until
+///     the GC reuses the pages. The UTF-8 copy held here is zeroed by <see cref="Dispose" />.
 /// </remarks>
 public sealed class Passphrase : IRecipient, IIdentity
 {
@@ -29,16 +27,11 @@ public sealed class Passphrase : IRecipient, IIdentity
     private const int NonceSize = 12;
     private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
 
-    // UTF-8 rather than the original string, so it can actually be zeroed.
     private readonly byte[] _passphrase;
     private readonly int _workFactor;
     private bool _disposed;
 
-    /// <summary>
-    ///     Creates a passphrase from a <see cref="string" />. Convenient, but .NET cannot
-    ///     zero a string — see the <see cref="Passphrase" /> remarks.
-    /// </summary>
-    /// <param name="passphrase">The passphrase; used as UTF-8 bytes.</param>
+    /// <summary>Convenient, but .NET cannot zero a string — see the type's remarks.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="passphrase" /> is null.</exception>
     public Passphrase(string passphrase)
         : this(Utf8Of(passphrase), DefaultWorkFactor)
@@ -46,38 +39,26 @@ public sealed class Passphrase : IRecipient, IIdentity
     }
 
     /// <inheritdoc cref="Passphrase(string)" />
-    /// <param name="passphrase">The passphrase; used as UTF-8 bytes.</param>
-    /// <param name="workFactor">
-    ///     The scrypt cost as log2(N), 1–20 (18 when not given, matching the age CLI).
-    ///     Decryption refuses stanzas whose work factor exceeds 20.
-    /// </param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="workFactor" /> is outside 1–20.</exception>
     public Passphrase(string passphrase, int workFactor)
         : this(Utf8Of(passphrase), workFactor)
     {
     }
 
-    /// <summary>
-    ///     Creates a passphrase from characters the caller can zero afterwards — the
-    ///     overload to prefer when the instance is long-lived.
-    /// </summary>
-    /// <param name="passphrase">The passphrase; copied as UTF-8 bytes.</param>
+    /// <summary>Takes characters the caller can zero afterwards; prefer this when long-lived.</summary>
     public Passphrase(ReadOnlySpan<char> passphrase)
         : this(Utf8Of(passphrase), DefaultWorkFactor)
     {
     }
 
     /// <inheritdoc cref="Passphrase(ReadOnlySpan{char})" />
-    /// <param name="passphrase">The passphrase; copied as UTF-8 bytes.</param>
-    /// <param name="workFactor">The scrypt cost as log2(N), 1–20.</param>
     public Passphrase(ReadOnlySpan<char> passphrase, int workFactor)
         : this(Utf8Of(passphrase), workFactor)
     {
     }
 
-    // Validate eagerly so an out-of-range work factor fails at construction
-    // rather than overflowing `1 << workFactor` or producing a stanza this
-    // library (which caps decryption at MaxWorkFactor) could never read back.
+    // Eager so a bad factor cannot overflow `1 << workFactor` or write a stanza this library
+// could never read back.
     private Passphrase(byte[] utf8, int workFactor)
     {
         try
@@ -86,8 +67,7 @@ public sealed class Passphrase : IRecipient, IIdentity
         }
         catch
         {
-            // The UTF-8 copy already exists by the time the work factor is checked,
-            // so a rejected one must not leave the passphrase sitting in memory.
+            // The copy already exists by the time the factor is checked.
             CryptographicOperations.ZeroMemory(utf8);
             throw;
         }
@@ -109,10 +89,7 @@ public sealed class Passphrase : IRecipient, IIdentity
         CryptographicOperations.ZeroMemory(_passphrase);
     }
 
-    /// <summary>
-    ///     Attempts to unwrap the file key from an scrypt stanza. Returns null for
-    ///     stanzas of other types or when the passphrase is wrong.
-    /// </summary>
+    /// <summary>Returns null for stanzas of another type, or wrapped for a different key.</summary>
     /// <exception cref="AgeFormatException">
     ///     The stanza claims to be scrypt but is malformed, or its work factor exceeds the
     ///     maximum.
@@ -146,7 +123,6 @@ public sealed class Passphrase : IRecipient, IIdentity
         var fileKey = CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span);
         CryptographicOperations.ZeroMemory(wrapKey);
 
-        // AEAD auth failure → wrong passphrase, return null to signal no match
         return fileKey;
     }
 
@@ -196,7 +172,7 @@ public sealed class Passphrase : IRecipient, IIdentity
         if (string.IsNullOrEmpty(s))
             return false;
 
-        // ABNF: %x31-39 *DIGIT — first char is 1-9, rest are 0-9
+        // ABNF: %x31-39 *DIGIT
         if (s[0] < '1' || s[0] > '9')
             return false;
 
@@ -209,7 +185,6 @@ public sealed class Passphrase : IRecipient, IIdentity
 
     private static byte[] DeriveWrapKey(byte[] passphrase, byte[] salt, int workFactor)
     {
-        // scrypt salt = "age-encryption.org/v1/scrypt" || decoded_salt (44 bytes total)
         var labelBytes = Encoding.ASCII.GetBytes(ScryptSaltLabel);
         var scryptSalt = (byte[])[.. labelBytes, .. salt];
 

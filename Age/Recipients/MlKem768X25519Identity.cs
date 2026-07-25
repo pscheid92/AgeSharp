@@ -32,21 +32,13 @@ public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
 
-            // Costlier than the X25519 case this mirrors: GeneratePublicKey runs a
-            // full ML-KEM-768 key generation alongside the X25519 scalar
-            // multiplication. See X25519Identity for why this needs no lock.
             return _recipient ??= new MlKem768X25519Recipient(XWing.GeneratePublicKey(_seed));
         }
     }
 
-    // See X25519Identity: explicit implementation because C# has no covariant returns
-    // for interface members.
     IRecipient IIdentityWithRecipient.Recipient => Recipient;
 
-    /// <summary>
-    ///     Attempts to unwrap the file key from an <c>mlkem768x25519</c> stanza.
-    ///     Returns null for stanzas of other types or wrapped for a different recipient.
-    /// </summary>
+    /// <summary>Returns null for stanzas of another type, or wrapped for a different key.</summary>
     /// <exception cref="AgeFormatException">The stanza claims to be mlkem768x25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public byte[]? Unwrap(Stanza stanza)
@@ -104,19 +96,13 @@ public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable
         return new MlKem768X25519Identity(ParseHelpers.DecodeSecretKey(s, Hrp, SeedSize, "ML-KEM-768-X25519 seed"));
     }
 
-    /// <summary>
-    ///     Tries to parse a bech32-encoded secret seed (<c>AGE-SECRET-KEY-PQ-1…</c>).
-    ///     Returns false instead of throwing when the input is null or malformed.
-    /// </summary>
+    /// <summary>Returns false instead of throwing when the input is null or malformed.</summary>
     public static bool TryParse([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out MlKem768X25519Identity result)
     {
         return ParseHelpers.TryParse(s, Parse, out result);
     }
 
-    /// <summary>
-    ///     Returns the bech32-encoded secret seed (<c>AGE-SECRET-KEY-PQ-1…</c>), e.g. for
-    ///     writing to an identity file. Handle the result as a secret.
-    /// </summary>
+    /// <summary>Exports the secret key. Handle the result as a secret.</summary>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public string ToSecretString()
     {
@@ -130,15 +116,7 @@ public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable
         return result;
     }
 
-    /// <summary>
-    ///     Returns a redacted representation containing only a prefix of the public
-    ///     recipient (the full recipient is ~2000 characters), so accidental logging
-    ///     or string interpolation cannot leak the secret seed. Use
-    ///     <see cref="ToSecretString" /> to export the secret. Once disposed, returns
-    ///     <c>MlKem768X25519Identity(disposed)</c> — unlike the other members this
-    ///     never throws, because debuggers, loggers, and exception-message formatting
-    ///     all call <c>ToString</c> and must not fail on a disposed instance.
-    /// </summary>
+    /// <summary>Redacted: shows only the public half, so logging cannot leak the secret. Never throws.</summary>
     public override string ToString()
     {
         return _disposed
