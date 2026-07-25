@@ -32,7 +32,7 @@ and targets .NET 10.
   return a readable or writable `Stream`, so either side can drive the transfer
 - Detached header APIs (`EncryptDetached` / `DecryptDetached`)
 - Seekable decryption — `Age.DecryptReader` over a seekable source seeks into
-  encrypted files without reading the whole file
+  encrypted files without reading the whole file, including ASCII-armored ones
 - Header inspection without decryption (`Age.ReadHeader`)
 - Encrypted identity files (passphrase-protected)
 - Recipients file parsing (`-R` style files with comments)
@@ -205,6 +205,7 @@ finalizes the transfer, and is not optional in either direction.
 using (var stream = Age.EncryptWriter(destination, recipient))
     inputStream.CopyTo(stream);   // Dispose finalizes (empty input → valid empty file)
 
+
 // Decrypt: write age ciphertext in, plaintext lands in destination
 using (var stream = Age.DecryptWriter(destination, identity))
     networkStream.CopyTo(stream); // Dispose authenticates the final chunk
@@ -219,6 +220,12 @@ using (var stream = Age.DecryptWriter(destination, identity))
 > is only recognisable as final when the input ends, so a `DecryptWriter` that is
 > never disposed has neither authenticated that chunk nor noticed a truncated file.
 
+> **`Flush` does not flush a partial chunk.** On the `*Writer` pair it flushes the
+> underlying stream, but age STREAM chunks are fixed size and a short one marks the
+> end of the file — so anything written since the last 64 KiB boundary stays buffered
+> until dispose, however often you flush. Don't build a framed or interactive
+> protocol on the assumption that `Flush` makes bytes readable downstream.
+>
 > **Stream ownership.** The streaming APIs never dispose the streams you pass in —
 > you own the destination/source and dispose it yourself. Disposing the returned
 > stream releases only that wrapper (and, for the `*Writer` pair, finalizes the
@@ -249,7 +256,7 @@ differ in shape, though no longer in capability:
 
 | | sync | async |
 | --- | --- | --- |
-| Recipients / identities | `params ReadOnlySpan<>` | `IReadOnlyList<>` (spans can't cross an `await`) |
+| Recipients / identities | `first, params ReadOnlySpan<>` or `IReadOnlyList<>` | `IReadOnlyList<>` only (a span can't cross an `await`) |
 | Options | `AgeEncryptOptions` / `AgeDecryptOptions`, positional before the params span | same types, optional after the collection — so a `CancellationToken` needs a named argument |
 | Seekability | `CanSeek` mirrors the source | same |
 | `byte[]` overloads | yes | no equivalent |
@@ -310,6 +317,11 @@ stream.ReadExactly(buf);
 
 Parse the header of an encrypted file without decrypting it.
 
+> **The result is unverified.** `Age.ReadHeader` does not check the header MAC —
+> that needs an identity. Stanza types, argument counts, and argument contents are
+> all attacker-controlled, so treat them as untrusted input: don't index `Args`
+> blindly, and don't interpolate the values anywhere that would give them meaning.
+
 ```csharp
 var header = Age.ReadHeader(stream);
 
@@ -318,7 +330,7 @@ Console.WriteLine($"Armored: {header.IsArmored}");
 Console.WriteLine($"Payload offset: {header.PayloadOffset}");
 
 foreach (var stanza in header.Stanzas)
-    Console.WriteLine($"  {stanza.Type}: {stanza.Args[0]}");
+    Console.WriteLine($"  {stanza.Type}: {string.Join(' ', stanza.Args)}");   // Args may be empty
 ```
 
 ### Parse existing keys
@@ -333,6 +345,11 @@ IIdentity identity = Age.ParseIdentity("AGE-SECRET-KEY-1...");
 // Non-throwing variants:
 if (Age.TryParseRecipient(userInput, out var r)) { /* ... */ }
 ```
+
+These dispatch over a **fixed** set — the built-in types and the plugin format.
+A custom `IRecipient`/`IIdentity` cannot be reached through them and must be
+constructed directly, so config-driven code that accepts arbitrary recipient
+strings needs its own dispatch for custom types.
 
 Parse a specific type directly when you want the concrete type back (e.g. to
 `Dispose` an identity that holds key material):
@@ -396,8 +413,8 @@ Age.Decrypt(input, output, options, identity);
 > different names rather than one flag that changes meaning by direction.
 >
 > **Where options go.** Every synchronous method that takes options does so the same
-> way — a second overload with `options` positional, immediately before the `params`
-> recipients or identities. The async methods take it as a trailing optional argument
+> way — `options` positional, immediately before the recipients or identities, in both
+> the positional and the collection shape. The async methods take it as a trailing optional argument
 > instead, because `params` and optional arguments cannot coexist; that is the one
 > difference, and it is why a `CancellationToken` needs a named argument there.
 > `EncryptDetached` is the sole entry point with no options overload: armor wraps a
@@ -426,8 +443,9 @@ structure parsed but a *cryptographic check* failed it's an
 | `AgePluginException` | an `age-plugin-*` binary failed to start or misbehaved |
 
 `Parse` methods throw `AgeFormatException` on bad input; the `TryParse` variants
-never throw. Empty recipients/identities on any entry point throw
-`ArgumentException`.
+never throw. Omitting recipients or identities entirely is a **compile** error on
+the positional overloads, since the first one is a required parameter; passing an
+empty collection to the `IReadOnlyList<>` overloads throws `ArgumentException`.
 
 ```csharp
 try

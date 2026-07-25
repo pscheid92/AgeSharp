@@ -441,6 +441,14 @@ public static partial class Age
     /// which produces a valid empty-plaintext file). Disposing the returned stream
     /// finalizes the age payload; <paramref name="destination"/> is never disposed.
     /// </summary>
+    /// <remarks>
+    /// <c>Flush</c> flushes <paramref name="destination"/> but cannot flush a partial
+    /// age chunk: STREAM chunks are fixed size, and a short one marks the end of the
+    /// file. Plaintext written since the last 64 KiB boundary therefore stays buffered
+    /// until the stream is disposed, however often you flush. Code driving a framed or
+    /// interactive protocol should not expect <c>Flush</c> to make bytes readable
+    /// downstream.
+    /// </remarks>
     /// <param name="destination">The ciphertext destination. Left open when the returned stream is disposed.</param>
     /// <param name="first">The first recipient. Required, so that omitting recipients entirely is a compile error.</param>
     /// <param name="rest">Any further recipients.</param>
@@ -640,6 +648,13 @@ public static partial class Age
     /// verifying the header MAC, which requires an identity). Armored input is
     /// auto-detected on any stream, seekable or not.
     /// </summary>
+    /// <remarks>
+    /// The result is <b>unverified</b>. Because no MAC check has happened, stanza
+    /// types, argument counts, and argument contents are all attacker-controlled.
+    /// Treat them as untrusted input — in particular, a stanza may have zero
+    /// arguments, so indexing <see cref="Stanza.Args"/> without checking will throw
+    /// on a hostile file.
+    /// </remarks>
     /// <param name="source">The age-encrypted source.</param>
     public static AgeHeader ReadHeader(Stream source) =>
         ReadHeader(source, AgeDecryptOptions.Default);
