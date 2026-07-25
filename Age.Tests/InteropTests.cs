@@ -23,7 +23,7 @@ public class InteropTests
     {
         using var input = new MemoryStream(plaintext);
         using var output = new MemoryStream();
-        Age.Encrypt(input, output, new AgeEncryptOptions { Armor = armored }, recipients);
+        Age.Encrypt(input, output, recipients, new AgeEncryptOptions { Armor = armored });
         return output.ToArray();
     }
 
@@ -196,7 +196,7 @@ public class InteropTests
         using var input = new MemoryStream(plaintext);
         using var header = new MemoryStream();
         using var payload = new MemoryStream();
-        Age.EncryptDetached(input, header, payload, identity.Recipient);
+        Age.EncryptDetached(input, header, payload, [identity.Recipient]);
 
         // The detached streams are a standard age file split at the payload boundary;
         // concatenating them must yield bytes age accepts unchanged.

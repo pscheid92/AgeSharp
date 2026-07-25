@@ -17,16 +17,16 @@ public class ReadmeExamplesTests
 
         using var input = new MemoryStream("Hello, age!"u8.ToArray());
         using var encrypted = new MemoryStream();
-        Age.Encrypt(input, encrypted, recipient);
+        Age.Encrypt(input, encrypted, [recipient]);
 
         encrypted.Position = 0;
         using var decrypted = new MemoryStream();
-        Age.Decrypt(encrypted, decrypted, identity);
+        Age.Decrypt(encrypted, decrypted, [identity]);
 
         Assert.Equal("Hello, age!"u8.ToArray(), decrypted.ToArray());
 
-        var ciphertext = Age.Encrypt("secret"u8, recipient);
-        var plaintext = Age.Decrypt(ciphertext, identity);
+        var ciphertext = Age.Encrypt("secret"u8, [recipient]);
+        var plaintext = Age.Decrypt(ciphertext, [identity]);
         Assert.Equal("secret"u8.ToArray(), plaintext);
     }
 
@@ -35,8 +35,8 @@ public class ReadmeExamplesTests
     {
         using var passphrase = new Passphrase("correct-horse-battery-staple", 10);
 
-        var ciphertext = Age.Encrypt("hi"u8, passphrase);
-        Assert.Equal("hi"u8.ToArray(), Age.Decrypt(ciphertext, passphrase));
+        var ciphertext = Age.Encrypt("hi"u8, [passphrase]);
+        Assert.Equal("hi"u8.ToArray(), Age.Decrypt(ciphertext, [passphrase]));
 
         var typed = "typed-in".ToCharArray();
         using var fromSpan = new Passphrase(typed, 10);
@@ -51,11 +51,10 @@ public class ReadmeExamplesTests
         using var input = new MemoryStream("hi"u8.ToArray());
         using var encrypted = new MemoryStream();
 
-        Age.Encrypt(input, encrypted, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        Age.Encrypt(input, encrypted, [identity.Recipient], new AgeEncryptOptions { Armor = true });
 
         using var output = new MemoryStream();
-        Age.Decrypt(new MemoryStream(encrypted.ToArray()), output,
-            new AgeDecryptOptions { RequireArmor = true }, identity);
+        Age.Decrypt(new MemoryStream(encrypted.ToArray()), output, [identity], new AgeDecryptOptions { RequireArmor = true });
 
         Assert.Equal("hi"u8.ToArray(), output.ToArray());
     }
@@ -68,10 +67,10 @@ public class ReadmeExamplesTests
 
         using var input = new MemoryStream("hi"u8.ToArray());
         using var encrypted = new MemoryStream();
-        Age.Encrypt(input, encrypted, alice.Recipient, bob.Recipient);
+        Age.Encrypt(input, encrypted, [alice.Recipient, bob.Recipient]);
 
         using var decrypted = new MemoryStream();
-        Age.Decrypt(new MemoryStream(encrypted.ToArray()), decrypted, bob);
+        Age.Decrypt(new MemoryStream(encrypted.ToArray()), decrypted, [bob]);
         Assert.Equal("hi"u8.ToArray(), decrypted.ToArray());
 
         // The collection form the README shows — no splatting.
@@ -79,8 +78,7 @@ public class ReadmeExamplesTests
         using var input2 = new MemoryStream("hi"u8.ToArray());
         using var encrypted2 = new MemoryStream();
         Age.Encrypt(input2, encrypted2, recipients);
-        Age.Encrypt(new MemoryStream("hi"u8.ToArray()), new MemoryStream(),
-            new AgeEncryptOptions { Armor = true }, recipients);
+        Age.Encrypt(new MemoryStream("hi"u8.ToArray()), new MemoryStream(), recipients, new AgeEncryptOptions { Armor = true });
 
         Assert.NotEqual(0, encrypted2.Length);
     }
@@ -93,26 +91,26 @@ public class ReadmeExamplesTests
         var plaintext = "streaming"u8.ToArray();
 
         // encrypt / pull
-        using var encryptedStream = Age.EncryptReader(new MemoryStream(plaintext), recipient);
+        using var encryptedStream = Age.EncryptReader(new MemoryStream(plaintext), [recipient]);
         using var ciphertext = new MemoryStream();
         encryptedStream.CopyTo(ciphertext);
 
         // encrypt / push
         using var destination = new MemoryStream();
-        using (var stream = Age.EncryptWriter(destination, recipient))
+        using (var stream = Age.EncryptWriter(destination, [recipient]))
         {
             new MemoryStream(plaintext).CopyTo(stream);
         }
 
         // decrypt / pull
-        using var decryptedStream = Age.DecryptReader(new MemoryStream(ciphertext.ToArray()), identity);
+        using var decryptedStream = Age.DecryptReader(new MemoryStream(ciphertext.ToArray()), [identity]);
         using var outputStream = new MemoryStream();
         decryptedStream.CopyTo(outputStream);
         Assert.Equal(plaintext, outputStream.ToArray());
 
         // decrypt / push
         using var pushOut = new MemoryStream();
-        using (var stream = Age.DecryptWriter(pushOut, identity))
+        using (var stream = Age.DecryptWriter(pushOut, [identity]))
         {
             new MemoryStream(destination.ToArray()).CopyTo(stream);
         }
@@ -149,9 +147,9 @@ public class ReadmeExamplesTests
         using var identity = X25519Identity.Generate();
         var plaintext = new byte[100_000];
         new Random(3).NextBytes(plaintext);
-        var ciphertext = new MemoryStream(Age.Encrypt(plaintext, identity.Recipient));
+        var ciphertext = new MemoryStream(Age.Encrypt(plaintext, [identity.Recipient]));
 
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         Assert.Equal(plaintext.Length, stream.Length);
 
@@ -168,7 +166,7 @@ public class ReadmeExamplesTests
         // The README example as written must survive a stanza with no arguments,
         // since ReadHeader does not authenticate what it parses.
         using var identity = X25519Identity.Generate();
-        var stream = new MemoryStream(Age.Encrypt("hi"u8, identity.Recipient));
+        var stream = new MemoryStream(Age.Encrypt("hi"u8, [identity.Recipient]));
 
         var header = Age.ReadHeader(stream);
 
@@ -206,12 +204,12 @@ public class ReadmeExamplesTests
         using var headerOutput = new MemoryStream();
         using var payloadOutput = new MemoryStream();
 
-        Age.EncryptDetached(input, headerOutput, payloadOutput, identity.Recipient);
+        Age.EncryptDetached(input, headerOutput, payloadOutput, [identity.Recipient]);
 
         using var headerInput = new MemoryStream(headerOutput.ToArray());
         using var payloadInput = new MemoryStream(payloadOutput.ToArray());
         using var output = new MemoryStream();
-        Age.DecryptDetached(headerInput, payloadInput, output, identity);
+        Age.DecryptDetached(headerInput, payloadInput, output, [identity]);
 
         Assert.Equal("hi"u8.ToArray(), output.ToArray());
     }
@@ -222,9 +220,9 @@ public class ReadmeExamplesTests
         using var identity = X25519Identity.Generate();
         var options = new AgeDecryptOptions { MaxHeaderBytes = 1024 * 1024 };
 
-        using var input = new MemoryStream(Age.Encrypt("hi"u8, identity.Recipient));
+        using var input = new MemoryStream(Age.Encrypt("hi"u8, [identity.Recipient]));
         using var output = new MemoryStream();
-        Age.Decrypt(input, output, options, identity);
+        Age.Decrypt(input, output, [identity], options);
 
         Assert.Equal("hi"u8.ToArray(), output.ToArray());
     }
@@ -234,12 +232,12 @@ public class ReadmeExamplesTests
     {
         using var identity = X25519Identity.Generate();
         using var stranger = X25519Identity.Generate();
-        using var input = new MemoryStream(Age.Encrypt("hi"u8, identity.Recipient));
+        using var input = new MemoryStream(Age.Encrypt("hi"u8, [identity.Recipient]));
         using var output = new MemoryStream();
 
         try
         {
-            Age.Decrypt(input, output, stranger);
+            Age.Decrypt(input, output, [stranger]);
             Assert.Fail("expected a mismatch");
         }
         catch (NoIdentityMatchException)

@@ -3,21 +3,18 @@ using Xunit;
 namespace AgeSharp.Tests;
 
 /// <summary>
-///     Compile-and-resolve probe for the <c>Age.Encrypt</c>/<c>Age.Decrypt</c> overload set.
-///     The buffer (<c>byte[]</c>) and stream overloads share the same
-///     <c>first, params ReadOnlySpan&lt;...&gt;</c> tail, so the first argument's type must
-///     select the overload unambiguously. Every documented call shape is exercised here; a
-///     future overload that introduces an ambiguity would fail to compile in this file. The
-///     <c>byte[]</c>-typed assignments double as a check that the buffer overloads are the
-///     ones selected (they only compile if the call returns <c>byte[]</c>).
+///     Compile-and-resolve probe for the <c>Age</c> facade. Each operation has exactly one
+///     method — recipients or identities as an <c>IReadOnlyList&lt;&gt;</c>, options last and
+///     optional — except <c>Encrypt</c>/<c>Decrypt</c>, which additionally have a
+///     <c>byte[]</c> form. Those two must stay unambiguous, and the first argument's type
+///     (<c>Stream</c> vs <c>ReadOnlySpan&lt;byte&gt;</c>) is what separates them.
 /// </summary>
 /// <remarks>
-///     Each family offers four shapes — with and without options, crossed with the
-///     <c>first, params rest</c> and collection forms. The pairing matters: taking the
-///     first element as its own parameter is what makes a zero-recipient call a compile
-///     error, but it also means a collection can no longer be splatted with <c>[.. list]</c>
-///     (a collection expression has no conversion to <c>IRecipient</c>). The collection
-///     overloads are what keep that case callable, so both halves are probed together.
+///     Every documented call shape is exercised: a collection expression for one recipient
+///     and for several, plus an array and a <c>List&lt;T&gt;</c> passed through directly.
+///     The <c>byte[]</c>-typed assignments double as a check that the buffer form is the one
+///     selected — they only compile if the call returns <c>byte[]</c>. A future overload that
+///     introduced an ambiguity would fail to compile in this file.
 /// </remarks>
 public class OverloadResolutionTests
 {
@@ -34,21 +31,21 @@ public class OverloadResolutionTests
         var plaintext = "probe"u8.ToArray();
 
         // Stream overloads
-        EncryptToStream(input => Age.Encrypt(input, new MemoryStream(), r));
-        EncryptToStream(input => Age.Encrypt(input, new MemoryStream(), options, r));
-        EncryptToStream(input => Age.Encrypt(input, new MemoryStream(), r, r)); // multiple params
+        EncryptToStream(input => Age.Encrypt(input, new MemoryStream(), [r]));
+        EncryptToStream(input => Age.Encrypt(input, new MemoryStream(), [r], options));
+        EncryptToStream(input => Age.Encrypt(input, new MemoryStream(), [r, r])); // multiple params
         EncryptToStream(input => Age.Encrypt(input, new MemoryStream(), recipients)); // array → collection
         EncryptToStream(input => Age.Encrypt(input, new MemoryStream(), recipientList)); // List<T> → collection
-        EncryptToStream(input => Age.Encrypt(input, new MemoryStream(), options, recipientList));
+        EncryptToStream(input => Age.Encrypt(input, new MemoryStream(), recipientList, options));
 
         // Buffer overloads (each must return byte[])
-        var c1 = Age.Encrypt(plaintext, r);
-        var c2 = Age.Encrypt(plaintext, options, r);
+        var c1 = Age.Encrypt(plaintext, [r]);
+        var c2 = Age.Encrypt(plaintext, [r], options);
         var c3 = Age.Encrypt(plaintext, recipients); // array → collection
-        var c4 = Age.Encrypt(plaintext.AsSpan(), r); // explicit span
-        var c5 = Age.Encrypt(plaintext, r, r); // multiple params
+        var c4 = Age.Encrypt(plaintext.AsSpan(), [r]); // explicit span
+        var c5 = Age.Encrypt(plaintext, [r, r]); // several recipients inline
         var c6 = Age.Encrypt(plaintext, recipientList); // List<T> → collection
-        var c7 = Age.Encrypt(plaintext, options, recipientList);
+        var c7 = Age.Encrypt(plaintext, recipientList, options);
 
         Assert.All([c1, c2, c3, c4, c5, c6, c7], c => Assert.NotEmpty(c));
 
@@ -68,23 +65,23 @@ public class OverloadResolutionTests
         List<IIdentity> identityList = [i];
         var options = new AgeDecryptOptions();
         var expected = "probe"u8.ToArray();
-        var ct = Age.Encrypt(expected, id.Recipient);
+        var ct = Age.Encrypt(expected, [id.Recipient]);
 
         // Buffer overloads (each must return byte[])
-        var p1 = Age.Decrypt(ct, i);
-        var p2 = Age.Decrypt(ct, options, i);
+        var p1 = Age.Decrypt(ct, [i]);
+        var p2 = Age.Decrypt(ct, [i], options);
         var p3 = Age.Decrypt(ct, identities); // array → collection
-        var p4 = Age.Decrypt(ct.AsSpan(), i); // explicit span
+        var p4 = Age.Decrypt(ct.AsSpan(), [i]); // explicit span
         var p5 = Age.Decrypt(ct, identityList); // List<T> → collection
-        var p6 = Age.Decrypt(ct, options, identityList);
+        var p6 = Age.Decrypt(ct, identityList, options);
 
         Assert.All([p1, p2, p3, p4, p5, p6], p => Assert.Equal(expected, p));
 
         // Stream overloads
-        DecryptFromStream(output => Age.Decrypt(new MemoryStream(ct), output, i));
-        DecryptFromStream(output => Age.Decrypt(new MemoryStream(ct), output, options, i));
+        DecryptFromStream(output => Age.Decrypt(new MemoryStream(ct), output, [i]));
+        DecryptFromStream(output => Age.Decrypt(new MemoryStream(ct), output, [i], options));
         DecryptFromStream(output => Age.Decrypt(new MemoryStream(ct), output, identityList));
-        DecryptFromStream(output => Age.Decrypt(new MemoryStream(ct), output, options, identityList));
+        DecryptFromStream(output => Age.Decrypt(new MemoryStream(ct), output, identityList, options));
 
         void DecryptFromStream(Action<MemoryStream> decrypt)
         {
@@ -111,31 +108,31 @@ public class OverloadResolutionTests
         var decryptOptions = new AgeDecryptOptions();
         var expected = "probe"u8.ToArray();
 
-        Age.EncryptReader(new MemoryStream(expected), r).Dispose();
-        Age.EncryptReader(new MemoryStream(expected), encryptOptions, r).Dispose();
+        Age.EncryptReader(new MemoryStream(expected), [r]).Dispose();
+        Age.EncryptReader(new MemoryStream(expected), [r], encryptOptions).Dispose();
         Age.EncryptReader(new MemoryStream(expected), recipientList).Dispose();
-        Age.EncryptReader(new MemoryStream(expected), encryptOptions, recipientList).Dispose();
+        Age.EncryptReader(new MemoryStream(expected), recipientList, encryptOptions).Dispose();
 
-        Age.EncryptWriter(new MemoryStream(), r).Dispose();
-        Age.EncryptWriter(new MemoryStream(), encryptOptions, r).Dispose();
+        Age.EncryptWriter(new MemoryStream(), [r]).Dispose();
+        Age.EncryptWriter(new MemoryStream(), [r], encryptOptions).Dispose();
         Age.EncryptWriter(new MemoryStream(), recipientList).Dispose();
-        Age.EncryptWriter(new MemoryStream(), encryptOptions, recipientList).Dispose();
+        Age.EncryptWriter(new MemoryStream(), recipientList, encryptOptions).Dispose();
 
-        var ct = Age.Encrypt(expected, r);
-        Age.DecryptReader(new MemoryStream(ct), i).Dispose();
-        Age.DecryptReader(new MemoryStream(ct), decryptOptions, i).Dispose();
+        var ct = Age.Encrypt(expected, [r]);
+        Age.DecryptReader(new MemoryStream(ct), [i]).Dispose();
+        Age.DecryptReader(new MemoryStream(ct), [i], decryptOptions).Dispose();
         Age.DecryptReader(new MemoryStream(ct), identityList).Dispose();
-        Age.DecryptReader(new MemoryStream(ct), decryptOptions, identityList).Dispose();
+        Age.DecryptReader(new MemoryStream(ct), identityList, decryptOptions).Dispose();
 
         // Detached: the header and payload streams push the recipient slot out by two.
-        RoundTripDetached((header, payload, input) => Age.EncryptDetached(input, header, payload, r),
-            (header, payload, output) => Age.DecryptDetached(header, payload, output, i));
+        RoundTripDetached((header, payload, input) => Age.EncryptDetached(input, header, payload, [r]),
+            (header, payload, output) => Age.DecryptDetached(header, payload, output, [i]));
         RoundTripDetached((header, payload, input) => Age.EncryptDetached(input, header, payload, recipientList),
             (header, payload, output) => Age.DecryptDetached(header, payload, output, identityList));
-        RoundTripDetached((header, payload, input) => Age.EncryptDetached(input, header, payload, r),
-            (header, payload, output) => Age.DecryptDetached(header, payload, output, decryptOptions, i));
+        RoundTripDetached((header, payload, input) => Age.EncryptDetached(input, header, payload, [r]),
+            (header, payload, output) => Age.DecryptDetached(header, payload, output, [i], decryptOptions));
         RoundTripDetached((header, payload, input) => Age.EncryptDetached(input, header, payload, recipientList),
-            (header, payload, output) => Age.DecryptDetached(header, payload, output, decryptOptions, identityList));
+            (header, payload, output) => Age.DecryptDetached(header, payload, output, identityList, decryptOptions));
 
         void RoundTripDetached(Action<MemoryStream, MemoryStream, MemoryStream> encrypt,
             Action<MemoryStream, MemoryStream, MemoryStream> decrypt)

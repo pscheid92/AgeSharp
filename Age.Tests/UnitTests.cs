@@ -1249,7 +1249,7 @@ public class AgeTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        Age.Encrypt(encInput, encOutput, [identity.Recipient], new AgeEncryptOptions { Armor = true });
 
         // Verify it's actually armored
         encOutput.Position = 0;
@@ -1258,7 +1258,7 @@ public class AgeTests
         // Decrypt
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, [identity]);
         Assert.Equal(plaintext, decOutput.ToArray());
     }
 
@@ -1271,11 +1271,11 @@ public class AgeTests
         var plaintext = "test"u8.ToArray();
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, id1.Recipient);
+        Age.Encrypt(encInput, encOutput, [id1.Recipient]);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Assert.Throws<NoIdentityMatchException>(() => Age.Decrypt(encOutput, decOutput, id2));
+        Assert.Throws<NoIdentityMatchException>(() => Age.Decrypt(encOutput, decOutput, [id2]));
     }
 
     [Fact]
@@ -1305,7 +1305,7 @@ public class AgeTests
 
         ms.Position = 0;
         using var output = new MemoryStream();
-        Assert.Throws<AgeFormatException>(() => Age.Decrypt(ms, output, passphrase));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(ms, output, [passphrase]));
     }
 
     [Fact]
@@ -1318,7 +1318,7 @@ public class AgeTests
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         using var output = new MemoryStream();
         using var id = X25519Identity.Generate();
-        var ex = Assert.Throws<AgeFormatException>(() => Age.Decrypt(stream, output, id));
+        var ex = Assert.Throws<AgeFormatException>(() => Age.Decrypt(stream, output, [id]));
         Assert.Contains("header parse error", ex.Message);
     }
 
@@ -1330,7 +1330,7 @@ public class AgeTests
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         using var output = new MemoryStream();
         using var id = X25519Identity.Generate();
-        Assert.Throws<AgeFormatException>(() => Age.Decrypt(stream, output, id));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(stream, output, [id]));
     }
 
     [Fact]
@@ -1356,7 +1356,7 @@ public class AgeTests
         ms.Position = 0;
         using var output = new MemoryStream();
         using var id = X25519Identity.Generate();
-        Assert.Throws<AgeFormatException>(() => Age.Decrypt(ms, output, id));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(ms, output, [id]));
     }
 
     [Fact]
@@ -1378,7 +1378,7 @@ public class AgeTests
 
         ms.Position = 0;
         using var output = new MemoryStream();
-        Assert.Throws<AgeFormatException>(() => Age.Decrypt(ms, output, id));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(ms, output, [id]));
     }
 }
 
@@ -1394,7 +1394,7 @@ public class DecryptStreamTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, identity.Recipient);
+        Age.Encrypt(encInput, encOutput, [identity.Recipient]);
         var ciphertextBytes = encOutput.ToArray();
 
         // Parse header to find payload offset
@@ -1413,7 +1413,7 @@ public class DecryptStreamTests
         // A non-seekable source forces the forward-only decrypt path, which detects
         // the missing final chunk as it reads rather than from the stream length.
         using var truncatedStream = new NonSeekableStream(new MemoryStream(truncated));
-        using var reader = Age.DecryptReader(truncatedStream, identity);
+        using var reader = Age.DecryptReader(truncatedStream, [identity]);
 
         var buf = new byte[plaintext.Length];
         Assert.Throws<AgeAuthenticationException>(() =>
@@ -1436,7 +1436,7 @@ public class DecryptStreamTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, identity.Recipient);
+        Age.Encrypt(encInput, encOutput, [identity.Recipient]);
         var ciphertextBytes = encOutput.ToArray();
 
         // Parse header to find payload offset
@@ -1449,7 +1449,7 @@ public class DecryptStreamTests
         var truncated = ciphertextBytes[..truncateAt];
 
         using var truncatedStream = new NonSeekableStream(new MemoryStream(truncated));
-        using var reader = Age.DecryptReader(truncatedStream, identity);
+        using var reader = Age.DecryptReader(truncatedStream, [identity]);
 
         var buf = new byte[100];
         Assert.Throws<AgeAuthenticationException>(() => reader.Read(buf, 0, buf.Length));

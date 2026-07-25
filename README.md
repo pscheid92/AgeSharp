@@ -62,19 +62,19 @@ var recipient = identity.Recipient;
 
 using var input = new MemoryStream("Hello, age!"u8.ToArray());
 using var encrypted = new MemoryStream();
-Age.Encrypt(input, encrypted, recipient);
+Age.Encrypt(input, encrypted, [recipient]);
 
 encrypted.Position = 0;
 using var decrypted = new MemoryStream();
-Age.Decrypt(encrypted, decrypted, identity);
+Age.Decrypt(encrypted, decrypted, [identity]);
 ```
 
 For small payloads — secrets, database fields — there are buffer-in, buffer-out overloads that skip the `MemoryStream`
 ceremony (`Encrypt` zeroes its plaintext copy):
 
 ```csharp
-byte[] ciphertext = Age.Encrypt("secret"u8, recipient);
-byte[] plaintext  = Age.Decrypt(ciphertext, identity);
+byte[] ciphertext = Age.Encrypt("secret"u8, [recipient]);
+byte[] plaintext  = Age.Decrypt(ciphertext, [identity]);
 ```
 
 ### Passphrase encryption
@@ -84,11 +84,11 @@ using var passphrase = new Passphrase("correct-horse-battery-staple");
 
 using var input = new MemoryStream("Hello, age!"u8.ToArray());
 using var encrypted = new MemoryStream();
-Age.Encrypt(input, encrypted, passphrase);
+Age.Encrypt(input, encrypted, [passphrase]);
 
 encrypted.Position = 0;
 using var decrypted = new MemoryStream();
-Age.Decrypt(encrypted, decrypted, passphrase);
+Age.Decrypt(encrypted, decrypted, [passphrase]);
 ```
 
 `Passphrase` holds its secret as a UTF-8 copy that `Dispose` zeroes, like every other key type. For a long-lived
@@ -104,7 +104,7 @@ Array.Clear(typed);                            // now nothing holds it in the cl
 ### ASCII armor
 
 ```csharp
-Age.Encrypt(input, encrypted, new AgeEncryptOptions { Armor = true }, recipient);
+Age.Encrypt(input, encrypted, [recipient], new AgeEncryptOptions { Armor = true });
 
 // -----BEGIN AGE ENCRYPTED FILE-----
 // YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA...
@@ -115,8 +115,8 @@ Decryption auto-detects armor on any stream, so you never have to say which form
 `AgeDecryptOptions.RequireArmor` is a *strictness* opt-in, for when silently accepting the wrong form would be a bug:
 
 ```csharp
-Age.Decrypt(input, output, identity);                                                // either form
-Age.Decrypt(input, output, new AgeDecryptOptions { RequireArmor = true }, identity);  // armored only
+Age.Decrypt(input, output, [identity]);                                                 // either form
+Age.Decrypt(input, output, [identity], new AgeDecryptOptions { RequireArmor = true }); // armored only
 ```
 
 ### Multiple recipients
@@ -125,10 +125,10 @@ Age.Decrypt(input, output, new AgeDecryptOptions { RequireArmor = true }, identi
 using var alice = X25519Identity.Generate();
 using var bob = X25519Identity.Generate();
 
-Age.Encrypt(input, encrypted, alice.Recipient, bob.Recipient);
+Age.Encrypt(input, encrypted, [alice.Recipient, bob.Recipient]);
 
 // Either identity can decrypt
-Age.Decrypt(encrypted, decrypted, bob);
+Age.Decrypt(encrypted, decrypted, [bob]);
 ```
 
 Recipients assembled at runtime go through the same call as a collection — no splatting needed:
@@ -137,12 +137,13 @@ Recipients assembled at runtime go through the same call as a collection — no 
 List<IRecipient> recipients = LoadRecipientsFile(path);
 
 Age.Encrypt(input, encrypted, recipients);
-Age.Encrypt(input, encrypted, new AgeEncryptOptions { Armor = true }, recipients);
+Age.Encrypt(input, encrypted, recipients, new AgeEncryptOptions { Armor = true });
 ```
 
-Every entry point takes both shapes: one-or-more positional arguments, or any
-`IReadOnlyList<>`. The first recipient (or identity) is a required parameter rather than part of the `params` tail, so
-forgetting them entirely is a compile error instead of an exception at run time.
+Every entry point takes recipients (or identities) the same way: as an `IReadOnlyList<>`, which at a call site is
+usually a collection expression — `[recipient]` for one, `[alice, bob]` for several, or an existing array or list
+passed straight through. Options, when a method takes them, always come last as an optional argument. An empty list is
+an `ArgumentException`.
 
 ### SSH keys
 
@@ -150,10 +151,10 @@ forgetting them entirely is a compile error instead of an exception at run time.
 var recipient = SshEd25519Recipient.Parse("ssh-ed25519 AAAA...");
 var identity = SshEd25519Identity.Parse(File.ReadAllText("/path/to/id_ed25519"));
 
-Age.Encrypt(input, encrypted, recipient);
+Age.Encrypt(input, encrypted, [recipient]);
 
 encrypted.Position = 0;
-Age.Decrypt(encrypted, decrypted, identity);
+Age.Decrypt(encrypted, decrypted, [identity]);
 ```
 
 ### Post-quantum (ML-KEM-768-X25519)
@@ -162,7 +163,7 @@ Age.Decrypt(encrypted, decrypted, identity);
 using var identity = MlKem768X25519Identity.Generate();
 var recipient = identity.Recipient;
 
-Age.Encrypt(input, encrypted, recipient);
+Age.Encrypt(input, encrypted, [recipient]);
 ```
 
 ### Streaming
@@ -181,11 +182,11 @@ you hand them.
 
 ```csharp
 // Encrypt: read ciphertext out of a plaintext source
-using var encryptedStream = Age.EncryptReader(plaintext, recipient);
+using var encryptedStream = Age.EncryptReader(plaintext, [recipient]);
 encryptedStream.CopyTo(networkStream);
 
 // Decrypt: read plaintext out of an age source
-using var decryptedStream = Age.DecryptReader(ciphertext, identity);
+using var decryptedStream = Age.DecryptReader(ciphertext, [identity]);
 decryptedStream.CopyTo(outputStream);
 ```
 
@@ -194,12 +195,12 @@ either direction.
 
 ```csharp
 // Encrypt: write plaintext in, ciphertext lands in destination
-using (var stream = Age.EncryptWriter(destination, recipient))
+using (var stream = Age.EncryptWriter(destination, [recipient]))
     inputStream.CopyTo(stream);   // Dispose finalizes (empty input → valid empty file)
 
 
 // Decrypt: write age ciphertext in, plaintext lands in destination
-using (var stream = Age.DecryptWriter(destination, identity))
+using (var stream = Age.DecryptWriter(destination, [identity]))
     networkStream.CopyTo(stream); // Dispose authenticates the final chunk
 ```
 
@@ -230,9 +231,7 @@ using (var stream = Age.DecryptWriter(destination, identity))
 
 `EncryptAsync`, `DecryptAsync`, and `DecryptReaderAsync` run with no blocking I/O on either stream — safe under ASP.NET
 Core's `AllowSynchronousIO = false`. The returned decrypt streams (and the push/pull streams above) implement
-`ReadAsync`/`WriteAsync`/`DisposeAsync`, and a `CancellationToken` is threaded through every operation. Async methods
-take `IReadOnlyList<>` rather than a
-`params` span (spans can't cross an `await`).
+`ReadAsync`/`WriteAsync`/`DisposeAsync`, and a `CancellationToken` is threaded through every operation.
 
 ```csharp
 await Age.EncryptAsync(input, output, [recipient], new AgeEncryptOptions { Armor = true }, cancellationToken);
@@ -242,16 +241,17 @@ await using var stream = await Age.DecryptReaderAsync(source, [identity], cancel
 await stream.CopyToAsync(outputStream, cancellationToken);
 ```
 
-The async methods are not simple overloads of their synchronous counterparts — they differ in shape, though no longer in
-capability:
+The async methods take the same argument shape as their synchronous counterparts — collection first, options last —
+plus a trailing `CancellationToken`. Because options and the token are both optional, passing only a token needs a
+named argument. What still differs is coverage:
 
-|                         | sync                                                                         | async                                                                                       |
-|-------------------------|------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
-| Recipients / identities | `first, params ReadOnlySpan<>` or `IReadOnlyList<>`                          | `IReadOnlyList<>` only (a span can't cross an `await`)                                      |
-| Options                 | `AgeEncryptOptions` / `AgeDecryptOptions`, positional before the params span | same types, optional after the collection — so a `CancellationToken` needs a named argument |
-| Seekability             | `CanSeek` mirrors the source                                                 | same                                                                                        |
-| `byte[]` overloads      | yes                                                                          | no equivalent                                                                               |
-| Detached header         | yes                                                                          | no equivalent                                                                               |
+|                         | sync                                          | async                                                         |
+|-------------------------|-----------------------------------------------|---------------------------------------------------------------|
+| Recipients / identities | `IReadOnlyList<>`                             | same                                                          |
+| Options                 | optional, last                                | optional, before the `CancellationToken`                      |
+| Seekability             | `CanSeek` mirrors the source                  | same                                                          |
+| `byte[]` overloads      | yes                                           | no equivalent                                                 |
+| Detached header         | yes                                           | no equivalent                                                 |
 
 One limitation: a plugin recipient/identity still performs **synchronous**
 child-process I/O while wrapping or unwrapping, even on the async paths — the plugin interfaces are synchronous,
@@ -264,10 +264,10 @@ locations.
 
 ```csharp
 // Encrypt with separate header and payload
-Age.EncryptDetached(input, headerOutput, payloadOutput, recipient);
+Age.EncryptDetached(input, headerOutput, payloadOutput, [recipient]);
 
 // Decrypt from separate streams
-Age.DecryptDetached(headerInput, payloadInput, output, identity);
+Age.DecryptDetached(headerInput, payloadInput, output, [identity]);
 ```
 
 ### Seekable decryption
@@ -286,7 +286,7 @@ Opening a seekable source decrypts the final chunk to authenticate the plaintext
 before the first read rather than reporting a plausible wrong `Length`.
 
 ```csharp
-using var stream = Age.DecryptReader(ciphertext, identity);
+using var stream = Age.DecryptReader(ciphertext, [identity]);
 
 Console.WriteLine($"Plaintext length: {stream.Length}");
 
@@ -386,7 +386,7 @@ memory. The limits are per-call properties on `AgeDecryptOptions`, passed to any
 
 ```csharp
 var options = new AgeDecryptOptions { MaxHeaderBytes = 1024 * 1024 };
-Age.Decrypt(input, output, options, identity);
+Age.Decrypt(input, output, [identity], options);
 ```
 
 > **Two options types.** `AgeEncryptOptions` carries what encryption can configure
@@ -395,14 +395,12 @@ Age.Decrypt(input, output, options, identity);
 > and because "produce armor" and "require armor" are different enough to deserve
 > different names rather than one flag that changes meaning by direction.
 >
-> **Where options go.** Every synchronous method that takes options does so the same
-> way — `options` positional, immediately before the recipients or identities, in both
-> the positional and the collection shape. The async methods take it as a trailing optional argument
-> instead, because `params` and optional arguments cannot coexist; that is the one
-> difference, and it is why a `CancellationToken` needs a named argument there.
-> `EncryptDetached` is the sole entry point with no options overload: armor wraps a
-> whole age file, which a detached header and payload are not, so there is nothing
-> for `AgeEncryptOptions` to configure.
+> **Where options go.** Always last, always optional — on the synchronous and
+> asynchronous methods alike. On the async ones a `CancellationToken` follows, so
+> passing only a token needs a named argument. `EncryptDetached` is the sole entry
+> point with no options parameter: armor wraps a whole age file, which a detached
+> header and payload are not, so there is nothing for `AgeEncryptOptions` to
+> configure.
 
 Exceeding a limit throws `AgeFormatException`. The age
 [specification](https://github.com/C2SP/C2SP/blob/main/age.md) sets no such bounds, so these are AgeSharp's own defense;
@@ -423,14 +421,14 @@ parsed it's an `AgeFormatException`; if the structure parsed but a *cryptographi
 | `NoIdentityMatchException`   | none of the supplied identities matched any recipient stanza                                                 |
 | `AgePluginException`         | an `age-plugin-*` binary failed to start or misbehaved                                                       |
 
-`Parse` methods throw `AgeFormatException` on bad input; the `TryParse` variants never throw. Omitting recipients or
-identities entirely is a **compile** error on the positional overloads, since the first one is a required parameter;
-passing an empty collection to the `IReadOnlyList<>` overloads throws `ArgumentException`.
+`Parse` methods throw `AgeFormatException` on bad input; the `TryParse` variants never throw. Passing an empty
+recipient or identity list throws `ArgumentException`, as does a list containing a null element — the message names
+the offending index.
 
 ```csharp
 try
 {
-    Age.Decrypt(input, output, identity);
+    Age.Decrypt(input, output, [identity]);
 }
 catch (NoIdentityMatchException)      { /* wrong key */ }
 catch (AgeAuthenticationException)    { /* tampered or corrupted */ }

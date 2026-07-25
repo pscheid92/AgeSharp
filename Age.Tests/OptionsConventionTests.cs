@@ -15,7 +15,7 @@ public class OptionsConventionTests
 
     private static byte[] Ciphertext(IRecipient recipient, bool armor = false)
     {
-        return Age.Encrypt("options"u8, new AgeEncryptOptions { Armor = armor }, recipient);
+        return Age.Encrypt("options"u8, [recipient], new AgeEncryptOptions { Armor = armor });
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public class OptionsConventionTests
 
         using var output = new MemoryStream();
         Assert.Throws<AgeFormatException>(() =>
-            Age.DecryptDetached(new MemoryStream(header), new MemoryStream(payload), output, Tiny, identity));
+            Age.DecryptDetached(new MemoryStream(header), new MemoryStream(payload), output, [identity], Tiny));
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class OptionsConventionTests
         var (header, payload) = EncryptDetached(identity.Recipient);
 
         using var output = new MemoryStream();
-        Age.DecryptDetached(new MemoryStream(header), new MemoryStream(payload), output, identity);
+        Age.DecryptDetached(new MemoryStream(header), new MemoryStream(payload), output, [identity]);
 
         Assert.Equal("detached"u8.ToArray(), output.ToArray());
     }
@@ -68,8 +68,7 @@ public class OptionsConventionTests
         var (header, payload) = EncryptDetached(identity.Recipient);
 
         using var output = new MemoryStream();
-        Age.DecryptDetached(new MemoryStream(header), new MemoryStream(payload), output,
-            new AgeDecryptOptions { MaxHeaderBytes = 1024 * 1024 }, identity);
+        Age.DecryptDetached(new MemoryStream(header), new MemoryStream(payload), output, [identity], new AgeDecryptOptions { MaxHeaderBytes = 1024 * 1024 });
 
         Assert.Equal("detached"u8.ToArray(), output.ToArray());
     }
@@ -90,7 +89,7 @@ public class OptionsConventionTests
     {
         using var identity = X25519Identity.Generate();
         var recipient = identity.Recipient;
-        var binary = Age.Encrypt("options"u8, recipient);
+        var binary = Age.Encrypt("options"u8, [recipient]);
         var secret = identity.ToSecretString();
 
         return new TheoryData<string, Action<AgeDecryptOptions>>
@@ -99,21 +98,21 @@ public class OptionsConventionTests
                 "Decrypt(stream)", o =>
                 {
                     using var id = X25519Identity.Parse(secret);
-                    Age.Decrypt(new MemoryStream(binary), new MemoryStream(), o, id);
+                    Age.Decrypt(new MemoryStream(binary), new MemoryStream(), [id], o);
                 }
             },
             {
                 "Decrypt(byte[])", o =>
                 {
                     using var id = X25519Identity.Parse(secret);
-                    Age.Decrypt(binary, o, id);
+                    Age.Decrypt(binary, [id], o);
                 }
             },
             {
                 "DecryptReader", o =>
                 {
                     using var id = X25519Identity.Parse(secret);
-                    Age.DecryptReader(new MemoryStream(binary), o, id).Dispose();
+                    Age.DecryptReader(new MemoryStream(binary), [id], o).Dispose();
                 }
             },
             { "ReadHeader", o => Age.ReadHeader(new MemoryStream(binary), o) }
@@ -126,7 +125,7 @@ public class OptionsConventionTests
         using var header = new MemoryStream();
         using var payload = new MemoryStream();
 
-        Age.EncryptDetached(input, header, payload, recipient);
+        Age.EncryptDetached(input, header, payload, [recipient]);
 
         return (header.ToArray(), payload.ToArray());
     }

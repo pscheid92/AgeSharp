@@ -26,6 +26,19 @@
         <DefineConstants>$(DefineConstants);FORCE_PORTABLE_AEAD</DefineConstants>
     </PropertyGroup>
 
+    <PropertyGroup>
+        <!-- RS0026: "do not add multiple overloads with optional parameters". Encrypt and
+             Decrypt each have exactly two overloads — a Stream form and a byte[] form — and
+             both end in `AgeEncryptOptions? options = null`. The rule guards against ambiguous
+             overload resolution and against baking a default value into caller binaries;
+             neither applies here. The two forms are disambiguated by their first parameter
+             (Stream vs ReadOnlySpan<byte>) and can never compete, and the only default value
+             is `null`, resolved to the real defaults inside the method — so changing what a
+             default *means* never requires recompiling callers. Suppressed deliberately in
+             favour of one call shape across the sync and async surface. -->
+        <NoWarn>$(NoWarn);RS0026</NoWarn>
+    </PropertyGroup>
+
     <ItemGroup>
         <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2"/>
         <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0">

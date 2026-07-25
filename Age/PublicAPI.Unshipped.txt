@@ -51,54 +51,25 @@ AgeSharp.Passphrase.Passphrase(System.ReadOnlySpan<char> passphrase) -> void
 AgeSharp.Passphrase.Passphrase(System.ReadOnlySpan<char> passphrase, int workFactor) -> void
 AgeSharp.Passphrase.Passphrase(string! passphrase) -> void
 AgeSharp.Passphrase.Passphrase(string! passphrase, int workFactor) -> void
-static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.AgeDecryptOptions! options, AgeSharp.IIdentity! first, params System.ReadOnlySpan<AgeSharp.IIdentity!> rest) -> void
-static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.AgeDecryptOptions! options, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities) -> void
-static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.IIdentity! first, params System.ReadOnlySpan<AgeSharp.IIdentity!> rest) -> void
-static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities) -> void
-static AgeSharp.Age.Decrypt(System.ReadOnlySpan<byte> ciphertext, AgeSharp.AgeDecryptOptions! options, AgeSharp.IIdentity! first, params System.ReadOnlySpan<AgeSharp.IIdentity!> rest) -> byte[]!
-static AgeSharp.Age.Decrypt(System.ReadOnlySpan<byte> ciphertext, AgeSharp.AgeDecryptOptions! options, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities) -> byte[]!
-static AgeSharp.Age.Decrypt(System.ReadOnlySpan<byte> ciphertext, AgeSharp.IIdentity! first, params System.ReadOnlySpan<AgeSharp.IIdentity!> rest) -> byte[]!
-static AgeSharp.Age.Decrypt(System.ReadOnlySpan<byte> ciphertext, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities) -> byte[]!
+static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null) -> void
+static AgeSharp.Age.Decrypt(System.ReadOnlySpan<byte> ciphertext, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null) -> byte[]!
 static AgeSharp.Age.DecryptAsync(System.IO.Stream! input, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-static AgeSharp.Age.DecryptDetached(System.IO.Stream! headerInput, System.IO.Stream! payloadInput, System.IO.Stream! output, AgeSharp.AgeDecryptOptions! options, AgeSharp.IIdentity! first, params System.ReadOnlySpan<AgeSharp.IIdentity!> rest) -> void
-static AgeSharp.Age.DecryptDetached(System.IO.Stream! headerInput, System.IO.Stream! payloadInput, System.IO.Stream! output, AgeSharp.AgeDecryptOptions! options, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities) -> void
-static AgeSharp.Age.DecryptDetached(System.IO.Stream! headerInput, System.IO.Stream! payloadInput, System.IO.Stream! output, AgeSharp.IIdentity! first, params System.ReadOnlySpan<AgeSharp.IIdentity!> rest) -> void
-static AgeSharp.Age.DecryptDetached(System.IO.Stream! headerInput, System.IO.Stream! payloadInput, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities) -> void
+static AgeSharp.Age.DecryptDetached(System.IO.Stream! headerInput, System.IO.Stream! payloadInput, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null) -> void
 static AgeSharp.Age.DecryptIdentities(System.IO.Stream! source, string! passphrase, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IIdentity![]!
-static AgeSharp.Age.DecryptReader(System.IO.Stream! source, AgeSharp.AgeDecryptOptions! options, AgeSharp.IIdentity! first, params System.ReadOnlySpan<AgeSharp.IIdentity!> rest) -> System.IO.Stream!
-static AgeSharp.Age.DecryptReader(System.IO.Stream! source, AgeSharp.AgeDecryptOptions! options, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities) -> System.IO.Stream!
-static AgeSharp.Age.DecryptReader(System.IO.Stream! source, AgeSharp.IIdentity! first, params System.ReadOnlySpan<AgeSharp.IIdentity!> rest) -> System.IO.Stream!
-static AgeSharp.Age.DecryptReader(System.IO.Stream! source, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities) -> System.IO.Stream!
+static AgeSharp.Age.DecryptReader(System.IO.Stream! source, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null) -> System.IO.Stream!
 static AgeSharp.Age.DecryptReaderAsync(System.IO.Stream! source, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<System.IO.Stream!>
-static AgeSharp.Age.DecryptWriter(System.IO.Stream! destination, AgeSharp.AgeDecryptOptions! options, AgeSharp.IIdentity! first, params System.ReadOnlySpan<AgeSharp.IIdentity!> rest) -> System.IO.Stream!
-static AgeSharp.Age.DecryptWriter(System.IO.Stream! destination, AgeSharp.AgeDecryptOptions! options, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities) -> System.IO.Stream!
-static AgeSharp.Age.DecryptWriter(System.IO.Stream! destination, AgeSharp.IIdentity! first, params System.ReadOnlySpan<AgeSharp.IIdentity!> rest) -> System.IO.Stream!
-static AgeSharp.Age.DecryptWriter(System.IO.Stream! destination, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities) -> System.IO.Stream!
-static AgeSharp.Age.Encrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.AgeEncryptOptions! options, AgeSharp.IRecipient! first, params System.ReadOnlySpan<AgeSharp.IRecipient!> rest) -> void
-static AgeSharp.Age.Encrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.AgeEncryptOptions! options, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients) -> void
-static AgeSharp.Age.Encrypt(System.IO.Stream! input, System.IO.Stream! output, AgeSharp.IRecipient! first, params System.ReadOnlySpan<AgeSharp.IRecipient!> rest) -> void
-static AgeSharp.Age.Encrypt(System.IO.Stream! input, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients) -> void
-static AgeSharp.Age.Encrypt(System.ReadOnlySpan<byte> plaintext, AgeSharp.AgeEncryptOptions! options, AgeSharp.IRecipient! first, params System.ReadOnlySpan<AgeSharp.IRecipient!> rest) -> byte[]!
-static AgeSharp.Age.Encrypt(System.ReadOnlySpan<byte> plaintext, AgeSharp.AgeEncryptOptions! options, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients) -> byte[]!
-static AgeSharp.Age.Encrypt(System.ReadOnlySpan<byte> plaintext, AgeSharp.IRecipient! first, params System.ReadOnlySpan<AgeSharp.IRecipient!> rest) -> byte[]!
-static AgeSharp.Age.Encrypt(System.ReadOnlySpan<byte> plaintext, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients) -> byte[]!
+static AgeSharp.Age.DecryptWriter(System.IO.Stream! destination, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null) -> System.IO.Stream!
+static AgeSharp.Age.Encrypt(System.IO.Stream! input, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients, AgeSharp.AgeEncryptOptions? options = null) -> void
+static AgeSharp.Age.Encrypt(System.ReadOnlySpan<byte> plaintext, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients, AgeSharp.AgeEncryptOptions? options = null) -> byte[]!
 static AgeSharp.Age.EncryptAsync(System.IO.Stream! input, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients, AgeSharp.AgeEncryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-static AgeSharp.Age.EncryptDetached(System.IO.Stream! input, System.IO.Stream! headerOutput, System.IO.Stream! payloadOutput, AgeSharp.IRecipient! first, params System.ReadOnlySpan<AgeSharp.IRecipient!> rest) -> void
 static AgeSharp.Age.EncryptDetached(System.IO.Stream! input, System.IO.Stream! headerOutput, System.IO.Stream! payloadOutput, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients) -> void
-static AgeSharp.Age.EncryptReader(System.IO.Stream! plaintext, AgeSharp.AgeEncryptOptions! options, AgeSharp.IRecipient! first, params System.ReadOnlySpan<AgeSharp.IRecipient!> rest) -> System.IO.Stream!
-static AgeSharp.Age.EncryptReader(System.IO.Stream! plaintext, AgeSharp.AgeEncryptOptions! options, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients) -> System.IO.Stream!
-static AgeSharp.Age.EncryptReader(System.IO.Stream! plaintext, AgeSharp.IRecipient! first, params System.ReadOnlySpan<AgeSharp.IRecipient!> rest) -> System.IO.Stream!
-static AgeSharp.Age.EncryptReader(System.IO.Stream! plaintext, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients) -> System.IO.Stream!
-static AgeSharp.Age.EncryptWriter(System.IO.Stream! destination, AgeSharp.AgeEncryptOptions! options, AgeSharp.IRecipient! first, params System.ReadOnlySpan<AgeSharp.IRecipient!> rest) -> System.IO.Stream!
-static AgeSharp.Age.EncryptWriter(System.IO.Stream! destination, AgeSharp.AgeEncryptOptions! options, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients) -> System.IO.Stream!
-static AgeSharp.Age.EncryptWriter(System.IO.Stream! destination, AgeSharp.IRecipient! first, params System.ReadOnlySpan<AgeSharp.IRecipient!> rest) -> System.IO.Stream!
-static AgeSharp.Age.EncryptWriter(System.IO.Stream! destination, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients) -> System.IO.Stream!
+static AgeSharp.Age.EncryptReader(System.IO.Stream! plaintext, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients, AgeSharp.AgeEncryptOptions? options = null) -> System.IO.Stream!
+static AgeSharp.Age.EncryptWriter(System.IO.Stream! destination, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients, AgeSharp.AgeEncryptOptions? options = null) -> System.IO.Stream!
 static AgeSharp.Age.ParseIdentities(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IIdentity![]!
 static AgeSharp.Age.ParseIdentity(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IIdentity!
 static AgeSharp.Age.ParseRecipient(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IRecipient!
 static AgeSharp.Age.ParseRecipients(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IRecipient![]!
-static AgeSharp.Age.ReadHeader(System.IO.Stream! source) -> AgeSharp.AgeHeader!
-static AgeSharp.Age.ReadHeader(System.IO.Stream! source, AgeSharp.AgeDecryptOptions! options) -> AgeSharp.AgeHeader!
+static AgeSharp.Age.ReadHeader(System.IO.Stream! source, AgeSharp.AgeDecryptOptions? options = null) -> AgeSharp.AgeHeader!
 static AgeSharp.Age.TryParseIdentity(string? s, out AgeSharp.IIdentity! result) -> bool
 static AgeSharp.Age.TryParseRecipient(string? s, out AgeSharp.IRecipient! result) -> bool
 static AgeSharp.MlKem768X25519Identity.TryParse(string? s, out AgeSharp.MlKem768X25519Identity! result) -> bool

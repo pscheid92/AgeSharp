@@ -114,9 +114,9 @@ public class IdentityInterfaceTests
         using var identity = X25519Identity.Generate();
         var recipient = ((IIdentityWithRecipient)identity).Recipient;
 
-        var ciphertext = Age.Encrypt("interface round-trip"u8, recipient);
+        var ciphertext = Age.Encrypt("interface round-trip"u8, [recipient]);
 
-        Assert.Equal("interface round-trip"u8.ToArray(), Age.Decrypt(ciphertext, identity));
+        Assert.Equal("interface round-trip"u8.ToArray(), Age.Decrypt(ciphertext, [identity]));
     }
 
     public static TheoryData<IIdentity, string> IdentitiesWithRecipients()

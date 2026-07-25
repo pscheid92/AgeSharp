@@ -844,11 +844,11 @@ public class PluginTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, identity.Recipient);
+        Age.Encrypt(encInput, encOutput, [identity.Recipient]);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, [identity]);
         Assert.Equal(plaintext, decOutput.ToArray());
     }
 
@@ -860,11 +860,11 @@ public class PluginTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, new Passphrase(passphrase, 10));
+        Age.Encrypt(encInput, encOutput, [new Passphrase(passphrase, 10)]);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput, new Passphrase(passphrase));
+        Age.Decrypt(encOutput, decOutput, [new Passphrase(passphrase)]);
         Assert.Equal(plaintext, decOutput.ToArray());
     }
 

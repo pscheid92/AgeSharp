@@ -60,7 +60,7 @@ public class ExceptionContractTests
         using var headerInput = new MemoryStream(header);
 
         var ex = Assert.Throws<AgeFormatException>(() =>
-            Age.DecryptDetached(headerInput, shortPayload, new MemoryStream(), identity));
+            Age.DecryptDetached(headerInput, shortPayload, new MemoryStream(), [identity]));
         Assert.Contains("payload nonce", ex.Message);
     }
 
@@ -71,7 +71,7 @@ public class ExceptionContractTests
         using var encrypted = Encrypt(identity, "hello"u8.ToArray());
 
         var ex = Assert.Throws<AgeFormatException>(() =>
-            Age.Decrypt(encrypted, new MemoryStream(), new WrongSizeIdentity()));
+            Age.Decrypt(encrypted, new MemoryStream(), [new WrongSizeIdentity()]));
         Assert.Contains("file key must be", ex.Message);
     }
 
@@ -86,7 +86,7 @@ public class ExceptionContractTests
         // header + nonce, zero chunks — a seekable source rejects this eagerly.
         using var file = new MemoryStream([.. header, .. payload[..16]]);
 
-        var ex = Assert.Throws<AgeAuthenticationException>(() => Age.DecryptReader(file, identity));
+        var ex = Assert.Throws<AgeAuthenticationException>(() => Age.DecryptReader(file, [identity]));
         Assert.Contains("payload is empty", ex.Message);
     }
 
@@ -99,7 +99,7 @@ public class ExceptionContractTests
         // header + nonce + 5 bytes: a chunk cannot even hold its tag.
         using var file = new MemoryStream([.. header, .. payload[..21]]);
 
-        var ex = Assert.Throws<AgeAuthenticationException>(() => Age.DecryptReader(file, identity));
+        var ex = Assert.Throws<AgeAuthenticationException>(() => Age.DecryptReader(file, [identity]));
         Assert.Contains("chunk too small", ex.Message);
     }
 
@@ -114,7 +114,7 @@ public class ExceptionContractTests
         using var payloadInput = new MemoryStream(payload);
 
         Assert.Throws<AgeAuthenticationException>(() =>
-            Age.DecryptDetached(headerInput, payloadInput, new MemoryStream(), identity));
+            Age.DecryptDetached(headerInput, payloadInput, new MemoryStream(), [identity]));
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class ExceptionContractTests
         using var input = new MemoryStream("age-encryption.org/v1\n"u8.ToArray());
 
         var ex = Assert.Throws<AgeFormatException>(() =>
-            Age.Decrypt(input, new MemoryStream(), identity));
+            Age.Decrypt(input, new MemoryStream(), [identity]));
         Assert.Contains("unexpected end of header", ex.Message);
     }
 
@@ -173,7 +173,7 @@ public class ExceptionContractTests
         using var input = new MemoryStream(Encoding.ASCII.GetBytes(armored));
 
         Assert.Throws<AgeFormatException>(() =>
-            Age.Decrypt(input, new MemoryStream(), identity));
+            Age.Decrypt(input, new MemoryStream(), [identity]));
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public class ExceptionContractTests
         using var input = new MemoryStream(Encoding.ASCII.GetBytes(armored));
 
         Assert.Throws<AgeFormatException>(() =>
-            Age.Decrypt(input, new MemoryStream(), identity));
+            Age.Decrypt(input, new MemoryStream(), [identity]));
     }
 
     [Fact]
@@ -322,7 +322,7 @@ public class ExceptionContractTests
     {
         var output = new MemoryStream();
         using var input = new MemoryStream(plaintext);
-        Age.Encrypt(input, output, identity.Recipient);
+        Age.Encrypt(input, output, [identity.Recipient]);
         output.Position = 0;
         return output;
     }
@@ -332,7 +332,7 @@ public class ExceptionContractTests
         using var input = new MemoryStream("some plaintext for the contract tests"u8.ToArray());
         using var header = new MemoryStream();
         using var payload = new MemoryStream();
-        Age.EncryptDetached(input, header, payload, identity.Recipient);
+        Age.EncryptDetached(input, header, payload, [identity.Recipient]);
         return (header.ToArray(), payload.ToArray());
     }
 

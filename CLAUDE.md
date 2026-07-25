@@ -98,9 +98,13 @@ in a header, and label sets must match across recipients.
   removing shipped surface requires a `*REMOVED*` line. The build fails otherwise.
 - **Namespaces are flat**: everything public is `AgeSharp`; `AgeSharp.Crypto` is internal-only. This
   is deliberate (`f41a214`) — do not introduce sub-namespaces for public types.
-- **Overload shape**: public entry points take `(first, params rest)` so that omitting recipients
-  entirely is a compile error, plus an `IReadOnlyList<T>` collection overload. Both funnel through
-  `Combine`/`Materialize` in `Age.cs`, which is the single place argument validation lives.
+- **Overload shape**: one method per operation. Recipients and identities are always an
+  `IReadOnlyList<T>` (a collection expression at the call site — `[recipient]`), and options are
+  always the last parameter, optional and defaulting to null. The async members are the same shape
+  plus a trailing `CancellationToken`. Do not add `params` or per-options overloads: the facade was
+  deliberately collapsed from ~50 methods to this one rule, and `Materialize` in `Age.cs` is the
+  single place recipients and identities are validated (null, empty, null elements).
+  `RS0026` is suppressed in `Age.csproj` for this shape — see the comment there for why it is safe.
 
 ### Exceptions
 

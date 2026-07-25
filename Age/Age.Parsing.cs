@@ -51,37 +51,29 @@ public static partial class Age
     }
 
     /// <summary>Tries to parse a recipient string. Returns false instead of throwing.</summary>
-    public static bool TryParseRecipient([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out IRecipient result)
-    {
-        return ParseHelpers.TryParse(s, static x => ParseRecipient(x), out result);
-    }
+    public static bool TryParseRecipient([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out IRecipient result) => 
+        ParseHelpers.TryParse(s, static x => ParseRecipient(x), out result);
 
     /// <summary>Tries to parse an identity string. Returns false instead of throwing.</summary>
-    public static bool TryParseIdentity([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out IIdentity result)
-    {
-        return ParseHelpers.TryParse(s, static x => ParseIdentity(x), out result);
-    }
+    public static bool TryParseIdentity([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out IIdentity result) => 
+        ParseHelpers.TryParse(s, static x => ParseIdentity(x), out result);
 
     /// <summary>
     ///     Parses a recipients file: one recipient per line, with blank lines and
-    ///     <c>#</c> comments ignored. The returned array converts implicitly to the
-    ///     <c>ReadOnlySpan&lt;IRecipient&gt;</c> the
-    ///     <see cref="Encrypt(Stream, Stream, IRecipient, ReadOnlySpan{IRecipient})" />
-    ///     overloads accept.
+    ///     <c>#</c> comments ignored. The returned array is an
+    ///     <see cref="IReadOnlyList{T}" />, so it can be passed straight to
+    ///     <see cref="Encrypt(Stream, Stream, IReadOnlyList{IRecipient}, AgeEncryptOptions)" />
+    ///     without wrapping.
     /// </summary>
-    public static IRecipient[] ParseRecipients(string text, IPluginCallbacks? plugins = null)
-    {
-        return NonBlankLines(text).Select(line => ParseRecipient(line, plugins)).ToArray();
-    }
+    public static IRecipient[] ParseRecipients(string text, IPluginCallbacks? plugins = null) => 
+        NonBlankLines(text).Select(line => ParseRecipient(line, plugins)).ToArray();
 
     /// <summary>
     ///     Parses a plaintext identity file: one identity per line, with blank lines
     ///     and <c>#</c> comments ignored.
     /// </summary>
-    public static IIdentity[] ParseIdentities(string text, IPluginCallbacks? plugins = null)
-    {
-        return NonBlankLines(text).Select(line => ParseIdentity(line, plugins)).ToArray();
-    }
+    public static IIdentity[] ParseIdentities(string text, IPluginCallbacks? plugins = null) => 
+        NonBlankLines(text).Select(line => ParseIdentity(line, plugins)).ToArray();
 
     /// <summary>
     ///     Decrypts a passphrase-protected identity file and parses the identities it
@@ -90,16 +82,14 @@ public static partial class Age
     public static IIdentity[] DecryptIdentities(Stream source, string passphrase, IPluginCallbacks? plugins = null)
     {
         using var output = new MemoryStream();
-        Decrypt(source, output, new Passphrase(passphrase));
+        Decrypt(source, output, [new Passphrase(passphrase)]);
         return ParseIdentities(Encoding.UTF8.GetString(output.ToArray()), plugins);
     }
 
-    private static IEnumerable<string> NonBlankLines(string text)
-    {
-        return text.Split('\n')
+    private static IEnumerable<string> NonBlankLines(string text) =>
+        text.Split('\n')
             .Select(line => line.TrimEnd('\r'))
             .Where(line => line.Length > 0 && !line.StartsWith('#'));
-    }
 
     private static IRecipient ParseSshRecipient(string authorizedKeysLine)
     {

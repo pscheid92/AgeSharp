@@ -14,11 +14,11 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, [recipient]);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, [identity]);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -33,11 +33,11 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, [recipient]);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, [identity]);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -54,11 +54,11 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, [recipient]);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, [identity]);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -75,11 +75,11 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, [recipient]);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, [identity]);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -94,11 +94,11 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, [recipient]);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput, recipient);
+        Age.Decrypt(encOutput, decOutput, [recipient]);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -113,18 +113,18 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, id1.Recipient, id2.Recipient);
+        Age.Encrypt(encInput, encOutput, [id1.Recipient, id2.Recipient]);
 
         // Decrypt with first identity
         encOutput.Position = 0;
         using var decOutput1 = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput1, id1);
+        Age.Decrypt(encOutput, decOutput1, [id1]);
         Assert.Equal(plaintext, decOutput1.ToArray());
 
         // Decrypt with second identity
         encOutput.Position = 0;
         using var decOutput2 = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput2, id2);
+        Age.Decrypt(encOutput, decOutput2, [id2]);
         Assert.Equal(plaintext, decOutput2.ToArray());
     }
 

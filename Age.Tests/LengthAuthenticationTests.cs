@@ -19,7 +19,7 @@ public class LengthAuthenticationTests
     {
         plaintext = new byte[size];
         new Random(42).NextBytes(plaintext);
-        return Age.Encrypt(plaintext, recipient);
+        return Age.Encrypt(plaintext, [recipient]);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class LengthAuthenticationTests
         var truncated = ciphertext[..(ciphertext.Length - 40_000)];
 
         Assert.Throws<AgeAuthenticationException>(() =>
-            Age.DecryptReader(new MemoryStream(truncated), identity));
+            Age.DecryptReader(new MemoryStream(truncated), [identity]));
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class LengthAuthenticationTests
         using var identity = X25519Identity.Generate();
         var ciphertext = Ciphertext(size, identity.Recipient, out var plaintext);
 
-        using var stream = Age.DecryptReader(new MemoryStream(ciphertext), identity);
+        using var stream = Age.DecryptReader(new MemoryStream(ciphertext), [identity]);
 
         Assert.Equal(plaintext.Length, stream.Length);
     }
@@ -67,9 +67,9 @@ public class LengthAuthenticationTests
     {
         // The single chunk is empty, which is legal only because it is also the first.
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(ReadOnlySpan<byte>.Empty, identity.Recipient);
+        var ciphertext = Age.Encrypt(ReadOnlySpan<byte>.Empty, [identity.Recipient]);
 
-        using var stream = Age.DecryptReader(new MemoryStream(ciphertext), identity);
+        using var stream = Age.DecryptReader(new MemoryStream(ciphertext), [identity]);
 
         Assert.Equal(0, stream.Length);
         Assert.Equal(0, stream.Read(new byte[8], 0, 8));
@@ -83,7 +83,7 @@ public class LengthAuthenticationTests
         using var identity = X25519Identity.Generate();
         var ciphertext = Ciphertext(150_000, identity.Recipient, out var plaintext);
 
-        using var stream = Age.DecryptReader(new MemoryStream(ciphertext), identity);
+        using var stream = Age.DecryptReader(new MemoryStream(ciphertext), [identity]);
         using var output = new MemoryStream();
         stream.CopyTo(output);
 
@@ -96,7 +96,7 @@ public class LengthAuthenticationTests
         using var identity = X25519Identity.Generate();
         var ciphertext = Ciphertext(150_000, identity.Recipient, out var plaintext);
 
-        using var stream = Age.DecryptReader(new MemoryStream(ciphertext), identity);
+        using var stream = Age.DecryptReader(new MemoryStream(ciphertext), [identity]);
 
         stream.Seek(-64, SeekOrigin.End);
         var tail = new byte[64];

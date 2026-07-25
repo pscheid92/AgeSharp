@@ -17,7 +17,6 @@ public sealed class AgeDecryptOptions
     internal static readonly AgeDecryptOptions Default = new();
     private readonly int _maxArmorLineBytes = 64 * 1024;
     private readonly int _maxHeaderBytes = 16 * 1024 * 1024;
-
     private readonly int _maxHeaderLineBytes = 64 * 1024;
 
     /// <summary>

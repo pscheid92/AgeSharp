@@ -816,11 +816,11 @@ public class SshRoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, [recipient]);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, [identity]);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -845,11 +845,11 @@ public class SshRoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, [recipient]);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, [identity]);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -876,18 +876,18 @@ public class SshRoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, x25519Identity.Recipient, sshRecipient);
+        Age.Encrypt(encInput, encOutput, [x25519Identity.Recipient, sshRecipient]);
 
         // Decrypt with X25519 identity
         encOutput.Position = 0;
         using var decOutput1 = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput1, x25519Identity);
+        Age.Decrypt(encOutput, decOutput1, [x25519Identity]);
         Assert.Equal(plaintext, decOutput1.ToArray());
 
         // Decrypt with SSH identity
         encOutput.Position = 0;
         using var decOutput2 = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput2, sshIdentity);
+        Age.Decrypt(encOutput, decOutput2, [sshIdentity]);
         Assert.Equal(plaintext, decOutput2.ToArray());
     }
 
@@ -976,7 +976,7 @@ public class SshRoundTripTests
 
             using var encInput = new MemoryStream(plaintext);
             using var encOutput = new MemoryStream();
-            Age.Encrypt(encInput, encOutput, recipient);
+            Age.Encrypt(encInput, encOutput, [recipient]);
 
             var cipherPath = Path.Combine(tmpDir, "encrypted.age");
             File.WriteAllBytes(cipherPath, encOutput.ToArray());
@@ -1045,7 +1045,7 @@ public class SshRoundTripTests
             var ciphertext = File.ReadAllBytes(cipherPath);
             using var decInput = new MemoryStream(ciphertext);
             using var decOutput = new MemoryStream();
-            Age.Decrypt(decInput, decOutput, identity);
+            Age.Decrypt(decInput, decOutput, [identity]);
 
             var result = Encoding.UTF8.GetString(decOutput.ToArray());
             Assert.Equal("Hello from age CLI SSH!", result);
@@ -1085,7 +1085,7 @@ public class SshRoundTripTests
 
             using var encInput = new MemoryStream(plaintext);
             using var encOutput = new MemoryStream();
-            Age.Encrypt(encInput, encOutput, recipient);
+            Age.Encrypt(encInput, encOutput, [recipient]);
 
             var cipherPath = Path.Combine(tmpDir, "encrypted.age");
             File.WriteAllBytes(cipherPath, encOutput.ToArray());
@@ -1150,7 +1150,7 @@ public class SshRoundTripTests
             var ciphertext = File.ReadAllBytes(cipherPath);
             using var decInput = new MemoryStream(ciphertext);
             using var decOutput = new MemoryStream();
-            Age.Decrypt(decInput, decOutput, identity);
+            Age.Decrypt(decInput, decOutput, [identity]);
 
             var result = Encoding.UTF8.GetString(decOutput.ToArray());
             Assert.Equal("Hello from age CLI RSA!", result);
@@ -1187,7 +1187,7 @@ public class SshRoundTripTests
 
             using var encInput = new MemoryStream(plaintext);
             using var encOutput = new MemoryStream();
-            Age.Encrypt(encInput, encOutput, new AgeEncryptOptions { Armor = true }, recipient);
+            Age.Encrypt(encInput, encOutput, [recipient], new AgeEncryptOptions { Armor = true });
 
             var result = AgeCli.Decrypt(File.ReadAllText(keyPath), encOutput.ToArray());
             Assert.Equal(plaintext, result);
@@ -1224,7 +1224,7 @@ public class SshRoundTripTests
 
             using var encInput = new MemoryStream(plaintext);
             using var encOutput = new MemoryStream();
-            Age.Encrypt(encInput, encOutput, new AgeEncryptOptions { Armor = true }, recipient);
+            Age.Encrypt(encInput, encOutput, [recipient], new AgeEncryptOptions { Armor = true });
 
             var result = AgeCli.Decrypt(File.ReadAllText(keyPath), encOutput.ToArray());
             Assert.Equal(plaintext, result);

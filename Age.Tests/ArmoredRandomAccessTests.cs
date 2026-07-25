@@ -23,7 +23,7 @@ public class ArmoredRandomAccessTests
 
     private static MemoryStream Armored(byte[] plaintext, IRecipient recipient)
     {
-        return new MemoryStream(Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, recipient));
+        return new MemoryStream(Age.Encrypt(plaintext, [recipient], new AgeEncryptOptions { Armor = true }));
     }
 
     private static byte[] ReadAt(Stream stream, long offset, int count)
@@ -54,7 +54,7 @@ public class ArmoredRandomAccessTests
         var plaintext = Pattern(50_000);
 
         using var ciphertext = Armored(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         Assert.True(stream.CanSeek);
         Assert.Equal(plaintext.Length, stream.Length);
@@ -69,7 +69,7 @@ public class ArmoredRandomAccessTests
 
         using var inner = Armored(plaintext, identity.Recipient);
         using var source = new NonSeekableStream(inner);
-        using var stream = Age.DecryptReader(source, identity);
+        using var stream = Age.DecryptReader(source, [identity]);
 
         Assert.False(stream.CanSeek);
 
@@ -94,7 +94,7 @@ public class ArmoredRandomAccessTests
         var plaintext = Pattern(50_000);
 
         using var ciphertext = Armored(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         var expected = plaintext.AsSpan(offset, Math.Min(1000, plaintext.Length - offset)).ToArray();
         Assert.Equal(expected, ReadAt(stream, offset, expected.Length));
@@ -109,7 +109,7 @@ public class ArmoredRandomAccessTests
         var plaintext = Pattern(BytesPerArmorLine * 200 + 17);
 
         using var ciphertext = Armored(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         for (var offset = 0; offset < plaintext.Length; offset += BytesPerArmorLine)
         {
@@ -125,7 +125,7 @@ public class ArmoredRandomAccessTests
         var plaintext = Pattern(80_000);
 
         using var ciphertext = Armored(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         Assert.Equal(plaintext.AsSpan(70_000, 100).ToArray(), ReadAt(stream, 70_000, 100));
         Assert.Equal(plaintext.AsSpan(10, 100).ToArray(), ReadAt(stream, 10, 100));
@@ -139,7 +139,7 @@ public class ArmoredRandomAccessTests
         var plaintext = Pattern(50_000);
 
         using var ciphertext = Armored(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         stream.Seek(-64, SeekOrigin.End);
         Assert.Equal(plaintext.AsSpan(^64).ToArray(), ReadAt(stream, stream.Position, 64));
@@ -152,7 +152,7 @@ public class ArmoredRandomAccessTests
         var plaintext = Pattern(50_000);
 
         using var ciphertext = Armored(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         stream.Position = 1000;
         stream.Seek(500, SeekOrigin.Current);
@@ -168,7 +168,7 @@ public class ArmoredRandomAccessTests
         var plaintext = Pattern(5000);
 
         using var ciphertext = Armored(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         stream.Position = plaintext.Length - 10;
         Assert.Equal(plaintext.AsSpan(^10).ToArray(), ReadAt(stream, stream.Position, 10));
@@ -189,7 +189,7 @@ public class ArmoredRandomAccessTests
         var plaintext = Pattern(size);
 
         using var ciphertext = Armored(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         Assert.Equal(size, stream.Length);
 
@@ -207,7 +207,7 @@ public class ArmoredRandomAccessTests
         var plaintext = Pattern(64 * 1024 * 3 + 999);
 
         using var ciphertext = Armored(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         foreach (var offset in new[] { 65_535, 65_536, 65_537, 131_071, 131_072, 196_608 })
             Assert.Equal(plaintext.AsSpan(offset, 64).ToArray(), ReadAt(stream, offset, 64));
@@ -222,12 +222,12 @@ public class ArmoredRandomAccessTests
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(20_000);
 
-        var lf = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var lf = Age.Encrypt(plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
         var crlf = Encoding.ASCII.GetBytes(
             Encoding.ASCII.GetString(lf).Replace("\n", "\r\n"));
 
         using var source = new MemoryStream(crlf);
-        using var stream = Age.DecryptReader(source, identity);
+        using var stream = Age.DecryptReader(source, [identity]);
 
         Assert.True(stream.CanSeek);
         Assert.Equal(plaintext.Length, stream.Length);
@@ -240,11 +240,11 @@ public class ArmoredRandomAccessTests
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(20_000);
 
-        var armored = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
         var padded = (byte[])[.. "\n\n  \n"u8, .. armored];
 
         using var source = new MemoryStream(padded);
-        using var stream = Age.DecryptReader(source, identity);
+        using var stream = Age.DecryptReader(source, [identity]);
 
         Assert.True(stream.CanSeek);
         Assert.Equal(plaintext.AsSpan(15_000, 100).ToArray(), ReadAt(stream, 15_000, 100));
@@ -256,11 +256,11 @@ public class ArmoredRandomAccessTests
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(20_000);
 
-        var armored = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
         var padded = (byte[])[.. armored, .. "\n\n  \n"u8];
 
         using var source = new MemoryStream(padded);
-        using var stream = Age.DecryptReader(source, identity);
+        using var stream = Age.DecryptReader(source, [identity]);
 
         Assert.True(stream.CanSeek);
         Assert.Equal(plaintext.Length, stream.Length);
@@ -332,7 +332,7 @@ public class ArmoredRandomAccessTests
         var plaintext = Pattern(20_000);
 
         var text = Encoding.ASCII.GetString(
-            Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient));
+            Age.Encrypt(plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true }));
 
         var lines = text.Split('\n').ToList();
         lines[5] = lines[5][..32]; // corrupt the geometry mid-body
@@ -341,7 +341,7 @@ public class ArmoredRandomAccessTests
 
         Assert.ThrowsAny<AgeException>(() =>
         {
-            using var stream = Age.DecryptReader(source, identity);
+            using var stream = Age.DecryptReader(source, [identity]);
             using var output = new MemoryStream();
             stream.CopyTo(output);
         });

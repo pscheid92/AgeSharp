@@ -18,18 +18,18 @@ public class ArmorStrictnessTests
     public void RequireArmor_AcceptsArmoredInput()
     {
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, Armored, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, [identity.Recipient], Armored);
 
-        Assert.Equal(Plaintext, Age.Decrypt(armored, Required, identity));
+        Assert.Equal(Plaintext, Age.Decrypt(armored, [identity], Required));
     }
 
     [Fact]
     public void RequireArmor_RejectsBinaryInput()
     {
         using var identity = X25519Identity.Generate();
-        var binary = Age.Encrypt(Plaintext, identity.Recipient);
+        var binary = Age.Encrypt(Plaintext, [identity.Recipient]);
 
-        var ex = Assert.Throws<AgeFormatException>(() => Age.Decrypt(binary, Required, identity));
+        var ex = Assert.Throws<AgeFormatException>(() => Age.Decrypt(binary, [identity], Required));
         Assert.Contains("not ASCII-armored", ex.Message);
     }
 
@@ -38,24 +38,24 @@ public class ArmorStrictnessTests
     {
         using var identity = X25519Identity.Generate();
 
-        Assert.Equal(Plaintext, Age.Decrypt(Age.Encrypt(Plaintext, identity.Recipient), identity));
-        Assert.Equal(Plaintext, Age.Decrypt(Age.Encrypt(Plaintext, Armored, identity.Recipient), identity));
+        Assert.Equal(Plaintext, Age.Decrypt(Age.Encrypt(Plaintext, [identity.Recipient]), [identity]));
+        Assert.Equal(Plaintext, Age.Decrypt(Age.Encrypt(Plaintext, [identity.Recipient], Armored), [identity]));
     }
 
     [Fact]
     public void DecryptReader_RequireArmor_RejectsBinaryInput()
     {
         using var identity = X25519Identity.Generate();
-        var binary = Age.Encrypt(Plaintext, identity.Recipient);
+        var binary = Age.Encrypt(Plaintext, [identity.Recipient]);
 
-        Assert.Throws<AgeFormatException>(() => Age.DecryptReader(new MemoryStream(binary), Required, identity));
+        Assert.Throws<AgeFormatException>(() => Age.DecryptReader(new MemoryStream(binary), [identity], Required));
     }
 
     [Fact]
     public async Task DecryptAsync_RequireArmor_RejectsBinaryInput()
     {
         using var identity = X25519Identity.Generate();
-        var binary = Age.Encrypt(Plaintext, identity.Recipient);
+        var binary = Age.Encrypt(Plaintext, [identity.Recipient]);
 
         using var input = new MemoryStream(binary);
         using var output = new MemoryStream();
@@ -68,7 +68,7 @@ public class ArmorStrictnessTests
     public async Task DecryptAsync_RequireArmor_AcceptsArmoredInput()
     {
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, Armored, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, [identity.Recipient], Armored);
 
         using var input = new MemoryStream(armored);
         using var output = new MemoryStream();
@@ -81,7 +81,7 @@ public class ArmorStrictnessTests
     public void ReadHeader_RequireArmor_RejectsBinaryInput()
     {
         using var identity = X25519Identity.Generate();
-        var binary = Age.Encrypt(Plaintext, identity.Recipient);
+        var binary = Age.Encrypt(Plaintext, [identity.Recipient]);
 
         Assert.Throws<AgeFormatException>(() => Age.ReadHeader(new MemoryStream(binary), Required));
     }
@@ -91,12 +91,12 @@ public class ArmorStrictnessTests
     {
         // Strictness rides on the same lookahead detection, so it must not need seek.
         using var identity = X25519Identity.Generate();
-        var binary = Age.Encrypt(Plaintext, identity.Recipient);
+        var binary = Age.Encrypt(Plaintext, [identity.Recipient]);
 
         using var input = new NonSeekableStream(new MemoryStream(binary));
         using var output = new MemoryStream();
 
-        Assert.Throws<AgeFormatException>(() => Age.Decrypt(input, output, Required, identity));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(input, output, [identity], Required));
     }
 
     // --- options are genuinely optional on the async surface ---
@@ -112,7 +112,7 @@ public class ArmorStrictnessTests
         using var output = new MemoryStream();
         await Age.EncryptAsync(input, output, [identity.Recipient]);
 
-        Assert.Equal(Plaintext, Age.Decrypt(output.ToArray(), identity));
+        Assert.Equal(Plaintext, Age.Decrypt(output.ToArray(), [identity]));
         Assert.False(Age.ReadHeader(new MemoryStream(output.ToArray())).IsArmored);
     }
 
@@ -135,7 +135,7 @@ public class ArmorStrictnessTests
         // it is built must still release it rather than leaking on the error path.
         using var identity = X25519Identity.Generate();
         using var stranger = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, Armored, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, [identity.Recipient], Armored);
 
         using var input = new MemoryStream(armored);
 

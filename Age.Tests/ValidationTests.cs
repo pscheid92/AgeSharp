@@ -13,10 +13,8 @@ public class ValidationTests
 
     // --- empty collections are a caller bug, not "no match" ---
     //
-    // Omitting recipients/identities *entirely* no longer reaches these guards: the
-    // `first, params rest` overloads make that a compile error. What survives is the
-    // collection overload, where emptiness is only knowable at runtime — so these
-    // tests now pin the one shape that still needs a guard.
+    // Every entry point takes an IReadOnlyList<>, so emptiness is only knowable at
+    // runtime. Materialize is the single guard, and these pin it across the facade.
 
     private static readonly IIdentity[] NoIdentities = [];
     private static readonly IRecipient[] NoRecipients = [];
@@ -29,7 +27,7 @@ public class ValidationTests
     private static MemoryStream EncryptTo(IRecipient recipient)
     {
         var encrypted = new MemoryStream();
-        Age.Encrypt(Plaintext(), encrypted, recipient);
+        Age.Encrypt(Plaintext(), encrypted, [recipient]);
         encrypted.Position = 0;
         return encrypted;
     }
@@ -43,7 +41,7 @@ public class ValidationTests
         var passphrase = new Passphrase("pw", LowWorkFactor);
 
         var ex = Assert.Throws<AgeException>(() =>
-            Age.Encrypt(Plaintext(), new MemoryStream(), passphrase, identity.Recipient));
+            Age.Encrypt(Plaintext(), new MemoryStream(), [passphrase, identity.Recipient]));
 
         Assert.Contains("only recipient", ex.Message);
     }
@@ -55,7 +53,7 @@ public class ValidationTests
         var second = new Passphrase("pw2", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
-            Age.Encrypt(Plaintext(), new MemoryStream(), first, second));
+            Age.Encrypt(Plaintext(), new MemoryStream(), [first, second]));
     }
 
     [Fact]
@@ -65,7 +63,7 @@ public class ValidationTests
         var passphrase = new Passphrase("pw", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
-            Age.EncryptDetached(Plaintext(), new MemoryStream(), new MemoryStream(), passphrase, identity.Recipient));
+            Age.EncryptDetached(Plaintext(), new MemoryStream(), new MemoryStream(), [passphrase, identity.Recipient]));
     }
 
     [Fact]
@@ -75,7 +73,7 @@ public class ValidationTests
         var passphrase = new Passphrase("pw", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
-            Age.EncryptReader(Plaintext(), passphrase, identity.Recipient));
+            Age.EncryptReader(Plaintext(), [passphrase, identity.Recipient]));
     }
 
     [Fact]
@@ -85,7 +83,7 @@ public class ValidationTests
         using var encrypted = EncryptTo(passphrase);
 
         using var decrypted = new MemoryStream();
-        Age.Decrypt(encrypted, decrypted, passphrase);
+        Age.Decrypt(encrypted, decrypted, [passphrase]);
 
         Assert.Equal("hello"u8.ToArray(), decrypted.ToArray());
     }
@@ -155,13 +153,18 @@ public class ValidationTests
         Assert.Equal("recipients", ex.ParamName);
     }
 
-    // --- null is rejected on both shapes ---
+    // --- null: the collection itself, versus an element inside it ---
 
+    // A lone null recipient is an element, not a distinguished "first" argument, so it
+    // reports as ArgumentException naming index 0 — not ArgumentNullException.
     [Fact]
-    public void Encrypt_NullFirstRecipient_ThrowsArgumentNullException()
+    public void Encrypt_SingleNullRecipient_ThrowsArgumentException()
     {
-        Assert.Throws<ArgumentNullException>(() =>
-            Age.Encrypt(Plaintext(), new MemoryStream(), (IRecipient)null!));
+        var ex = Assert.Throws<ArgumentException>(() =>
+            Age.Encrypt(Plaintext(), new MemoryStream(), [(IRecipient)null!]));
+
+        Assert.Contains("index 0", ex.Message);
+        Assert.Equal("recipients", ex.ParamName);
     }
 
     [Fact]
@@ -233,7 +236,7 @@ public class ValidationTests
     public void Decrypt_NullIdentityInCollection_ThrowsArgumentException()
     {
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt("x"u8, identity.Recipient);
+        var ciphertext = Age.Encrypt("x"u8, [identity.Recipient]);
 
         Assert.Throws<ArgumentException>(() =>
             Age.Decrypt(ciphertext, new IIdentity[] { null!, identity }));

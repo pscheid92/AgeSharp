@@ -16,11 +16,11 @@ public class ArmorDetectionTests
     public void Decrypt_ArmoredNonSeekableSource_RoundTrips()
     {
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
 
         using var input = new NonSeekableStream(new MemoryStream(armored));
         using var output = new MemoryStream();
-        Age.Decrypt(input, output, identity);
+        Age.Decrypt(input, output, [identity]);
 
         Assert.Equal(Plaintext, output.ToArray());
     }
@@ -29,10 +29,10 @@ public class ArmorDetectionTests
     public void DecryptReader_ArmoredNonSeekableSource_RoundTrips()
     {
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
 
         using var input = new NonSeekableStream(new MemoryStream(armored));
-        using var stream = Age.DecryptReader(input, identity);
+        using var stream = Age.DecryptReader(input, [identity]);
         using var output = new MemoryStream();
         stream.CopyTo(output);
 
@@ -43,7 +43,7 @@ public class ArmorDetectionTests
     public async Task DecryptAsync_ArmoredNonSeekableSource_RoundTrips()
     {
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
 
         using var input = new NonSeekableStream(new MemoryStream(armored));
         using var output = new MemoryStream();
@@ -56,7 +56,7 @@ public class ArmorDetectionTests
     public void ReadHeader_ArmoredNonSeekableSource_Parses()
     {
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
 
         using var input = new NonSeekableStream(new MemoryStream(armored));
         var header = Age.ReadHeader(input);
@@ -71,11 +71,11 @@ public class ArmorDetectionTests
     {
         // Detection must not disturb the bytes it probes.
         using var identity = X25519Identity.Generate();
-        var binary = Age.Encrypt(Plaintext, identity.Recipient);
+        var binary = Age.Encrypt(Plaintext, [identity.Recipient]);
 
         using var input = new NonSeekableStream(new MemoryStream(binary));
         using var output = new MemoryStream();
-        Age.Decrypt(input, output, identity);
+        Age.Decrypt(input, output, [identity]);
 
         Assert.Equal(Plaintext, output.ToArray());
     }
@@ -88,10 +88,10 @@ public class ArmorDetectionTests
         using var identity = X25519Identity.Generate();
         var plaintext = new byte[200_000];
         new Random(7).NextBytes(plaintext);
-        var binary = Age.Encrypt(plaintext, identity.Recipient);
+        var binary = Age.Encrypt(plaintext, [identity.Recipient]);
 
         using var input = new MemoryStream(binary);
-        using var stream = Age.DecryptReader(input, identity);
+        using var stream = Age.DecryptReader(input, [identity]);
 
         Assert.True(stream.CanSeek);
         Assert.Equal(plaintext.Length, stream.Length);
@@ -110,7 +110,7 @@ public class ArmorDetectionTests
         // The dearmor chain used to own its source, so inspecting an armored file's
         // header closed the caller's stream.
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
 
         using var input = new MemoryStream(armored);
         Age.ReadHeader(input);
@@ -123,12 +123,12 @@ public class ArmorDetectionTests
     public void Decrypt_DoesNotDisposeAnArmoredSource()
     {
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
 
         using var input = new MemoryStream(armored);
         using (var output = new MemoryStream())
         {
-            Age.Decrypt(input, output, identity);
+            Age.Decrypt(input, output, [identity]);
         }
 
         Assert.True(input.CanRead);
@@ -141,12 +141,12 @@ public class ArmorDetectionTests
     public void LeadingWhitespace_WithinTheBound_IsStillDetected()
     {
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
         var padded = (byte[])[.. Encoding.ASCII.GetBytes(new string('\n', 512)), .. armored];
 
         using var input = new NonSeekableStream(new MemoryStream(padded));
         using var output = new MemoryStream();
-        Age.Decrypt(input, output, identity);
+        Age.Decrypt(input, output, [identity]);
 
         Assert.Equal(Plaintext, output.ToArray());
     }
@@ -158,12 +158,12 @@ public class ArmorDetectionTests
         // pushes the marker past it is rejected rather than silently misread. The
         // reference CLI draws the same line at 1 KiB.
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
         var padded = (byte[])[.. Encoding.ASCII.GetBytes(new string('\n', 4096)), .. armored];
 
         using var input = new NonSeekableStream(new MemoryStream(padded));
         using var output = new MemoryStream();
 
-        Assert.Throws<AgeFormatException>(() => Age.Decrypt(input, output, identity));
+        Assert.Throws<AgeFormatException>(() => Age.Decrypt(input, output, [identity]));
     }
 }

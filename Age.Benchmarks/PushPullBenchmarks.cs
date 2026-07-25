@@ -4,9 +4,9 @@ namespace AgeSharp.Benchmarks;
 
 /// <summary>
 ///     Compares the three encryption shapes over the same plaintext: the eager
-///     one-shot <see cref="Age.Encrypt(System.IO.Stream, System.IO.Stream, System.ReadOnlySpan{IRecipient})" />,
-///     the push writer <see cref="Age.EncryptWriter(System.IO.Stream, System.ReadOnlySpan{IRecipient})" />,
-///     and the pull reader <see cref="Age.EncryptReader(System.IO.Stream, IRecipient, System.ReadOnlySpan{IRecipient})" />
+///     one-shot <see cref="Age.Encrypt(System.IO.Stream, System.IO.Stream, [System.ReadOnlySpan{IRecipient}])" />,
+///     the push writer <see cref="Age.EncryptWriter(System.IO.Stream, [System.ReadOnlySpan{IRecipient}])" />,
+///     and the pull reader <see cref="Age.EncryptReader(System.IO.Stream, [IRecipient, System.ReadOnlySpan{IRecipient}])" />
 ///     .
 ///     All three run the same chunked STREAM path, so the numbers isolate the per-shape
 ///     buffering overhead.
@@ -37,14 +37,14 @@ public class PushPullBenchmarks
     public void OneShot()
     {
         using var output = new MemoryStream();
-        Age.Encrypt(new MemoryStream(_plaintext), output, _identity.Recipient);
+        Age.Encrypt(new MemoryStream(_plaintext), output, [_identity.Recipient]);
     }
 
     [Benchmark]
     public void Push_EncryptWriter()
     {
         using var output = new MemoryStream();
-        using var stream = Age.EncryptWriter(output, _identity.Recipient);
+        using var stream = Age.EncryptWriter(output, [_identity.Recipient]);
         stream.Write(_plaintext);
     }
 
@@ -52,7 +52,7 @@ public class PushPullBenchmarks
     public void Pull_EncryptReader()
     {
         using var output = new MemoryStream();
-        using var stream = Age.EncryptReader(new MemoryStream(_plaintext), _identity.Recipient);
+        using var stream = Age.EncryptReader(new MemoryStream(_plaintext), [_identity.Recipient]);
         stream.CopyTo(output);
     }
 }

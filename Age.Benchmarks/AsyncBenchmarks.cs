@@ -30,7 +30,7 @@ public class AsyncBenchmarks
         Random.Shared.NextBytes(_plaintext);
 
         using var encOut = new MemoryStream();
-        Age.Encrypt(new MemoryStream(_plaintext), encOut, _identity.Recipient);
+        Age.Encrypt(new MemoryStream(_plaintext), encOut, [_identity.Recipient]);
         _ciphertext = encOut.ToArray();
     }
 
@@ -45,7 +45,7 @@ public class AsyncBenchmarks
     {
         using var input = new MemoryStream(_plaintext);
         using var output = new MemoryStream();
-        Age.Encrypt(input, output, _identity.Recipient);
+        Age.Encrypt(input, output, [_identity.Recipient]);
     }
 
     [Benchmark]
@@ -61,7 +61,7 @@ public class AsyncBenchmarks
     {
         using var input = new MemoryStream(_ciphertext);
         using var output = new MemoryStream();
-        Age.Decrypt(input, output, _identity);
+        Age.Decrypt(input, output, [_identity]);
     }
 
     [Benchmark]

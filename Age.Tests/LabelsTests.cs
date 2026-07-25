@@ -96,11 +96,11 @@ public class LabelsTests
 
         using var input = new MemoryStream("hello"u8.ToArray());
         using var encrypted = new MemoryStream();
-        Age.Encrypt(input, encrypted, a.Recipient, b.Recipient);
+        Age.Encrypt(input, encrypted, [a.Recipient, b.Recipient]);
 
         encrypted.Position = 0;
         using var output = new MemoryStream();
-        Age.Decrypt(encrypted, output, b);
+        Age.Decrypt(encrypted, output, [b]);
         Assert.Equal("hello"u8.ToArray(), output.ToArray());
     }
 

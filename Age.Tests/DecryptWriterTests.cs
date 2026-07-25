@@ -28,7 +28,7 @@ public class DecryptWriterTests
     {
         using var output = new MemoryStream();
 
-        using (var writer = Age.DecryptWriter(output, identity))
+        using (var writer = Age.DecryptWriter(output, [identity]))
         {
             for (var offset = 0; offset < ciphertext.Length; offset += writeSize)
                 writer.Write(ciphertext.AsSpan(offset, Math.Min(writeSize, ciphertext.Length - offset)));
@@ -48,7 +48,7 @@ public class DecryptWriterTests
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(length);
 
-        Assert.Equal(plaintext, PushDecrypt(Age.Encrypt(plaintext, identity.Recipient), identity));
+        Assert.Equal(plaintext, PushDecrypt(Age.Encrypt(plaintext, [identity.Recipient]), identity));
     }
 
     [Theory]
@@ -60,7 +60,7 @@ public class DecryptWriterTests
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(ChunkSize + delta);
 
-        Assert.Equal(plaintext, PushDecrypt(Age.Encrypt(plaintext, identity.Recipient), identity));
+        Assert.Equal(plaintext, PushDecrypt(Age.Encrypt(plaintext, [identity.Recipient]), identity));
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class DecryptWriterTests
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(ChunkSize * 2);
 
-        Assert.Equal(plaintext, PushDecrypt(Age.Encrypt(plaintext, identity.Recipient), identity));
+        Assert.Equal(plaintext, PushDecrypt(Age.Encrypt(plaintext, [identity.Recipient]), identity));
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public class DecryptWriterTests
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(ChunkSize * 3 + 12345);
 
-        Assert.Equal(plaintext, PushDecrypt(Age.Encrypt(plaintext, identity.Recipient), identity));
+        Assert.Equal(plaintext, PushDecrypt(Age.Encrypt(plaintext, [identity.Recipient]), identity));
     }
 
     // --- write granularity is not allowed to matter --------------------------
@@ -92,7 +92,7 @@ public class DecryptWriterTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(ChunkSize + 5000);
-        var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, [identity.Recipient]);
 
         Assert.Equal(plaintext, PushDecrypt(ciphertext, identity, writeSize));
     }
@@ -102,7 +102,7 @@ public class DecryptWriterTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(ChunkSize + 1);
-        var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, [identity.Recipient]);
 
         Assert.Equal(plaintext, PushDecrypt(ciphertext, identity, 1));
     }
@@ -114,7 +114,7 @@ public class DecryptWriterTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(5000);
-        var armored = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
 
         Assert.Equal(plaintext, PushDecrypt(armored, identity));
     }
@@ -126,7 +126,7 @@ public class DecryptWriterTests
         // framings have to interleave correctly under the worst granularity.
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(ChunkSize + 777);
-        var armored = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
 
         Assert.Equal(plaintext, PushDecrypt(armored, identity, 1));
     }
@@ -135,14 +135,14 @@ public class DecryptWriterTests
     public void RequireArmor_RejectsBinaryInput()
     {
         using var identity = X25519Identity.Generate();
-        var binary = Age.Encrypt(Pattern(100), identity.Recipient);
+        var binary = Age.Encrypt(Pattern(100), [identity.Recipient]);
         var options = new AgeDecryptOptions { RequireArmor = true };
 
         using var output = new MemoryStream();
 
         Assert.Throws<AgeFormatException>(() =>
         {
-            using var writer = Age.DecryptWriter(output, options, identity);
+            using var writer = Age.DecryptWriter(output, [identity], options);
             writer.Write(binary);
         });
     }
@@ -152,11 +152,11 @@ public class DecryptWriterTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(100);
-        var armored = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
         var options = new AgeDecryptOptions { RequireArmor = true };
 
         using var output = new MemoryStream();
-        using (var writer = Age.DecryptWriter(output, options, identity))
+        using (var writer = Age.DecryptWriter(output, [identity], options))
         {
             writer.Write(armored);
         }
@@ -172,13 +172,13 @@ public class DecryptWriterTests
         // The final chunk is only knowable at dispose, so truncation must surface
         // there rather than passing silently as a short-but-valid file.
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(Pattern(ChunkSize * 2), identity.Recipient);
+        var ciphertext = Age.Encrypt(Pattern(ChunkSize * 2), [identity.Recipient]);
 
         using var output = new MemoryStream();
 
         Assert.Throws<AgeAuthenticationException>(() =>
         {
-            using var writer = Age.DecryptWriter(output, identity);
+            using var writer = Age.DecryptWriter(output, [identity]);
             writer.Write(ciphertext.AsSpan(0, ciphertext.Length - 100));
         });
     }
@@ -187,13 +187,13 @@ public class DecryptWriterTests
     public void TruncatedInsideHeader_IsRejectedAtDispose()
     {
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
+        var ciphertext = Age.Encrypt(Pattern(100), [identity.Recipient]);
 
         using var output = new MemoryStream();
 
         var ex = Assert.Throws<AgeFormatException>(() =>
         {
-            using var writer = Age.DecryptWriter(output, identity);
+            using var writer = Age.DecryptWriter(output, [identity]);
             writer.Write(ciphertext.AsSpan(0, 20));
         });
 
@@ -208,7 +208,7 @@ public class DecryptWriterTests
 
         Assert.Throws<AgeFormatException>(() =>
         {
-            using var writer = Age.DecryptWriter(output, identity);
+            using var writer = Age.DecryptWriter(output, [identity]);
         });
     }
 
@@ -219,10 +219,10 @@ public class DecryptWriterTests
         // not known at construction, so a no-match surfaces from Write.
         using var identity = X25519Identity.Generate();
         using var stranger = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
+        var ciphertext = Age.Encrypt(Pattern(100), [identity.Recipient]);
 
         using var output = new MemoryStream();
-        using var writer = Age.DecryptWriter(output, stranger);
+        using var writer = Age.DecryptWriter(output, [stranger]);
 
         Assert.Throws<NoIdentityMatchException>(() => writer.Write(ciphertext));
     }
@@ -231,14 +231,14 @@ public class DecryptWriterTests
     public void TamperedPayload_IsRejected()
     {
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(Pattern(500), identity.Recipient);
+        var ciphertext = Age.Encrypt(Pattern(500), [identity.Recipient]);
         ciphertext[^5] ^= 0xFF;
 
         using var output = new MemoryStream();
 
         Assert.ThrowsAny<AgeException>(() =>
         {
-            using var writer = Age.DecryptWriter(output, identity);
+            using var writer = Age.DecryptWriter(output, [identity]);
             writer.Write(ciphertext);
         });
     }
@@ -255,13 +255,13 @@ public class DecryptWriterTests
     public void HeaderAndNonceOnly_IsRejected()
     {
         using var identity = X25519Identity.Generate();
-        var truncated = HeaderAndNonce(Age.Encrypt(Pattern(100), identity.Recipient));
+        var truncated = HeaderAndNonce(Age.Encrypt(Pattern(100), [identity.Recipient]));
 
         using var output = new MemoryStream();
 
         var ex = Assert.Throws<AgeAuthenticationException>(() =>
         {
-            using var writer = Age.DecryptWriter(output, identity);
+            using var writer = Age.DecryptWriter(output, [identity]);
             writer.Write(truncated);
         });
 
@@ -272,7 +272,7 @@ public class DecryptWriterTests
     public void ChunkShorterThanTheAuthenticationTag_IsRejected()
     {
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
+        var ciphertext = Age.Encrypt(Pattern(100), [identity.Recipient]);
         var offset = (int)Age.ReadHeader(new MemoryStream(ciphertext)).PayloadOffset;
         var stub = ciphertext[..(offset + 16 + 5)]; // five bytes is not even a tag
 
@@ -280,7 +280,7 @@ public class DecryptWriterTests
 
         var ex = Assert.Throws<AgeAuthenticationException>(() =>
         {
-            using var writer = Age.DecryptWriter(output, identity);
+            using var writer = Age.DecryptWriter(output, [identity]);
             writer.Write(stub);
         });
 
@@ -293,14 +293,14 @@ public class DecryptWriterTests
         // The header parsed, so a file key is live when finalization fails — this is
         // the path that must still zero it on the way out.
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
+        var ciphertext = Age.Encrypt(Pattern(100), [identity.Recipient]);
         var offset = (int)Age.ReadHeader(new MemoryStream(ciphertext)).PayloadOffset;
 
         using var output = new MemoryStream();
 
         Assert.Throws<AgeFormatException>(() =>
         {
-            using var writer = Age.DecryptWriter(output, identity);
+            using var writer = Age.DecryptWriter(output, [identity]);
             writer.Write(ciphertext.AsSpan(0, offset + 4));
         });
     }
@@ -334,7 +334,7 @@ public class DecryptWriterTests
 
         var ex = Assert.Throws<AgeAuthenticationException>(() =>
         {
-            using var writer = Age.DecryptWriter(output, identity);
+            using var writer = Age.DecryptWriter(output, [identity]);
             writer.Write(forged);
         });
 
@@ -350,7 +350,7 @@ public class DecryptWriterTests
         // at end of input rather than on an LF.
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(300);
-        var armored = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
 
         var trimmed = armored[^1] == (byte)'\n' ? armored[..^1] : armored;
         Assert.Equal(plaintext, PushDecrypt(trimmed, identity));
@@ -362,7 +362,7 @@ public class DecryptWriterTests
         // Cut mid-body with no trailing newline: the last partial line still decodes
         // to real bytes at end of input, and the missing end marker is what rejects it.
         using var identity = X25519Identity.Generate();
-        var armored = Age.Encrypt(Pattern(4000), new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(Pattern(4000), [identity.Recipient], new AgeEncryptOptions { Armor = true });
         var text = Encoding.ASCII.GetString(armored);
 
         var lines = text.Split('\n');
@@ -372,7 +372,7 @@ public class DecryptWriterTests
 
         Assert.Throws<AgeFormatException>(() =>
         {
-            using var writer = Age.DecryptWriter(output, identity);
+            using var writer = Age.DecryptWriter(output, [identity]);
             writer.Write(Encoding.ASCII.GetBytes(cut));
         });
     }
@@ -382,7 +382,7 @@ public class DecryptWriterTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(300);
-        var armored = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
         var padded = (byte[])[.. "\n\n   \n"u8, .. armored];
 
         Assert.Equal(plaintext, PushDecrypt(padded, identity));
@@ -395,11 +395,11 @@ public class DecryptWriterTests
     {
         using var identity = X25519Identity.Generate();
         using var output = new MemoryStream();
-        using var writer = Age.DecryptWriter(output, identity);
+        using var writer = Age.DecryptWriter(output, [identity]);
 
         // Written up front so the trailing Dispose has a complete file to finalize;
         // disposing without one is itself an error, covered by NothingWritten_IsRejected.
-        writer.Write(Age.Encrypt(Pattern(10), identity.Recipient));
+        writer.Write(Age.Encrypt(Pattern(10), [identity.Recipient]));
 
         Assert.True(writer.CanWrite);
         Assert.False(writer.CanRead);
@@ -421,11 +421,11 @@ public class DecryptWriterTests
         // actually call, so they carry real traffic rather than being ceremony.
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(3000);
-        var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, [identity.Recipient]);
 
         using var output = new MemoryStream();
 
-        using (var writer = Age.DecryptWriter(output, identity))
+        using (var writer = Age.DecryptWriter(output, [identity]))
         {
             writer.Write(ciphertext, 0, 100);
             await writer.WriteAsync(ciphertext, 100, ciphertext.Length - 100);
@@ -440,10 +440,10 @@ public class DecryptWriterTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(ChunkSize + 99);
-        using var source = new MemoryStream(Age.Encrypt(plaintext, identity.Recipient));
+        using var source = new MemoryStream(Age.Encrypt(plaintext, [identity.Recipient]));
         using var output = new MemoryStream();
 
-        using (var writer = Age.DecryptWriter(output, identity))
+        using (var writer = Age.DecryptWriter(output, [identity]))
         {
             source.CopyTo(writer);
         }
@@ -455,11 +455,11 @@ public class DecryptWriterTests
     public void DestinationIsNotDisposed()
     {
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
+        var ciphertext = Age.Encrypt(Pattern(100), [identity.Recipient]);
 
         using var inner = new MemoryStream();
         var output = new DisposeTrackingStream(inner);
-        using (var writer = Age.DecryptWriter(output, identity))
+        using (var writer = Age.DecryptWriter(output, [identity]))
         {
             writer.Write(ciphertext);
         }
@@ -471,10 +471,10 @@ public class DecryptWriterTests
     public void WriteAfterDispose_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
+        var ciphertext = Age.Encrypt(Pattern(100), [identity.Recipient]);
 
         using var output = new MemoryStream();
-        var writer = Age.DecryptWriter(output, identity);
+        var writer = Age.DecryptWriter(output, [identity]);
         writer.Write(ciphertext);
         writer.Dispose();
 
@@ -488,11 +488,11 @@ public class DecryptWriterTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(ChunkSize + 2048);
-        var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, [identity.Recipient]);
 
         using var output = new MemoryStream();
 
-        await using (var writer = Age.DecryptWriter(output, identity))
+        await using (var writer = Age.DecryptWriter(output, [identity]))
         {
             await writer.WriteAsync(ciphertext);
         }
@@ -507,12 +507,12 @@ public class DecryptWriterTests
         // path stages plaintext and drains it with a real await.
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(ChunkSize * 2 + 33);
-        var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, [identity.Recipient]);
 
         using var inner = new MemoryStream();
         await using var output = new ThrowOnSyncIoStream(inner);
 
-        await using (var writer = Age.DecryptWriter(output, identity))
+        await using (var writer = Age.DecryptWriter(output, [identity]))
         {
             for (var offset = 0; offset < ciphertext.Length; offset += 8192)
                 await writer.WriteAsync(ciphertext.AsMemory(offset, Math.Min(8192, ciphertext.Length - offset)));
@@ -526,12 +526,12 @@ public class DecryptWriterTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(777);
-        var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, [identity.Recipient]);
 
         using var inner = new MemoryStream();
         await using var output = new ThrowOnSyncIoStream(inner);
 
-        var writer = Age.DecryptWriter(output, identity);
+        var writer = Age.DecryptWriter(output, [identity]);
         await writer.WriteAsync(ciphertext);
         await writer.DisposeAsync();
 
@@ -546,10 +546,10 @@ public class DecryptWriterTests
         // instead of the real error.
         using var identity = X25519Identity.Generate();
         using var stranger = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
+        var ciphertext = Age.Encrypt(Pattern(100), [identity.Recipient]);
 
         using var output = new MemoryStream();
-        var writer = Age.DecryptWriter(output, stranger);
+        var writer = Age.DecryptWriter(output, [stranger]);
 
         await Assert.ThrowsAsync<NoIdentityMatchException>(async () => await writer.WriteAsync(ciphertext));
         await writer.DisposeAsync();
@@ -559,10 +559,10 @@ public class DecryptWriterTests
     public async Task DisposeAsync_IsIdempotent()
     {
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
+        var ciphertext = Age.Encrypt(Pattern(100), [identity.Recipient]);
 
         using var output = new MemoryStream();
-        var writer = Age.DecryptWriter(output, identity);
+        var writer = Age.DecryptWriter(output, [identity]);
         await writer.WriteAsync(ciphertext);
 
         await writer.DisposeAsync();
@@ -573,10 +573,10 @@ public class DecryptWriterTests
     public void Dispose_IsIdempotent()
     {
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(Pattern(100), identity.Recipient);
+        var ciphertext = Age.Encrypt(Pattern(100), [identity.Recipient]);
 
         using var output = new MemoryStream();
-        var writer = Age.DecryptWriter(output, identity);
+        var writer = Age.DecryptWriter(output, [identity]);
         writer.Write(ciphertext);
 
         writer.Dispose();
@@ -592,12 +592,12 @@ public class DecryptWriterTests
         List<IIdentity> identityList = [identity];
         var options = new AgeDecryptOptions();
         var plaintext = Pattern(64);
-        var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, [identity.Recipient]);
 
-        Check(output => Age.DecryptWriter(output, identity));
-        Check(output => Age.DecryptWriter(output, options, identity));
+        Check(output => Age.DecryptWriter(output, [identity]));
+        Check(output => Age.DecryptWriter(output, [identity], options));
         Check(output => Age.DecryptWriter(output, identityList));
-        Check(output => Age.DecryptWriter(output, options, identityList));
+        Check(output => Age.DecryptWriter(output, identityList, options));
 
         void Check(Func<Stream, Stream> open)
         {
@@ -615,10 +615,10 @@ public class DecryptWriterTests
     public void EmptyPlaintext_TouchesTheDestination()
     {
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(ReadOnlySpan<byte>.Empty, identity.Recipient);
+        var ciphertext = Age.Encrypt(ReadOnlySpan<byte>.Empty, [identity.Recipient]);
         var destination = new TouchRecorder();
 
-        using (var writer = Age.DecryptWriter(destination, identity))
+        using (var writer = Age.DecryptWriter(destination, [identity]))
         {
             writer.Write(ciphertext);
         }
@@ -630,10 +630,10 @@ public class DecryptWriterTests
     public async Task EmptyPlaintext_TouchesTheDestination_Async()
     {
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(ReadOnlySpan<byte>.Empty, identity.Recipient);
+        var ciphertext = Age.Encrypt(ReadOnlySpan<byte>.Empty, [identity.Recipient]);
         var destination = new TouchRecorder();
 
-        await using (var writer = Age.DecryptWriter(destination, identity))
+        await using (var writer = Age.DecryptWriter(destination, [identity]))
         {
             await writer.WriteAsync(ciphertext);
         }

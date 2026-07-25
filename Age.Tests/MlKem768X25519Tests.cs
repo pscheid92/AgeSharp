@@ -253,11 +253,11 @@ public class PqRoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, [recipient]);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, [identity]);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -272,11 +272,11 @@ public class PqRoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, [recipient]);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, [identity]);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -293,11 +293,11 @@ public class PqRoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, recipient);
+        Age.Encrypt(encInput, encOutput, [recipient]);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, [identity]);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -312,18 +312,18 @@ public class PqRoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, id1.Recipient, id2.Recipient);
+        Age.Encrypt(encInput, encOutput, [id1.Recipient, id2.Recipient]);
 
         // Decrypt with first identity
         encOutput.Position = 0;
         using var decOutput1 = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput1, id1);
+        Age.Decrypt(encOutput, decOutput1, [id1]);
         Assert.Equal(plaintext, decOutput1.ToArray());
 
         // Decrypt with second identity
         encOutput.Position = 0;
         using var decOutput2 = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput2, id2);
+        Age.Decrypt(encOutput, decOutput2, [id2]);
         Assert.Equal(plaintext, decOutput2.ToArray());
     }
 
@@ -337,11 +337,11 @@ public class PqRoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        Age.Encrypt(encInput, encOutput, new AgeEncryptOptions { Armor = true }, recipient);
+        Age.Encrypt(encInput, encOutput, [recipient], new AgeEncryptOptions { Armor = true });
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        Age.Decrypt(encOutput, decOutput, identity);
+        Age.Decrypt(encOutput, decOutput, [identity]);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -371,7 +371,7 @@ public class PqRoundTripTests
         using var encOutput = new MemoryStream();
 
         var ex = Assert.Throws<AgeException>(() =>
-            Age.Encrypt(encInput, encOutput, pqId.Recipient, x25519Id.Recipient));
+            Age.Encrypt(encInput, encOutput, [pqId.Recipient, x25519Id.Recipient]));
         Assert.Contains("different security labels", ex.Message);
     }
 
@@ -386,7 +386,7 @@ public class PqRoundTripTests
         using var encOutput = new MemoryStream();
 
         var ex = Assert.Throws<AgeException>(() =>
-            Age.Encrypt(encInput, encOutput, x25519Id.Recipient, pqId.Recipient));
+            Age.Encrypt(encInput, encOutput, [x25519Id.Recipient, pqId.Recipient]));
         Assert.Contains("different security labels", ex.Message);
     }
 

@@ -21,8 +21,8 @@ public class SecretHygieneTests
         using var fromString = new Passphrase("côrrect-horse", LowWorkFactor);
         using var fromSpan = new Passphrase("côrrect-horse".AsSpan(), LowWorkFactor);
 
-        var ciphertext = Age.Encrypt("secret"u8, fromString);
-        Assert.Equal("secret"u8.ToArray(), Age.Decrypt(ciphertext, fromSpan));
+        var ciphertext = Age.Encrypt("secret"u8, [fromString]);
+        Assert.Equal("secret"u8.ToArray(), Age.Decrypt(ciphertext, [fromSpan]));
     }
 
     [Fact]
@@ -31,8 +31,8 @@ public class SecretHygieneTests
         // Multi-byte UTF-8 is where a char-count/byte-count mix-up would show up.
         using var passphrase = new Passphrase("пароль-🔐-日本語".AsSpan(), LowWorkFactor);
 
-        var ciphertext = Age.Encrypt("secret"u8, passphrase);
-        Assert.Equal("secret"u8.ToArray(), Age.Decrypt(ciphertext, passphrase));
+        var ciphertext = Age.Encrypt("secret"u8, [passphrase]);
+        Assert.Equal("secret"u8.ToArray(), Age.Decrypt(ciphertext, [passphrase]));
     }
 
     [Fact]
@@ -111,8 +111,8 @@ public class SecretHygieneTests
         // age itself permits it; refusing here would be a divergence, not a safeguard.
         using var passphrase = new Passphrase("", LowWorkFactor);
 
-        var ciphertext = Age.Encrypt("secret"u8, passphrase);
-        Assert.Equal("secret"u8.ToArray(), Age.Decrypt(ciphertext, passphrase));
+        var ciphertext = Age.Encrypt("secret"u8, [passphrase]);
+        Assert.Equal("secret"u8.ToArray(), Age.Decrypt(ciphertext, [passphrase]));
     }
 
     // --- public keys are derived once ----------------------------------------
@@ -143,8 +143,8 @@ public class SecretHygieneTests
         using var identity = X25519Identity.Generate();
         var recipient = identity.Recipient;
 
-        var ciphertext = Age.Encrypt("secret"u8, recipient);
-        Assert.Equal("secret"u8.ToArray(), Age.Decrypt(ciphertext, identity));
+        var ciphertext = Age.Encrypt("secret"u8, [recipient]);
+        Assert.Equal("secret"u8.ToArray(), Age.Decrypt(ciphertext, [identity]));
 
         Assert.Equal(recipient.ToString(), identity.Recipient.ToString());
     }
@@ -158,9 +158,9 @@ public class SecretHygieneTests
         using var bob = X25519Identity.Generate();
         using var carol = X25519Identity.Generate();
 
-        var ciphertext = Age.Encrypt("secret"u8, alice.Recipient, bob.Recipient, carol.Recipient);
+        var ciphertext = Age.Encrypt("secret"u8, [alice.Recipient, bob.Recipient, carol.Recipient]);
 
-        Assert.Equal("secret"u8.ToArray(), Age.Decrypt(ciphertext, carol));
+        Assert.Equal("secret"u8.ToArray(), Age.Decrypt(ciphertext, [carol]));
     }
 
     [Fact]

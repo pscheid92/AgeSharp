@@ -12,7 +12,7 @@ public class ArmorStreamingTests
 {
     private static byte[] Armored(byte[] plaintext, IRecipient recipient)
     {
-        return Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, recipient);
+        return Age.Encrypt(plaintext, [recipient], new AgeEncryptOptions { Armor = true });
     }
 
     private static byte[] Payload(int size, int seed = 3)
@@ -108,7 +108,7 @@ public class ArmorStreamingTests
 
         var trimmed = armored.AsSpan().TrimEnd((byte)'\n').ToArray();
 
-        Assert.Equal(plaintext, Age.Decrypt(trimmed, identity));
+        Assert.Equal(plaintext, Age.Decrypt(trimmed, [identity]));
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class ArmorStreamingTests
         using var output = new MemoryStream();
         using var identity = X25519Identity.Generate();
 
-        var ex = Assert.Throws<AgeFormatException>(() => Age.Decrypt(input, output, options, identity));
+        var ex = Assert.Throws<AgeFormatException>(() => Age.Decrypt(input, output, [identity], options));
         Assert.Contains("exceeds", ex.Message);
     }
 
@@ -137,7 +137,7 @@ public class ArmorStreamingTests
 
         using var input = new DripStream(new MemoryStream(Armored(plaintext, identity.Recipient)), 7);
         using var output = new MemoryStream();
-        Age.Decrypt(input, output, identity);
+        Age.Decrypt(input, output, [identity]);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -152,7 +152,7 @@ public class ArmorStreamingTests
         using var input = new MemoryStream(withTrailer);
         using var output = new MemoryStream();
 
-        var ex = Assert.Throws<AgeFormatException>(() => Age.Decrypt(input, output, identity));
+        var ex = Assert.Throws<AgeFormatException>(() => Age.Decrypt(input, output, [identity]));
         Assert.Contains("trailing data", ex.Message);
     }
 
@@ -164,7 +164,7 @@ public class ArmorStreamingTests
         var armored = Armored(plaintext, identity.Recipient);
         var padded = (byte[])[.. armored, .. "\n\n   \n"u8];
 
-        Assert.Equal(plaintext, Age.Decrypt(padded, identity));
+        Assert.Equal(plaintext, Age.Decrypt(padded, [identity]));
     }
 
     // --- the dearmor stream's own Stream contract ---
@@ -185,7 +185,7 @@ public class ArmorStreamingTests
             collected.Write(buffer, 0, read);
 
         // Decoding the armor yields the binary age file, which must still decrypt.
-        Assert.Equal(plaintext, Age.Decrypt(collected.ToArray(), identity));
+        Assert.Equal(plaintext, Age.Decrypt(collected.ToArray(), [identity]));
     }
 
     [Fact]
@@ -202,7 +202,7 @@ public class ArmorStreamingTests
         // The stream must be undisturbed by the empty read.
         using var collected = new MemoryStream();
         dearmored.CopyTo(collected);
-        Assert.Equal(plaintext, Age.Decrypt(collected.ToArray(), identity));
+        Assert.Equal(plaintext, Age.Decrypt(collected.ToArray(), [identity]));
     }
 
     [Fact]

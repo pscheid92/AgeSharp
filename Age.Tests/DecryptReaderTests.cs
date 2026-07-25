@@ -3,7 +3,7 @@ using Xunit;
 namespace AgeSharp.Tests;
 
 /// <summary>
-///     Tests for the unified <see cref="Age.DecryptReader(System.IO.Stream, System.ReadOnlySpan{IIdentity})" />
+///     Tests for the unified <see cref="Age.DecryptReader(System.IO.Stream, [System.ReadOnlySpan{IIdentity}])" />
 ///     decrypt stream: seekable random access over a seekable source (ported from the old
 ///     <c>AgeRandomAccess</c> suite), the one-chunk cache, forward-only behavior over a
 ///     non-seekable source, and truncation-detection semantics.
@@ -14,7 +14,7 @@ public class DecryptReaderTests
     {
         using var input = new MemoryStream(plaintext);
         var output = new MemoryStream();
-        Age.Encrypt(input, output, new AgeEncryptOptions { Armor = armor }, recipient);
+        Age.Encrypt(input, output, [recipient], new AgeEncryptOptions { Armor = armor });
         output.Position = 0;
         return output;
     }
@@ -44,7 +44,7 @@ public class DecryptReaderTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         Assert.True(stream.CanRead);
         Assert.True(stream.CanSeek);
@@ -63,7 +63,7 @@ public class DecryptReaderTests
             if (size > 0) new Random(42).NextBytes(plaintext);
 
             using var ciphertext = Encrypt(plaintext, identity.Recipient);
-            using var stream = Age.DecryptReader(ciphertext, identity);
+            using var stream = Age.DecryptReader(ciphertext, [identity]);
 
             Assert.Equal(size, stream.Length);
         }
@@ -79,7 +79,7 @@ public class DecryptReaderTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         using var output = new MemoryStream();
         stream.CopyTo(output);
@@ -97,11 +97,11 @@ public class DecryptReaderTests
 
         var ciphertextBytes = Encrypt(plaintext, identity.Recipient).ToArray();
 
-        using var seekableStream = Age.DecryptReader(new MemoryStream(ciphertextBytes), identity);
+        using var seekableStream = Age.DecryptReader(new MemoryStream(ciphertextBytes), [identity]);
         using var seekableOut = new MemoryStream();
         seekableStream.CopyTo(seekableOut);
 
-        using var forwardStream = Age.DecryptReader(new NonSeekableStream(new MemoryStream(ciphertextBytes)), identity);
+        using var forwardStream = Age.DecryptReader(new NonSeekableStream(new MemoryStream(ciphertextBytes)), [identity]);
         using var forwardOut = new MemoryStream();
         forwardStream.CopyTo(forwardOut);
 
@@ -120,7 +120,7 @@ public class DecryptReaderTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         Assert.Equal(plaintext.AsSpan(32768, 100).ToArray(), ReadAt(stream, 32768, 100)); // mid first chunk
         Assert.Equal(plaintext.AsSpan(65530, 100).ToArray(), ReadAt(stream, 65530, 100)); // across chunk 0/1
@@ -136,7 +136,7 @@ public class DecryptReaderTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         Assert.Equal(plaintext[65535], ReadAt(stream, 65535, 1)[0]); // last byte of chunk 0
         Assert.Equal(plaintext[65536], ReadAt(stream, 65536, 1)[0]); // first byte of chunk 1
@@ -150,7 +150,7 @@ public class DecryptReaderTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         const int offset = 65000;
         const int length = 70000; // chunk 0 → chunk 1 → chunk 2
@@ -165,7 +165,7 @@ public class DecryptReaderTests
         using var identity = X25519Identity.Generate();
 
         using var ciphertext = Encrypt([], identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         Assert.Equal(0, stream.Length);
         Assert.Equal(0, stream.Read(new byte[10], 0, 10));
@@ -179,7 +179,7 @@ public class DecryptReaderTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         Assert.Equal(plaintext.Length, stream.Length);
         Assert.Equal(plaintext[^1..], ReadAt(stream, plaintext.Length - 1, 1));
@@ -195,7 +195,7 @@ public class DecryptReaderTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         stream.Seek(10000, SeekOrigin.Begin);
         Assert.Equal(10000, stream.Position);
@@ -215,7 +215,7 @@ public class DecryptReaderTests
         var plaintext = "short"u8.ToArray();
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         stream.Seek(1000, SeekOrigin.Begin);
         Assert.Equal(1000, stream.Position);
@@ -233,7 +233,7 @@ public class DecryptReaderTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         // Read forward into chunk 2, then seek back into chunk 0 and re-read.
         Assert.Equal(plaintext.AsSpan(150000, 50).ToArray(), ReadAt(stream, 150000, 50));
@@ -245,7 +245,7 @@ public class DecryptReaderTests
     {
         using var identity = X25519Identity.Generate();
         using var ciphertext = Encrypt("data"u8.ToArray(), identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         Assert.Throws<ArgumentOutOfRangeException>(() => stream.Seek(-1, SeekOrigin.Begin));
         Assert.Throws<ArgumentOutOfRangeException>(() => stream.Position = -1);
@@ -265,7 +265,7 @@ public class DecryptReaderTests
         var totalEncryptedPayload = ciphertextBytes.Length - payloadOffset - 16; // minus the 16-byte nonce
 
         var counting = new CountingStream(new MemoryStream(ciphertextBytes));
-        using var stream = Age.DecryptReader(counting, identity);
+        using var stream = Age.DecryptReader(counting, [identity]);
 
         // Reset after the header/nonce read so only payload reads are counted.
         counting.Reset();
@@ -294,7 +294,7 @@ public class DecryptReaderTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient, true);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         Assert.True(stream.CanSeek);
         Assert.Equal(plaintext.Length, stream.Length);
@@ -313,7 +313,7 @@ public class DecryptReaderTests
         var plaintext = "forward only"u8.ToArray();
 
         var ciphertextBytes = Encrypt(plaintext, identity.Recipient).ToArray();
-        using var stream = Age.DecryptReader(new NonSeekableStream(new MemoryStream(ciphertextBytes)), identity);
+        using var stream = Age.DecryptReader(new NonSeekableStream(new MemoryStream(ciphertextBytes)), [identity]);
 
         Assert.True(stream.CanRead);
         Assert.False(stream.CanSeek);
@@ -342,7 +342,7 @@ public class DecryptReaderTests
         ciphertextBytes[^1] ^= 0x01;
 
         Assert.Throws<AgeAuthenticationException>(() =>
-            Age.DecryptReader(new MemoryStream(ciphertextBytes), identity));
+            Age.DecryptReader(new MemoryStream(ciphertextBytes), [identity]));
     }
 
     [Fact]
@@ -355,7 +355,7 @@ public class DecryptReaderTests
         new Random(7).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         Assert.Equal(plaintext.AsSpan(70_000, 100).ToArray(), ReadAt(stream, 70_000, 100));
     }
@@ -367,7 +367,7 @@ public class DecryptReaderTests
     {
         using var identity = X25519Identity.Generate();
         using var ciphertext = Encrypt("data"u8.ToArray(), identity.Recipient);
-        var stream = Age.DecryptReader(ciphertext, identity);
+        var stream = Age.DecryptReader(ciphertext, [identity]);
         stream.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => stream.Read(new byte[4], 0, 4));
@@ -385,7 +385,7 @@ public class DecryptReaderTests
         // the final chunk is read to authenticate the length.
         using var lying = new InflatedLengthStream(new MemoryStream(ciphertextBytes), 64);
 
-        Assert.Throws<AgeAuthenticationException>(() => Age.DecryptReader(lying, identity));
+        Assert.Throws<AgeAuthenticationException>(() => Age.DecryptReader(lying, [identity]));
     }
 
     [Fact]
@@ -393,7 +393,7 @@ public class DecryptReaderTests
     {
         using var identity = X25519Identity.Generate();
         using var ciphertext = Encrypt("data"u8.ToArray(), identity.Recipient);
-        using var stream = Age.DecryptReader(ciphertext, identity);
+        using var stream = Age.DecryptReader(ciphertext, [identity]);
 
         stream.Flush(); // no-op, must not throw
         Assert.Throws<ArgumentOutOfRangeException>(() => stream.Seek(0, (SeekOrigin)999));

@@ -39,8 +39,8 @@ public class ArmorSizeSweepTests
 
             try
             {
-                var armored = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
-                var back = Age.Decrypt(armored, identity);
+                var armored = Age.Encrypt(plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
+                var back = Age.Decrypt(armored, [identity]);
 
                 if (!back.SequenceEqual(plaintext))
                     failures.Add($"{size}: content mismatch");
@@ -67,9 +67,9 @@ public class ArmorSizeSweepTests
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(size);
 
-        var armored = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
 
-        Assert.Equal(plaintext, Age.Decrypt(armored, identity));
+        Assert.Equal(plaintext, Age.Decrypt(armored, [identity]));
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class ArmorSizeSweepTests
         var residues = new HashSet<int>();
 
         for (var size = 0; size < BytesPerArmorLine * 3; size++)
-            residues.Add(Age.Encrypt(Pattern(size), identity.Recipient).Length % BytesPerArmorLine);
+            residues.Add(Age.Encrypt(Pattern(size), [identity.Recipient]).Length % BytesPerArmorLine);
 
         Assert.Equal(BytesPerArmorLine, residues.Count);
     }
@@ -91,7 +91,7 @@ public class ArmorSizeSweepTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = Pattern(65536 * 3 + 999);
-        var armored = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = true }, identity.Recipient);
+        var armored = Age.Encrypt(plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = true });
 
         using var input = new MemoryStream(armored);
         using var output = new MemoryStream();

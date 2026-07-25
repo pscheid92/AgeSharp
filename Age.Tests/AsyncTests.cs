@@ -57,8 +57,7 @@ public class AsyncTests
         params IRecipient[] recipients)
     {
         var output = new MemoryStream();
-        await using (var stream = Age.EncryptWriter(new ThrowOnSyncIoStream(output),
-                         new AgeEncryptOptions { Armor = armored }, recipients))
+        await using (var stream = Age.EncryptWriter(new ThrowOnSyncIoStream(output), recipients, new AgeEncryptOptions { Armor = armored }))
         {
             await stream.WriteAsync(plaintext);
         }
@@ -82,7 +81,7 @@ public class AsyncTests
 
         var ciphertext = await EncryptAsyncThroughHarness(plaintext, armored, identity.Recipient);
 
-        Assert.Equal(plaintext, Age.Decrypt(ciphertext, identity));
+        Assert.Equal(plaintext, Age.Decrypt(ciphertext, [identity]));
     }
 
     [Theory]
@@ -98,7 +97,7 @@ public class AsyncTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = MakePlaintext(size);
-        var ciphertext = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = armored }, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = armored });
 
         Assert.Equal(plaintext, await DecryptAsyncThroughHarness(ciphertext, identity));
     }
@@ -117,7 +116,7 @@ public class AsyncTests
 
         var ciphertext = await EncryptWriterThroughHarness(plaintext, armored, identity.Recipient);
 
-        Assert.Equal(plaintext, Age.Decrypt(ciphertext, identity));
+        Assert.Equal(plaintext, Age.Decrypt(ciphertext, [identity]));
     }
 
     [Fact]
@@ -125,11 +124,11 @@ public class AsyncTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = MakePlaintext(200_000); // several chunks
-        var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, [identity.Recipient]);
 
         // Sync DecryptReader over a seekable source returns the seekable decrypt stream;
         // copying it asynchronously exercises that stream's ReadAsync/DisposeAsync.
-        await using var stream = Age.DecryptReader(new MemoryStream(ciphertext), identity);
+        await using var stream = Age.DecryptReader(new MemoryStream(ciphertext), [identity]);
         using var output = new MemoryStream();
         await stream.CopyToAsync(output);
 
@@ -140,7 +139,7 @@ public class AsyncTests
     public async Task ForwardOnlyDecryptStream_UnsupportedMembers_Throw()
     {
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt("data"u8.ToArray(), identity.Recipient);
+        var ciphertext = Age.Encrypt("data"u8.ToArray(), [identity.Recipient]);
 
         // A non-seekable source is what yields the forward-only stream now.
         await using var stream = await Age.DecryptReaderAsync(
@@ -168,7 +167,7 @@ public class AsyncTests
         using var ciphertext = new MemoryStream();
         await Age.EncryptAsync(input, ciphertext, [identity.Recipient], new AgeEncryptOptions { Armor = armored });
 
-        Assert.Equal(plaintext, Age.Decrypt(ciphertext.ToArray(), identity));
+        Assert.Equal(plaintext, Age.Decrypt(ciphertext.ToArray(), [identity]));
     }
 
     [Theory]
@@ -178,7 +177,7 @@ public class AsyncTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = MakePlaintext(70_000);
-        var ciphertext = Age.Encrypt(plaintext, new AgeEncryptOptions { Armor = armored }, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, [identity.Recipient], new AgeEncryptOptions { Armor = armored });
 
         using var input = new MemoryStream(ciphertext);
         using var output = new MemoryStream();
@@ -210,7 +209,7 @@ public class AsyncTests
         using var identity = X25519Identity.Generate();
         var plaintext = new byte[100_000];
         new Random(5).NextBytes(plaintext);
-        var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, [identity.Recipient]);
 
         await using (var seekable = await Age.DecryptReaderAsync(new MemoryStream(ciphertext), [identity]))
         {
@@ -253,7 +252,7 @@ public class AsyncTests
     {
         using var a = X25519Identity.Generate();
         using var b = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt("secret"u8.ToArray(), a.Recipient);
+        var ciphertext = Age.Encrypt("secret"u8.ToArray(), [a.Recipient]);
 
         await Assert.ThrowsAsync<NoIdentityMatchException>(() => DecryptAsyncThroughHarness(ciphertext, b));
     }
@@ -264,7 +263,7 @@ public class AsyncTests
     public async Task DecryptAsync_CancelledMidHeader_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(MakePlaintext(100_000), identity.Recipient);
+        var ciphertext = Age.Encrypt(MakePlaintext(100_000), [identity.Recipient]);
 
         using var cts = new CancellationTokenSource();
         var source = new CancelAfterStream(new MemoryStream(ciphertext), cts, 8); // within the header
@@ -278,7 +277,7 @@ public class AsyncTests
     public async Task DecryptAsync_CancelledMidChunk_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var ciphertext = Age.Encrypt(MakePlaintext(200_000), identity.Recipient); // several chunks
+        var ciphertext = Age.Encrypt(MakePlaintext(200_000), [identity.Recipient]); // several chunks
 
         using var cts = new CancellationTokenSource();
         var source = new CancelAfterStream(new MemoryStream(ciphertext), cts, 70_000); // deep in the payload
@@ -298,13 +297,13 @@ public class AsyncTests
 
         // Push writer: WriteAsync(byte[], offset, count) + FlushAsync (binary).
         var pushOut = new MemoryStream();
-        await using (var writer = Age.EncryptWriter(pushOut, identity.Recipient))
+        await using (var writer = Age.EncryptWriter(pushOut, [identity.Recipient]))
         {
             await writer.WriteAsync(plaintext, 0, plaintext.Length);
             await writer.FlushAsync();
         }
 
-        Assert.Equal(plaintext, Age.Decrypt(pushOut.ToArray(), identity));
+        Assert.Equal(plaintext, Age.Decrypt(pushOut.ToArray(), [identity]));
 
         // Push armor writer directly: WriteAsync(byte[], ...) + FlushAsync.
         var armorOut = new MemoryStream();
@@ -318,16 +317,15 @@ public class AsyncTests
 
         // Pull readers: ReadAsync(byte[], offset, count) — binary (EncryptStream) and armored (ArmorStream).
         Assert.Equal(plaintext,
-            await ReadAllByteArrayAsync(Age.EncryptReader(new MemoryStream(plaintext), identity.Recipient), identity));
+            await ReadAllByteArrayAsync(Age.EncryptReader(new MemoryStream(plaintext), [identity.Recipient]), identity));
         Assert.Equal(plaintext,
             await ReadAllByteArrayAsync(
-                Age.EncryptReader(new MemoryStream(plaintext), new AgeEncryptOptions { Armor = true },
-                    identity.Recipient), identity, true));
+                Age.EncryptReader(new MemoryStream(plaintext), [identity.Recipient], new AgeEncryptOptions { Armor = true }), identity, true));
 
-        var ciphertext = Age.Encrypt(plaintext, identity.Recipient);
+        var ciphertext = Age.Encrypt(plaintext, [identity.Recipient]);
 
         // Decrypt readers: ReadAsync(byte[], ...) — seekable (DecryptReader) and forward-only (DecryptReaderAsync).
-        await using (var seekable = Age.DecryptReader(new MemoryStream(ciphertext), identity))
+        await using (var seekable = Age.DecryptReader(new MemoryStream(ciphertext), [identity]))
         {
             Assert.Equal(plaintext, await DrainByteArrayAsync(seekable));
         }
@@ -344,14 +342,14 @@ public class AsyncTests
         using var identity = X25519Identity.Generate();
         var output = new MemoryStream();
 
-        var stream = Age.EncryptWriter(output, identity.Recipient);
+        var stream = Age.EncryptWriter(output, [identity.Recipient]);
         await stream.WriteAsync(new byte[] { 1, 2, 3 });
         await stream.DisposeAsync();
         var afterFirst = output.ToArray();
         await stream.DisposeAsync(); // second async dispose is a no-op
 
         Assert.Equal(afterFirst, output.ToArray());
-        Assert.Equal(new byte[] { 1, 2, 3 }, Age.Decrypt(afterFirst, identity));
+        Assert.Equal(new byte[] { 1, 2, 3 }, Age.Decrypt(afterFirst, [identity]));
     }
 
     // --- Async error paths ---
@@ -370,7 +368,7 @@ public class AsyncTests
     public async Task DecryptReaderAsync_MissingNonce_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var full = Age.Encrypt("data"u8.ToArray(), identity.Recipient);
+        var full = Age.Encrypt("data"u8.ToArray(), [identity.Recipient]);
         var headerOnly = full[..(int)Age.ReadHeader(new MemoryStream(full)).PayloadOffset]; // header, no nonce
 
         await Assert.ThrowsAsync<AgeFormatException>(async () =>
@@ -381,7 +379,7 @@ public class AsyncTests
     public async Task DecryptAsync_ForwardOnly_EmptyPayload_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var full = Age.Encrypt("data"u8.ToArray(), identity.Recipient);
+        var full = Age.Encrypt("data"u8.ToArray(), [identity.Recipient]);
         var offset = (int)Age.ReadHeader(new MemoryStream(full)).PayloadOffset;
         var headerAndNonce = full[..(offset + 16)]; // header + nonce, zero chunks
 
@@ -406,7 +404,7 @@ public class AsyncTests
         // decodeCiphertext is irrelevant to the read path; both binary and armored
         // ciphertext decrypt through the sync facade for verification.
         _ = decodeCiphertext;
-        return Age.Decrypt(ciphertext.ToArray(), identity);
+        return Age.Decrypt(ciphertext.ToArray(), [identity]);
     }
 
     private static async Task<byte[]> DrainByteArrayAsync(Stream plaintextStream)

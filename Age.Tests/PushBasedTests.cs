@@ -4,7 +4,7 @@ using Xunit;
 namespace AgeSharp.Tests;
 
 /// <summary>
-///     Push-encryption tests for <see cref="Age.EncryptWriter(System.IO.Stream, System.ReadOnlySpan{IRecipient})" />
+///     Push-encryption tests for <see cref="Age.EncryptWriter(System.IO.Stream, [System.ReadOnlySpan{IRecipient}])" />
 ///     and its armored variant. Covers the Phase-4 edge-case matrix — dispose-without-write,
 ///     plaintext at exact 64 KiB multiples, double dispose, write-after-dispose — plus the
 ///     stream-ownership contract and an interop cross-check against the reference age CLI.
@@ -22,7 +22,7 @@ public class PushBasedTests
     private static byte[] EncryptWithEncryptWriter(byte[] plaintext, bool armored, params IRecipient[] recipients)
     {
         using var destination = new MemoryStream();
-        using (var stream = Age.EncryptWriter(destination, new AgeEncryptOptions { Armor = armored }, recipients))
+        using (var stream = Age.EncryptWriter(destination, recipients, new AgeEncryptOptions { Armor = armored }))
         {
             stream.Write(plaintext, 0, plaintext.Length);
         }
@@ -94,7 +94,7 @@ public class PushBasedTests
         using var identity = X25519Identity.Generate();
 
         using var destination = new MemoryStream();
-        using (Age.EncryptWriter(destination, new AgeEncryptOptions { Armor = armored }, identity.Recipient))
+        using (Age.EncryptWriter(destination, [identity.Recipient], new AgeEncryptOptions { Armor = armored }))
         {
             // No write: the header, payload nonce, and a final empty chunk are still emitted.
         }
@@ -114,7 +114,7 @@ public class PushBasedTests
         new Random(42).NextBytes(plaintext);
 
         using var destination = new MemoryStream();
-        using (var stream = Age.EncryptWriter(destination, identity.Recipient))
+        using (var stream = Age.EncryptWriter(destination, [identity.Recipient]))
         {
             foreach (var b in plaintext)
                 stream.WriteByte(b);
@@ -131,7 +131,7 @@ public class PushBasedTests
         using var identity = X25519Identity.Generate();
 
         using var destination = new MemoryStream();
-        var stream = Age.EncryptWriter(destination, identity.Recipient);
+        var stream = Age.EncryptWriter(destination, [identity.Recipient]);
         stream.Write("hello"u8);
         stream.Dispose();
         var afterFirst = destination.ToArray();
@@ -148,7 +148,7 @@ public class PushBasedTests
         using var identity = X25519Identity.Generate();
 
         using var destination = new MemoryStream();
-        var stream = Age.EncryptWriter(destination, identity.Recipient);
+        var stream = Age.EncryptWriter(destination, [identity.Recipient]);
         stream.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => stream.Write("x"u8.ToArray(), 0, 1));
@@ -164,7 +164,7 @@ public class PushBasedTests
         using var identity = X25519Identity.Generate();
 
         using var destination = new MemoryStream();
-        using var stream = Age.EncryptWriter(destination, identity.Recipient);
+        using var stream = Age.EncryptWriter(destination, [identity.Recipient]);
 
         stream.Write("flush"u8);
         stream.Flush(); // must not finalize — the stream stays writable
@@ -176,7 +176,7 @@ public class PushBasedTests
     {
         using var identity = X25519Identity.Generate();
         using var destination = new MemoryStream();
-        using var stream = Age.EncryptWriter(destination, identity.Recipient);
+        using var stream = Age.EncryptWriter(destination, [identity.Recipient]);
 
         Assert.Throws<NotSupportedException>(() => _ = stream.Length);
         Assert.Throws<NotSupportedException>(() => _ = stream.Position);
@@ -240,7 +240,7 @@ public class PushBasedTests
 
         var destination = new DisposeTrackingStream();
         using (var stream =
-               Age.EncryptWriter(destination, new AgeEncryptOptions { Armor = armored }, identity.Recipient))
+               Age.EncryptWriter(destination, [identity.Recipient], new AgeEncryptOptions { Armor = armored }))
         {
             stream.Write("do not dispose me"u8);
         }
@@ -256,7 +256,7 @@ public class PushBasedTests
     {
         using var identity = X25519Identity.Generate();
         using var destination = new MemoryStream();
-        using var stream = Age.EncryptWriter(destination, identity.Recipient);
+        using var stream = Age.EncryptWriter(destination, [identity.Recipient]);
 
         Assert.True(stream.CanWrite);
         Assert.False(stream.CanRead);
@@ -279,7 +279,7 @@ public class PushBasedTests
 
         // The label/scrypt checks run eagerly, so the mismatch surfaces from EncryptWriter
         // itself — before any plaintext is written.
-        Assert.Throws<AgeException>(() => Age.EncryptWriter(destination, x25519.Recipient, pq.Recipient));
+        Assert.Throws<AgeException>(() => Age.EncryptWriter(destination, [x25519.Recipient, pq.Recipient]));
     }
 
     [Fact]
@@ -288,7 +288,7 @@ public class PushBasedTests
         using var identity = X25519Identity.Generate();
         using var destination = new MemoryStream();
 
-        using var stream = Age.EncryptWriter(destination, identity.Recipient);
+        using var stream = Age.EncryptWriter(destination, [identity.Recipient]);
 
         // Recipient wrapping happened eagerly, but nothing is written to the
         // destination until the first Write (or Dispose).
@@ -392,7 +392,7 @@ public class PushBasedTests
         using var identity = X25519Identity.Generate();
 
         using var destination = new MemoryStream();
-        using (Age.EncryptWriter(destination, new AgeEncryptOptions { Armor = armored }, identity.Recipient))
+        using (Age.EncryptWriter(destination, [identity.Recipient], new AgeEncryptOptions { Armor = armored }))
         {
         }
 
