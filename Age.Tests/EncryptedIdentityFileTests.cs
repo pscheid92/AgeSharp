@@ -75,7 +75,7 @@ public class EncryptedIdentityFileTests
         var text = $"# X25519 key\n{x25519.ToSecretString()}\n# PQ key\n{pq.ToSecretString()}\n";
 
         var parsed = Age.ParseIdentities(text);
-        Assert.Equal(2, parsed.Length);
+        Assert.Equal(2, parsed.Count);
         Assert.Equal(x25519.ToSecretString(), Secret(parsed[0]));
         Assert.Equal(pq.ToSecretString(), Secret(parsed[1]));
     }

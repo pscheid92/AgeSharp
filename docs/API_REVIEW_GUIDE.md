@@ -91,10 +91,11 @@ Pre-seeded questions:
   *(The "rare in the BCL" framing in the original question was weak: rage returns the same pair
   as a tuple and Go as multiple values, but both are idioms of languages that do not face this
   choice, so neither is evidence about C#.)*
-- [ ] `IPluginCallbacks.RequestValue(prompt, secret) -> string` — a secret prompt returning an
-  unzeroable `string`. Consistent with the library's hygiene stance? *(Decided in principle: split
-  into `RequestValue` / `RequestSecret`, the latter returning `char[]` the library clears. Not yet
-  implemented — the plugin write-path zeroing goes with it.)*
+- [x] `IPluginCallbacks.RequestValue(prompt, secret) -> string` → **split** into `RequestValue` and
+  `RequestSecret(→ char[])`, matching rage (`08facf6`). The library zeroes what `RequestSecret`
+  returns. Digging into it found the larger leak: every stanza body was base64-encoded into a
+  *string*, and three of the bodies crossing that wire are secret — the file key out, the file key
+  back, and the PIN. `WriteStanza` encodes into a pooled buffer and clears it now.
 - [x] **`IIdentity.Unwrap` returned a `byte[]` the caller had to zero** → **reshaped to
   `bool TryUnwrap(Stanza, Span<byte> fileKey)`**. Not on the original list; it came out of asking
   how to stop callers forgetting to zero. The caller supplies the buffer, so no ownership crosses
@@ -144,9 +145,12 @@ Pre-seeded questions:
   optional argument. It follows the `out` parameter rather than preceding it, because `out` cannot
   be optional and the facade's rule is that options come last; the BCL's out-last convention
   applies to overloads where the extra arguments are required.
-- [ ] `ParseRecipients`/`ParseIdentities`/`DecryptIdentities` return **mutable arrays**. The docs
-  justify it (arrays convert implicitly to the `ReadOnlySpan` params overloads — a real ergonomic
-  win). Confirm the trade.
+- [x] `ParseRecipients`/`ParseIdentities` return **mutable arrays** → **narrowed to
+  `IReadOnlyList<T>`**. The justification the question quotes had gone stale: it rested on implicit
+  conversion to the `params ReadOnlySpan` overloads, which the facade consolidation deleted. Nothing
+  replaced it, so the arrays were handed out mutably for no remaining reason. `Materialize` still
+  avoids a copy, because its `items as T[]` succeeds on an array behind the interface — so this
+  costs nothing and stops exposing a mutable buffer. (`DecryptIdentities` is gone entirely.)
 - [x] `EncryptDetached` has no options parameter → **confirmed and kept** during the consolidation
   (`4fc862b`); it is the one entry point that deliberately takes none.
 
@@ -232,7 +236,7 @@ Fill in the `?` cells as you read — every `ToString` on a secret-holding type 
   arguments compile into caller binaries, so a changed default would not reach already-built
   callers. Every remaining default on the surface is `= null` or `= default(CancellationToken)`,
   where the value carries no policy — the meaning is resolved inside the method.
-- [ ] **Release-note items accumulating** — carry these into the notes:
+**Release-note items** (not a question — carry these into the notes):
   `X25519Recipient.Wrap` now throws `AgeFormatException` (was `AgeException`) on a low-order
   recipient point; `Wrap`/`WrapWithLabels` now return `IReadOnlyList<Stanza>`; the facade
   collapsed to one method per operation, so every call site passes a collection.

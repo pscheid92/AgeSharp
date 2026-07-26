@@ -128,10 +128,10 @@ static AgeSharp.Age.EncryptDetached(System.IO.Stream! input, System.IO.Stream! h
 static AgeSharp.Age.EncryptDetachedAsync(System.IO.Stream! input, System.IO.Stream! headerOutput, System.IO.Stream! payloadOutput, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 static AgeSharp.Age.EncryptReader(System.IO.Stream! plaintext, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients, AgeSharp.AgeEncryptOptions? options = null) -> System.IO.Stream!
 static AgeSharp.Age.EncryptWriter(System.IO.Stream! destination, System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>! recipients, AgeSharp.AgeEncryptOptions? options = null) -> System.IO.Stream!
-static AgeSharp.Age.ParseIdentities(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IIdentity![]!
+static AgeSharp.Age.ParseIdentities(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>!
 static AgeSharp.Age.ParseIdentity(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IIdentity!
 static AgeSharp.Age.ParseRecipient(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IRecipient!
-static AgeSharp.Age.ParseRecipients(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IRecipient![]!
+static AgeSharp.Age.ParseRecipients(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>!
 static AgeSharp.Age.ReadHeader(System.IO.Stream! source, AgeSharp.AgeDecryptOptions? options = null) -> AgeSharp.AgeHeader!
 static AgeSharp.Age.ReadHeaderAsync(System.IO.Stream! source, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<AgeSharp.AgeHeader!>
 static AgeSharp.Age.TryParseIdentity(string? s, out AgeSharp.IIdentity! result, AgeSharp.IPluginCallbacks? plugins = null) -> bool

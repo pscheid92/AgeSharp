@@ -72,11 +72,11 @@ public static partial class Age
     ///     Parses a recipients file: one per line, blank lines and <c>#</c> comments ignored.
     ///     The returned array passes straight to <see cref="Encrypt(Stream, Stream, IReadOnlyList{IRecipient}, AgeEncryptOptions)" />.
     /// </summary>
-    public static IRecipient[] ParseRecipients(string text, IPluginCallbacks? plugins = null) => 
+    public static IReadOnlyList<IRecipient> ParseRecipients(string text, IPluginCallbacks? plugins = null) =>
         NonBlankLines(text).Select(line => ParseRecipient(line, plugins)).ToArray();
 
     /// <summary>Parses an identity file: one per line, blank lines and <c>#</c> comments ignored.</summary>
-    public static IIdentity[] ParseIdentities(string text, IPluginCallbacks? plugins = null) => 
+    public static IReadOnlyList<IIdentity> ParseIdentities(string text, IPluginCallbacks? plugins = null) => 
         NonBlankLines(text).Select(line => ParseIdentity(line, plugins)).ToArray();
 
     private static IEnumerable<string> NonBlankLines(string text) =>

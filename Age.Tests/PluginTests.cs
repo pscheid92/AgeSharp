@@ -798,7 +798,7 @@ public class PluginTests
         var text = $"{x25519.Recipient}\n{pluginRecip}\n";
 
         var parsed = Age.ParseRecipients(text);
-        Assert.Equal(2, parsed.Length);
+        Assert.Equal(2, parsed.Count);
         Assert.IsType<X25519Recipient>(parsed[0]);
         Assert.IsType<PluginRecipient>(parsed[1]);
     }
@@ -823,7 +823,7 @@ public class PluginTests
         var text = $"{x25519.ToSecretString()}\n{pluginId}\n";
 
         var parsed = Age.ParseIdentities(text);
-        Assert.Equal(2, parsed.Length);
+        Assert.Equal(2, parsed.Count);
         Assert.IsType<X25519Identity>(parsed[0]);
         Assert.IsType<PluginIdentity>(parsed[1]);
     }

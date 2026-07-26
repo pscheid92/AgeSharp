@@ -22,7 +22,7 @@ public sealed class EncryptedIdentityFile : IIdentity
     private readonly IPluginCallbacks? _plugins;
 
     private bool _disposed;
-    private IIdentity[]? _identities;
+    private IReadOnlyList<IIdentity>? _identities;
 
     /// <summary>Wraps the contents of a passphrase-encrypted identity file.</summary>
     /// <param name="contents">The encrypted file, binary or ASCII-armored. Ciphertext, so it is copied but not treated as secret.</param>
@@ -78,7 +78,7 @@ public sealed class EncryptedIdentityFile : IIdentity
         _identities = null;
     }
 
-    private IIdentity[] Decrypted()
+    private IReadOnlyList<IIdentity> Decrypted()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
