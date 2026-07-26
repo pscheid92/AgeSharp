@@ -130,8 +130,9 @@ Pre-seeded questions:
   those would wrap a constructor that never blocks. `DecryptReader` and `ReadHeader` do read at
   setup; the first already had `DecryptReaderAsync`, the second now has `ReadHeaderAsync`. Rule
   recorded in CLAUDE.md so the asymmetry is not read as an oversight.
-- [x] **No `ReadHeaderAsync`** → **added**. `*DetachedAsync` is still absent; see the Detached row
-  in the decision table.
+- [x] **No `ReadHeaderAsync`, no `*DetachedAsync`** → **all three added**. Detached is staying, and
+  the async rule applies to it: whole operations doing I/O throughout, so they qualify exactly as
+  `Encrypt`/`Decrypt` do.
 - [ ] **`DecryptIdentities(Stream, string passphrase, …)`** — takes a raw `string` passphrase
   while the `Passphrase` type exists precisely because strings can't be zeroed; internally the
   decrypted identity file (containing `AGE-SECRET-KEY` lines) round-trips through an unzeroable
@@ -240,10 +241,11 @@ Append rows as you go; this table is the review's output.
 | `IRecipientWithLabels.WrapWithLabels` | **reshape** → `LabelledStanzas` (`readonly struct`) | Widened to a stanza list with `Wrap` (`fd16800`), then the tuple replaced outright (`fb3ca67`): implementors had to reproduce a 110-char signature. `record struct` rejected — value equality over a collection compares references. |
 | `Labels` as `IReadOnlyCollection` (not `IReadOnlySet`) | **keep** | `SetEquals` would honour the *implementor's* comparer; the spec requires exact, case-sensitive comparison, so the facade forces `StringComparer.Ordinal` instead of trusting it. |
 | **Detached (`EncryptDetached`/`DecryptDetached`)** | **KEEP — settled, do not re-open** | Raised repeatedly during this review and answered the same way every time. It is implemented, tested, documented, and the maintainer wants it. The absence of a Go/rage equivalent is not an argument against it. |
-| `Age.ReadHeaderAsync` | **add** | `ReadHeader` performs synchronous reads, so an async caller inspecting a header had no non-blocking path. |
+| `Age.ReadHeaderAsync` | **add** | `ReadHeader` performs synchronous reads, so an async caller inspecting a header had no non-blocking path. `d86b957` |
+| `EncryptDetachedAsync` / `DecryptDetachedAsync` | **add** | Detached is staying, and these are whole operations doing I/O throughout — the same rule that justifies `EncryptAsync`. |
 | Async coverage generally | **correct by rule** | Async factories exist exactly where setup does I/O; the other three never touch a stream at construction. Rule in CLAUDE.md. |
 | `IPluginCallbacks.RequestValue` | **decided, not yet built** | Split into `RequestValue` / `RequestSecret(→ char[])`, matching rage. Blocked on nothing; the plugin write-path zeroing lands with it. |
-| *(next: `DecryptIdentities`, `TryParse*` callbacks, `AgeHeader` naming, `*DetachedAsync` — since Detached is staying, the async rule says it wants async forms)* | | |
+| *(next: `IPluginCallbacks` split + plugin write-path zeroing, `DecryptIdentities`, `TryParse*` callbacks, `AgeHeader` naming)* | | |
 
 Mechanics afterwards:
 

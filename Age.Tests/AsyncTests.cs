@@ -534,6 +534,88 @@ public class AsyncTests
         Assert.Single(header.Stanzas);
     }
 
+    // --- Detached, asynchronously ---
+
+    [Fact]
+    public async Task EncryptDetachedAsync_RoundTripsThroughDecryptDetachedAsync()
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = new byte[100_000];
+        Random.Shared.NextBytes(plaintext);
+
+        using var headerOut = new MemoryStream();
+        using var payloadOut = new MemoryStream();
+        await Age.EncryptDetachedAsync(new MemoryStream(plaintext), headerOut, payloadOut, [identity.Recipient]);
+
+        using var decrypted = new MemoryStream();
+        await Age.DecryptDetachedAsync(new MemoryStream(headerOut.ToArray()),
+                                       new MemoryStream(payloadOut.ToArray()), decrypted, [identity]);
+
+        Assert.Equal(plaintext, decrypted.ToArray());
+    }
+
+    [Fact]
+    public async Task DetachedAsync_MatchesTheSynchronousOutput()
+    {
+        using var identity = X25519Identity.Generate();
+
+        using var asyncHeader = new MemoryStream();
+        using var asyncPayload = new MemoryStream();
+        await Age.EncryptDetachedAsync(new MemoryStream("hello"u8.ToArray()), asyncHeader, asyncPayload,
+                                       [identity.Recipient]);
+
+        // The synchronous form must read what the asynchronous one wrote, and vice versa.
+        using var syncDecrypted = new MemoryStream();
+        Age.DecryptDetached(new MemoryStream(asyncHeader.ToArray()), new MemoryStream(asyncPayload.ToArray()),
+                            syncDecrypted, [identity]);
+        Assert.Equal("hello"u8.ToArray(), syncDecrypted.ToArray());
+
+        using var syncHeader = new MemoryStream();
+        using var syncPayload = new MemoryStream();
+        Age.EncryptDetached(new MemoryStream("hello"u8.ToArray()), syncHeader, syncPayload, [identity.Recipient]);
+
+        using var asyncDecrypted = new MemoryStream();
+        await Age.DecryptDetachedAsync(new MemoryStream(syncHeader.ToArray()),
+                                       new MemoryStream(syncPayload.ToArray()), asyncDecrypted, [identity]);
+        Assert.Equal("hello"u8.ToArray(), asyncDecrypted.ToArray());
+    }
+
+    [Fact]
+    public async Task DecryptDetachedAsync_NeverReadsSynchronously()
+    {
+        using var identity = X25519Identity.Generate();
+
+        using var headerOut = new MemoryStream();
+        using var payloadOut = new MemoryStream();
+        await Age.EncryptDetachedAsync(new MemoryStream("hello"u8.ToArray()), headerOut, payloadOut,
+                                       [identity.Recipient]);
+
+        using var decrypted = new MemoryStream();
+        await Age.DecryptDetachedAsync(new NoSyncReadStream(new MemoryStream(headerOut.ToArray())),
+                                       new NoSyncReadStream(new MemoryStream(payloadOut.ToArray())),
+                                       decrypted, [identity]);
+
+        Assert.Equal("hello"u8.ToArray(), decrypted.ToArray());
+    }
+
+    [Fact]
+    public async Task DecryptDetachedAsync_TruncatedNonce_ThrowsFormat()
+    {
+        using var identity = X25519Identity.Generate();
+
+        using var headerOut = new MemoryStream();
+        using var payloadOut = new MemoryStream();
+        await Age.EncryptDetachedAsync(new MemoryStream("hello"u8.ToArray()), headerOut, payloadOut,
+                                       [identity.Recipient]);
+
+        var ex = await Assert.ThrowsAsync<AgeFormatException>(async () =>
+            await Age.DecryptDetachedAsync(new MemoryStream(headerOut.ToArray()),
+                                           new MemoryStream(payloadOut.ToArray()[..8]),
+                                           new MemoryStream(), [identity]));
+
+        Assert.Contains("payload nonce", ex.Message);
+    }
+
     private sealed class NoSyncReadStream(Stream inner) : Stream
     {
         public override bool CanRead => true;
