@@ -329,6 +329,34 @@ public static partial class Age
         new DecryptWriterStream(destination, Materialize(identities, nameof(identities), "identity"), options ?? AgeDecryptOptions.Default);
 
     /// <summary>
+    ///     Wraps an age file in ASCII armor, without decrypting it. Needs no key: armor is a
+    ///     text container around the ciphertext, so converting is a pure re-encoding.
+    /// </summary>
+    /// <param name="input">A binary age file.</param>
+    /// <param name="output">The destination for the armored form.</param>
+    public static void Armor(Stream input, Stream output)
+    {
+        using var armor = new ArmorWriterStream(output);
+        input.CopyTo(armor);
+    }
+
+    /// <summary>
+    ///     Strips ASCII armor from an age file, without decrypting it. The inverse of
+    ///     <see cref="Armor" />, and likewise needs no key.
+    /// </summary>
+    /// <param name="input">An ASCII-armored age file.</param>
+    /// <param name="output">The destination for the binary form.</param>
+    /// <param name="options">Supplies <see cref="AgeDecryptOptions.MaxArmorLineBytes" />; defaults when null.</param>
+    /// <exception cref="AgeFormatException">The input is not well-formed ASCII armor.</exception>
+    public static void Dearmor(Stream input, Stream output, AgeDecryptOptions? options = null)
+    {
+        using var dearmored =
+            AsciiArmor.Dearmor(input, (options ?? AgeDecryptOptions.Default).MaxArmorLineBytes);
+
+        dearmored.CopyTo(output);
+    }
+
+    /// <summary>
     ///     Parses the header of an age file without decrypting it (and without
     ///     verifying the header MAC, which requires an identity). Armored input is
     ///     auto-detected on any stream, seekable or not.

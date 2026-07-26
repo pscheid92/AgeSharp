@@ -190,6 +190,28 @@ public static partial class Age
         }
     }
 
+    /// <summary>Asynchronous counterpart to <see cref="Armor" />.</summary>
+    public static async Task ArmorAsync(Stream input, Stream output, CancellationToken cancellationToken = default)
+    {
+        var armor = new ArmorWriterStream(output);
+
+        await using (armor.ConfigureAwait(false))
+            await input.CopyToAsync(armor, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Asynchronous counterpart to <see cref="Dearmor" />.</summary>
+    /// <exception cref="AgeFormatException">The input is not well-formed ASCII armor.</exception>
+    public static async Task DearmorAsync(Stream input, Stream output, AgeDecryptOptions? options = null,
+                                          CancellationToken cancellationToken = default)
+    {
+        var dearmored = await AsciiArmor
+            .DearmorAsync(input, (options ?? AgeDecryptOptions.Default).MaxArmorLineBytes, cancellationToken)
+            .ConfigureAwait(false);
+
+        await using (dearmored.ConfigureAwait(false))
+            await dearmored.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>
     ///     Asynchronous counterpart to <see cref="ReadHeader" />. Present because reading a
     ///     header is I/O; the encrypt-side factories have no async form because their setup

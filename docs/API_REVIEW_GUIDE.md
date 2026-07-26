@@ -276,12 +276,11 @@ File: [Age/Exceptions.cs](../Age/Exceptions.cs).
 - [x] Name sweep against the references → **confirmed, no redesign**. The streaming grid is a
   deliberate divergence chosen on this branch (#84) and it has held up: every async question at
   Stop 2 resolved cleanly against it, which a less regular naming would not have.
-- [ ] **Public armor/dearmor** — the one open item from the missing walk. Converting a file between
-  binary and armored needs **no key**, but with armor internal a consumer must decrypt and
-  re-encrypt, which does. Both references expose it. The code exists (`AsciiArmor`, `ArmorStream`,
-  `DearmorStream`); exposing is roughly two members plus an async form for the dearmor side, which
-  reads geometry at setup. Adding API later is non-breaking, so this can wait — but two mature
-  implementations having it is real evidence of need.
+- [x] **Public armor/dearmor** → **added**: `Armor`/`Dearmor` and their async forms. Both references
+  expose it, and the capability was genuinely absent — converting a file between binary and armored
+  needs no key, but with armor internal the only route was decrypt-and-re-encrypt, which does. Four
+  members, following the facade's rules: one method per operation, options last, async because these
+  are whole operations doing I/O throughout.
 
 ---
 
@@ -320,8 +319,8 @@ Append rows as you go; this table is the review's output.
 | Stanza type constants | **expose** on `Stanza` | Our own CLI hardcoded them and `"scrypt"` appeared as a literal four times; consumers inspecting a header need the vocabulary. |
 | README coverage | **fixed** | `EncryptedIdentityFile` shipped undocumented; stanza inspection was unshown. Both now pinned by tests. |
 | Streaming-grid naming | **keep** | A deliberate divergence from Go/rage that has held up under every async question at Stop 2. |
-| Public armor/dearmor | **open** | Both references expose it; converting binary↔armored needs no key but currently forces a decrypt/re-encrypt. |
-| `IPluginCallbacks.RequestValue` | **decided, not yet built** | Split into `RequestValue` / `RequestSecret(→ char[])`, matching rage. Blocked on nothing; the plugin write-path zeroing lands with it. |
+| Public armor/dearmor | **add** | Both references expose it; converting binary↔armored needs no key but forced a decrypt/re-encrypt, which does. |
+| `IPluginCallbacks.RequestValue` | **split** → `RequestValue` / `RequestSecret(→ char[])` | A PIN came back as an unclearable string. The library zeroes what `RequestSecret` returns; `WriteStanza` no longer base64-encodes secret bodies into strings either. |
 | *(next: `IPluginCallbacks` split + plugin write-path zeroing, `TryParse*` callbacks, `AgeHeader` naming)* | | |
 
 Mechanics afterwards:

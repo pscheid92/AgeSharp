@@ -284,4 +284,19 @@ public class ReadmeExamplesTests
         Assert.DoesNotContain(header.Stanzas, s => s.Type == Stanza.Scrypt);
     }
 
+    [Fact]
+    public void Readme_ArmorConversion()
+    {
+        using var identity = X25519Identity.Generate();
+        var binary = Age.Encrypt("hello"u8, [identity.Recipient]);
+
+        using var armoredOutput = new MemoryStream();
+        Age.Armor(new MemoryStream(binary), armoredOutput);
+
+        using var binaryOutput = new MemoryStream();
+        Age.Dearmor(new MemoryStream(armoredOutput.ToArray()), binaryOutput);
+
+        Assert.Equal(binary, binaryOutput.ToArray());
+    }
+
 }

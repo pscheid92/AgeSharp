@@ -119,6 +119,18 @@ Age.Decrypt(input, output, [identity]);                                         
 Age.Decrypt(input, output, [identity], new AgeDecryptOptions { RequireArmor = true }); // armored only
 ```
 
+### Converting between armored and binary
+
+Armor is a text container around the ciphertext, so converting needs **no key** — a file you
+cannot decrypt still converts:
+
+```csharp
+Age.Armor(binaryInput, armoredOutput);      // add armor
+Age.Dearmor(armoredInput, binaryOutput);    // strip it
+
+await Age.ArmorAsync(binaryInput, armoredOutput);
+```
+
 ### Multiple recipients
 
 ```csharp
