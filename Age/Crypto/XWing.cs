@@ -52,7 +52,8 @@ internal static class XWing
         // pkX comes from a recipient string, so it can carry a low-order point.
         var ekX = new X25519PrivateKeyParameters(new SecureRandom());
         var ctX = ekX.GeneratePublicKey().GetEncoded();
-        var ssX = CryptoHelper.X25519Agree(ekX, new X25519PublicKeyParameters(pkX));
+        var ssX = new byte[SharedSecretSize];
+        CryptoHelper.X25519Agree(ekX, new X25519PublicKeyParameters(pkX), ssX);
 
         var enc = new byte[EncSize];
         ctM.CopyTo(enc, 0);
@@ -78,7 +79,8 @@ internal static class XWing
         var ssM = new byte[SharedSecretSize];
         decapsulator.Decapsulate(ctM, 0, MlKemCiphertextSize, ssM, 0, SharedSecretSize);
 
-        var ssX = CryptoHelper.X25519Agree(x25519Private, new X25519PublicKeyParameters(ctX));
+        var ssX = new byte[SharedSecretSize];
+        CryptoHelper.X25519Agree(x25519Private, new X25519PublicKeyParameters(ctX), ssX);
 
         return CombineSharedSecret(ssM, ssX, ctX, pkX);
     }

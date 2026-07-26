@@ -117,7 +117,8 @@ public static partial class Age
 
             var payloadNonce = new byte[PayloadNonceSize];
             RandomNumberGenerator.Fill(payloadNonce);
-            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+            var payloadKey = new byte[PayloadKeySize];
+            CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", payloadKey);
 
             using var payloadStream = new EncryptStream([], payloadNonce, payloadKey, input);
             payloadStream.CopyTo(payloadOutput);
@@ -154,7 +155,8 @@ public static partial class Age
             if (total != PayloadNonceSize)
                 throw new AgeFormatException($"expected {PayloadNonceSize}-byte payload nonce, got {total} bytes");
 
-            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+            var payloadKey = new byte[PayloadKeySize];
+            CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", payloadKey);
 
             using var decryptStream = new DecryptStream(payloadKey, payloadInput, false);
             decryptStream.CopyTo(output);
@@ -193,7 +195,8 @@ public static partial class Age
 
         var payloadNonce = new byte[PayloadNonceSize];
         RandomNumberGenerator.Fill(payloadNonce);
-        var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+        var payloadKey = new byte[PayloadKeySize];
+            CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", payloadKey);
         CryptographicOperations.ZeroMemory(fileKey);
 
         return new EncryptStream(headerBytes, payloadNonce, payloadKey, plaintext);
@@ -228,7 +231,8 @@ public static partial class Age
 
         var payloadNonce = new byte[PayloadNonceSize];
         RandomNumberGenerator.Fill(payloadNonce);
-        var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+        var payloadKey = new byte[PayloadKeySize];
+            CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", payloadKey);
         CryptographicOperations.ZeroMemory(fileKey);
 
         var armor = options?.Armor == true;
@@ -278,7 +282,8 @@ public static partial class Age
             try
             {
                 var payloadNonce = ReadPayloadNonce(reader);
-                payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+                payloadKey = new byte[PayloadKeySize];
+                CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", payloadKey);
             }
             finally
             {

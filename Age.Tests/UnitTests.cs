@@ -830,7 +830,9 @@ public class StreamEncryptionTests
         var nonce = new byte[16];
         new Random(43).NextBytes(nonce);
 
-        return CryptoHelper.HkdfDerive(fileKey, nonce, "payload", 32);
+        var payloadKey = new byte[32];
+        CryptoHelper.HkdfDerive(fileKey, nonce, "payload", payloadKey);
+        return payloadKey;
     }
 
     [Theory]
@@ -1300,7 +1302,8 @@ public class AgeTests
         // Write payload nonce + encrypted payload
         var payloadNonce = new byte[16];
         ms.Write(payloadNonce);
-        var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", 32);
+        var payloadKey = new byte[32];
+        CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", payloadKey);
         StreamEncryption.Encrypt(payloadKey, new MemoryStream([]), ms);
 
         ms.Position = 0;
@@ -1350,7 +1353,8 @@ public class AgeTests
         header.WriteTo(ms, fileKey);
         // Append a payload nonce + minimal encrypted payload
         ms.Write(new byte[16]); // nonce
-        var payloadKey = CryptoHelper.HkdfDerive(fileKey, new byte[16], "payload", 32);
+        var payloadKey = new byte[32];
+        CryptoHelper.HkdfDerive(fileKey, new byte[16], "payload", payloadKey);
         StreamEncryption.Encrypt(payloadKey, new MemoryStream([]), ms);
 
         ms.Position = 0;

@@ -29,30 +29,30 @@ public sealed class SshEd25519Recipient : IRecipient
     /// <summary>Wraps the file key for this SSH key via tweaked X25519 + ChaCha20-Poly1305.</summary>
     public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
     {
-        // Compute tweak = HKDF(ikm=[], salt=sshWireBytes, info=label, 32)
-        var tweak = CryptoHelper.HkdfDerive([], _sshWireBytes, AgeProtocol.SshEd25519HkdfLabel, KeySize);
-
-        // tweakedKey = X25519.ScalarMult(tweak, _x25519PublicKey)
-        var tweakPrivate = new X25519PrivateKeyParameters(tweak);
-        var recipientPub = new X25519PublicKeyParameters(_x25519PublicKey);
-        var tweakedKey = CryptoHelper.X25519Agree(tweakPrivate, recipientPub);
-
-        // Generate ephemeral X25519 key pair
-        var ephemeral = new X25519PrivateKeyParameters(new SecureRandom());
-        var ephPubBytes = ephemeral.GeneratePublicKey().GetEncoded();
-
-        // sharedSecret = X25519.ScalarMult(ephSecret, tweakedKey)
-        // tweakedKey is a point; use it as a public key for the agreement.
-        var tweakedPub = new X25519PublicKeyParameters(tweakedKey);
-        var sharedSecret = CryptoHelper.X25519Agree(ephemeral, tweakedPub);
-
-        // wrapKey = HKDF(ikm=sharedSecret, salt=ephPub||convertedKey, info=label, 32)
-        var salt = (byte[])[.. ephPubBytes, .. _x25519PublicKey];
-        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, AgeProtocol.SshEd25519HkdfLabel, KeySize);
+        Span<byte> tweak = stackalloc byte[KeySize];
+        Span<byte> tweakedKey = stackalloc byte[CryptoHelper.X25519SharedSecretSize];
+        Span<byte> sharedSecret = stackalloc byte[CryptoHelper.X25519SharedSecretSize];
+        Span<byte> wrapKey = stackalloc byte[KeySize];
 
         try
         {
-            var zeroNonce = new byte[NonceSize];
+            CryptoHelper.HkdfDerive([], _sshWireBytes, AgeProtocol.SshEd25519HkdfLabel, tweak);
+
+            var tweakPrivate = new X25519PrivateKeyParameters(tweak);
+            var recipientPub = new X25519PublicKeyParameters(_x25519PublicKey);
+            CryptoHelper.X25519Agree(tweakPrivate, recipientPub, tweakedKey);
+
+            var ephemeral = new X25519PrivateKeyParameters(new SecureRandom());
+            var ephPubBytes = ephemeral.GeneratePublicKey().GetEncoded();
+
+            // tweakedKey is a point, so it serves as the public key for the second agreement.
+            var tweakedPub = new X25519PublicKeyParameters(tweakedKey);
+            CryptoHelper.X25519Agree(ephemeral, tweakedPub, sharedSecret);
+
+            var salt = (byte[])[.. ephPubBytes, .. _x25519PublicKey];
+            CryptoHelper.HkdfDerive(sharedSecret, salt, AgeProtocol.SshEd25519HkdfLabel, wrapKey);
+
+            Span<byte> zeroNonce = stackalloc byte[NonceSize];
             var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
             var ephPubB64 = Base64Unpadded.Encode(ephPubBytes);
             return [new Stanza(AgeProtocol.SshEd25519StanzaType, [_tag, ephPubB64], body)];

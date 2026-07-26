@@ -65,17 +65,17 @@ public sealed class X25519Identity : IIdentityWithRecipient, IDisposable, IParsa
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
         var privateKeyParams = new X25519PrivateKeyParameters(_rawPrivateKey);
 
-        var sharedSecret = CryptoHelper.X25519Agree(privateKeyParams, ephPub);
-
-        var recipientPubBytes = PublicKeyParams.GetEncoded();
-        var salt = (byte[])[.. ephPubBytes, .. recipientPubBytes];
-
-        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, AgeProtocol.X25519HkdfLabel, KeySize);
+        Span<byte> sharedSecret = stackalloc byte[CryptoHelper.X25519SharedSecretSize];
+        Span<byte> wrapKey = stackalloc byte[KeySize];
 
         try
         {
-            var zeroNonce = new byte[12];
+            CryptoHelper.X25519Agree(privateKeyParams, ephPub, sharedSecret);
 
+            var salt = (byte[])[.. ephPubBytes, .. PublicKeyParams.GetEncoded()];
+            CryptoHelper.HkdfDerive(sharedSecret, salt, AgeProtocol.X25519HkdfLabel, wrapKey);
+
+            Span<byte> zeroNonce = stackalloc byte[12];
             return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span);
         }
         finally

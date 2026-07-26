@@ -12,37 +12,65 @@ internal static class CryptoHelper
     private const int ChaChaTagSize = 16;
     private const int Sha256Size = 32;
 
+    public const int X25519SharedSecretSize = 32;
+
+    // Fills rather than returns, so the secret can live on the caller's stack and never
+    // reach the GC heap — where a compaction may leave a copy that zeroing the caller's
+    // reference would not reach. The caller still clears its own buffer.
+    //
     // The single X25519 agreement path: the spec's "MUST reject an all-zero shared secret"
-// is enforced here once. The caller owns the returned secret and must zero it.
-    public static byte[] X25519Agree(X25519PrivateKeyParameters privateKey, X25519PublicKeyParameters publicKey)
+    // is enforced here once.
+    public static void X25519Agree(X25519PrivateKeyParameters privateKey, X25519PublicKeyParameters publicKey,
+        Span<byte> sharedSecret)
     {
         var agreement = new X25519Agreement();
         agreement.Init(privateKey);
-        var sharedSecret = new byte[agreement.AgreementSize];
+
+        // BouncyCastle writes into an array, so one transient copy is unavoidable here.
+        var buffer = new byte[agreement.AgreementSize];
 
         try
         {
-            agreement.CalculateAgreement(publicKey, sharedSecret, 0);
+            try
+            {
+                agreement.CalculateAgreement(publicKey, buffer, 0);
+            }
+            catch (InvalidOperationException)
+            {
+                throw new AgeFormatException("X25519 shared secret is all-zero (low-order or identity point)");
+            }
+
+            if (buffer.All(b => b == 0))
+                throw new AgeFormatException("X25519 shared secret is all-zero (low-order or identity point)");
+
+            buffer.CopyTo(sharedSecret);
         }
-        catch (InvalidOperationException)
+        finally
         {
-            throw new AgeFormatException("X25519 shared secret is all-zero (low-order or identity point)");
+            CryptographicOperations.ZeroMemory(buffer);
         }
-
-        if (sharedSecret.All(b => b == 0))
-            throw new AgeFormatException("X25519 shared secret is all-zero (low-order or identity point)");
-
-        return sharedSecret;
     }
 
-    public static byte[] HkdfDerive(ReadOnlySpan<byte> ikm, ReadOnlySpan<byte> salt, string info, int length)
+    /// <summary>Fills <paramref name="output" /> with HKDF-SHA256 output. See X25519Agree on why this fills.</summary>
+    public static void HkdfDerive(ReadOnlySpan<byte> ikm, ReadOnlySpan<byte> salt, string info, Span<byte> output)
     {
-        // .NET's HKDF rejects empty IKM on Linux (OpenSSL), which the ssh-ed25519 derivation needs.
-        var hkdf = new HkdfBytesGenerator(new Sha256Digest());
-        hkdf.Init(new HkdfParameters(ikm.ToArray(), salt.ToArray(), Encoding.ASCII.GetBytes(info)));
-        var result = new byte[length];
-        hkdf.GenerateBytes(result, 0, length);
-        return result;
+        // .NET's HKDF rejects empty IKM on Linux (OpenSSL), which the ssh-ed25519 derivation
+        // needs, so this goes through BouncyCastle — which takes arrays, hence the copies.
+        var ikmCopy = ikm.ToArray();
+        var buffer = new byte[output.Length];
+
+        try
+        {
+            var hkdf = new HkdfBytesGenerator(new Sha256Digest());
+            hkdf.Init(new HkdfParameters(ikmCopy, salt.ToArray(), Encoding.ASCII.GetBytes(info)));
+            hkdf.GenerateBytes(buffer, 0, buffer.Length);
+            buffer.CopyTo(output);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(ikmCopy);
+            CryptographicOperations.ZeroMemory(buffer);
+        }
     }
 
     public static void ChaChaEncrypt(IAeadCipher cipher, ReadOnlySpan<byte> nonce,

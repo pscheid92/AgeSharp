@@ -68,22 +68,25 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
         var privateKey = new X25519PrivateKeyParameters(_x25519PrivateKey);
 
-        // Guarded against a low-order ephemeral, so a crafted stanza cannot leak a BC exception.
-        var rawSS = CryptoHelper.X25519Agree(privateKey, ephPub);
-
-        var tweak = CryptoHelper.HkdfDerive([], _sshWireBytes, AgeProtocol.SshEd25519HkdfLabel, KeySize);
-
-        var tweakPrivate = new X25519PrivateKeyParameters(tweak);
-        var rawSSPub = new X25519PublicKeyParameters(rawSS);
-
-        var tweakedSS = CryptoHelper.X25519Agree(tweakPrivate, rawSSPub);
-
-        var salt = (byte[])[.. ephPubBytes, .. _x25519PublicKey];
-        var wrapKey = CryptoHelper.HkdfDerive(tweakedSS, salt, AgeProtocol.SshEd25519HkdfLabel, KeySize);
+        Span<byte> rawSS = stackalloc byte[CryptoHelper.X25519SharedSecretSize];
+        Span<byte> tweak = stackalloc byte[KeySize];
+        Span<byte> tweakedSS = stackalloc byte[CryptoHelper.X25519SharedSecretSize];
+        Span<byte> wrapKey = stackalloc byte[KeySize];
 
         try
         {
-            var zeroNonce = new byte[12];
+            // Guarded against a low-order ephemeral, so a crafted stanza cannot leak a BC exception.
+            CryptoHelper.X25519Agree(privateKey, ephPub, rawSS);
+            CryptoHelper.HkdfDerive([], _sshWireBytes, AgeProtocol.SshEd25519HkdfLabel, tweak);
+
+            var tweakPrivate = new X25519PrivateKeyParameters(tweak);
+            var rawSSPub = new X25519PublicKeyParameters(rawSS);
+            CryptoHelper.X25519Agree(tweakPrivate, rawSSPub, tweakedSS);
+
+            var salt = (byte[])[.. ephPubBytes, .. _x25519PublicKey];
+            CryptoHelper.HkdfDerive(tweakedSS, salt, AgeProtocol.SshEd25519HkdfLabel, wrapKey);
+
+            Span<byte> zeroNonce = stackalloc byte[12];
             return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span);
         }
         finally

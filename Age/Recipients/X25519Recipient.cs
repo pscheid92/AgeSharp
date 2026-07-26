@@ -43,22 +43,20 @@ public sealed class X25519Recipient : IRecipient, IParsable<X25519Recipient>
         // DH: ephemeral × recipient. A recipient parsed from a hostile age1… string can
         // carry a low-order point, so this rejects an all-zero secret on the encrypt
         // side too — see CryptoHelper.X25519Agree for the rule.
-        var sharedSecret = CryptoHelper.X25519Agree(ephemeral, _publicKey);
-
-        // HKDF: salt = ephPub || recipientPub, info = label
-        var recipientPubBytes = _publicKey.GetEncoded();
-        var salt = (byte[])[.. ephPubBytes, .. recipientPubBytes];
-
-        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, AgeProtocol.X25519HkdfLabel, KeySize);
+        Span<byte> sharedSecret = stackalloc byte[CryptoHelper.X25519SharedSecretSize];
+        Span<byte> wrapKey = stackalloc byte[KeySize];
 
         try
         {
-            // Encrypt file key with ChaCha20-Poly1305, zero nonce
-            var zeroNonce = new byte[12];
+            CryptoHelper.X25519Agree(ephemeral, _publicKey, sharedSecret);
+
+            var salt = (byte[])[.. ephPubBytes, .. _publicKey.GetEncoded()];
+            CryptoHelper.HkdfDerive(sharedSecret, salt, AgeProtocol.X25519HkdfLabel, wrapKey);
+
+            Span<byte> zeroNonce = stackalloc byte[12];
             var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
 
-            var ephPubB64 = Base64Unpadded.Encode(ephPubBytes);
-            return [new Stanza(AgeProtocol.X25519StanzaType, [ephPubB64], body)];
+            return [new Stanza(AgeProtocol.X25519StanzaType, [Base64Unpadded.Encode(ephPubBytes)], body)];
         }
         finally
         {

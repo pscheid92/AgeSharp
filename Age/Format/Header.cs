@@ -82,7 +82,8 @@ internal sealed class Header
 
     public static byte[] ComputeMac(ReadOnlySpan<byte> fileKey, ReadOnlySpan<byte> headerBytes)
     {
-        var hmacKeyBytes = CryptoHelper.HkdfDerive(fileKey, ReadOnlySpan<byte>.Empty, "header", 32);
+        Span<byte> hmacKeyBytes = stackalloc byte[32];
+        CryptoHelper.HkdfDerive(fileKey, ReadOnlySpan<byte>.Empty, "header", hmacKeyBytes);
 
         return CryptoHelper.HmacSha256(hmacKeyBytes, headerBytes);
     }

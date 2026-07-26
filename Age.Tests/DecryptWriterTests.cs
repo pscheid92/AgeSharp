@@ -324,7 +324,8 @@ public class DecryptWriterTests
 
         var nonce = new byte[16];
         RandomNumberGenerator.Fill(nonce);
-        var payloadKey = CryptoHelper.HkdfDerive(fileKey, nonce, "payload", 32);
+        var payloadKey = new byte[32];
+        CryptoHelper.HkdfDerive(fileKey, nonce, "payload", payloadKey);
 
         var full = StreamEncryption.EncryptChunk(payloadKey, 0, false, new byte[ChunkSize]);
         var emptyFinal = StreamEncryption.EncryptChunk(payloadKey, 1, true, []);

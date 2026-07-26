@@ -247,7 +247,8 @@ internal sealed class DecryptWriterStream : Stream
 
     private void StartPayload()
     {
-        _payloadKey = CryptoHelper.HkdfDerive(_fileKey!, _payloadNonce, "payload", Age.PayloadKeySize);
+        _payloadKey = new byte[Age.PayloadKeySize];
+        CryptoHelper.HkdfDerive(_fileKey!, _payloadNonce, "payload", _payloadKey);
         CryptographicOperations.ZeroMemory(_fileKey!);
         _fileKey = null;
 

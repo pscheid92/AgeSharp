@@ -83,7 +83,8 @@ public static partial class Age
                 if (read != PayloadNonceSize)
                     throw new AgeFormatException($"expected {PayloadNonceSize}-byte payload nonce, got {read} bytes");
 
-                payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+                payloadKey = new byte[PayloadKeySize];
+                CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", payloadKey);
             }
             finally
             {
