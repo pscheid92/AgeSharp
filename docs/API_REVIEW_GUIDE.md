@@ -133,10 +133,13 @@ Pre-seeded questions:
 - [x] **No `ReadHeaderAsync`, no `*DetachedAsync`** → **all three added**. Detached is staying, and
   the async rule applies to it: whole operations doing I/O throughout, so they qualify exactly as
   `Encrypt`/`Decrypt` do.
-- [ ] **`DecryptIdentities(Stream, string passphrase, …)`** — takes a raw `string` passphrase
-  while the `Passphrase` type exists precisely because strings can't be zeroed; internally the
-  decrypted identity file (containing `AGE-SECRET-KEY` lines) round-trips through an unzeroable
-  string. Also the name: it *decrypts and parses*. Right shape for a hygiene-proud library?
+- [x] **`DecryptIdentities(Stream, string passphrase, …)`** → **removed, replaced by
+  `EncryptedIdentityFile : IIdentity`**. Worse than the question suggested: four lines leaked four
+  times — the `Passphrase` it constructed was never disposed, the output buffer and its `ToArray`
+  copy were never zeroed, and the identity file became an unzeroable string. Following Go's
+  `EncryptedIdentity`, the file is now an identity in its own right that decrypts lazily on first
+  use, which also fixes a usability flaw the old shape could not express: several `-i` files no
+  longer prompt for all of them, only for the one that opens the message.
 - [ ] **`TryParseRecipient`/`TryParseIdentity` take no `IPluginCallbacks`** — a plugin string
   parsed through them silently gets null callbacks, while `ParseRecipient` accepts them.
   Asymmetry: intentional?
@@ -244,8 +247,9 @@ Append rows as you go; this table is the review's output.
 | `Age.ReadHeaderAsync` | **add** | `ReadHeader` performs synchronous reads, so an async caller inspecting a header had no non-blocking path. `d86b957` |
 | `EncryptDetachedAsync` / `DecryptDetachedAsync` | **add** | Detached is staying, and these are whole operations doing I/O throughout — the same rule that justifies `EncryptAsync`. |
 | Async coverage generally | **correct by rule** | Async factories exist exactly where setup does I/O; the other three never touch a stream at construction. Rule in CLAUDE.md. |
+| `Age.DecryptIdentities` | **remove** → `EncryptedIdentityFile` | Leaked four ways in four lines, and the eager shape forced a passphrase prompt per `-i` file regardless of which one matched. |
 | `IPluginCallbacks.RequestValue` | **decided, not yet built** | Split into `RequestValue` / `RequestSecret(→ char[])`, matching rage. Blocked on nothing; the plugin write-path zeroing lands with it. |
-| *(next: `IPluginCallbacks` split + plugin write-path zeroing, `DecryptIdentities`, `TryParse*` callbacks, `AgeHeader` naming)* | | |
+| *(next: `IPluginCallbacks` split + plugin write-path zeroing, `TryParse*` callbacks, `AgeHeader` naming)* | | |
 
 Mechanics afterwards:
 

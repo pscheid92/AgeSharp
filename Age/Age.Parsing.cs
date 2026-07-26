@@ -69,14 +69,6 @@ public static partial class Age
     public static IIdentity[] ParseIdentities(string text, IPluginCallbacks? plugins = null) => 
         NonBlankLines(text).Select(line => ParseIdentity(line, plugins)).ToArray();
 
-    /// <summary>Decrypts a passphrase-protected identity file and parses what it contains.</summary>
-    public static IIdentity[] DecryptIdentities(Stream source, string passphrase, IPluginCallbacks? plugins = null)
-    {
-        using var output = new MemoryStream();
-        Decrypt(source, output, [new Passphrase(passphrase)]);
-        return ParseIdentities(Encoding.UTF8.GetString(output.ToArray()), plugins);
-    }
-
     private static IEnumerable<string> NonBlankLines(string text) =>
         text.Split('\n')
             .Select(line => line.TrimEnd('\r'))

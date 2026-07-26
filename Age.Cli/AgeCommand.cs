@@ -58,12 +58,16 @@ internal static class AgeCommand
         {
             var identities = LoadIdentities(file, callbacks);
             foreach (var id in identities)
-                if (GetRecipientFromIdentity(id) is { } recipient)
-                    recipients.Add(recipient);
+            {
+                var derived = GetRecipientsFromIdentity(id);
+
+                if (derived.Count > 0)
+                    recipients.AddRange(derived);
                 else
                     // Passphrase identities are the remaining case: no public half exists,
                     // and -e -p is the way to encrypt to one.
                     Console.Error.WriteLine("warning: skipping identity with no public recipient");
+            }
         }
     }
 
@@ -122,10 +126,14 @@ internal static class AgeCommand
         return identities;
     }
 
-    private static IRecipient? GetRecipientFromIdentity(IIdentity identity)
+    // An encrypted identity file can hold several identities, so it reports them plurally
+    // rather than through IIdentityWithRecipient's single Recipient.
+    private static IReadOnlyList<IRecipient> GetRecipientsFromIdentity(IIdentity identity) => identity switch
     {
-        return identity is IIdentityWithRecipient withRecipient ? withRecipient.Recipient : null;
-    }
+        EncryptedIdentityFile encrypted => encrypted.Recipients,
+        IIdentityWithRecipient withRecipient => [withRecipient.Recipient],
+        _ => []
+    };
 
     private static IRecipient ParseRecipient(string s)
     {
@@ -138,12 +146,12 @@ internal static class AgeCommand
         var text = Encoding.UTF8.GetString(bytes);
         var trimmed = text.TrimStart();
 
-        // Encrypted identity file
+        // Encrypted identity file. The prompt is deferred to first use, so several -i files
+        // ask only for the one that actually opens the message.
         if (trimmed.StartsWith("age-encryption.org/v1") || trimmed.StartsWith("-----BEGIN AGE ENCRYPTED FILE-----"))
-        {
-            var pass = ReadPassphrase($"Enter passphrase for identity file \"{path}\": ");
-            return [.. Age.DecryptIdentities(new MemoryStream(bytes), pass)];
-        }
+            return [new EncryptedIdentityFile(bytes,
+                () => ReadPassphrase($"Enter passphrase for identity file \"{path}\": ").ToCharArray(),
+                callbacks)];
 
         // SSH private key
         if (trimmed.StartsWith("-----BEGIN"))

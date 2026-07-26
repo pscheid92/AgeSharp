@@ -19,9 +19,13 @@ public class EncryptedIdentityFileTests
         return output.ToArray();
     }
 
-    private static IIdentity[] DecryptIdentityFile(byte[] data, string passphrase)
+    // The identities inside the file are deliberately not exposed, so the tests identify
+    // them by the recipients they derive — which name an identity exactly as well as its
+    // secret does, without handling the secret.
+    private static string[] RecipientsOf(byte[] data, string passphrase)
     {
-        return Age.DecryptIdentities(new MemoryStream(data), passphrase);
+        using var file = new EncryptedIdentityFile(data, passphrase.ToCharArray);
+        return [.. file.Recipients.Select(r => r.ToString()!)];
     }
 
     // ToString() on identities is redacted; comparisons need the secret form,
@@ -105,10 +109,8 @@ public class EncryptedIdentityFileTests
         var text = $"# created: 2024-01-01\n{identity.ToSecretString()}\n";
 
         var encrypted = EncryptIdentityFile(text, Passphrase, workFactor: LowWorkFactor);
-        var parsed = DecryptIdentityFile(encrypted, Passphrase);
 
-        Assert.Single(parsed);
-        Assert.Equal(identity.ToSecretString(), Secret(parsed[0]));
+        Assert.Equal([identity.Recipient.ToString()], RecipientsOf(encrypted, Passphrase));
     }
 
     [Fact]
@@ -123,9 +125,7 @@ public class EncryptedIdentityFileTests
         var armoredText = Encoding.UTF8.GetString(encrypted);
         Assert.StartsWith("-----BEGIN AGE ENCRYPTED FILE-----", armoredText);
 
-        var parsed = DecryptIdentityFile(encrypted, Passphrase);
-        Assert.Single(parsed);
-        Assert.Equal(identity.ToSecretString(), Secret(parsed[0]));
+        Assert.Equal([identity.Recipient.ToString()], RecipientsOf(encrypted, Passphrase));
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class EncryptedIdentityFileTests
         var text = $"{identity.ToSecretString()}\n";
         var encrypted = EncryptIdentityFile(text, Passphrase, workFactor: LowWorkFactor);
 
-        Assert.ThrowsAny<Exception>(() => DecryptIdentityFile(encrypted, "wrong passphrase"));
+        Assert.ThrowsAny<Exception>(() => RecipientsOf(encrypted, "wrong passphrase"));
     }
 
     [Fact]
@@ -145,10 +145,8 @@ public class EncryptedIdentityFileTests
         var text = $"# PQ identity\n{identity.ToSecretString()}\n";
 
         var encrypted = EncryptIdentityFile(text, Passphrase, workFactor: LowWorkFactor);
-        var parsed = DecryptIdentityFile(encrypted, Passphrase);
 
-        Assert.Single(parsed);
-        Assert.Equal(identity.ToSecretString(), Secret(parsed[0]));
+        Assert.Equal([identity.Recipient.ToString()], RecipientsOf(encrypted, Passphrase));
     }
 
     [Fact]
@@ -159,11 +157,9 @@ public class EncryptedIdentityFileTests
         var text = $"# X25519\n{x25519.ToSecretString()}\n# PQ\n{pq.ToSecretString()}\n";
 
         var encrypted = EncryptIdentityFile(text, Passphrase, workFactor: LowWorkFactor);
-        var parsed = DecryptIdentityFile(encrypted, Passphrase);
 
-        Assert.Equal(2, parsed.Length);
-        Assert.Equal(x25519.ToSecretString(), Secret(parsed[0]));
-        Assert.Equal(pq.ToSecretString(), Secret(parsed[1]));
+        Assert.Equal([x25519.Recipient.ToString(), pq.Recipient.ToString()],
+                     RecipientsOf(encrypted, Passphrase));
     }
 
     [SkippableFact]
@@ -200,8 +196,8 @@ public class EncryptedIdentityFileTests
 
             // Roundtrip: encrypt with AgeSharp, decrypt with AgeSharp
             var encrypted = EncryptIdentityFile(keyText, Passphrase, workFactor: LowWorkFactor);
-            var decrypted = DecryptIdentityFile(encrypted, Passphrase);
-            Assert.Equal(Secret(parsed[0]), Secret(decrypted[0]));
+            var viaFile = RecipientsOf(encrypted, Passphrase);
+            Assert.Equal([((IIdentityWithRecipient)parsed[0]).Recipient.ToString()!], viaFile);
         }
         finally
         {
@@ -220,9 +216,9 @@ public class EncryptedIdentityFileTests
         var identityText = $"# test key\n{identity.ToSecretString()}\n";
 
         var encrypted = EncryptIdentityFile(identityText, Passphrase, workFactor: LowWorkFactor);
-        var parsed = DecryptIdentityFile(encrypted, Passphrase);
+        using var identityFile = new EncryptedIdentityFile(encrypted, Passphrase.ToCharArray);
 
-        // Use the decrypted identity to decrypt data encrypted by the age CLI
+        // Use the encrypted identity file directly to decrypt data the age CLI produced
         var recipientStr = identity.Recipient.ToString();
         var tempCipher = Path.GetTempFileName();
         try
@@ -242,7 +238,8 @@ public class EncryptedIdentityFileTests
             var ciphertext = File.ReadAllBytes(tempCipher);
             using var decInput = new MemoryStream(ciphertext);
             using var decOutput = new MemoryStream();
-            Age.Decrypt(decInput, decOutput, parsed.ToArray());
+            // The encrypted identity file is itself an identity: no decrypt-then-parse step.
+            Age.Decrypt(decInput, decOutput, [identityFile]);
 
             var result = Encoding.UTF8.GetString(decOutput.ToArray());
             Assert.Equal("secret from age CLI", result);
@@ -252,4 +249,62 @@ public class EncryptedIdentityFileTests
             File.Delete(tempCipher);
         }
     }
+    // --- the reason the shape changed: the prompt is deferred ---
+
+    [Fact]
+    public void Passphrase_IsNotRequested_UntilTheFileIsUsed()
+    {
+        using var identity = X25519Identity.Generate();
+        var encrypted = EncryptIdentityFile($"{identity.ToSecretString()}\n", Passphrase,
+                                            workFactor: LowWorkFactor);
+
+        var prompts = 0;
+        using var file = new EncryptedIdentityFile(encrypted, () => { prompts++; return Passphrase.ToCharArray(); });
+
+        Assert.Equal(0, prompts);
+
+        _ = file.Recipients;
+        Assert.Equal(1, prompts);
+
+        // Cached: a second use must not prompt again.
+        _ = file.Recipients;
+        Assert.True(file.TryUnwrap([], new byte[Age.FileKeySize]) is false);
+        Assert.Equal(1, prompts);
+    }
+
+    [Fact]
+    public void Unmatched_File_IsNeverDecrypted()
+    {
+        // Two identity files, one of which opens the message: only that one is prompted for.
+        using var wanted = X25519Identity.Generate();
+        using var other = X25519Identity.Generate();
+
+        var ciphertext = Age.Encrypt("hello"u8, [wanted.Recipient]);
+
+        var wantedFile = EncryptIdentityFile($"{wanted.ToSecretString()}\n", Passphrase, workFactor: LowWorkFactor);
+        var otherFile = EncryptIdentityFile($"{other.ToSecretString()}\n", Passphrase, workFactor: LowWorkFactor);
+
+        var wantedPrompts = 0;
+        var otherPrompts = 0;
+        using var first = new EncryptedIdentityFile(wantedFile, () => { wantedPrompts++; return Passphrase.ToCharArray(); });
+        using var second = new EncryptedIdentityFile(otherFile, () => { otherPrompts++; return Passphrase.ToCharArray(); });
+
+        Assert.Equal("hello"u8.ToArray(), Age.Decrypt(ciphertext, [first, second]));
+
+        Assert.Equal(1, wantedPrompts);
+        Assert.Equal(0, otherPrompts);
+    }
+
+    [Fact]
+    public void NotPassphraseEncrypted_ReportsThatSpecifically()
+    {
+        using var identity = X25519Identity.Generate();
+        var toKey = Age.Encrypt("AGE-SECRET-KEY-1..."u8, [identity.Recipient]);
+
+        using var file = new EncryptedIdentityFile(toKey, Passphrase.ToCharArray);
+
+        var ex = Assert.Throws<AgeException>(() => file.Recipients);
+        Assert.Contains("not with a passphrase", ex.Message);
+    }
+
 }

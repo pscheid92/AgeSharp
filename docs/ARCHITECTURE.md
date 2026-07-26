@@ -1,12 +1,12 @@
 # Type map
 
-Sixty-three types: **27 public**, **36 internal**. This is the inventory — what a consumer can touch,
+Sixty-four types: **28 public**, **36 internal**. This is the inventory — what a consumer can touch,
 what is implementation detail, and which depends on which. For the behavioural rules (stream
 ownership, secret hygiene, sync/async parity) see [CLAUDE.md](../CLAUDE.md).
 
 ---
 
-## Public surface (27)
+## Public surface (28)
 
 Everything public lives in the flat `AgeSharp` namespace.
 
@@ -51,6 +51,7 @@ Five recipient/identity pairs plus `Passphrase`, which is its own inverse.
 | `SshRsaRecipient` | `SshRsaIdentity` | SSH key bridge, RSA-OAEP |
 | `PluginRecipient` | `PluginIdentity` | delegates to an external age plugin |
 | `Passphrase` — implements **both** `IRecipient` and `IIdentity`; scrypt. Must be a file's only recipient. |
+| `EncryptedIdentityFile` — an `IIdentity` over a passphrase-protected identity file; decrypts lazily, on first use. |
 
 Which optional interfaces each implements:
 

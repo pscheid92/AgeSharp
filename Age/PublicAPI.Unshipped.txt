@@ -57,6 +57,12 @@ AgeSharp.AgeFormatException
 AgeSharp.AgeFormatException.AgeFormatException(string! message) -> void
 AgeSharp.AgeFormatException.AgeFormatException(string! message, System.Exception! inner) -> void
 AgeSharp.AgeHeader.Stanzas.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+AgeSharp.EncryptedIdentityFile
+AgeSharp.EncryptedIdentityFile.Dispose() -> void
+AgeSharp.EncryptedIdentityFile.EncryptedIdentityFile(System.ReadOnlySpan<byte> contents, System.Func<char[]!>! passphrase, AgeSharp.IPluginCallbacks? plugins = null) -> void
+AgeSharp.EncryptedIdentityFile.Recipients.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>!
+AgeSharp.EncryptedIdentityFile.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
+AgeSharp.EncryptedIdentityFile.TryUnwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas, System.Span<byte> fileKey) -> bool
 AgeSharp.IIdentity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.IIdentity.TryUnwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas, System.Span<byte> fileKey) -> bool
 AgeSharp.IIdentityWithRecipient
@@ -96,7 +102,6 @@ static AgeSharp.Age.Decrypt(System.ReadOnlySpan<byte> ciphertext, System.Collect
 static AgeSharp.Age.DecryptAsync(System.IO.Stream! input, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 static AgeSharp.Age.DecryptDetached(System.IO.Stream! headerInput, System.IO.Stream! payloadInput, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null) -> void
 static AgeSharp.Age.DecryptDetachedAsync(System.IO.Stream! headerInput, System.IO.Stream! payloadInput, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-static AgeSharp.Age.DecryptIdentities(System.IO.Stream! source, string! passphrase, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IIdentity![]!
 static AgeSharp.Age.DecryptReader(System.IO.Stream! source, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null) -> System.IO.Stream!
 static AgeSharp.Age.DecryptReaderAsync(System.IO.Stream! source, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<System.IO.Stream!>
 static AgeSharp.Age.DecryptWriter(System.IO.Stream! destination, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null) -> System.IO.Stream!
