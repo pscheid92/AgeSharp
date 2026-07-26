@@ -1,6 +1,7 @@
 #nullable enable
 *REMOVED*AgeSharp.AgeArmorException
 *REMOVED*AgeSharp.AgeArmorException.AgeArmorException(string! message) -> void
+*REMOVED*AgeSharp.AgeHeader.PayloadOffset.get -> long
 *REMOVED*AgeSharp.AgeHeaderException
 *REMOVED*AgeSharp.AgeHeaderException.AgeHeaderException(string! message) -> void
 *REMOVED*AgeSharp.AgeHeaderException.AgeHeaderException(string! message, System.Exception! inner) -> void
@@ -56,6 +57,7 @@ AgeSharp.AgeEncryptOptions.Armor.init -> void
 AgeSharp.AgeFormatException
 AgeSharp.AgeFormatException.AgeFormatException(string! message) -> void
 AgeSharp.AgeFormatException.AgeFormatException(string! message, System.Exception! inner) -> void
+AgeSharp.AgeHeader.PayloadOffset.get -> long?
 AgeSharp.AgeHeader.Stanzas.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.EncryptedIdentityFile
 AgeSharp.EncryptedIdentityFile.Dispose() -> void

@@ -155,18 +155,31 @@ Files: [Age/AgeEncryptOptions.cs](../Age/AgeEncryptOptions.cs),
 [Age/AgeDecryptOptions.cs](../Age/AgeDecryptOptions.cs), [Age/AgeHeader.cs](../Age/AgeHeader.cs),
 [Age/Format/Stanza.cs](../Age/Format/Stanza.cs).
 
-- [ ] `AgeDecryptOptions`: are `MaxHeaderLineBytes` / `MaxHeaderBytes` / `MaxArmorLineBytes` the
-  right three knobs, at the right defaults, under the right names? These become permanent.
-- [ ] `AgeEncryptOptions` has exactly one member. Anything you already know 0.4 will need
-  (it can be *added* compatibly — init-only properties extend fine — so the bar is only: is
-  `Armor` right)?
-- [ ] **`AgeHeader` is unverified data** — no MAC check has run when you hold one. The docs say it;
-  the *name* doesn't. Is doc-only warning enough, or should the name carry it? Also
-  `PayloadOffset` refers to the dearmored byte stream for armored input — subtle; keep the
-  semantics or reshape before freezing.
-- [ ] `Stanza`: public constructor validates header-framing safety (this is the extension point
-  for custom recipients). `Body` as `ReadOnlyMemory<byte>`, `Args` as `IReadOnlyList<string>` —
-  right shapes?
+- [x] `AgeDecryptOptions` knobs, defaults, names → **knobs and names kept; `MaxArmorLineBytes`
+  default 64 KiB → 1 KiB**. Neither reference exposes limits at all — Go bounds a stanza body line
+  because the format requires it and otherwise leans on `bufio`; there is no total-header cap
+  anywhere. So these are AgeSharp's own defence and have no precedent to copy, which is fine: a
+  parser reading hostile input *before* authentication should bound it. But an armor line is fixed
+  at 64 characters by the format and `ArmorDecoder` already rejects anything wider, so 64 KiB was
+  guarding one thing only — an unterminated line, i.e. a stream that is not armor at all. 1 KiB is
+  still sixteen times the spec. The header knobs stay: header lines legitimately vary (a plugin
+  stanza can be long) and the total cap is the real memory bound.
+- [x] `AgeEncryptOptions` has exactly one member → **confirmed, no change**. One member looks thin
+  but is the right one, and the type is what lets options grow later without touching a single
+  signature. Init-only properties extend compatibly, so the bar was only whether `Armor` is right.
+  It is.
+- [x] **`AgeHeader` is unverified data / `PayloadOffset` semantics** → **name kept, `PayloadOffset`
+  reshaped to `long?`**. On the name: `ReadHeader` is the only way to obtain one, so the warning
+  belongs on the method, and `UnverifiedAgeHeader` reads as ceremony at every use site. On the
+  offset: for armored input it counted dearmored bytes, which are not positions in the file the
+  caller holds — seeking there lands in the wrong place. It is null for armored input now, so the
+  unusable case is unrepresentable rather than documented. That immediately surfaced a real bug:
+  the CLI's `inspect` subtracted that dearmored offset from the armored file size and printed a
+  size breakdown that looked plausible and was wrong.
+- [x] `Stanza` shapes → **confirmed, no change**. `ReadOnlyMemory<byte>` rather than `Span` because
+  a `Stanza` outlives a stack frame; read-only on both because a stanza is a parsed record. The
+  constructor's framing validation is load-bearing, not defensive: it is the extension point custom
+  recipients build on, and a newline in a type or arg would let one forge header lines.
 
 ## Stop 4 — key material (40 min) · six parallel types
 
@@ -248,6 +261,12 @@ Append rows as you go; this table is the review's output.
 | `EncryptDetachedAsync` / `DecryptDetachedAsync` | **add** | Detached is staying, and these are whole operations doing I/O throughout — the same rule that justifies `EncryptAsync`. |
 | Async coverage generally | **correct by rule** | Async factories exist exactly where setup does I/O; the other three never touch a stream at construction. Rule in CLAUDE.md. |
 | `Age.DecryptIdentities` | **remove** → `EncryptedIdentityFile` | Leaked four ways in four lines, and the eager shape forced a passphrase prompt per `-i` file regardless of which one matched. |
+| `AgeDecryptOptions` knobs and names | **keep** | No reference exposes limits; bounding pre-authentication input is right, and the names say what they bound. |
+| `MaxArmorLineBytes` default | **64 KiB → 1 KiB** | Armor lines are fixed at 64 chars and already rejected above that; the allowance only bounds an unterminated line. |
+| `AgeEncryptOptions` | **keep** | `Armor` is the right member, and init-only properties let the type grow compatibly. |
+| `AgeHeader` name | **keep** | `ReadHeader` is the only source, so the warning belongs on the method. |
+| `AgeHeader.PayloadOffset` | **reshape** → `long?` | Meaningless for armored input; null makes that unrepresentable. Surfaced a real CLI bug on the way. |
+| `Stanza` shapes | **keep** | `ReadOnlyMemory` because a stanza outlives a frame; constructor validation guards header framing at the extension point. |
 | `IPluginCallbacks.RequestValue` | **decided, not yet built** | Split into `RequestValue` / `RequestSecret(→ char[])`, matching rage. Blocked on nothing; the plugin write-path zeroing lands with it. |
 | *(next: `IPluginCallbacks` split + plugin write-path zeroing, `TryParse*` callbacks, `AgeHeader` naming)* | | |
 

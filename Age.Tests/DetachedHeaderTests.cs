@@ -41,8 +41,8 @@ public class DetachedHeaderTests
         var header = Age.ReadHeader(ciphertext);
 
         // Split at payload offset
-        var headerBytes = ciphertextBytes[..(int)header.PayloadOffset];
-        var payloadBytes = ciphertextBytes[(int)header.PayloadOffset..];
+        var headerBytes = ciphertextBytes[..(int)header.PayloadOffset!.Value];
+        var payloadBytes = ciphertextBytes[(int)header.PayloadOffset!.Value..];
 
         using var headerIn = new MemoryStream(headerBytes);
         using var payloadIn = new MemoryStream(payloadBytes);
@@ -263,4 +263,31 @@ public class DetachedHeaderTests
             base.Dispose(disposing);
         }
     }
+    // Splitting an armored file at PayloadOffset would seek into bytes the caller never
+    // sees, so there is no offset to give — the API says so rather than documenting it.
+    [Fact]
+    public void PayloadOffset_IsNull_ForArmoredInput()
+    {
+        using var identity = X25519Identity.Generate();
+        var armored = Age.Encrypt("hello"u8, [identity.Recipient], new AgeEncryptOptions { Armor = true });
+
+        var header = Age.ReadHeader(new MemoryStream(armored));
+
+        Assert.True(header.IsArmored);
+        Assert.Null(header.PayloadOffset);
+    }
+
+    [Fact]
+    public void PayloadOffset_IsPresent_ForBinaryInput()
+    {
+        using var identity = X25519Identity.Generate();
+        var binary = Age.Encrypt("hello"u8, [identity.Recipient]);
+
+        var header = Age.ReadHeader(new MemoryStream(binary));
+
+        Assert.False(header.IsArmored);
+        Assert.NotNull(header.PayloadOffset);
+        Assert.Equal(binary[..(int)header.PayloadOffset!.Value].Length, (int)header.PayloadOffset!.Value);
+    }
+
 }

@@ -173,6 +173,7 @@ public class ReadmeExamplesTests
         Assert.NotEmpty(header.Stanzas);
         Assert.False(header.IsArmored);
         Assert.True(header.PayloadOffset > 0);
+        _ = header.PayloadOffset?.ToString() ?? "n/a (armored)";
 
         foreach (var stanza in header.Stanzas)
             _ = $"  {stanza.Type}: {string.Join(' ', stanza.Args)}";

@@ -247,7 +247,7 @@ public class DecryptWriterTests
 
     private static byte[] HeaderAndNonce(byte[] ciphertext)
     {
-        var offset = (int)Age.ReadHeader(new MemoryStream(ciphertext)).PayloadOffset;
+        var offset = (int)Age.ReadHeader(new MemoryStream(ciphertext)).PayloadOffset!.Value;
         return ciphertext[..(offset + 16)]; // header + payload nonce, zero chunks
     }
 
@@ -273,7 +273,7 @@ public class DecryptWriterTests
     {
         using var identity = X25519Identity.Generate();
         var ciphertext = Age.Encrypt(Pattern(100), [identity.Recipient]);
-        var offset = (int)Age.ReadHeader(new MemoryStream(ciphertext)).PayloadOffset;
+        var offset = (int)Age.ReadHeader(new MemoryStream(ciphertext)).PayloadOffset!.Value;
         var stub = ciphertext[..(offset + 16 + 5)]; // five bytes is not even a tag
 
         using var output = new MemoryStream();
@@ -294,7 +294,7 @@ public class DecryptWriterTests
         // the path that must still zero it on the way out.
         using var identity = X25519Identity.Generate();
         var ciphertext = Age.Encrypt(Pattern(100), [identity.Recipient]);
-        var offset = (int)Age.ReadHeader(new MemoryStream(ciphertext)).PayloadOffset;
+        var offset = (int)Age.ReadHeader(new MemoryStream(ciphertext)).PayloadOffset!.Value;
 
         using var output = new MemoryStream();
 

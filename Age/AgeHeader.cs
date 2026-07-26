@@ -7,7 +7,7 @@ namespace AgeSharp;
 /// </summary>
 public sealed class AgeHeader
 {
-    private AgeHeader(IReadOnlyList<Stanza> stanzas, long payloadOffset, bool isArmored)
+    private AgeHeader(IReadOnlyList<Stanza> stanzas, long? payloadOffset, bool isArmored)
     {
         Stanzas = stanzas;
         PayloadOffset = payloadOffset;
@@ -18,12 +18,15 @@ public sealed class AgeHeader
     public IReadOnlyList<Stanza> Stanzas { get; }
 
     /// <summary>
-    ///     Offset of the first payload byte (the payload nonce) in the <em>binary</em>
-    ///     age encoding. For a binary file this is a file offset; when
-    ///     <see cref="IsArmored" /> is true it refers to the dearmored byte stream,
-    ///     not the armored file.
+    ///     Offset of the first payload byte — the payload nonce — in the source, or
+    ///     <see langword="null" /> when <see cref="IsArmored" /> is true.
     /// </summary>
-    public long PayloadOffset { get; }
+    /// <remarks>
+    ///     Null for armored input rather than an offset into the dearmored stream: the caller
+    ///     holds the armored file, so an offset into bytes it never sees would seek to the wrong
+    ///     place. Splitting an armored file at its header means dearmoring it first.
+    /// </remarks>
+    public long? PayloadOffset { get; }
 
     /// <summary>Whether the input was wrapped in ASCII armor.</summary>
     public bool IsArmored { get; }
@@ -86,6 +89,9 @@ public sealed class AgeHeader
             throw new AgeFormatException($"header parse error: {ex.Message}", ex);
         }
 
-        return new AgeHeader(header.Stanzas.AsReadOnly(), reader.RawBytes.Length, isArmored);
+        // The offset counts dearmored bytes, which is not a position in what the caller
+        // handed us, so it is only meaningful for binary input.
+        return new AgeHeader(header.Stanzas.AsReadOnly(), isArmored ? null : reader.RawBytes.Length,
+                             isArmored);
     }
 }

@@ -9,7 +9,7 @@ internal record InspectOutput(
     bool Armored,
     bool PostQuantum,
     InspectRecipient[] Recipients,
-    InspectSize Size);
+    InspectSize? Size);
 
 internal record InspectRecipient(int Index, string Type, string[] Args);
 
@@ -69,14 +69,21 @@ internal static class InspectCommand
 
         Console.WriteLine();
 
-        var sizes = ComputeSizes(header, totalSize);
-        Console.WriteLine("Size breakdown (assuming it decrypts successfully):");
-        Console.WriteLine();
-        Console.WriteLine($"    {"Header",-24}{sizes.Header,8} bytes");
-        Console.WriteLine($"    {"Encryption overhead",-24}{sizes.Overhead,8} bytes");
-        Console.WriteLine($"    {"Payload",-24}{sizes.Payload,8} bytes");
-        Console.WriteLine($"    {"",24}-------------------");
-        Console.WriteLine($"    {"Total",-24}{sizes.Total,8} bytes");
+        if (ComputeSizes(header, totalSize) is { } sizes)
+        {
+            Console.WriteLine("Size breakdown (assuming it decrypts successfully):");
+            Console.WriteLine();
+            Console.WriteLine($"    {"Header",-24}{sizes.Header,8} bytes");
+            Console.WriteLine($"    {"Encryption overhead",-24}{sizes.Overhead,8} bytes");
+            Console.WriteLine($"    {"Payload",-24}{sizes.Payload,8} bytes");
+            Console.WriteLine($"    {"",24}-------------------");
+            Console.WriteLine($"    {"Total",-24}{sizes.Total,8} bytes");
+        }
+        else
+        {
+            Console.WriteLine($"Size: {totalSize} bytes of armor. A breakdown would need the file dearmored first.");
+        }
+
         Console.WriteLine();
 
         Console.WriteLine("Tip: for machine-readable output, use --json.");
@@ -92,15 +99,20 @@ internal static class InspectCommand
             header.IsArmored,
             header.Stanzas.Any(s => PostQuantumTypes.Contains(s.Type)),
             header.Stanzas.Select((s, i) => new InspectRecipient(i, s.Type, [.. s.Args])).ToArray(),
-            new InspectSize(sizes.Header, sizes.Overhead, sizes.Payload, sizes.Total)
+            sizes is { } s ? new InspectSize(s.Header, s.Overhead, s.Payload, s.Total) : null
         );
 
         Console.WriteLine(JsonSerializer.Serialize(obj, InspectJsonContext.Default.InspectOutput));
     }
 
-    private static SizeBreakdown ComputeSizes(AgeHeader header, long totalSize)
+    // Null for armored input. The header offset counts dearmored bytes while totalSize is
+    // the size of the armored file, so subtracting one from the other produced a breakdown
+    // that looked plausible and was wrong.
+    private static SizeBreakdown? ComputeSizes(AgeHeader header, long totalSize)
     {
-        var headerSize = header.PayloadOffset;
+        if (header.PayloadOffset is not { } headerSize)
+            return null;
+
         var encryptedPayload = totalSize - headerSize;
         var overhead = ComputeOverhead(encryptedPayload);
         var payload = encryptedPayload - overhead;

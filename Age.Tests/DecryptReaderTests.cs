@@ -261,7 +261,7 @@ public class DecryptReaderTests
         new Random(42).NextBytes(plaintext);
 
         var ciphertextBytes = Encrypt(plaintext, identity.Recipient).ToArray();
-        var payloadOffset = (int)Age.ReadHeader(new MemoryStream(ciphertextBytes)).PayloadOffset;
+        var payloadOffset = (int)Age.ReadHeader(new MemoryStream(ciphertextBytes)).PayloadOffset!.Value;
         var totalEncryptedPayload = ciphertextBytes.Length - payloadOffset - 16; // minus the 16-byte nonce
 
         var counting = new CountingStream(new MemoryStream(ciphertextBytes));

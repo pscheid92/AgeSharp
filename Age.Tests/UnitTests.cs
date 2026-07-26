@@ -1403,7 +1403,7 @@ public class DecryptStreamTests
         // Parse header to find payload offset
         encOutput.Position = 0;
         var header = Age.ReadHeader(encOutput);
-        var payloadOffset = (int)header.PayloadOffset;
+        var payloadOffset = (int)header.PayloadOffset!.Value;
 
         // Payload: 16-byte nonce + encrypted chunks
         // Keep header + nonce + first encrypted chunk only (remove final chunk)
@@ -1445,7 +1445,7 @@ public class DecryptStreamTests
         // Parse header to find payload offset
         encOutput.Position = 0;
         var header = Age.ReadHeader(encOutput);
-        var payloadOffset = (int)header.PayloadOffset;
+        var payloadOffset = (int)header.PayloadOffset!.Value;
 
         // Keep header + nonce + only a few bytes of payload (< TagSize = 16)
         var truncateAt = payloadOffset + 16 + 5; // nonce + 5 bytes

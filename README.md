@@ -314,7 +314,9 @@ var header = Age.ReadHeader(stream);
 
 Console.WriteLine($"Recipients: {header.Stanzas.Count}");
 Console.WriteLine($"Armored: {header.IsArmored}");
-Console.WriteLine($"Payload offset: {header.PayloadOffset}");
+// Null for armored input: the offset counts dearmored bytes, which are not
+// positions in the file you hold.
+Console.WriteLine($"Payload offset: {header.PayloadOffset?.ToString() ?? "n/a (armored)"}");
 
 foreach (var stanza in header.Stanzas)
     Console.WriteLine($"  {stanza.Type}: {string.Join(' ', stanza.Args)}");   // Args may be empty

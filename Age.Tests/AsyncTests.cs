@@ -369,7 +369,7 @@ public class AsyncTests
     {
         using var identity = X25519Identity.Generate();
         var full = Age.Encrypt("data"u8.ToArray(), [identity.Recipient]);
-        var headerOnly = full[..(int)Age.ReadHeader(new MemoryStream(full)).PayloadOffset]; // header, no nonce
+        var headerOnly = full[..(int)Age.ReadHeader(new MemoryStream(full)).PayloadOffset!.Value]; // header, no nonce
 
         await Assert.ThrowsAsync<AgeFormatException>(async () =>
             await Age.DecryptReaderAsync(new MemoryStream(headerOnly), [identity]));
@@ -380,7 +380,7 @@ public class AsyncTests
     {
         using var identity = X25519Identity.Generate();
         var full = Age.Encrypt("data"u8.ToArray(), [identity.Recipient]);
-        var offset = (int)Age.ReadHeader(new MemoryStream(full)).PayloadOffset;
+        var offset = (int)Age.ReadHeader(new MemoryStream(full)).PayloadOffset!.Value;
         var headerAndNonce = full[..(offset + 16)]; // header + nonce, zero chunks
 
         // Non-seekable forces the forward-only decrypt path.

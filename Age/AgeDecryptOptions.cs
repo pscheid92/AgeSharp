@@ -9,7 +9,7 @@ namespace AgeSharp;
 public sealed class AgeDecryptOptions
 {
     internal static readonly AgeDecryptOptions Default = new();
-    private readonly int _maxArmorLineBytes = 64 * 1024;
+    private readonly int _maxArmorLineBytes = 1024;
     private readonly int _maxHeaderBytes = 16 * 1024 * 1024;
     private readonly int _maxHeaderLineBytes = 64 * 1024;
 
@@ -35,7 +35,12 @@ public sealed class AgeDecryptOptions
         init => _maxHeaderBytes = RequirePositive(value, nameof(MaxHeaderBytes));
     }
 
-    /// <summary>Maximum bytes in one armor line; set high so it only rejects a hostile unterminated line. Default: 64 KiB.</summary>
+    /// <summary>
+    ///     Maximum bytes in one armor line. Default: 1 KiB — sixteen times the 64 characters the
+    ///     format fixes, since <see cref="Stanza" />-level validation already rejects anything
+    ///     wider. The allowance exists only to bound an unterminated line, which is how a stream
+    ///     that is not armor at all presents itself.
+    /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is not positive.</exception>
     public int MaxArmorLineBytes
     {
