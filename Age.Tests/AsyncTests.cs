@@ -492,4 +492,73 @@ public class AsyncTests
             throw new NotSupportedException();
         }
     }
+    // --- ReadHeaderAsync ---
+
+    [Fact]
+    public async Task ReadHeaderAsync_MatchesTheSynchronousResult()
+    {
+        using var identity = X25519Identity.Generate();
+        var ciphertext = Age.Encrypt("hello"u8, [identity.Recipient]);
+
+        var sync = Age.ReadHeader(new MemoryStream(ciphertext));
+        var async = await Age.ReadHeaderAsync(new MemoryStream(ciphertext));
+
+        Assert.Equal(sync.IsArmored, async.IsArmored);
+        Assert.Equal(sync.PayloadOffset, async.PayloadOffset);
+        Assert.Equal(sync.Stanzas.Select(s => s.Type), async.Stanzas.Select(s => s.Type));
+    }
+
+    [Fact]
+    public async Task ReadHeaderAsync_Armored_MatchesTheSynchronousResult()
+    {
+        using var identity = X25519Identity.Generate();
+        var ciphertext = Age.Encrypt("hello"u8, [identity.Recipient], new AgeEncryptOptions { Armor = true });
+
+        var sync = Age.ReadHeader(new MemoryStream(ciphertext));
+        var async = await Age.ReadHeaderAsync(new MemoryStream(ciphertext));
+
+        Assert.True(async.IsArmored);
+        Assert.Equal(sync.PayloadOffset, async.PayloadOffset);
+        Assert.Equal(sync.Stanzas.Count, async.Stanzas.Count);
+    }
+
+    // The reason ReadHeaderAsync exists: reading a header is I/O, so it must not block.
+    [Fact]
+    public async Task ReadHeaderAsync_NeverReadsSynchronously()
+    {
+        using var identity = X25519Identity.Generate();
+        var ciphertext = Age.Encrypt("hello"u8, [identity.Recipient]);
+
+        var header = await Age.ReadHeaderAsync(new NoSyncReadStream(new MemoryStream(ciphertext)));
+
+        Assert.Single(header.Stanzas);
+    }
+
+    private sealed class NoSyncReadStream(Stream inner) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            throw new InvalidOperationException("synchronous read on the async path");
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            inner.ReadAsync(buffer, cancellationToken);
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            inner.ReadAsync(buffer, offset, count, cancellationToken);
+
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
 }

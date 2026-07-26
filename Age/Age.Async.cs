@@ -105,6 +105,19 @@ public static partial class Age
         }
     }
 
+    /// <summary>
+    ///     Asynchronous counterpart to <see cref="ReadHeader" />. Present because reading a
+    ///     header is I/O; the encrypt-side factories have no async form because their setup
+    ///     touches no stream.
+    /// </summary>
+    /// <remarks>The result is <b>unverified</b> — see <see cref="ReadHeader" />.</remarks>
+    /// <param name="source">The age-encrypted source.</param>
+    /// <param name="options">Parsing options (the header-size limits); defaults when null.</param>
+    /// <param name="cancellationToken">Cancels the header read.</param>
+    public static ValueTask<AgeHeader> ReadHeaderAsync(Stream source, AgeDecryptOptions? options = null,
+                                                       CancellationToken cancellationToken = default) =>
+        AgeHeader.ParseAsync(source, options ?? AgeDecryptOptions.Default, cancellationToken);
+
     private static async ValueTask<(Stream binaryInput, bool needsDispose)> DeArmorIfNeededAsync(Stream input, AgeDecryptOptions options, CancellationToken cancellationToken)
     {
         var (source, isArmored) = await AsciiArmor.DetectAsync(input, options.RequireArmor, cancellationToken).ConfigureAwait(false);

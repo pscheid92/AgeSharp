@@ -110,6 +110,7 @@ static AgeSharp.Age.ParseIdentity(string! s, AgeSharp.IPluginCallbacks? plugins 
 static AgeSharp.Age.ParseRecipient(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IRecipient!
 static AgeSharp.Age.ParseRecipients(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IRecipient![]!
 static AgeSharp.Age.ReadHeader(System.IO.Stream! source, AgeSharp.AgeDecryptOptions? options = null) -> AgeSharp.AgeHeader!
+static AgeSharp.Age.ReadHeaderAsync(System.IO.Stream! source, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<AgeSharp.AgeHeader!>
 static AgeSharp.Age.TryParseIdentity(string? s, out AgeSharp.IIdentity! result) -> bool
 static AgeSharp.Age.TryParseRecipient(string? s, out AgeSharp.IRecipient! result) -> bool
 static AgeSharp.MlKem768X25519Identity.TryParse(string? s, out AgeSharp.MlKem768X25519Identity! result) -> bool

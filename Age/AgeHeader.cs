@@ -33,29 +33,59 @@ public sealed class AgeHeader
         // The dearmor wrapper is disposed below; `input` itself never is.
         var (source, isArmored) = AsciiArmor.Detect(input, options.RequireArmor);
         var binaryInput = isArmored ? AsciiArmor.Dearmor(source, options.MaxArmorLineBytes) : source;
-        var needsDispose = isArmored;
+
+        try
+        {
+            return FromReader(new HeaderReader(binaryInput, options.MaxHeaderLineBytes, options.MaxHeaderBytes),
+                              isArmored);
+        }
+        finally
+        {
+            if (isArmored)
+                binaryInput.Dispose();
+        }
+    }
+
+    internal static async ValueTask<AgeHeader> ParseAsync(Stream input, AgeDecryptOptions options,
+                                                          CancellationToken cancellationToken)
+    {
+        var (source, isArmored) =
+            await AsciiArmor.DetectAsync(input, options.RequireArmor, cancellationToken).ConfigureAwait(false);
+
+        var binaryInput = isArmored
+            ? await AsciiArmor.DearmorAsync(source, options.MaxArmorLineBytes, cancellationToken).ConfigureAwait(false)
+            : source;
 
         try
         {
             var reader = new HeaderReader(binaryInput, options.MaxHeaderLineBytes, options.MaxHeaderBytes);
 
-            Header header;
-            try
-            {
-                header = Header.Parse(reader);
-            }
-            catch (AgeFormatException ex)
-            {
-                throw new AgeFormatException($"header parse error: {ex.Message}", ex);
-            }
+            // Buffer the header first; parsing it afterwards is pure, so the two paths
+            // share everything below this line.
+            await reader.PrefillAsync(cancellationToken).ConfigureAwait(false);
 
-            var payloadOffset = reader.RawBytes.Length;
-            return new AgeHeader(header.Stanzas.AsReadOnly(), payloadOffset, isArmored);
+            return FromReader(reader, isArmored);
         }
         finally
         {
-            if (needsDispose)
-                binaryInput.Dispose();
+            if (isArmored)
+                await binaryInput.DisposeAsync().ConfigureAwait(false);
         }
+    }
+
+    private static AgeHeader FromReader(HeaderReader reader, bool isArmored)
+    {
+        Header header;
+
+        try
+        {
+            header = Header.Parse(reader);
+        }
+        catch (AgeFormatException ex)
+        {
+            throw new AgeFormatException($"header parse error: {ex.Message}", ex);
+        }
+
+        return new AgeHeader(header.Stanzas.AsReadOnly(), reader.RawBytes.Length, isArmored);
     }
 }

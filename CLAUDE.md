@@ -125,6 +125,21 @@ in a header, and label sets must match across recipients.
   single place recipients and identities are validated (null, empty, null elements).
   `RS0026` is suppressed in `Age.csproj` for this shape — see the comment there for why it is safe.
 
+### Which members have an async form
+
+Not everything does, and the omissions are deliberate: **a factory needs an async variant only
+when its *setup* performs I/O.** Measured, not assumed — over a stream that throws on any
+synchronous call, `EncryptReader`, `EncryptWriter` and `DecryptWriter` all construct fine, because
+they build the header in memory, defer it to the first write, and know nothing until bytes arrive
+respectively. Only `DecryptReader` and `ReadHeader` read during setup, and both have `*Async`
+counterparts for that reason.
+
+The streams they return are async all the way down, armored paths included, so
+`EncryptReaderAsync` and friends would wrap a constructor that never blocks. Do not add them.
+
+`Encrypt`/`Decrypt`/`EncryptDetached`/`DecryptDetached` are whole operations rather than
+factories, so they do I/O throughout and take async forms on their own merits.
+
 ### Exceptions
 
 `AgeException` is the catch-all base. `AgeFormatException` (malformed input),

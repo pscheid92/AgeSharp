@@ -123,10 +123,15 @@ Pre-seeded questions:
   last and optional. Sync and async now share one shape, differing only by a trailing
   `CancellationToken`, so the two-conventions problem is gone. `RS0026` suppressed in `Age.csproj`
   with the reasoning recorded there.
-- [ ] **Async coverage is still partial** — only `EncryptAsync`, `DecryptAsync`,
-  `DecryptReaderAsync`. Separate question from the convention, and still open.
-- [ ] **No `ReadHeaderAsync`**, though `ReadHeader` reads the stream. No `*DetachedAsync` either.
-  Omission or decision?
+- [x] **Async coverage is partial** → **correct by rule, one gap filled**. A factory needs an async
+  form only when its *setup* does I/O. Probed against a stream that throws on any synchronous
+  call: `EncryptReader`, `EncryptWriter` and `DecryptWriter` construct without touching it, and the
+  streams they return are async all the way down (armored paths included) — so async variants of
+  those would wrap a constructor that never blocks. `DecryptReader` and `ReadHeader` do read at
+  setup; the first already had `DecryptReaderAsync`, the second now has `ReadHeaderAsync`. Rule
+  recorded in CLAUDE.md so the asymmetry is not read as an oversight.
+- [x] **No `ReadHeaderAsync`** → **added**. `*DetachedAsync` is still absent; see the Detached row
+  in the decision table.
 - [ ] **`DecryptIdentities(Stream, string passphrase, …)`** — takes a raw `string` passphrase
   while the `Passphrase` type exists precisely because strings can't be zeroed; internally the
   decrypted identity file (containing `AGE-SECRET-KEY` lines) round-trips through an unzeroable
@@ -234,8 +239,11 @@ Append rows as you go; this table is the review's output.
 | `IIdentity : IDisposable` + default `Dispose` | **keep** (interface, not a base class) | A base class would impose single inheritance on an extension point; dropping `IDisposable` risks unzeroed secrets. The DIM quirk is a one-time compile error, now documented. `7af5f67` |
 | `IRecipientWithLabels.WrapWithLabels` | **reshape** → `LabelledStanzas` (`readonly struct`) | Widened to a stanza list with `Wrap` (`fd16800`), then the tuple replaced outright (`fb3ca67`): implementors had to reproduce a 110-char signature. `record struct` rejected — value equality over a collection compares references. |
 | `Labels` as `IReadOnlyCollection` (not `IReadOnlySet`) | **keep** | `SetEquals` would honour the *implementor's* comparer; the spec requires exact, case-sensitive comparison, so the facade forces `StringComparer.Ordinal` instead of trusting it. |
+| **Detached (`EncryptDetached`/`DecryptDetached`)** | **KEEP — settled, do not re-open** | Raised repeatedly during this review and answered the same way every time. It is implemented, tested, documented, and the maintainer wants it. The absence of a Go/rage equivalent is not an argument against it. |
+| `Age.ReadHeaderAsync` | **add** | `ReadHeader` performs synchronous reads, so an async caller inspecting a header had no non-blocking path. |
+| Async coverage generally | **correct by rule** | Async factories exist exactly where setup does I/O; the other three never touch a stream at construction. Rule in CLAUDE.md. |
 | `IPluginCallbacks.RequestValue` | **decided, not yet built** | Split into `RequestValue` / `RequestSecret(→ char[])`, matching rage. Blocked on nothing; the plugin write-path zeroing lands with it. |
-| *(next: `DecryptIdentities`, `TryParse*` callbacks, `AgeHeader` naming, Detached as a feature)* | | |
+| *(next: `DecryptIdentities`, `TryParse*` callbacks, `AgeHeader` naming, `*DetachedAsync` — since Detached is staying, the async rule says it wants async forms)* | | |
 
 Mechanics afterwards:
 
