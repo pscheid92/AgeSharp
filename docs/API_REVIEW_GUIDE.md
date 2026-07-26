@@ -240,13 +240,23 @@ Fill in the `?` cells as you read — every `ToString` on a secret-holding type 
 
 File: [Age/Exceptions.cs](../Age/Exceptions.cs).
 
-- [ ] Four leaf types + concrete base. Is `AgeException` being non-abstract intentional (user code
-  can `throw new AgeException(...)`)?
-- [ ] Ctor symmetry: which types carry the `(message, inner)` overload and which don't — is the
-  asymmetry deliberate?
-- [ ] The 0.2 granular hierarchy (`AgeArmorException`, `AgeHeaderException`, `AgeHmacException`,
-  `AgePayloadException`) is `*REMOVED*`. The two-type split (format vs authentication) was pinned
-  by `ExceptionContractTests`. Last chance to disagree.
+- [x] Four leaf types + concrete base; is the non-abstract base intentional? → **yes, twice over**.
+  It is thrown directly in fourteen places for a real category: caller-caused failures discovered
+  *mid-operation* — mismatched labels, scrypt-not-alone, a recipient that produced no stanzas.
+  Those are not `ArgumentException`s, because the offending thing is a combination that only exists
+  once each recipient has wrapped, and a custom recipient can emit an scrypt stanza without looking
+  like a passphrase beforehand. Separately, leaving it unsealed is load-bearing: the docs tell
+  implementors to derive their failures from it, which is what keeps `catch (AgeException)`
+  exhaustive. Both reasons now recorded on the type.
+- [x] Ctor symmetry → **deliberate**. Four of five carry `(message, inner)`;
+  `NoIdentityMatchException` carries neither, having one fixed message and no cause to chain.
+  `AgeAuthenticationException`'s inner overload is currently unused but is the obvious place a
+  wrapped `CryptographicException` would land, so it stays.
+- [x] The 0.2 granular hierarchy stays removed → **confirmed, and the contract is now executable**.
+  The split held under roughly seven thousand hostile inputs — every single-byte truncation and
+  bitflip of a real file, corrupted armor, random bytes, and malformed key strings — with nothing
+  outside the sanctioned set escaping any public entry point. That sweep is now three tests, so
+  "a raw BCL or BouncyCastle exception reaching a caller is a bug" is checked rather than asserted.
 
 ## Stop 6 — the consumer's view (20 min)
 
@@ -295,6 +305,8 @@ Append rows as you go; this table is the review's output.
 | SSH types skipping `IParsable` | **keep** | `IParsable` implies a `ToString` round-trip, and SSH identities deliberately have no text form. |
 | `Passphrase` name / dual role | **keep** | It is genuinely its own inverse; naming either role would misdescribe the other. |
 | `Passphrase` explicit work-factor overloads | **keep** | Default arguments bake into caller binaries; the remaining defaults are all `null`/`default`, which carry no policy. |
+| Exception hierarchy (all of stop 5) | **keep, unchanged** | The two-type split holds; the concrete base serves mid-operation caller errors; unsealed is required by the extension points. |
+| Exception contract | **now tested** | The "no raw exception escapes" rule was a doc claim; it is three tests now. |
 | `IPluginCallbacks.RequestValue` | **decided, not yet built** | Split into `RequestValue` / `RequestSecret(→ char[])`, matching rage. Blocked on nothing; the plugin write-path zeroing lands with it. |
 | *(next: `IPluginCallbacks` split + plugin write-path zeroing, `TryParse*` callbacks, `AgeHeader` naming)* | | |
 

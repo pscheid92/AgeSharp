@@ -5,6 +5,18 @@ namespace AgeSharp;
 ///     unparseable <em>structure</em> is an <see cref="AgeFormatException" />, a failed
 ///     <em>cryptographic check</em> is an <see cref="AgeAuthenticationException" />.
 /// </summary>
+/// <remarks>
+///     Thrown directly, not only inherited from, for failures the caller caused but which are
+///     only discovered mid-operation: recipients with mismatched labels, or an scrypt stanza
+///     alongside others. Those are not <see cref="ArgumentException" />s — the offending thing
+///     is a combination that only appears once each recipient has wrapped, and a custom
+///     recipient can emit an scrypt stanza without looking like a passphrase beforehand.
+///     <para>
+///         Deliberately not sealed: a custom <see cref="IRecipient" /> or <see cref="IIdentity" />
+///         should derive its own failures from this, so that catching
+///         <see cref="AgeException" /> keeps catching everything.
+///     </para>
+/// </remarks>
 public class AgeException : Exception
 {
     /// <inheritdoc />

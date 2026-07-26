@@ -373,6 +373,87 @@ public class ExceptionContractTests
 
     // --- helpers ---
 
+    // The documented rule — "a raw BCL or BouncyCastle exception reaching a caller is a bug" —
+    // as something executable rather than a claim in a doc comment. Anything outside this set
+    // escaping a public entry point is the bug.
+    private static readonly HashSet<string> Sanctioned =
+    [
+        nameof(AgeException), nameof(AgeFormatException), nameof(AgeAuthenticationException),
+        nameof(NoIdentityMatchException), nameof(AgePluginException),
+        nameof(ArgumentException), nameof(ArgumentNullException), nameof(ArgumentOutOfRangeException),
+        nameof(ObjectDisposedException), nameof(EndOfStreamException)
+    ];
+
+    private static string? Escaping(Action act)
+    {
+        try
+        {
+            act();
+            return null;
+        }
+        catch (Exception e)
+        {
+            return Sanctioned.Contains(e.GetType().Name) ? null : $"{e.GetType().Name}: {e.Message}";
+        }
+    }
+
+    [Fact]
+    public void NoRawException_Escapes_OnTruncatedOrCorruptedInput()
+    {
+        using var identity = X25519Identity.Generate();
+        var good = Age.Encrypt("hello world, a payload long enough to span the header"u8, [identity.Recipient]);
+
+        var leaks = new List<string>();
+
+        for (var n = 0; n < good.Length; n++)
+        {
+            var cut = good[..n];
+            if (Escaping(() => Age.Decrypt(cut, [identity])) is { } a) leaks.Add(a);
+
+            var flipped = (byte[])good.Clone();
+            flipped[n] ^= 0xFF;
+            if (Escaping(() => Age.Decrypt(flipped, [identity])) is { } b) leaks.Add(b);
+        }
+
+        Assert.Empty(leaks);
+    }
+
+    [Fact]
+    public void NoRawException_Escapes_OnRandomInput()
+    {
+        using var identity = X25519Identity.Generate();
+        var rng = new Random(1234); // fixed seed: a failure must be reproducible
+        var leaks = new List<string>();
+
+        for (var i = 0; i < 500; i++)
+        {
+            var junk = new byte[rng.Next(0, 300)];
+            rng.NextBytes(junk);
+
+            if (Escaping(() => Age.Decrypt(junk, [identity])) is { } a) leaks.Add(a);
+            if (Escaping(() => Age.ReadHeader(new MemoryStream(junk))) is { } b) leaks.Add(b);
+        }
+
+        Assert.Empty(leaks);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("age1")]
+    [InlineData("age1!!!")]
+    [InlineData("AGE-SECRET-KEY-1")]
+    [InlineData("AGE-PLUGIN-")]
+    [InlineData("ssh-ed25519 !!!")]
+    [InlineData("ssh-rsa")]
+    [InlineData("-----BEGIN OPENSSH PRIVATE KEY-----\nnope\n-----END OPENSSH PRIVATE KEY-----")]
+    public void NoRawException_Escapes_OnHostileKeyStrings(string s)
+    {
+        Assert.Null(Escaping(() => Age.ParseRecipient(s)));
+        Assert.Null(Escaping(() => Age.ParseIdentity(s)));
+        Assert.Null(Escaping(() => Age.TryParseRecipient(s, out _)));
+        Assert.Null(Escaping(() => Age.TryParseIdentity(s, out _)));
+    }
+
     private sealed class WrongKeyIdentity : IIdentity
     {
         public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
