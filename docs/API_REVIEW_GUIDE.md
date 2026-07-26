@@ -7,9 +7,22 @@ are free. After it, every change is a breaking change.
 This guide orders the reading by **decision weight** — the things hardest to change later come
 first — and pre-seeds each stop with the questions this session already surfaced. Budget ~2.5 hours.
 
-**Progress: 3 of 26 questions closed.** The decided ones are checked off in place and recorded in
-the table at the end; the biggest, `IRecipient.Wrap`, is done. Stop 2's surface has already shrunk
-from ~50 members to 21, so it now reads faster than the 40 minutes budgeted.
+**Progress: 7 of 27 closed** (26 pre-seeded, plus `IIdentity.Unwrap`, which the review surfaced
+rather than anticipated). Decided items are checked off in place and recorded in the table at the
+end. Stop 1's contracts are done bar one; Stop 2's surface shrank from ~50 members to 21, so it
+reads faster than its 40-minute budget.
+
+**What this review keeps finding is bugs, not taste.** Four of the seven closed questions had a
+functional defect underneath: `Wrap` was silently dropping plugin stanzas, `IIdentityWithRecipient`
+looked thin because its key implementor was missing a specified capability, `IPluginCallbacks`
+led to an entire post-quantum path that zeroed nothing, and `Unwrap`'s shape was the reason
+callers had a zeroing obligation at all. Treat the remaining questions the same way: ask what the
+shape implies about behaviour, then check the behaviour, rather than deciding on aesthetics.
+
+Three tools did most of the work, and are worth reaching for on every remaining question:
+the reference checkouts (`go-age/`, `rust-age/`) for "what do they do here", the vendored spec in
+`docs/spec/` for what is actually required, and absence queries — `grep -c` for a convention,
+per file — for what a file *doesn't* do.
 
 The review target is signatures and doc comments, not method bodies. Read bodies only when a
 signature makes you suspicious.
@@ -213,16 +226,16 @@ Append rows as you go; this table is the review's output.
 | Entry | Decision | Why |
 |---|---|---|
 | `IRecipient.Wrap` | **reshape** → `IReadOnlyList<Stanza>` | Matches Go and rage; the single-stanza shape was silently dropping plugin stanzas. `fd16800` |
-| `IRecipientWithLabels.WrapWithLabels` | **reshape** (return type only) | Followed `Wrap`. Tuple shape itself still undecided. `fd16800` |
 | `Encrypt`/`Decrypt` + the streaming grid + `Detached` + `ReadHeader` | **reshape** → one method each | ~50 entry points became 21; one call shape across sync and async. `4fc862b` |
 | `EncryptDetached` options | **keep** (none) | Armor wraps a whole age file, which a detached pair is not. |
 | Empty recipient list from `Wrap` | **reject** | Newly representable once `Wrap` returned a list; silently writing a header without that recipient is the same failure the reshape fixed. |
-| `IIdentity.Unwrap` | **reshape** → `bool TryUnwrap(Stanza, Span<byte>)` | Removes the caller's zeroing obligation entirely and keeps the file key off the GC heap. |
-| `IIdentityWithRecipient` | **keep** | age's third-party identities arrive as plugins, and the spec makes encrypting to a plugin identity first-class. Its key implementor was missing, not its purpose. |
-| `IIdentity : IDisposable` + default `Dispose` | **keep** (interface, not a base class) | A base class would impose single inheritance on an extension point; dropping `IDisposable` risks unzeroed secrets. The DIM quirk is a one-time compile error, now documented. |
-| `WrapWithLabels` return shape | **reshape** → `LabelledStanzas` (`readonly struct`) | Implementors had to reproduce a 110-char tuple signature; record rejected because value equality over a collection compares references. |
+| `IIdentity.Unwrap` | **reshape** → `bool TryUnwrap(Stanza, Span<byte>)` | No ownership crosses the boundary, the file key stays off the GC heap, and its length becomes structural rather than checked. `1db7e89` |
+| `IIdentityWithRecipient` | **keep** | age's third-party identities arrive as plugins, and the spec makes encrypting to a plugin identity first-class. Its key implementor was missing, not its purpose. `22887a1` |
+| `IIdentity : IDisposable` + default `Dispose` | **keep** (interface, not a base class) | A base class would impose single inheritance on an extension point; dropping `IDisposable` risks unzeroed secrets. The DIM quirk is a one-time compile error, now documented. `7af5f67` |
+| `IRecipientWithLabels.WrapWithLabels` | **reshape** → `LabelledStanzas` (`readonly struct`) | Widened to a stanza list with `Wrap` (`fd16800`), then the tuple replaced outright (`fb3ca67`): implementors had to reproduce a 110-char signature. `record struct` rejected — value equality over a collection compares references. |
 | `Labels` as `IReadOnlyCollection` (not `IReadOnlySet`) | **keep** | `SetEquals` would honour the *implementor's* comparer; the spec requires exact, case-sensitive comparison, so the facade forces `StringComparer.Ordinal` instead of trusting it. |
-| *(next: `DecryptIdentities`, `TryParse*` callbacks, Detached as a feature)* | | |
+| `IPluginCallbacks.RequestValue` | **decided, not yet built** | Split into `RequestValue` / `RequestSecret(→ char[])`, matching rage. Blocked on nothing; the plugin write-path zeroing lands with it. |
+| *(next: `DecryptIdentities`, `TryParse*` callbacks, `AgeHeader` naming, Detached as a feature)* | | |
 
 Mechanics afterwards:
 
