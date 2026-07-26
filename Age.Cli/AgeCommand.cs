@@ -321,13 +321,15 @@ internal static class AgeCommand
             Console.Error.WriteLine(message);
         }
 
-        public string RequestValue(string prompt, bool secret)
+        public string RequestValue(string prompt)
         {
-            if (secret)
-                return ReadPassphrase(prompt + ": ");
-
             Console.Error.Write(prompt + ": ");
             return Console.ReadLine() ?? "";
+        }
+
+        public char[] RequestSecret(string prompt)
+        {
+            return ReadPassphrase(prompt + ": ").ToCharArray();
         }
 
         public bool Confirm(string message, string yes, string? no)

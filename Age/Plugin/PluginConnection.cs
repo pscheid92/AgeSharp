@@ -1,6 +1,9 @@
+using AgeSharp.Crypto;
+using System.Buffers;
 using System.ComponentModel;
 using System.Diagnostics;
-using AgeSharp.Crypto;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 
 namespace AgeSharp;
 
@@ -81,22 +84,36 @@ internal sealed class PluginConnection : IDisposable
 
         _writer.Write('\n');
 
-        var encoded = Base64Unpadded.Encode(body);
-        var offset = 0;
+        // Encoded into a rented buffer and cleared, not into a string. Three stanza bodies
+        // that cross this wire are secret — wrap-file-key carries the raw file key, file-key
+        // carries the unwrapped one back, and an ok answering request-secret carries a PIN —
+        // and a string holding any of them could never be cleared.
+        var encoded = ArrayPool<char>.Shared.Rent(Base64Unpadded.MaxEncodedLength(body.Length));
 
-        while (offset < encoded.Length)
+        try
         {
-            var len = Math.Min(64, encoded.Length - offset);
-            _writer.Write(encoded.AsSpan(offset, len));
-            _writer.Write('\n');
-            offset += len;
+            var length = Base64Unpadded.Encode(body, encoded);
+            var offset = 0;
+
+            while (offset < length)
+            {
+                var run = Math.Min(64, length - offset);
+                _writer.Write(encoded.AsSpan(offset, run));
+                _writer.Write('\n');
+                offset += run;
+            }
+
+            // Empty body or an exact multiple of 64 both need an empty terminator line.
+            if (length % 64 == 0)
+                _writer.Write('\n');
+
+            _writer.Flush();
         }
-
-        // Empty body or exact multiple of 64 chars both need an empty terminator line
-        if (encoded.Length % 64 == 0)
-            _writer.Write('\n');
-
-        _writer.Flush();
+        finally
+        {
+            CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(encoded.AsSpan()));
+            ArrayPool<char>.Shared.Return(encoded);
+        }
     }
 
     public (string Type, string[] Args, byte[] Body)? ReadStanza()

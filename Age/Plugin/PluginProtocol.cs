@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using AgeSharp.Crypto;
 
@@ -26,10 +28,12 @@ internal static class PluginProtocol
                 conn.WriteStanza("ok", [], []);
                 break;
 
-            case "request-secret":
             case "request-public":
-                var value = callbacks!.RequestValue(Encoding.UTF8.GetString(body), type == "request-secret");
-                conn.WriteStanza("ok", [], Encoding.UTF8.GetBytes(value));
+                conn.WriteStanza("ok", [], Encoding.UTF8.GetBytes(callbacks!.RequestValue(Encoding.UTF8.GetString(body))));
+                break;
+
+            case "request-secret":
+                SendSecret(conn, callbacks!.RequestSecret(Encoding.UTF8.GetString(body)));
                 break;
 
             case "confirm":
@@ -39,6 +43,24 @@ internal static class PluginProtocol
             default:
                 conn.WriteStanza("unsupported", [], []);
                 break;
+        }
+    }
+
+    // Both the caller's chars and the UTF-8 they encode to are cleared once the plugin has
+    // them: neither has any further use, and only the string the host may have built to
+    // produce them is beyond reach.
+    private static void SendSecret(PluginConnection conn, char[] secret)
+    {
+        var utf8 = Encoding.UTF8.GetBytes(secret);
+
+        try
+        {
+            conn.WriteStanza("ok", [], utf8);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(utf8);
+            CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(secret.AsSpan()));
         }
     }
 

@@ -4,6 +4,30 @@ internal static class Base64Unpadded
 {
     private const int StackAllocThreshold = 256;
 
+    /// <summary>
+    ///     Encodes into a caller-supplied buffer, returning the length written. For secret
+    ///     bodies, where the string overload would leave an unclearable copy behind.
+    /// </summary>
+    public static int Encode(ReadOnlySpan<byte> data, Span<char> destination)
+    {
+        if (data.IsEmpty)
+            return 0;
+
+        if (!Convert.TryToBase64Chars(data, destination, out var written))
+            throw new InvalidOperationException("base64 encode failed");
+
+        while (written > 0 && destination[written - 1] == '=')
+            written--;
+
+        return written;
+    }
+
+    /// <summary>Maximum characters <see cref="Encode(ReadOnlySpan{byte}, Span{char})" /> can write.</summary>
+    public static int MaxEncodedLength(int byteCount)
+    {
+        return (byteCount + 2) / 3 * 4;
+    }
+
     public static string Encode(ReadOnlySpan<byte> data)
     {
         if (data.IsEmpty)

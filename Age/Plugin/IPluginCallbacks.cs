@@ -9,11 +9,26 @@ public interface IPluginCallbacks
     /// <summary>Displays an informational message from the plugin to the user.</summary>
     void DisplayMessage(string message);
 
+    /// <summary>Requests a public value from the user, echoed as they type.</summary>
+    /// <param name="prompt">The plugin's prompt text.</param>
+    string RequestValue(string prompt);
+
     /// <summary>
-    ///     Requests a value from the user, such as a PIN or passphrase.
-    ///     When <paramref name="secret" /> is true, the input should not be echoed.
+    ///     Requests a secret from the user — a PIN or passphrase — which should not be echoed.
     /// </summary>
-    string RequestValue(string prompt, bool secret);
+    /// <param name="prompt">The plugin's prompt text.</param>
+    /// <returns>
+    ///     The secret. The library zeroes this array once it has been sent to the plugin, so
+    ///     return a fresh one rather than a shared buffer.
+    /// </returns>
+    /// <remarks>
+    ///     Separate from <see cref="RequestValue" />, and returning <see cref="char" />[] rather
+    ///     than a string, because a string cannot be cleared — the same reason
+    ///     <see cref="Passphrase" /> takes a <see cref="ReadOnlySpan{T}" />. A host reading from a
+    ///     console can fill a <see cref="char" />[] directly and keep the secret off the heap
+    ///     entirely; one that cannot is no worse off than before.
+    /// </remarks>
+    char[] RequestSecret(string prompt);
 
     /// <summary>
     ///     Asks the user to confirm an action. <paramref name="yes" /> and <paramref name="no" />

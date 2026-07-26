@@ -1282,6 +1282,63 @@ public class PluginTests
         Assert.Throws<AgeFormatException>(() => PluginIdentity.ExtractPluginName(badStr));
     }
 
+    // --- the secret path is separated, and cleared ---
+
+    [Fact]
+    public void RequestSecret_IsUsedForSecrets_AndRequestValueForPublicOnes()
+    {
+        var callbacks = new TestCallbacks { SecretResponse = "1234" };
+        var recipient = new PluginRecipient(MakePluginRecipient("pin"), callbacks);
+
+        var script = new StringWriter();
+        var writer = new PluginConnection(new StringReader(""), script);
+        writer.WriteStanza("request-secret", [], "PIN?"u8.ToArray());
+        writer.WriteStanza("request-public", [], "slot?"u8.ToArray());
+        writer.WriteStanza("recipient-stanza", ["0", "piv-p256", "arg"], [0x09]);
+        writer.WriteStanza("done", [], []);
+
+        var conn = new PluginConnection(new StringReader(script.ToString()), new StringWriter());
+        recipient.WrapWithConnection(conn, new byte[16]);
+
+        Assert.Equal([("PIN?", true), ("slot?", false)], callbacks.SecretRequests);
+    }
+
+    // The library zeroes what RequestSecret hands back, so a host cannot be made to leak by
+    // holding the array it returned.
+    [Fact]
+    public void RequestSecret_Result_IsZeroedAfterUse()
+    {
+        char[]? handedOut = null;
+
+        var callbacks = new ZeroingProbeCallbacks(() =>
+        {
+            handedOut = "hunter2".ToCharArray();
+            return handedOut;
+        });
+
+        var recipient = new PluginRecipient(MakePluginRecipient("pin"), callbacks);
+
+        var script = new StringWriter();
+        var writer = new PluginConnection(new StringReader(""), script);
+        writer.WriteStanza("request-secret", [], "PIN?"u8.ToArray());
+        writer.WriteStanza("recipient-stanza", ["0", "piv-p256", "arg"], [0x09]);
+        writer.WriteStanza("done", [], []);
+
+        var conn = new PluginConnection(new StringReader(script.ToString()), new StringWriter());
+        recipient.WrapWithConnection(conn, new byte[16]);
+
+        Assert.NotNull(handedOut);
+        Assert.All(handedOut!, c => Assert.Equal('\0', c));
+    }
+
+    private sealed class ZeroingProbeCallbacks(Func<char[]> secret) : IPluginCallbacks
+    {
+        public void DisplayMessage(string message) { }
+        public string RequestValue(string prompt) => "";
+        public char[] RequestSecret(string prompt) => secret();
+        public bool Confirm(string message, string yes, string? no) => true;
+    }
+
     private sealed class TestCallbacks : IPluginCallbacks
     {
         public List<string> Messages { get; } = new();
@@ -1295,10 +1352,16 @@ public class PluginTests
             Messages.Add(message);
         }
 
-        public string RequestValue(string prompt, bool secret)
+        public string RequestValue(string prompt)
         {
-            SecretRequests.Add((prompt, secret));
+            SecretRequests.Add((prompt, false));
             return SecretResponse ?? "";
+        }
+
+        public char[] RequestSecret(string prompt)
+        {
+            SecretRequests.Add((prompt, true));
+            return (SecretResponse ?? "").ToCharArray();
         }
 
         public bool Confirm(string message, string yes, string? no)
