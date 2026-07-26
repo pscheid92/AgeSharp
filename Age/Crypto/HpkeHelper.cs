@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Generators;
@@ -18,21 +19,38 @@ internal static class HpkeHelper
 
     private static readonly byte[] HpkeV1 = "HPKE-v1"u8.ToArray();
 
-    public static (byte[] Enc, byte[] Ct) SealBase(byte[] publicKey, byte[] info, byte[] plaintext)
+    public static (byte[] Enc, byte[] Ct) SealBase(byte[] publicKey, byte[] info, ReadOnlySpan<byte> plaintext)
     {
         var (ss, enc) = XWing.Encaps(publicKey);
         var (key, nonce) = KeyScheduleBase(ss, info);
-        var ct = CryptoHelper.ChaChaEncrypt(key, nonce, plaintext);
-        return (enc, ct);
+
+        try
+        {
+            return (enc, CryptoHelper.ChaChaEncrypt(key, nonce, plaintext));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(key);
+        }
     }
 
     public static byte[]? OpenBase(byte[] enc, byte[] seed, byte[] info, byte[] ct)
     {
         var ss = XWing.Decaps(enc, seed);
         var (key, nonce) = KeyScheduleBase(ss, info);
-        return CryptoHelper.ChaChaDecrypt(key, nonce, ct);
+
+        try
+        {
+            return CryptoHelper.ChaChaDecrypt(key, nonce, ct);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(key);
+        }
     }
 
+    // Takes ownership of sharedSecret, and clears the PRK it derives: neither outlives the
+    // key and nonce this returns.
     private static (byte[] Key, byte[] Nonce) KeyScheduleBase(byte[] sharedSecret, byte[] info)
     {
         var empty = Array.Empty<byte>();
@@ -47,10 +65,17 @@ internal static class HpkeHelper
         infoHash.CopyTo(ksContext, 33);
 
         var secret = LabeledExtract(sharedSecret, "secret", empty);
-        var key = LabeledExpand(secret, "key", ksContext, 32);
-        var baseNonce = LabeledExpand(secret, "base_nonce", ksContext, 12);
 
-        return (key, baseNonce);
+        try
+        {
+            return (LabeledExpand(secret, "key", ksContext, 32),
+                    LabeledExpand(secret, "base_nonce", ksContext, 12));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(secret);
+            CryptographicOperations.ZeroMemory(sharedSecret);
+        }
     }
 
     private static byte[] LabeledExtract(byte[] salt, string label, byte[] ikm)

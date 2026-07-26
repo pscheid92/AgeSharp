@@ -88,9 +88,26 @@ in a header, and label sets must match across recipients.
 
 - **Stream ownership**: the library never disposes a caller's stream. Wrappers dispose only what
   they created. Violating this has shipped as a bug before.
-- **Secret hygiene**: key material is zeroed with `CryptographicOperations.ZeroMemory`, in a
-  `finally` so error paths clear it too. `Encrypt`/`Decrypt` byte[] overloads zero their intermediate
-  buffers. Apply this to any new path handling a file key, payload key, or plaintext.
+- **Secret hygiene**: key material is zeroed with `CryptographicOperations.ZeroMemory` — never
+  `Array.Clear`, which the JIT may elide — in a `finally` so error paths clear it too. The rule that
+  decides *who* zeroes: **a value that never leaves the method is cleared by that method; a value
+  that is returned is cleared by whoever owns it next.** So `ExpandSeed` and `KeyScheduleBase` clear
+  their own intermediates, while the file key returned from `IIdentity.Unwrap` is cleared by the
+  facade. A caller cannot forget an obligation it was never given.
+
+  The secrets, and where each is cleared:
+
+  | Secret | Lifetime | Cleared by |
+  |---|---|---|
+  | file key | returned across the API | `finally` in the facade |
+  | payload key | stream-scoped | the stream's `ReleaseResources` |
+  | wrap key, shared secret | method-scoped | `finally` at the derivation |
+  | X-Wing components, HPKE PRK, seeds | never leave the method | the deriving method itself |
+  | private key material, passphrase | object-scoped | `Dispose` |
+  | plaintext chunks | pooled | zeroed before `ArrayPool.Return` |
+
+  Ciphertext is not secret and is deliberately not zeroed. Chunk buffers are rented oversized, so
+  zero `.AsSpan(0, size)`, not the whole array.
 - **One X25519 agreement path**: all agreements go through `CryptoHelper.X25519Agree`, which rejects
   an all-zero shared secret. Do not hand-roll `X25519Agreement` at a call site.
 - **Public API is tracked**: `Age/PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt` are enforced

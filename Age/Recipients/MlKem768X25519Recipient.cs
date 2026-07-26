@@ -52,7 +52,7 @@ public sealed class MlKem768X25519Recipient : IRecipientWithLabels, IParsable<Ml
     /// <summary>Wraps the file key for this recipient via X-Wing HPKE (ML-KEM-768 + X25519).</summary>
     public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
     {
-        var (enc, ct) = HpkeHelper.SealBase(_publicKey, AgeProtocol.MlKemHpkeInfo, fileKey.ToArray());
+        var (enc, ct) = HpkeHelper.SealBase(_publicKey, AgeProtocol.MlKemHpkeInfo, fileKey);
         var encB64 = Base64Unpadded.Encode(enc);
         return [new Stanza(AgeProtocol.MlKemStanzaType, [encB64], ct)];
     }

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Kems;
 using Org.BouncyCastle.Crypto.Parameters;
@@ -22,7 +23,7 @@ internal static class XWing
 
     public static byte[] GeneratePublicKey(byte[] seed)
     {
-        var (mlKemPrivate, _, x25519Private, _) = ExpandSeed(seed);
+        var (mlKemPrivate, x25519Private, _) = ExpandSeed(seed);
 
         var pkM = mlKemPrivate.GetPublicKeyEncoded(); // 1184 bytes (see MlKemPublicKeySize)
         var pkX = x25519Private.GeneratePublicKey().GetEncoded(); // 32 bytes (see X25519KeySize) 
@@ -67,7 +68,7 @@ internal static class XWing
         if (enc.Length != EncSize)
             throw new ArgumentException($"enc must be {EncSize} bytes, got {enc.Length}");
 
-        var (mlKemPrivate, _, x25519Private, pkX) = ExpandSeed(seed);
+        var (mlKemPrivate, x25519Private, pkX) = ExpandSeed(seed);
 
         var ctM = enc[..MlKemCiphertextSize];
         var ctX = enc[MlKemCiphertextSize..];
@@ -82,7 +83,23 @@ internal static class XWing
         return CombineSharedSecret(ssM, ssX, ctX, pkX);
     }
 
+    // Takes ownership of ssM and ssX: they are components of the combined secret and no
+    // caller has any use for them afterwards, so clearing here removes the obligation
+    // rather than passing it on.
     private static byte[] CombineSharedSecret(byte[] ssM, byte[] ssX, byte[] ctX, byte[] pkX)
+    {
+        try
+        {
+            return Sha3Combine(ssM, ssX, ctX, pkX);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(ssM);
+            CryptographicOperations.ZeroMemory(ssX);
+        }
+    }
+
+    private static byte[] Sha3Combine(byte[] ssM, byte[] ssX, byte[] ctX, byte[] pkX)
     {
         var sha3 = new Sha3Digest(256);
         sha3.BlockUpdate(ssM, 0, ssM.Length);
@@ -96,8 +113,8 @@ internal static class XWing
         return result;
     }
 
-    private static (MLKemPrivateKeyParameters mlKemPrivate, byte[] seedPQ, X25519PrivateKeyParameters x25519Private,
-        byte[] pkX) ExpandSeed(byte[] seed)
+    private static (MLKemPrivateKeyParameters mlKemPrivate, X25519PrivateKeyParameters x25519Private, byte[] pkX)
+        ExpandSeed(byte[] seed)
     {
         var shake = new ShakeDigest(256);
         shake.BlockUpdate(seed, 0, X25519KeySize);
@@ -108,10 +125,19 @@ internal static class XWing
         var seedT = new byte[X25519KeySize];
         shake.Output(seedT, 0, X25519KeySize);
 
-        var mlKemPrivate = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, seedPq);
-        var x25519Private = new X25519PrivateKeyParameters(seedT);
-        var pkX = x25519Private.GeneratePublicKey().GetEncoded();
+        try
+        {
+            var mlKemPrivate = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, seedPq);
+            var x25519Private = new X25519PrivateKeyParameters(seedT);
+            var pkX = x25519Private.GeneratePublicKey().GetEncoded();
 
-        return (mlKemPrivate, seedPq, x25519Private, pkX);
+            return (mlKemPrivate, x25519Private, pkX);
+        }
+        finally
+        {
+            // Both key objects have copied what they need.
+            CryptographicOperations.ZeroMemory(seedPq);
+            CryptographicOperations.ZeroMemory(seedT);
+        }
     }
 }
