@@ -26,6 +26,15 @@ public sealed class SshEd25519Recipient : IRecipient
         _tag = SshKeyParser.ComputeTag(sshWireBytes);
     }
 
+    /// <summary>
+    ///     The <c>authorized_keys</c> line for this key — the same form
+    ///     <see cref="Parse" /> accepts, so a parsed recipient round-trips.
+    /// </summary>
+    public override string ToString()
+    {
+        return $"ssh-ed25519 {Convert.ToBase64String(_sshWireBytes)}";
+    }
+
     /// <summary>Wraps the file key for this SSH key via tweaked X25519 + ChaCha20-Poly1305.</summary>
     public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
     {

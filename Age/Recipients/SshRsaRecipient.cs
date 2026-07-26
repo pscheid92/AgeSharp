@@ -17,6 +17,10 @@ public sealed class SshRsaRecipient : IRecipient
     private const int MinKeyBits = 2048;
 
     private readonly RsaKeyParameters _publicKey;
+
+    // Retained for ToString: this is the public key in SSH wire form, the same bytes an
+    // authorized_keys line carries.
+    private readonly byte[] _sshWireBytes;
     private readonly string _tag;
 
     internal SshRsaRecipient(RsaKeyParameters publicKey, byte[] sshWireBytes)
@@ -26,7 +30,17 @@ public sealed class SshRsaRecipient : IRecipient
                 $"RSA key must be at least {MinKeyBits} bits, got {publicKey.Modulus.BitLength}");
 
         _publicKey = publicKey;
+        _sshWireBytes = sshWireBytes;
         _tag = SshKeyParser.ComputeTag(sshWireBytes);
+    }
+
+    /// <summary>
+    ///     The <c>authorized_keys</c> line for this key — the same form
+    ///     <see cref="Parse" /> accepts, so a parsed recipient round-trips.
+    /// </summary>
+    public override string ToString()
+    {
+        return $"ssh-rsa {Convert.ToBase64String(_sshWireBytes)}";
     }
 
     /// <summary>Wraps the file key for this SSH key using RSA-OAEP (SHA-256).</summary>

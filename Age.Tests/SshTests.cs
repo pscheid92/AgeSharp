@@ -526,6 +526,22 @@ public class SshEd25519RecipientIdentityTests
         Assert.True(identity.TryUnwrap(expected.Wrap(fileKey)[0], new byte[Age.FileKeySize]));
         Assert.True(identity.TryUnwrap(withRecipient.Recipient.Wrap(fileKey)[0], new byte[Age.FileKeySize]));
     }
+
+    // A recipient's ToString is its canonical text form — age1… for native keys, an
+    // authorized_keys line for SSH ones. Without it these printed the type name, which is
+    // neither displayable nor round-trippable.
+    [Fact]
+    public void SshEd25519Recipient_ToString_RoundTripsThroughParse()
+    {
+        var (authorizedKeys, _) = GenerateEd25519KeyPair();
+        var recipient = SshEd25519Recipient.Parse(authorizedKeys);
+
+        var text = recipient.ToString();
+
+        Assert.StartsWith("ssh-ed25519 ", text);
+        Assert.Equal(text, SshEd25519Recipient.Parse(text).ToString());
+    }
+
 }
 
 public class SshRsaRecipientIdentityTests
@@ -783,6 +799,19 @@ public class SshRsaRecipientIdentityTests
         Assert.True(identity.TryUnwrap(expected.Wrap(fileKey)[0], new byte[Age.FileKeySize]));
         Assert.True(identity.TryUnwrap(withRecipient.Recipient.Wrap(fileKey)[0], new byte[Age.FileKeySize]));
     }
+
+    [Fact]
+    public void SshRsaRecipient_ToString_RoundTripsThroughParse()
+    {
+        var (authorizedKeys, _) = GenerateRsaKeyPair();
+        var recipient = SshRsaRecipient.Parse(authorizedKeys);
+
+        var text = recipient.ToString();
+
+        Assert.StartsWith("ssh-rsa ", text);
+        Assert.Equal(text, SshRsaRecipient.Parse(text).ToString());
+    }
+
 }
 
 public class SshRoundTripTests

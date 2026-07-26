@@ -187,26 +187,50 @@ Read **one pair deeply as the model**: [X25519Recipient.cs](../Age/Recipients/X2
 and [X25519Identity.cs](../Age/Recipients/X25519Identity.cs). Then check the other five against
 this grid rather than re-reading each in full:
 
-| | Generate | Parse | TryParse | IParsable | ToString redacts | ToSecretString | Dispose |
+**Filled in — identities:**
+
+| | Generate | Parse | TryParse | IParsable | ToString safe | ToSecretString | Dispose |
 |---|---|---|---|---|---|---|---|
-| X25519 pair | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| MlKem768X25519 pair | ✓ | ✓ | ✓ | ✓ | ✓ (truncated) | ✓ | ✓ |
-| SshEd25519 pair | — | ✓ (PEM / authorized_keys) | ✓ | — | ? | — | ✓ |
-| SshRsa pair | — | ✓ (PEM / authorized_keys) | ✓ | — | ? | — | ✓ |
-| Passphrase | — | — | — | — | ? | — | ✓ |
-| Plugin pair | — | via `Age.ParseRecipient` | — | — | ? | — | ✓ |
+| X25519Identity | ✓ | ✓ | ✓ | ✓ | ✓ redacted | ✓ | ✓ |
+| MlKem768X25519Identity | ✓ | ✓ | ✓ | ✓ | ✓ redacted (truncated) | ✓ | ✓ |
+| SshEd25519Identity | — | ✓ | ✓ | — | ✓ *by default* | — | ✓ |
+| SshRsaIdentity | — | ✓ | ✓ | — | ✓ *by default* | — | ✓ |
+| Passphrase | — | — | — | — | ✓ *by default* | — | ✓ |
+| PluginIdentity | — | ctor | — | — | ✓ (plugin name only) | ✓ | default no-op |
+
+**Filled in — recipients:**
+
+| | Parse | TryParse | IParsable | ToString round-trips |
+|---|---|---|---|---|
+| X25519Recipient | ✓ | ✓ | ✓ | ✓ |
+| MlKem768X25519Recipient | ✓ | ✓ | ✓ | ✓ |
+| SshEd25519Recipient | ✓ | ✓ | — | ✓ *(added — printed the type name)* |
+| SshRsaRecipient | ✓ | ✓ | — | ✓ *(added — printed the type name)* |
+| PluginRecipient | ctor | — | — | ✓ |
 
 Fill in the `?` cells as you read — every `ToString` on a secret-holding type must redact.
 
-- [ ] SSH types skip `IParsable` (multi-line PEM input — reasonable). The `TryParse` parameter
-  names (`pemText`, `authorizedKeysLine`) document the expected input. Confirm the asymmetry
-  against the bech32 four is the story you want.
-- [ ] `Passphrase` implements both `IRecipient` and `IIdentity`; the name states neither role.
-  Fine, or does it need doc emphasis?
-- [ ] The removed `Passphrase(string, int workFactor = 18)` became explicit overloads — default
-  arguments bake into *caller* binaries at compile time, so removing the default was right.
-  Nothing else on the surface has default args except `= null` callbacks and cancellation
-  tokens. Confirm.
+- [x] SSH types skip `IParsable` → **confirmed**. The better reason is not the multi-line input —
+  a PEM blob is still a string — but that `IParsable` implies a round-trip with `ToString`, and an
+  SSH *identity* has no text form to round-trip to (no `ToSecretString`, deliberately: re-exporting
+  someone's SSH private key is not this library's job).
+- [x] **`ToString` on every secret-holding type** → **all six safe**, but three only by accident:
+  `SshEd25519Identity`, `SshRsaIdentity` and `Passphrase` have no override, so they inherit
+  `object.ToString`, which leaks nothing. Safe-by-default rather than safe-by-design; worth knowing
+  if anyone adds one later.
+- [x] **SSH *recipients* had no `ToString` at all** → **added**. Not on the original list. Three of
+  five recipients returned their canonical text (`age1…`, the plugin string) while the two SSH ones
+  printed `AgeSharp.SshEd25519Recipient` — not displayable, not round-trippable, and a silent trap
+  for anything listing recipients. Both now emit their `authorized_keys` line, which `Parse`
+  accepts back. `SshRsaRecipient` had to start retaining the wire bytes it previously used once and
+  discarded.
+- [x] `Passphrase` implements both `IRecipient` and `IIdentity` → **fine as named**. It genuinely is
+  its own inverse, and any name stating one role would misdescribe the other. The doc already opens
+  with "the same passphrase encrypts and decrypts, so pass the same instance to both".
+- [x] `Passphrase(string, int workFactor = 18)` → explicit overloads → **confirmed**. Default
+  arguments compile into caller binaries, so a changed default would not reach already-built
+  callers. Every remaining default on the surface is `= null` or `= default(CancellationToken)`,
+  where the value carries no policy — the meaning is resolved inside the method.
 - [ ] **Release-note items accumulating** — carry these into the notes:
   `X25519Recipient.Wrap` now throws `AgeFormatException` (was `AgeException`) on a low-order
   recipient point; `Wrap`/`WrapWithLabels` now return `IReadOnlyList<Stanza>`; the facade
@@ -267,6 +291,10 @@ Append rows as you go; this table is the review's output.
 | `AgeHeader` name | **keep** | `ReadHeader` is the only source, so the warning belongs on the method. |
 | `AgeHeader.PayloadOffset` | **reshape** → `long?` | Meaningless for armored input; null makes that unrepresentable. Surfaced a real CLI bug on the way. |
 | `Stanza` shapes | **keep** | `ReadOnlyMemory` because a stanza outlives a frame; constructor validation guards header framing at the extension point. |
+| SSH recipient `ToString` | **add** | Two of five recipients printed their type name instead of their `authorized_keys` line — undisplayable and not round-trippable. |
+| SSH types skipping `IParsable` | **keep** | `IParsable` implies a `ToString` round-trip, and SSH identities deliberately have no text form. |
+| `Passphrase` name / dual role | **keep** | It is genuinely its own inverse; naming either role would misdescribe the other. |
+| `Passphrase` explicit work-factor overloads | **keep** | Default arguments bake into caller binaries; the remaining defaults are all `null`/`default`, which carry no policy. |
 | `IPluginCallbacks.RequestValue` | **decided, not yet built** | Split into `RequestValue` / `RequestSecret(→ char[])`, matching rage. Blocked on nothing; the plugin write-path zeroing lands with it. |
 | *(next: `IPluginCallbacks` split + plugin write-path zeroing, `TryParse*` callbacks, `AgeHeader` naming)* | | |
 

@@ -99,6 +99,8 @@ AgeSharp.SshRsaRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Colle
 AgeSharp.X25519Identity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 const AgeSharp.Age.FileKeySize = 16 -> int
+override AgeSharp.SshEd25519Recipient.ToString() -> string!
+override AgeSharp.SshRsaRecipient.ToString() -> string!
 static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null) -> void
 static AgeSharp.Age.Decrypt(System.ReadOnlySpan<byte> ciphertext, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null) -> byte[]!
 static AgeSharp.Age.DecryptAsync(System.IO.Stream! input, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
