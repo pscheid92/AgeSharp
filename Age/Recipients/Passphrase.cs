@@ -95,9 +95,9 @@ public sealed class Passphrase : IRecipient, IIdentity
     ///     maximum.
     /// </exception>
     /// <exception cref="ObjectDisposedException">The passphrase has been disposed.</exception>
-    public byte[]? Unwrap(Stanza stanza)
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
     {
-        if (stanza.Type != StanzaType) return null;
+        if (stanza.Type != StanzaType) return false;
 
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -119,11 +119,15 @@ public sealed class Passphrase : IRecipient, IIdentity
 
         var wrapKey = DeriveWrapKey(_passphrase, salt, stanzaWorkFactor);
 
-        var zeroNonce = new byte[NonceSize];
-        var fileKey = CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span);
-        CryptographicOperations.ZeroMemory(wrapKey);
-
-        return fileKey;
+        try
+        {
+            Span<byte> zeroNonce = stackalloc byte[NonceSize];
+            return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span, fileKey);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(wrapKey);
+        }
     }
 
     /// <summary>Wraps the file key under a key derived from the passphrase with a fresh salt.</summary>

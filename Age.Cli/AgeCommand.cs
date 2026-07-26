@@ -218,10 +218,10 @@ internal static class AgeCommand
     {
         private Passphrase? _inner;
 
-        public byte[]? Unwrap(Stanza stanza)
+        public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
         {
             _inner ??= new Passphrase(ReadPassphrase("Enter passphrase: "));
-            return _inner.Unwrap(stanza);
+            return _inner.TryUnwrap(stanza, fileKey);
         }
     }
 
@@ -231,11 +231,11 @@ internal static class AgeCommand
     /// </summary>
     private sealed class RejectScryptIdentity : IIdentity
     {
-        public byte[]? Unwrap(Stanza stanza)
+        public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
         {
             return stanza.Type == "scrypt"
                 ? throw new AgeException("passphrase-encrypted file can't be decrypted with -i; use -p instead")
-                : null;
+                : false;
         }
     }
 

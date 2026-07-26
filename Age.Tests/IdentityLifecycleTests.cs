@@ -78,7 +78,7 @@ public class IdentityLifecycleTests
         var stanza = identity.Recipient.Wrap(FileKey())[0];
         identity.Dispose();
 
-        Assert.Throws<ObjectDisposedException>(() => identity.Unwrap(stanza));
+        Assert.Throws<ObjectDisposedException>(() => identity.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class IdentityLifecycleTests
         var stanza = identity.Recipient.Wrap(FileKey())[0];
         identity.Dispose();
 
-        Assert.Throws<ObjectDisposedException>(() => identity.Unwrap(stanza));
+        Assert.Throws<ObjectDisposedException>(() => identity.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     // --- ToString is the deliberate exception: diagnostics must never fail ---

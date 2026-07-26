@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using AgeSharp.Crypto;
 
@@ -23,9 +24,9 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
 
     /// <summary>Attempts to unwrap a single stanza by running the plugin binary.</summary>
     /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an internal error.</exception>
-    public byte[]? Unwrap(Stanza stanza)
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
     {
-        return Unwrap([stanza]);
+        return TryUnwrap([stanza], fileKey);
     }
 
     /// <summary>
@@ -33,16 +34,35 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
     ///     process launch for the whole header, as the plugin protocol intends.
     /// </summary>
     /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an internal error.</exception>
-    public byte[]? Unwrap(IReadOnlyList<Stanza> stanzas)
+    public bool TryUnwrap(IReadOnlyList<Stanza> stanzas, Span<byte> fileKey)
     {
         using var conn = new PluginConnection(PluginName, "identity-v1");
-        return UnwrapWithConnection(conn, stanzas);
+        return TryUnwrapWithConnection(conn, stanzas, fileKey);
     }
 
-    internal byte[]? UnwrapWithConnection(PluginConnection conn, IReadOnlyList<Stanza> stanzas)
+    // The plugin hands the file key back over the wire as an array, so this copies it into
+    // the caller's buffer and clears the wire copy.
+    internal bool TryUnwrapWithConnection(PluginConnection conn, IReadOnlyList<Stanza> stanzas, Span<byte> fileKey)
     {
         SendUnwrapRequest(conn, stanzas);
-        return ReadUnwrapResponse(conn);
+        var unwrapped = ReadUnwrapResponse(conn);
+
+        if (unwrapped is null)
+            return false;
+
+        try
+        {
+            if (unwrapped.Length != fileKey.Length)
+                throw new AgePluginException(
+                    $"plugin returned a {unwrapped.Length}-byte file key, expected {fileKey.Length}");
+
+            unwrapped.CopyTo(fileKey);
+            return true;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(unwrapped);
+        }
     }
 
     private void SendUnwrapRequest(PluginConnection conn, IReadOnlyList<Stanza> stanzas)

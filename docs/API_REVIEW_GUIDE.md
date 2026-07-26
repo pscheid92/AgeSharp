@@ -81,7 +81,15 @@ Pre-seeded questions:
   as a tuple and Go as multiple values, but both are idioms of languages that do not face this
   choice, so neither is evidence about C#.)*
 - [ ] `IPluginCallbacks.RequestValue(prompt, secret) -> string` — a secret prompt returning an
-  unzeroable `string`. Consistent with the library's hygiene stance?
+  unzeroable `string`. Consistent with the library's hygiene stance? *(Decided in principle: split
+  into `RequestValue` / `RequestSecret`, the latter returning `char[]` the library clears. Not yet
+  implemented — the plugin write-path zeroing goes with it.)*
+- [x] **`IIdentity.Unwrap` returned a `byte[]` the caller had to zero** → **reshaped to
+  `bool TryUnwrap(Stanza, Span<byte> fileKey)`**. Not on the original list; it came out of asking
+  how to stop callers forgetting to zero. The caller supplies the buffer, so no ownership crosses
+  the boundary, the file key can live on the stack rather than the GC heap, and the length is
+  structural — the facade's `fileKey.Length != 16` check is gone, and a wrong-size return is
+  unrepresentable. `Age.FileKeySize` is public now, since implementors need it.
 
 ## Stop 2 — the facade matrix (40 min) · the biggest surface
 
@@ -209,6 +217,7 @@ Append rows as you go; this table is the review's output.
 | `Encrypt`/`Decrypt` + the streaming grid + `Detached` + `ReadHeader` | **reshape** → one method each | ~50 entry points became 21; one call shape across sync and async. `4fc862b` |
 | `EncryptDetached` options | **keep** (none) | Armor wraps a whole age file, which a detached pair is not. |
 | Empty recipient list from `Wrap` | **reject** | Newly representable once `Wrap` returned a list; silently writing a header without that recipient is the same failure the reshape fixed. |
+| `IIdentity.Unwrap` | **reshape** → `bool TryUnwrap(Stanza, Span<byte>)` | Removes the caller's zeroing obligation entirely and keeps the file key off the GC heap. |
 | `IIdentityWithRecipient` | **keep** | age's third-party identities arrive as plugins, and the spec makes encrypting to a plugin identity first-class. Its key implementor was missing, not its purpose. |
 | `IIdentity : IDisposable` + default `Dispose` | **keep** (interface, not a base class) | A base class would impose single inheritance on an extension point; dropping `IDisposable` risks unzeroed secrets. The DIM quirk is a one-time compile error, now documented. |
 | `WrapWithLabels` return shape | **reshape** → `LabelledStanzas` (`readonly struct`) | Implementors had to reproduce a 110-char tuple signature; record rejected because value equality over a collection compares references. |

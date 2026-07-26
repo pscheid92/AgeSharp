@@ -75,7 +75,9 @@ O(1) chunk seeks), anything else yields forward-only `DecryptStream`. Two invari
 
 ### Recipients and identities
 
-`IRecipient` wraps a file key into one or more `Stanza`s; `IIdentity` tries to unwrap one. Optional capabilities
+`IRecipient` wraps a file key into one or more `Stanza`s; `IIdentity.TryUnwrap` fills a
+caller-supplied 16-byte span, so the file key never reaches the GC heap and no ownership crosses
+the call. Optional capabilities
 are separate interfaces rather than members, so custom types implement only what they need:
 `IRecipientWithLabels` (security labels — all recipients in a file must produce equal label sets)
 and `IIdentityWithRecipient` (derive the public half). `IIdentity` extends `IDisposable` with a

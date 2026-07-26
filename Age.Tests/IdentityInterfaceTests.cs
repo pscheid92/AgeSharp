@@ -54,7 +54,7 @@ public class IdentityInterfaceTests
         passphrase.Dispose();
 
         // Still usable: the no-op default releases nothing, so behaviour is unchanged.
-        Assert.Null(passphrase.Unwrap(new Stanza("X25519", ["arg"], new byte[32])));
+        Assert.False(passphrase.TryUnwrap(new Stanza("X25519", ["arg"], new byte[32]), new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class IdentityInterfaceTests
 
         custom.Dispose();
 
-        Assert.Null(custom.Unwrap(new Stanza("X25519", ["arg"], new byte[32])));
+        Assert.False(custom.TryUnwrap(new Stanza("X25519", ["arg"], new byte[32]), new byte[Age.FileKeySize]));
     }
 
     // --- IIdentityWithRecipient ---
@@ -133,9 +133,9 @@ public class IdentityInterfaceTests
 
     private sealed class MinimalIdentity : IIdentity
     {
-        public byte[]? Unwrap(Stanza stanza)
+        public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
         {
-            return null;
+            return false;
         }
     }
 }

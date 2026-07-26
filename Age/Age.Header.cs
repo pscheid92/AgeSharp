@@ -91,11 +91,14 @@ public static partial class Age
     private static (byte[] fileKey, HeaderReader reader) UnwrapHeaderFromReader(Stream binaryInput, ReadOnlySpan<IIdentity> identities, AgeDecryptOptions options)
     {
         var reader = new HeaderReader(binaryInput, options.MaxHeaderLineBytes, options.MaxHeaderBytes);
-        var fileKey = UnwrapHeader(reader, identities);
+        var fileKey = new byte[FileKeySize];
+        UnwrapHeader(reader, identities, fileKey);
         return (fileKey, reader);
     }
 
-    internal static byte[] UnwrapHeader(HeaderReader reader, ReadOnlySpan<IIdentity> identities)
+    // Fills the caller's buffer for the same reason IIdentity.TryUnwrap does: the file key
+    // never lands on the GC heap, and no ownership crosses the call.
+    internal static void UnwrapHeader(HeaderReader reader, ReadOnlySpan<IIdentity> identities, Span<byte> fileKey)
     {
         var header = ParseHeader(reader);
 
@@ -103,23 +106,21 @@ public static partial class Age
         if (hasScrypt && header.Stanzas.Count > 1)
             throw new AgeFormatException("scrypt stanza must be the only stanza in the header");
 
-        // Batch: the plugin protocol needs the whole stanza list.
-        byte[]? fileKey = null;
+        // Batch: the plugin protocol needs the whole stanza list. The span's length is the
+        // contract now, so there is no returned array to length-check.
+        var matched = false;
         foreach (var identity in identities)
         {
-            fileKey = identity.Unwrap(header.Stanzas);
-            if (fileKey is not null)
+            matched = identity.TryUnwrap(header.Stanzas, fileKey);
+            if (matched)
                 break;
         }
 
-        if (fileKey is null)
+        if (!matched)
             throw new NoIdentityMatchException();
 
         try
         {
-            if (fileKey.Length != FileKeySize)
-                throw new AgeFormatException($"file key must be {FileKeySize} bytes, got {fileKey.Length}");
-
             header.VerifyMac(fileKey);
         }
         catch
@@ -127,8 +128,6 @@ public static partial class Age
             CryptographicOperations.ZeroMemory(fileKey);
             throw;
         }
-
-        return fileKey;
     }
 
     private static (Stream binaryInput, bool needsDispose) DeArmorIfNeeded(Stream input, AgeDecryptOptions options)

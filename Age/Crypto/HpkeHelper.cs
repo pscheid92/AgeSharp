@@ -34,14 +34,14 @@ internal static class HpkeHelper
         }
     }
 
-    public static byte[]? OpenBase(byte[] enc, byte[] seed, byte[] info, byte[] ct)
+    public static bool OpenBase(byte[] enc, byte[] seed, byte[] info, ReadOnlySpan<byte> ct, Span<byte> plaintext)
     {
         var ss = XWing.Decaps(enc, seed);
         var (key, nonce) = KeyScheduleBase(ss, info);
 
         try
         {
-            return CryptoHelper.ChaChaDecrypt(key, nonce, ct);
+            return CryptoHelper.ChaChaDecrypt(key, nonce, ct, plaintext);
         }
         finally
         {

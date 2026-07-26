@@ -74,7 +74,8 @@ public static partial class Age
             var reader = new HeaderReader(binaryInput, options.MaxHeaderLineBytes, options.MaxHeaderBytes);
             await reader.PrefillAsync(cancellationToken).ConfigureAwait(false);
 
-            var fileKey = UnwrapHeader(reader, identityArray);
+            var fileKey = new byte[FileKeySize];
+            UnwrapHeader(reader, identityArray, fileKey);
 
             try
             {

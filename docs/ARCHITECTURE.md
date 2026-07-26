@@ -24,7 +24,7 @@ contracts, data, or key material.
 |---|---|
 | `IRecipient` | Wrap a file key into one or more `Stanza`s. One method. |
 | `IRecipientWithLabels : IRecipient` | Opt-in: also return a security label set from the wrap. |
-| `IIdentity : IDisposable` | Try to unwrap a file key from a stanza. `Dispose` has a default no-op. |
+| `IIdentity : IDisposable` | Fill a caller-supplied span with the file key, or return false. `Dispose` has a default no-op. |
 | `IIdentityWithRecipient : IIdentity` | Opt-in: derive the matching public recipient. |
 | `IPluginCallbacks` | Host hooks for age plugins (prompts, secrets). |
 

@@ -45,19 +45,19 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
     /// <summary>Returns null for stanzas of another type, or wrapped for a different key.</summary>
     /// <exception cref="AgeFormatException">The stanza claims to be ssh-ed25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
-    public byte[]? Unwrap(Stanza stanza)
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (stanza.Type != AgeProtocol.SshEd25519StanzaType)
-            return null;
+            return false;
 
         if (stanza.Args.Count != 2)
             throw new AgeFormatException($"ssh-ed25519 stanza must have exactly 2 arguments, got {stanza.Args.Count}");
 
         var stanzaTag = stanza.Args[0];
         if (stanzaTag != _tag)
-            return null;
+            return false;
 
         var ephPubBytes = ParseHelpers.DecodeArg(stanza.Args[1], KeySize, "ssh-ed25519 ephemeral key");
 
@@ -87,7 +87,7 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
             CryptoHelper.HkdfDerive(tweakedSS, salt, AgeProtocol.SshEd25519HkdfLabel, wrapKey);
 
             Span<byte> zeroNonce = stackalloc byte[12];
-            return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span);
+            return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span, fileKey);
         }
         finally
         {

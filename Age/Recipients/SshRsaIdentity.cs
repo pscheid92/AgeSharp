@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
 using System.Text;
 using AgeSharp.Crypto;
 using Org.BouncyCastle.Crypto;
@@ -45,34 +46,51 @@ public sealed class SshRsaIdentity : IIdentityWithRecipient, IDisposable
     /// <summary>Returns null for stanzas of another type, or wrapped for a different key.</summary>
     /// <exception cref="AgeFormatException">The stanza claims to be ssh-rsa but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
-    public byte[]? Unwrap(Stanza stanza)
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (stanza.Type != AgeProtocol.SshRsaStanzaType)
-            return null;
+            return false;
 
         if (stanza.Args.Count != 1)
             throw new AgeFormatException($"ssh-rsa stanza must have exactly 1 argument, got {stanza.Args.Count}");
 
         if (stanza.Args[0] != _tag)
-            return null;
+            return false;
 
         var oaep = new OaepEncoding(new RsaBlindedEngine(), new Sha256Digest(), new Sha256Digest(),
             Encoding.ASCII.GetBytes(AgeProtocol.SshRsaOaepLabel));
         oaep.Init(false, _privateKey);
 
+        byte[] unwrapped;
+
         try
         {
-            return oaep.ProcessBlock(stanza.Body.ToArray(), 0, stanza.Body.Length);
+            // BouncyCastle's OAEP allocates its own output, so this copies into the caller's
+            // buffer and clears the array it handed back.
+            unwrapped = oaep.ProcessBlock(stanza.Body.ToArray(), 0, stanza.Body.Length);
         }
         catch (InvalidCipherTextException)
         {
-            return null;
+            return false;
         }
         catch (DataLengthException)
         {
-            return null;
+            return false;
+        }
+
+        try
+        {
+            if (unwrapped.Length != fileKey.Length)
+                return false;
+
+            unwrapped.CopyTo(fileKey);
+            return true;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(unwrapped);
         }
     }
 

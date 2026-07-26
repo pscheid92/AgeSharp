@@ -975,7 +975,7 @@ public class PassphraseTests
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "21"], new byte[32]);
-        Assert.Throws<AgeFormatException>(() => recipient.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => recipient.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Theory]
@@ -1007,7 +1007,7 @@ public class PassphraseTests
         var wrongSalt = new byte[10];
         var saltB64 = Base64Unpadded.Encode(wrongSalt);
         var stanza = new Stanza("scrypt", [saltB64, "10"], new byte[32]);
-        Assert.Throws<AgeFormatException>(() => recipient.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => recipient.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -1017,7 +1017,7 @@ public class PassphraseTests
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "10"], new byte[16]);
-        Assert.Throws<AgeFormatException>(() => recipient.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => recipient.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -1025,7 +1025,7 @@ public class PassphraseTests
     {
         var recipient = new Passphrase("password");
         var stanza = new Stanza("scrypt", ["onlyone"], new byte[32]);
-        Assert.Throws<AgeFormatException>(() => recipient.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => recipient.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -1033,7 +1033,7 @@ public class PassphraseTests
     {
         var recipient = new Passphrase("password");
         var stanza = new Stanza("scrypt", ["@@invalid@@", "10"], new byte[32]);
-        Assert.Throws<AgeFormatException>(() => recipient.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => recipient.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -1043,7 +1043,7 @@ public class PassphraseTests
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "abc"], new byte[32]);
-        Assert.Throws<AgeFormatException>(() => recipient.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => recipient.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -1056,16 +1056,15 @@ public class PassphraseTests
         var stanza = correct.Wrap(fileKey)[0];
 
         var wrong = new Passphrase("wrong", 10);
-        // Wrong passphrase causes AEAD failure — either throws AgeException or returns null
+
+        // A wrong passphrase is an AEAD failure: either no match, or an AgeException from
+        // the backend. Both are acceptable; what must not happen is a claimed match.
         try
         {
-            var result = wrong.Unwrap(stanza);
-            // If it didn't throw, result should be null (AEAD auth failure)
-            Assert.Null(result);
+            Assert.False(wrong.TryUnwrap(stanza, new byte[Age.FileKeySize]));
         }
         catch (AgeException)
         {
-            // Also acceptable — the code catches CryptographicException and rethrows as AgeException
         }
     }
 
@@ -1074,7 +1073,7 @@ public class PassphraseTests
     {
         var recipient = new Passphrase("password");
         var stanza = new Stanza("X25519", ["arg"], new byte[32]);
-        Assert.Null(recipient.Unwrap(stanza));
+        Assert.False(recipient.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 }
 
@@ -1122,7 +1121,7 @@ public class X25519RecipientIdentityTests
         // BouncyCastle InvalidOperationException.
         using var identity = X25519Identity.Generate();
         var stanza = new Stanza("X25519", [Base64Unpadded.Encode(new byte[32])], new byte[32]);
-        Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -1165,7 +1164,7 @@ public class X25519RecipientIdentityTests
     {
         using var identity = X25519Identity.Generate();
         var stanza = new Stanza("scrypt", ["arg"], new byte[32]);
-        Assert.Null(identity.Unwrap(stanza));
+        Assert.False(identity.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -1188,7 +1187,7 @@ public class X25519RecipientIdentityTests
     {
         using var identity = X25519Identity.Generate();
         var stanza = new Stanza("X25519", ["a", "b"], new byte[32]);
-        Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -1196,7 +1195,7 @@ public class X25519RecipientIdentityTests
     {
         using var identity = X25519Identity.Generate();
         var stanza = new Stanza("X25519", ["@@invalid"], new byte[32]);
-        Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -1205,7 +1204,7 @@ public class X25519RecipientIdentityTests
         using var identity = X25519Identity.Generate();
         var shortKey = Base64Unpadded.Encode(new byte[16]);
         var stanza = new Stanza("X25519", [shortKey], new byte[32]);
-        Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -1214,7 +1213,7 @@ public class X25519RecipientIdentityTests
         using var identity = X25519Identity.Generate();
         var ephKey = Base64Unpadded.Encode(new byte[32]);
         var stanza = new Stanza("X25519", [ephKey], new byte[16]);
-        Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -1229,7 +1228,7 @@ public class X25519RecipientIdentityTests
         var stanza = id1.Recipient.Wrap(fileKey)[0];
 
         // id2 should fail AEAD and return null
-        Assert.Null(id2.Unwrap(stanza));
+        Assert.False(id2.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 }
 

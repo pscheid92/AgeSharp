@@ -55,7 +55,9 @@ public class RecipientBenchmarks
     [Benchmark]
     public byte[]? X25519Unwrap()
     {
-        return _x25519Identity.Unwrap(_x25519Stanza);
+        var fileKey = new byte[Age.FileKeySize];
+        _x25519Identity.TryUnwrap(_x25519Stanza, fileKey);
+        return fileKey;
     }
 
     [Benchmark]
@@ -67,7 +69,9 @@ public class RecipientBenchmarks
     [Benchmark]
     public byte[]? MlKem768X25519Unwrap()
     {
-        return _mlKemIdentity.Unwrap(_mlKemStanza);
+        var fileKey = new byte[Age.FileKeySize];
+        _mlKemIdentity.TryUnwrap(_mlKemStanza, fileKey);
+        return fileKey;
     }
 
     [Benchmark]
@@ -79,6 +83,8 @@ public class RecipientBenchmarks
     [Benchmark]
     public byte[]? ScryptUnwrap()
     {
-        return _passphrase.Unwrap(_scryptStanza);
+        var fileKey = new byte[Age.FileKeySize];
+        _passphrase.TryUnwrap(_scryptStanza, fileKey);
+        return fileKey;
     }
 }

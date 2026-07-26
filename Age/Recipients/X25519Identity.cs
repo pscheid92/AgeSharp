@@ -8,7 +8,7 @@ namespace AgeSharp;
 
 /// <summary>
 ///     The secret half of a native age key pair (<c>AGE-SECRET-KEY-1…</c>). Disposing zeroes
-///     the key material; instances are safe for concurrent <see cref="Unwrap" /> calls.
+///     the key material; instances are safe for concurrent <see cref="TryUnwrap" /> calls.
 /// </summary>
 public sealed class X25519Identity : IIdentityWithRecipient, IDisposable, IParsable<X25519Identity>
 {
@@ -47,11 +47,11 @@ public sealed class X25519Identity : IIdentityWithRecipient, IDisposable, IParsa
     /// <summary>Returns null for stanzas of another type, or wrapped for a different key.</summary>
     /// <exception cref="AgeFormatException">The stanza claims to be X25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
-    public byte[]? Unwrap(Stanza stanza)
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (stanza.Type != AgeProtocol.X25519StanzaType) return null;
+        if (stanza.Type != AgeProtocol.X25519StanzaType) return false;
 
         if (stanza.Args.Count != 1)
             throw new AgeFormatException($"X25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");
@@ -76,7 +76,7 @@ public sealed class X25519Identity : IIdentityWithRecipient, IDisposable, IParsa
             CryptoHelper.HkdfDerive(sharedSecret, salt, AgeProtocol.X25519HkdfLabel, wrapKey);
 
             Span<byte> zeroNonce = stackalloc byte[12];
-            return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span);
+            return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span, fileKey);
         }
         finally
         {

@@ -368,10 +368,12 @@ public class MyRecipient : IRecipient
 
 public class MyIdentity : IIdentity
 {
-    public byte[]? Unwrap(Stanza stanza)
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
     {
-        // Called once per stanza in the file's header. Return the file
-        // key if this identity matches the stanza, null if not.
+        // Called once per stanza in the file's header. Fill fileKey (16 bytes,
+        // supplied by the caller) and return true if this stanza is yours;
+        // return false if it isn't. Returning false is the common case and must
+        // not throw — every identity is tried against every stanza.
     }
 }
 ```

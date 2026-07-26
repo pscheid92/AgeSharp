@@ -229,7 +229,8 @@ internal sealed class DecryptWriterStream : Stream
         using var buffered = new MemoryStream(_headerLines.RawBytes.ToArray(), false);
         var reader = new HeaderReader(buffered, _options.MaxHeaderLineBytes, _options.MaxHeaderBytes);
 
-        _fileKey = Age.UnwrapHeader(reader, _identities);
+        _fileKey = new byte[Age.FileKeySize];
+        Age.UnwrapHeader(reader, _identities, _fileKey);
         _stage = Stage.Nonce;
     }
 

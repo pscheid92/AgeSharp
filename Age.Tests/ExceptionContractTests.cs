@@ -64,15 +64,18 @@ public class ExceptionContractTests
         Assert.Contains("payload nonce", ex.Message);
     }
 
+    // An identity can no longer return a wrong-sized file key: TryUnwrap fills a span the
+    // caller sized, so the length is structural rather than checked. What a misbehaving
+    // identity can still do is claim a match and fill the buffer with the wrong key — and
+    // the header MAC is what catches that.
     [Fact]
-    public void Identity_Returning_WrongSize_FileKey_ThrowsFormat()
+    public void Identity_Claiming_A_Match_With_The_Wrong_Key_FailsTheMac()
     {
         using var identity = X25519Identity.Generate();
         using var encrypted = Encrypt(identity, "hello"u8.ToArray());
 
-        var ex = Assert.Throws<AgeFormatException>(() =>
-            Age.Decrypt(encrypted, new MemoryStream(), [new WrongSizeIdentity()]));
-        Assert.Contains("file key must be", ex.Message);
+        Assert.Throws<AgeAuthenticationException>(() =>
+            Age.Decrypt(encrypted, new MemoryStream(), [new WrongKeyIdentity()]));
     }
 
     // --- Authentication: defects in the payload region ---
@@ -370,11 +373,12 @@ public class ExceptionContractTests
 
     // --- helpers ---
 
-    private sealed class WrongSizeIdentity : IIdentity
+    private sealed class WrongKeyIdentity : IIdentity
     {
-        public byte[]? Unwrap(Stanza stanza)
+        public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
         {
-            return new byte[5];
+            fileKey.Fill(0x41);
+            return true;
         }
     }
 }

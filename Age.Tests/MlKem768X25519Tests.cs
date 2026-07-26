@@ -190,13 +190,14 @@ public class MlKem768X25519IdentityTests
         Assert.Single(stanza.Args);
         Assert.Equal(32, stanza.Body.Length); // 16 key + 16 tag
 
-        var unwrapped = identity.Unwrap(stanza);
+        var unwrapped = new byte[Age.FileKeySize];
+        Assert.True(identity.TryUnwrap(stanza, unwrapped));
         Assert.NotNull(unwrapped);
         Assert.Equal(fileKey, unwrapped);
     }
 
     [Fact]
-    public void Unwrap_WrongIdentity_ReturnsNull()
+    public void Unwrap_WrongIdentity_DoesNotMatch()
     {
         using var id1 = MlKem768X25519Identity.Generate();
         using var id2 = MlKem768X25519Identity.Generate();
@@ -205,12 +206,11 @@ public class MlKem768X25519IdentityTests
         new Random(42).NextBytes(fileKey);
 
         var stanza = id1.Recipient.Wrap(fileKey)[0];
-        var unwrapped = id2.Unwrap(stanza);
-        Assert.Null(unwrapped);
+        Assert.False(id2.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
-    public void Unwrap_X25519Stanza_ReturnsNull()
+    public void Unwrap_X25519Stanza_DoesNotMatch()
     {
         using var pqIdentity = MlKem768X25519Identity.Generate();
         using var x25519Identity = X25519Identity.Generate();
@@ -219,8 +219,7 @@ public class MlKem768X25519IdentityTests
         new Random(42).NextBytes(fileKey);
 
         var x25519Stanza = x25519Identity.Recipient.Wrap(fileKey)[0];
-        var unwrapped = pqIdentity.Unwrap(x25519Stanza);
-        Assert.Null(unwrapped);
+        Assert.False(pqIdentity.TryUnwrap(x25519Stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -399,7 +398,7 @@ public class PqRoundTripTests
         var args = Enumerable.Repeat("AAAA", argCount).ToArray();
         var stanza = new Stanza(AgeProtocol.MlKemStanzaType, args, new byte[32]);
 
-        var ex = Assert.Throws<AgeFormatException>(() => identity.Unwrap(stanza));
+        var ex = Assert.Throws<AgeFormatException>(() => identity.TryUnwrap(stanza, new byte[Age.FileKeySize]));
         Assert.Contains("exactly 1 argument", ex.Message);
     }
 }

@@ -61,7 +61,7 @@ public class SecretHygieneTests
         var disposed = new Passphrase("pw", LowWorkFactor);
         disposed.Dispose();
 
-        Assert.Throws<ObjectDisposedException>(() => disposed.Unwrap(stanza));
+        Assert.Throws<ObjectDisposedException>(() => disposed.TryUnwrap(stanza, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class SecretHygieneTests
         var disposed = new Passphrase("pw", LowWorkFactor);
         disposed.Dispose();
 
-        Assert.Null(disposed.Unwrap(new Stanza("X25519", ["abc"], new byte[32])));
+        Assert.False(disposed.TryUnwrap(new Stanza("X25519", ["abc"], new byte[32]), new byte[Age.FileKeySize]));
     }
 
     [Fact]

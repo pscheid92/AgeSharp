@@ -25,7 +25,8 @@ namespace AgeSharp;
 /// </remarks>
 public static partial class Age
 {
-    private const int FileKeySize = 16;
+    /// <summary>Size of an age file key, and so of the buffer <see cref="IIdentity.TryUnwrap(Stanza, System.Span{byte})" /> fills.</summary>
+    public const int FileKeySize = 16;
     internal const int PayloadNonceSize = 16;
     internal const int PayloadKeySize = 32;
 

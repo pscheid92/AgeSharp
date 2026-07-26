@@ -7,7 +7,7 @@ namespace AgeSharp;
 /// <summary>
 ///     A post-quantum ML-KEM-768-X25519 hybrid identity (<c>AGE-SECRET-KEY-PQ-1…</c>),
 ///     stored as its 32-byte generation seed. Disposing zeroes the seed; instances
-///     are safe for concurrent <see cref="Unwrap" /> calls.
+///     are safe for concurrent <see cref="TryUnwrap" /> calls.
 /// </summary>
 public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable, IParsable<MlKem768X25519Identity>
 {
@@ -41,12 +41,12 @@ public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable
     /// <summary>Returns null for stanzas of another type, or wrapped for a different key.</summary>
     /// <exception cref="AgeFormatException">The stanza claims to be mlkem768x25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
-    public byte[]? Unwrap(Stanza stanza)
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (stanza.Type != AgeProtocol.MlKemStanzaType)
-            return null;
+            return false;
 
         if (stanza.Args.Count != 1)
             throw new AgeFormatException(
@@ -55,7 +55,7 @@ public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable
         var enc = ParseHelpers.DecodeArg(stanza.Args[0], XWing.EncSize, "mlkem768x25519 enc");
 
         return stanza.Body.Length == WrappedKeySize
-            ? HpkeHelper.OpenBase(enc, _seed, AgeProtocol.MlKemHpkeInfo, stanza.Body.ToArray())
+            ? HpkeHelper.OpenBase(enc, _seed, AgeProtocol.MlKemHpkeInfo, stanza.Body.Span, fileKey)
             : throw new AgeFormatException(
                 $"mlkem768x25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
     }

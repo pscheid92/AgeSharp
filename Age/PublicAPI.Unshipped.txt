@@ -15,16 +15,25 @@
 *REMOVED*AgeSharp.AgeRandomAccess.GetStream(long plaintextOffset = 0) -> System.IO.Stream!
 *REMOVED*AgeSharp.AgeRandomAccess.PlaintextLength.get -> long
 *REMOVED*AgeSharp.AgeRandomAccess.ReadAt(long plaintextOffset, System.Span<byte> buffer) -> int
+*REMOVED*AgeSharp.IIdentity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
+*REMOVED*AgeSharp.IIdentity.Unwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas) -> byte[]?
 *REMOVED*AgeSharp.IRecipient.Label.get -> string?
 *REMOVED*AgeSharp.IRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+*REMOVED*AgeSharp.MlKem768X25519Identity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
 *REMOVED*AgeSharp.MlKem768X25519Recipient.Label.get -> string!
 *REMOVED*AgeSharp.MlKem768X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
 *REMOVED*AgeSharp.Passphrase.Passphrase(string! passphrase, int workFactor = 18) -> void
+*REMOVED*AgeSharp.Passphrase.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
 *REMOVED*AgeSharp.Passphrase.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+*REMOVED*AgeSharp.PluginIdentity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
+*REMOVED*AgeSharp.PluginIdentity.Unwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas) -> byte[]?
 *REMOVED*AgeSharp.PluginRecipient.Label.get -> string?
 *REMOVED*AgeSharp.PluginRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+*REMOVED*AgeSharp.SshEd25519Identity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
 *REMOVED*AgeSharp.SshEd25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+*REMOVED*AgeSharp.SshRsaIdentity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
 *REMOVED*AgeSharp.SshRsaRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+*REMOVED*AgeSharp.X25519Identity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
 *REMOVED*AgeSharp.X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
 *REMOVED*static AgeSharp.Age.DecryptReader(System.IO.Stream! ciphertext, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> System.IO.Stream!
 AgeSharp.AgeAuthenticationException
@@ -48,6 +57,8 @@ AgeSharp.AgeFormatException
 AgeSharp.AgeFormatException.AgeFormatException(string! message) -> void
 AgeSharp.AgeFormatException.AgeFormatException(string! message, System.Exception! inner) -> void
 AgeSharp.AgeHeader.Stanzas.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+AgeSharp.IIdentity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
+AgeSharp.IIdentity.TryUnwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas, System.Span<byte> fileKey) -> bool
 AgeSharp.IIdentityWithRecipient
 AgeSharp.IIdentityWithRecipient.Recipient.get -> AgeSharp.IRecipient!
 AgeSharp.IRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
@@ -59,6 +70,7 @@ AgeSharp.LabelledStanzas.LabelledStanzas() -> void
 AgeSharp.LabelledStanzas.LabelledStanzas(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas, System.Collections.Generic.IReadOnlyCollection<string!>! labels) -> void
 AgeSharp.LabelledStanzas.Labels.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
 AgeSharp.LabelledStanzas.Stanzas.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+AgeSharp.MlKem768X25519Identity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.MlKem768X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.MlKem768X25519Recipient.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.LabelledStanzas
 AgeSharp.Passphrase.Dispose() -> void
@@ -66,12 +78,19 @@ AgeSharp.Passphrase.Passphrase(System.ReadOnlySpan<char> passphrase) -> void
 AgeSharp.Passphrase.Passphrase(System.ReadOnlySpan<char> passphrase, int workFactor) -> void
 AgeSharp.Passphrase.Passphrase(string! passphrase) -> void
 AgeSharp.Passphrase.Passphrase(string! passphrase, int workFactor) -> void
+AgeSharp.Passphrase.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.Passphrase.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.PluginIdentity.Recipient.get -> AgeSharp.IRecipient!
+AgeSharp.PluginIdentity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
+AgeSharp.PluginIdentity.TryUnwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas, System.Span<byte> fileKey) -> bool
 AgeSharp.PluginRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+AgeSharp.SshEd25519Identity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.SshEd25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+AgeSharp.SshRsaIdentity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.SshRsaRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+AgeSharp.X25519Identity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+const AgeSharp.Age.FileKeySize = 16 -> int
 static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null) -> void
 static AgeSharp.Age.Decrypt(System.ReadOnlySpan<byte> ciphertext, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null) -> byte[]!
 static AgeSharp.Age.DecryptAsync(System.IO.Stream! input, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!

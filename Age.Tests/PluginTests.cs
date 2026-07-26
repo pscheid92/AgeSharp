@@ -550,7 +550,8 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        var result = identity.UnwrapWithConnection(conn, stanzas);
+        var result = new byte[Age.FileKeySize];
+        var resultMatched = identity.TryUnwrapWithConnection(conn, stanzas, result);
 
         Assert.NotNull(result);
         Assert.Equal(fileKey, result);
@@ -583,7 +584,8 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        var result = identity.UnwrapWithConnection(conn, stanzas);
+        var result = new byte[Age.FileKeySize];
+        var resultMatched = identity.TryUnwrapWithConnection(conn, stanzas, result);
 
         Assert.NotNull(result);
         var sent = capturedOutput.ToString();
@@ -592,7 +594,7 @@ public class PluginTests
     }
 
     [Fact]
-    public void PluginIdentity_Unwrap_NoMatch_ReturnsNull()
+    public void PluginIdentity_Unwrap_NoMatch_DoesNotMatch()
     {
         var identityStr = MakePluginIdentity("test");
         var identity = new PluginIdentity(identityStr);
@@ -604,9 +606,7 @@ public class PluginTests
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var result = identity.UnwrapWithConnection(conn, stanzas);
-
-        Assert.Null(result);
+        Assert.False(identity.TryUnwrapWithConnection(conn, stanzas, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -622,7 +622,7 @@ public class PluginTests
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var ex = Assert.Throws<AgePluginException>(() => identity.UnwrapWithConnection(conn, stanzas));
+        var ex = Assert.Throws<AgePluginException>(() => identity.TryUnwrapWithConnection(conn, stanzas, new byte[Age.FileKeySize]));
         Assert.Contains("plugin crashed", ex.Message);
     }
 
@@ -640,9 +640,7 @@ public class PluginTests
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var result = identity.UnwrapWithConnection(conn, stanzas);
-
-        Assert.Null(result);
+        Assert.False(identity.TryUnwrapWithConnection(conn, stanzas, new byte[Age.FileKeySize]));
     }
 
     [Fact]
@@ -662,7 +660,7 @@ public class PluginTests
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        identity.UnwrapWithConnection(conn, stanzas);
+        identity.TryUnwrapWithConnection(conn, stanzas, new byte[Age.FileKeySize]);
 
         Assert.Contains("-> unsupported", capturedOutput.ToString());
     }
@@ -684,7 +682,7 @@ public class PluginTests
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        identity.UnwrapWithConnection(conn, stanzas);
+        identity.TryUnwrapWithConnection(conn, stanzas, new byte[Age.FileKeySize]);
 
         Assert.Single(callbacks.SecretRequests);
         Assert.Equal("Enter PIN:", callbacks.SecretRequests[0].Prompt);
@@ -707,7 +705,7 @@ public class PluginTests
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        identity.UnwrapWithConnection(conn, stanzas);
+        identity.TryUnwrapWithConnection(conn, stanzas, new byte[Age.FileKeySize]);
 
         Assert.Single(callbacks.SecretRequests);
         Assert.Equal("Enter your name:", callbacks.SecretRequests[0].Prompt);
@@ -730,7 +728,7 @@ public class PluginTests
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        identity.UnwrapWithConnection(conn, stanzas);
+        identity.TryUnwrapWithConnection(conn, stanzas, new byte[Age.FileKeySize]);
 
         Assert.Single(callbacks.Messages);
         Assert.Equal("Touch your YubiKey", callbacks.Messages[0]);
@@ -750,7 +748,7 @@ public class PluginTests
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var ex = Assert.Throws<AgePluginException>(() => identity.UnwrapWithConnection(conn, stanzas));
+        var ex = Assert.Throws<AgePluginException>(() => identity.TryUnwrapWithConnection(conn, stanzas, new byte[Age.FileKeySize]));
         Assert.Contains("not valid unpadded base64", ex.Message);
     }
 
@@ -873,20 +871,19 @@ public class PluginTests
 
         // Batch unwrap with the matching stanza second (cast to IIdentity for default method)
         var stanzas = new List<Stanza> { otherStanza, stanza };
-        var result = ((IIdentity)identity).Unwrap(stanzas);
-        Assert.NotNull(result);
+        var result = new byte[Age.FileKeySize];
+        Assert.True(((IIdentity)identity).TryUnwrap(stanzas, result));
         Assert.Equal(fileKey, result);
     }
 
     [Fact]
-    public void IIdentity_DefaultBatchUnwrap_NoMatch_ReturnsNull()
+    public void IIdentity_DefaultBatchUnwrap_NoMatch_ReturnsFalse()
     {
         using var identity = X25519Identity.Generate();
         using var other = X25519Identity.Generate();
         var stanza = other.Recipient.Wrap(new byte[16])[0];
 
-        var result = ((IIdentity)identity).Unwrap(new List<Stanza> { stanza });
-        Assert.Null(result);
+        Assert.False(((IIdentity)identity).TryUnwrap(new List<Stanza> { stanza }, new byte[Age.FileKeySize]));
     }
 
     // --- Age.Decrypt still works with existing identities ---
@@ -1167,7 +1164,8 @@ public class PluginTests
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        var result = identity.UnwrapWithConnection(conn, stanzas);
+        var result = new byte[Age.FileKeySize];
+        var resultMatched = identity.TryUnwrapWithConnection(conn, stanzas, result);
 
         Assert.NotNull(result);
         Assert.Contains("-> fail", capturedOutput.ToString());
@@ -1189,7 +1187,8 @@ public class PluginTests
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        var result = identity.UnwrapWithConnection(conn, stanzas);
+        var result = new byte[Age.FileKeySize];
+        var resultMatched = identity.TryUnwrapWithConnection(conn, stanzas, result);
 
         Assert.NotNull(result);
         Assert.Contains("-> fail", capturedOutput.ToString());
@@ -1211,7 +1210,8 @@ public class PluginTests
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        var result = identity.UnwrapWithConnection(conn, stanzas);
+        var result = new byte[Age.FileKeySize];
+        var resultMatched = identity.TryUnwrapWithConnection(conn, stanzas, result);
 
         Assert.NotNull(result);
         Assert.Contains("-> fail", capturedOutput.ToString());
@@ -1236,7 +1236,8 @@ public class PluginTests
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        var result = identity.UnwrapWithConnection(conn, stanzas);
+        var result = new byte[Age.FileKeySize];
+        var resultMatched = identity.TryUnwrapWithConnection(conn, stanzas, result);
 
         Assert.NotNull(result);
         Assert.Single(callbacks.Confirmations);
@@ -1259,7 +1260,7 @@ public class PluginTests
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var ex = Assert.Throws<AgePluginException>(() => identity.UnwrapWithConnection(conn, stanzas));
+        var ex = Assert.Throws<AgePluginException>(() => identity.TryUnwrapWithConnection(conn, stanzas, new byte[Age.FileKeySize]));
         Assert.Contains("missing file index", ex.Message);
     }
 
@@ -1271,7 +1272,7 @@ public class PluginTests
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var conn = new PluginConnection(new StringReader(""), new StringWriter());
-        Assert.Throws<AgePluginException>(() => identity.UnwrapWithConnection(conn, stanzas));
+        Assert.Throws<AgePluginException>(() => identity.TryUnwrapWithConnection(conn, stanzas, new byte[Age.FileKeySize]));
     }
 
     [Fact]
