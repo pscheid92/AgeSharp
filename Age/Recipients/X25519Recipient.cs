@@ -56,7 +56,7 @@ public sealed class X25519Recipient : IRecipient, IParsable<X25519Recipient>
             Span<byte> zeroNonce = stackalloc byte[12];
             var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
 
-            return [new Stanza(AgeProtocol.X25519StanzaType, [Base64Unpadded.Encode(ephPubBytes)], body)];
+            return [new Stanza(Stanza.X25519, [Base64Unpadded.Encode(ephPubBytes)], body)];
         }
         finally
         {

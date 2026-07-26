@@ -53,7 +53,7 @@ public sealed class SshRsaRecipient : IRecipient
         var input = fileKey.ToArray();
         var body = oaep.ProcessBlock(input, 0, input.Length);
 
-        return [new Stanza(AgeProtocol.SshRsaStanzaType, [_tag], body)];
+        return [new Stanza(Stanza.SshRsa, [_tag], body)];
     }
 
     /// <summary>Parses an <c>ssh-rsa AAAA…</c> public key line.</summary>

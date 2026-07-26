@@ -396,7 +396,7 @@ public class PqRoundTripTests
     {
         using var identity = MlKem768X25519Identity.Generate();
         var args = Enumerable.Repeat("AAAA", argCount).ToArray();
-        var stanza = new Stanza(AgeProtocol.MlKemStanzaType, args, new byte[32]);
+        var stanza = new Stanza(Stanza.MlKem768X25519, args, new byte[32]);
 
         var ex = Assert.Throws<AgeFormatException>(() => identity.TryUnwrap(stanza, new byte[Age.FileKeySize]));
         Assert.Contains("exactly 1 argument", ex.Message);

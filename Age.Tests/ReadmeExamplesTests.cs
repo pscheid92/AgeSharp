@@ -1,3 +1,4 @@
+using System.Text;
 using Xunit;
 
 namespace AgeSharp.Tests;
@@ -253,4 +254,34 @@ public class ReadmeExamplesTests
             Assert.Fail("wrong branch");
         }
     }
+    [Fact]
+    public void Readme_EncryptedIdentityFile()
+    {
+        using var identity = X25519Identity.Generate();
+        var keyFile = Age.Encrypt(Encoding.UTF8.GetBytes(identity.ToSecretString() + "\n"),
+                                  [new Passphrase("pw", 10)]);
+        var ciphertext = Age.Encrypt("hello"u8, [identity.Recipient]);
+
+        using var keys = new EncryptedIdentityFile(keyFile, () => "pw".ToCharArray());
+
+        using var output = new MemoryStream();
+        Age.Decrypt(new MemoryStream(ciphertext), output, [keys]);
+        Assert.Equal("hello"u8.ToArray(), output.ToArray());
+
+        // Encrypting to the keys it holds
+        Assert.Equal([identity.Recipient.ToString()], keys.Recipients.Select(r => r.ToString()));
+    }
+
+    [Fact]
+    public void Readme_InspectingStanzaTypes()
+    {
+        using var pq = MlKem768X25519Identity.Generate();
+        var ciphertext = Age.Encrypt("hello"u8, [pq.Recipient]);
+
+        var header = Age.ReadHeader(new MemoryStream(ciphertext));
+
+        Assert.Contains(header.Stanzas, s => s.Type == Stanza.MlKem768X25519);
+        Assert.DoesNotContain(header.Stanzas, s => s.Type == Stanza.Scrypt);
+    }
+
 }

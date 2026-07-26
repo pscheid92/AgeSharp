@@ -45,7 +45,7 @@ public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (stanza.Type != AgeProtocol.MlKemStanzaType)
+        if (stanza.Type != Stanza.MlKem768X25519)
             return false;
 
         if (stanza.Args.Count != 1)

@@ -22,7 +22,7 @@ internal static class InspectCommand
     private const int TagSize = 16;
     private const int EncryptedChunkSize = ChunkSize + TagSize;
 
-    private static readonly HashSet<string> PostQuantumTypes = ["mlkem768x25519"];
+    private static readonly HashSet<string> PostQuantumTypes = [Stanza.MlKem768X25519];
 
     public static int Execute(string? filePath, bool json)
     {

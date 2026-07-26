@@ -51,7 +51,7 @@ public sealed class X25519Identity : IIdentityWithRecipient, IDisposable, IParsa
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (stanza.Type != AgeProtocol.X25519StanzaType) return false;
+        if (stanza.Type != Stanza.X25519) return false;
 
         if (stanza.Args.Count != 1)
             throw new AgeFormatException($"X25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");

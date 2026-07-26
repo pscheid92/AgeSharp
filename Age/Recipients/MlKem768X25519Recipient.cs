@@ -54,7 +54,7 @@ public sealed class MlKem768X25519Recipient : IRecipientWithLabels, IParsable<Ml
     {
         var (enc, ct) = HpkeHelper.SealBase(_publicKey, AgeProtocol.MlKemHpkeInfo, fileKey);
         var encB64 = Base64Unpadded.Encode(enc);
-        return [new Stanza(AgeProtocol.MlKemStanzaType, [encB64], ct)];
+        return [new Stanza(Stanza.MlKem768X25519, [encB64], ct)];
     }
 
     /// <summary>Parses a bech32-encoded recipient (<c>age1pq1…</c>, lowercase).</summary>

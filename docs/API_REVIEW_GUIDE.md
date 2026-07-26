@@ -260,18 +260,28 @@ File: [Age/Exceptions.cs](../Age/Exceptions.cs).
 
 ## Stop 6 — the consumer's view (20 min)
 
-- [ ] Skim the [README](../README.md) usage sections against the surface you just read. (The
-  examples are compiled by `ReadmeExamplesTests`, so they *work* — the question is whether what
-  they showcase is the API you want to commit to.)
-- [ ] **The "missing" walk** — things that are internal today that a consumer might immediately
-  need. Known candidates to consciously accept or reject:
-  - stanza-type string constants (`"X25519"`, `"scrypt"`, …) — internal in `AgeProtocol`; a custom
-    identity author writes them by hand today
-  - no public armor/dearmor utility (armor exists only as an encrypt option / auto-detection)
-  - no `ReadHeaderAsync` (also flagged at Stop 2)
-- [ ] Name sweep against the references: AgeSharp deliberately diverged from Go/rage API shapes
-  (the streaming grid instead of `NewReader`/`Decryptor`). The names were chosen on this branch
-  (#84); this is a confirm-not-redesign pass.
+- [x] README skim → **two gaps, both filled**. `EncryptedIdentityFile` was added during this review
+  and never documented — the feature existed with no way to discover it. And nothing showed how to
+  inspect stanza types, which was the symptom of the next item. Both sections added, both pinned by
+  `ReadmeExamplesTests` so they cannot rot.
+- [x] **The "missing" walk** — resolved as follows:
+  - **stanza-type constants → exposed on `Stanza`.** Not speculative: our own CLI hardcoded
+    `"mlkem768x25519"` and `"scrypt"`, and `"scrypt"` appeared as a literal in four places including
+    twice in the facade's own scrypt-alone rule. `Stanza.X25519`, `.Scrypt`, `.SshEd25519`,
+    `.SshRsa`, `.MlKem768X25519` — five consts, and every internal literal now routes through them.
+    `AgeProtocol` keeps only the derivation labels, which are genuinely implementation detail.
+  - **public armor/dearmor → still open, see below.** Both references expose it (Go's `age/armor`
+    package, rage's `pub use primitives::armor`) and AgeSharp does not.
+  - **`ReadHeaderAsync` → added** at Stop 2.
+- [x] Name sweep against the references → **confirmed, no redesign**. The streaming grid is a
+  deliberate divergence chosen on this branch (#84) and it has held up: every async question at
+  Stop 2 resolved cleanly against it, which a less regular naming would not have.
+- [ ] **Public armor/dearmor** — the one open item from the missing walk. Converting a file between
+  binary and armored needs **no key**, but with armor internal a consumer must decrypt and
+  re-encrypt, which does. Both references expose it. The code exists (`AsciiArmor`, `ArmorStream`,
+  `DearmorStream`); exposing is roughly two members plus an async form for the dearmor side, which
+  reads geometry at setup. Adding API later is non-breaking, so this can wait — but two mature
+  implementations having it is real evidence of need.
 
 ---
 
@@ -307,6 +317,10 @@ Append rows as you go; this table is the review's output.
 | `Passphrase` explicit work-factor overloads | **keep** | Default arguments bake into caller binaries; the remaining defaults are all `null`/`default`, which carry no policy. |
 | Exception hierarchy (all of stop 5) | **keep, unchanged** | The two-type split holds; the concrete base serves mid-operation caller errors; unsealed is required by the extension points. |
 | Exception contract | **now tested** | The "no raw exception escapes" rule was a doc claim; it is three tests now. |
+| Stanza type constants | **expose** on `Stanza` | Our own CLI hardcoded them and `"scrypt"` appeared as a literal four times; consumers inspecting a header need the vocabulary. |
+| README coverage | **fixed** | `EncryptedIdentityFile` shipped undocumented; stanza inspection was unshown. Both now pinned by tests. |
+| Streaming-grid naming | **keep** | A deliberate divergence from Go/rage that has held up under every async question at Stop 2. |
+| Public armor/dearmor | **open** | Both references expose it; converting binary↔armored needs no key but currently forces a decrypt/re-encrypt. |
 | `IPluginCallbacks.RequestValue` | **decided, not yet built** | Split into `RequestValue` / `RequestSecret(→ char[])`, matching rage. Blocked on nothing; the plugin write-path zeroing lands with it. |
 | *(next: `IPluginCallbacks` split + plugin write-path zeroing, `TryParse*` callbacks, `AgeHeader` naming)* | | |
 

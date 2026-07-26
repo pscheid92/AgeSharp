@@ -49,7 +49,7 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (stanza.Type != AgeProtocol.SshEd25519StanzaType)
+        if (stanza.Type != Stanza.SshEd25519)
             return false;
 
         if (stanza.Args.Count != 2)

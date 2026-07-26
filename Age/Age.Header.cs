@@ -69,7 +69,7 @@ public static partial class Age
                     header.Stanzas.Add(stanza);
             }
 
-            if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
+            if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == Stanza.Scrypt))
                 throw new AgeException("a passphrase (scrypt) recipient must be the only recipient");
 
             return (header, fileKey);
@@ -102,7 +102,7 @@ public static partial class Age
     {
         var header = ParseHeader(reader);
 
-        var hasScrypt = header.Stanzas.Any(s => s.Type == "scrypt");
+        var hasScrypt = header.Stanzas.Any(s => s.Type == Stanza.Scrypt);
         if (hasScrypt && header.Stanzas.Count > 1)
             throw new AgeFormatException("scrypt stanza must be the only stanza in the header");
 

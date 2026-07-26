@@ -64,7 +64,7 @@ public sealed class SshEd25519Recipient : IRecipient
             Span<byte> zeroNonce = stackalloc byte[NonceSize];
             var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
             var ephPubB64 = Base64Unpadded.Encode(ephPubBytes);
-            return [new Stanza(AgeProtocol.SshEd25519StanzaType, [_tag, ephPubB64], body)];
+            return [new Stanza(Stanza.SshEd25519, [_tag, ephPubB64], body)];
         }
         finally
         {

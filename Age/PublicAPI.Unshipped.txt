@@ -99,6 +99,11 @@ AgeSharp.SshRsaRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Colle
 AgeSharp.X25519Identity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 const AgeSharp.Age.FileKeySize = 16 -> int
+const AgeSharp.Stanza.MlKem768X25519 = "mlkem768x25519" -> string!
+const AgeSharp.Stanza.Scrypt = "scrypt" -> string!
+const AgeSharp.Stanza.SshEd25519 = "ssh-ed25519" -> string!
+const AgeSharp.Stanza.SshRsa = "ssh-rsa" -> string!
+const AgeSharp.Stanza.X25519 = "X25519" -> string!
 override AgeSharp.SshEd25519Recipient.ToString() -> string!
 override AgeSharp.SshRsaRecipient.ToString() -> string!
 static AgeSharp.Age.Decrypt(System.IO.Stream! input, System.IO.Stream! output, System.Collections.Generic.IReadOnlyList<AgeSharp.IIdentity!>! identities, AgeSharp.AgeDecryptOptions? options = null) -> void

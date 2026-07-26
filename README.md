@@ -346,6 +346,34 @@ Parse a specific type directly when you want the concrete type back (e.g. to
 using var x25519 = X25519Identity.Parse("AGE-SECRET-KEY-1...");
 ```
 
+### Passphrase-protected identity files
+
+An identity file that is itself age-encrypted is an `IIdentity` in its own right. It decrypts on
+first use, so the passphrase is requested only when that file is the one that opens the message —
+pass several and you are prompted once, not once per file:
+
+```csharp
+using var keys = new EncryptedIdentityFile(
+    File.ReadAllBytes("keys.age"),
+    () => ReadPassphraseFromConsole());   // char[]; the library zeroes it after use
+
+Age.Decrypt(input, output, [keys]);
+
+// Encrypting to the keys it holds (one file can carry several):
+Age.Encrypt(input, output, keys.Recipients);
+```
+
+### Inspecting stanza types
+
+`Stanza` carries the protocol's type strings, so header inspection needs no string literals:
+
+```csharp
+var header = Age.ReadHeader(stream);
+
+bool postQuantum = header.Stanzas.Any(s => s.Type == Stanza.MlKem768X25519);
+bool passphrase  = header.Stanzas.Any(s => s.Type == Stanza.Scrypt);
+```
+
 ### Custom recipients and identities
 
 Implement `IRecipient` and `IIdentity` to integrate custom key types, remote secrets managers, or age plugins.

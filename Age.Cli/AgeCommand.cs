@@ -241,7 +241,7 @@ internal static class AgeCommand
     {
         public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
         {
-            return stanza.Type == "scrypt"
+            return stanza.Type == Stanza.Scrypt
                 ? throw new AgeException("passphrase-encrypted file can't be decrypted with -i; use -p instead")
                 : false;
         }

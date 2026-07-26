@@ -50,7 +50,7 @@ public sealed class SshRsaIdentity : IIdentityWithRecipient, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (stanza.Type != AgeProtocol.SshRsaStanzaType)
+        if (stanza.Type != Stanza.SshRsa)
             return false;
 
         if (stanza.Args.Count != 1)

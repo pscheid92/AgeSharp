@@ -43,6 +43,21 @@ public sealed class Stanza
         _body = (byte[])body.Clone();
     }
 
+    /// <summary>Stanza type of a native age X25519 recipient.</summary>
+    public const string X25519 = "X25519";
+
+    /// <summary>Stanza type of a passphrase (scrypt) recipient. Must be a header's only stanza.</summary>
+    public const string Scrypt = "scrypt";
+
+    /// <summary>Stanza type of an ssh-ed25519 recipient.</summary>
+    public const string SshEd25519 = "ssh-ed25519";
+
+    /// <summary>Stanza type of an ssh-rsa recipient.</summary>
+    public const string SshRsa = "ssh-rsa";
+
+    /// <summary>Stanza type of an ML-KEM-768-X25519 (post-quantum) recipient.</summary>
+    public const string MlKem768X25519 = "mlkem768x25519";
+
     /// <summary>The recipient type tag (e.g. <c>"X25519"</c>, <c>"scrypt"</c>).</summary>
     public string Type { get; }
 

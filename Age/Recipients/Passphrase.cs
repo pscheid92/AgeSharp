@@ -18,7 +18,7 @@ namespace AgeSharp;
 /// </remarks>
 public sealed class Passphrase : IRecipient, IIdentity
 {
-    private const string StanzaType = "scrypt";
+    private const string StanzaType = Stanza.Scrypt;
     private const string ScryptSaltLabel = "age-encryption.org/v1/scrypt";
     private const int SaltSize = 16;
     private const int MaxWorkFactor = 20;
