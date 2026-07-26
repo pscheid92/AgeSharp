@@ -50,13 +50,23 @@ public static partial class Age
         throw new AgeFormatException($"unrecognized identity: {s}");
     }
 
-    /// <summary>Tries to parse a recipient string. Returns false instead of throwing.</summary>
-    public static bool TryParseRecipient([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out IRecipient result) => 
-        ParseHelpers.TryParse(s, static x => ParseRecipient(x), out result);
+    /// <summary>
+    ///     Tries to parse a recipient string. Returns false instead of throwing.
+    /// </summary>
+    /// <remarks>
+    ///     <paramref name="plugins" /> follows <paramref name="result" /> rather than preceding it,
+    ///     because an <see langword="out" /> parameter cannot be optional and the facade's rule is
+    ///     that options come last. Omitting it gives a plugin recipient no callbacks, so the plugin
+    ///     cannot prompt.
+    /// </remarks>
+    public static bool TryParseRecipient([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out IRecipient result,
+        IPluginCallbacks? plugins = null) =>
+        ParseHelpers.TryParse(s, x => ParseRecipient(x, plugins), out result);
 
-    /// <summary>Tries to parse an identity string. Returns false instead of throwing.</summary>
-    public static bool TryParseIdentity([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out IIdentity result) => 
-        ParseHelpers.TryParse(s, static x => ParseIdentity(x), out result);
+    /// <inheritdoc cref="TryParseRecipient" />
+    public static bool TryParseIdentity([NotNullWhen(true)] string? s, [MaybeNullWhen(false)] out IIdentity result,
+        IPluginCallbacks? plugins = null) =>
+        ParseHelpers.TryParse(s, x => ParseIdentity(x, plugins), out result);
 
     /// <summary>
     ///     Parses a recipients file: one per line, blank lines and <c>#</c> comments ignored.

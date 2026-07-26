@@ -1339,6 +1339,50 @@ public class PluginTests
         public bool Confirm(string message, string yes, string? no) => true;
     }
 
+    // ParseRecipient took callbacks and TryParseRecipient silently did not, so a plugin
+    // recipient parsed through the Try variant could never prompt.
+    [Fact]
+    public void TryParseRecipient_PassesCallbacksThrough()
+    {
+        var callbacks = new TestCallbacks();
+
+        Assert.True(Age.TryParseRecipient(MakePluginRecipient("yubikey"), out var recipient, callbacks));
+
+        var plugin = Assert.IsType<PluginRecipient>(recipient);
+        Assert.Equal("yubikey", plugin.PluginName);
+
+        // Behavioural, not reflective: a plugin that sends msg reaches the callbacks only if
+        // they were threaded through the parse.
+        var script = new StringWriter();
+        var writer = new PluginConnection(new StringReader(""), script);
+        writer.WriteStanza("msg", [], "hello from the plugin"u8.ToArray());
+        writer.WriteStanza("recipient-stanza", ["0", "piv-p256", "arg"], [0x01]);
+        writer.WriteStanza("done", [], []);
+
+        var conn = new PluginConnection(new StringReader(script.ToString()), new StringWriter());
+        plugin.WrapWithConnection(conn, new byte[16]);
+
+        Assert.Equal(["hello from the plugin"], callbacks.Messages);
+    }
+
+    [Fact]
+    public void TryParseIdentity_PassesCallbacksThrough()
+    {
+        var callbacks = new TestCallbacks();
+
+        Assert.True(Age.TryParseIdentity(MakePluginIdentity("yubikey"), out var identity, callbacks));
+
+        var plugin = Assert.IsType<PluginIdentity>(identity);
+        Assert.Equal("yubikey", plugin.PluginName);
+    }
+
+    [Fact]
+    public void TryParse_WithoutCallbacks_StillParses()
+    {
+        Assert.True(Age.TryParseRecipient(MakePluginRecipient("yubikey"), out _));
+        Assert.True(Age.TryParseIdentity(MakePluginIdentity("yubikey"), out _));
+    }
+
     private sealed class TestCallbacks : IPluginCallbacks
     {
         public List<string> Messages { get; } = new();

@@ -7,10 +7,8 @@ are free. After it, every change is a breaking change.
 This guide orders the reading by **decision weight** — the things hardest to change later come
 first — and pre-seeds each stop with the questions this session already surfaced. Budget ~2.5 hours.
 
-**Progress: 7 of 27 closed** (26 pre-seeded, plus `IIdentity.Unwrap`, which the review surfaced
-rather than anticipated). Decided items are checked off in place and recorded in the table at the
-end. Stop 1's contracts are done bar one; Stop 2's surface shrank from ~50 members to 21, so it
-reads faster than its 40-minute budget.
+**Progress: all 27 closed** (26 pre-seeded, plus `IIdentity.Unwrap`, which the review surfaced
+rather than anticipated). Every stop is processed; the decision table at the end is the output.
 
 **What this review keeps finding is bugs, not taste.** Four of the seven closed questions had a
 functional defect underneath: `Wrap` was silently dropping plugin stanzas, `IIdentityWithRecipient`
@@ -140,9 +138,12 @@ Pre-seeded questions:
   `EncryptedIdentity`, the file is now an identity in its own right that decrypts lazily on first
   use, which also fixes a usability flaw the old shape could not express: several `-i` files no
   longer prompt for all of them, only for the one that opens the message.
-- [ ] **`TryParseRecipient`/`TryParseIdentity` take no `IPluginCallbacks`** — a plugin string
-  parsed through them silently gets null callbacks, while `ParseRecipient` accepts them.
-  Asymmetry: intentional?
+- [x] **`TryParse*` take no `IPluginCallbacks`** → **not intentional; fixed**. A plugin recipient
+  parsed through the Try variant got null callbacks, so the plugin could never prompt — a silent
+  difference from `ParseRecipient`, which takes them. Both now accept `plugins` as a trailing
+  optional argument. It follows the `out` parameter rather than preceding it, because `out` cannot
+  be optional and the facade's rule is that options come last; the BCL's out-last convention
+  applies to overloads where the extra arguments are required.
 - [ ] `ParseRecipients`/`ParseIdentities`/`DecryptIdentities` return **mutable arrays**. The docs
   justify it (arrays convert implicitly to the `ReadOnlySpan` params overloads — a real ergonomic
   win). Confirm the trade.
@@ -320,6 +321,7 @@ Append rows as you go; this table is the review's output.
 | README coverage | **fixed** | `EncryptedIdentityFile` shipped undocumented; stanza inspection was unshown. Both now pinned by tests. |
 | Streaming-grid naming | **keep** | A deliberate divergence from Go/rage that has held up under every async question at Stop 2. |
 | Public armor/dearmor | **add** | Both references expose it; converting binary↔armored needs no key but forced a decrypt/re-encrypt, which does. |
+| `TryParseRecipient` / `TryParseIdentity` | **add** `plugins` | Silently dropped callbacks that `ParseRecipient` accepts, leaving a parsed plugin recipient unable to prompt. |
 | `IPluginCallbacks.RequestValue` | **split** → `RequestValue` / `RequestSecret(→ char[])` | A PIN came back as an unclearable string. The library zeroes what `RequestSecret` returns; `WriteStanza` no longer base64-encodes secret bodies into strings either. |
 | *(next: `IPluginCallbacks` split + plugin write-path zeroing, `TryParse*` callbacks, `AgeHeader` naming)* | | |
 
