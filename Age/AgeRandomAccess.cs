@@ -56,27 +56,21 @@ public sealed class AgeRandomAccess : IDisposable
         ArgumentException.ThrowIfEmpty(identities, "identity");
 
         BinaryStream = ciphertext;
-        var (binaryInput, needsDispose) = DeArmorInput(ciphertext);
 
-        try
-        {
-            var info = InitializeFromStream(binaryInput, identities);
-            _payloadKey = info.PayloadKey;
-            _payloadStart = info.PayloadStart;
-            _totalEncryptedPayload = info.TotalEncrypted;
-            PlaintextLength = info.PlaintextLength;
+        // Armored input is materialized up front because ReadAt needs to seek; the MemoryStream is
+        // kept for the reader's lifetime and released by Dispose. No ownership flag: if the setup
+        // below throws, the constructor throws, nothing is handed out, and the MemoryStream is
+        // garbage — which is all disposing it would achieve, since that does not free its buffer.
+        _armoredBinaryInput = AsciiArmor.IsArmored(ciphertext) ? Materialize(ciphertext) : null;
 
-            if (!needsDispose)
-                return;
+        if (_armoredBinaryInput is null)
+            ciphertext.Position = 0;
 
-            // Keep the dearmored MemoryStream for ReadAt seeking
-            _armoredBinaryInput = (MemoryStream)binaryInput;
-            needsDispose = false;
-        }
-        finally
-        {
-            if (needsDispose) binaryInput.Dispose();
-        }
+        var info = InitializeFromStream(BinaryStream, identities);
+        _payloadKey = info.PayloadKey;
+        _payloadStart = info.PayloadStart;
+        _totalEncryptedPayload = info.TotalEncrypted;
+        PlaintextLength = info.PlaintextLength;
     }
 
     /// <summary>
@@ -238,15 +232,7 @@ public sealed class AgeRandomAccess : IDisposable
         var encChunk = new byte[encChunkSize];
         stream.Position = ciphertextPos;
 
-        var bytesRead = 0;
-        while (bytesRead < encChunkSize)
-        {
-            var read = stream.Read(encChunk, bytesRead, encChunkSize - bytesRead);
-            if (read == 0)
-                break;
-
-            bytesRead += read;
-        }
+        var bytesRead = stream.ReadAtLeast(encChunk, encChunkSize, throwOnEndOfStream: false);
 
         return bytesRead == encChunkSize
             ? encChunk
@@ -263,20 +249,17 @@ public sealed class AgeRandomAccess : IDisposable
             : throw new AgeHeaderException($"expected {AgeEncrypt.PayloadNonceSize}-byte payload nonce, got {nonceRead} bytes");
     }
 
-    private static (Stream binaryInput, bool needsDispose) DeArmorInput(Stream ciphertext)
+    // DearmorStream cannot seek, so the decoded ciphertext is buffered in full. Cost is the
+    // file's size in memory, as the class remarks note.
+    private static MemoryStream Materialize(Stream ciphertext)
     {
-        if (AsciiArmor.IsArmored(ciphertext))
-        {
-            // RandomAccess needs a seekable stream, so materialize the dearmored data.
-            using var dearmored = AsciiArmor.Dearmor(ciphertext);
-            var ms = new MemoryStream();
-            dearmored.CopyTo(ms);
-            ms.Position = 0;
-            return (ms, true);
-        }
+        using var dearmored = AsciiArmor.Dearmor(ciphertext);
 
-        ciphertext.Position = 0;
-        return (ciphertext, false);
+        var ms = new MemoryStream();
+        dearmored.CopyTo(ms);
+        ms.Position = 0;
+
+        return ms;
     }
 
     private static long ComputeTotalChunks(long totalEncryptedPayload)

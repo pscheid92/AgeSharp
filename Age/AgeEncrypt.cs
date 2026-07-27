@@ -161,7 +161,10 @@ public static class AgeEncrypt
     {
         ArgumentException.ThrowIfEmpty(identities, "identity");
 
-        var (binaryInput, needsDispose) = DeArmorIfNeeded(ciphertext);
+        // Ownership leaves this method: on success it passes to the returned DecryptStream, so the
+        // only cleanup here is the failure path. That is why this one keeps an explicit flag while
+        // the other two dearmor sites express ownership by which variable holds the stream.
+        var (binaryInput, ownsStream) = DeArmorIfNeeded(ciphertext);
 
         try
         {
@@ -172,12 +175,12 @@ public static class AgeEncrypt
                 var payloadNonce = ReadPayloadNonce(reader);
                 var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", PayloadKeySize);
 
-                return new DecryptStream(payloadKey, binaryInput, needsDispose);
+                return new DecryptStream(payloadKey, binaryInput, ownsStream);
             }
         }
         catch
         {
-            if (needsDispose) binaryInput.Dispose();
+            if (ownsStream) binaryInput.Dispose();
             throw;
         }
     }
@@ -270,7 +273,10 @@ public static class AgeEncrypt
         }
     }
 
-    private static (Stream binaryInput, bool needsDispose) DeArmorIfNeeded(Stream input)
+    // The bool is an ownership claim, not a cleanup instruction — same meaning as DecryptStream's
+    // ownsStream and the BCL's leaveOpen. Its load-bearing half is `false`: `input` belongs to the
+    // caller, and disposing it would close a stream they still hold.
+    private static (Stream binaryInput, bool ownsStream) DeArmorIfNeeded(Stream input)
     {
         if (input.CanSeek && AsciiArmor.IsArmored(input))
             return (AsciiArmor.Dearmor(input), true);

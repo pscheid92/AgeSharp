@@ -44,42 +44,23 @@ public sealed class AgeHeader
     /// <exception cref="AgeArmorException">The input is armored and the armor is malformed.</exception>
     public static AgeHeader Parse(Stream input)
     {
-        var isArmored = false;
-        Stream binaryInput;
-        var needsDispose = false;
+        var isArmored = input.CanSeek && AsciiArmor.IsArmored(input);
 
-        if (input.CanSeek && AsciiArmor.IsArmored(input))
-        {
-            isArmored = true;
-            binaryInput = AsciiArmor.Dearmor(input);
-            needsDispose = true;
-        }
-        else
-        {
-            binaryInput = input;
-        }
+        // Which variable holds the stream is the ownership claim: `dearmored` is ours to dispose,
+        // `input` is the caller's. `using` on a null is a no-op, so the borrowed case needs no flag.
+        using var dearmored = isArmored ? AsciiArmor.Dearmor(input) : null;
+        var reader = new HeaderReader(dearmored ?? input);
 
+        Header header;
         try
         {
-            var reader = new HeaderReader(binaryInput);
-
-            Header header;
-            try
-            {
-                header = Header.Parse(reader);
-            }
-            catch (FormatException ex)
-            {
-                throw new AgeHeaderException($"header parse error: {ex.Message}", ex);
-            }
-
-            var payloadOffset = reader.RawBytes.Length;
-            return new AgeHeader(header.Stanzas.AsReadOnly(), payloadOffset, isArmored);
+            header = Header.Parse(reader);
         }
-        finally
+        catch (FormatException ex)
         {
-            if (needsDispose)
-                binaryInput.Dispose();
+            throw new AgeHeaderException($"header parse error: {ex.Message}", ex);
         }
+
+        return new AgeHeader(header.Stanzas.AsReadOnly(), reader.RawBytes.Length, isArmored);
     }
 }
