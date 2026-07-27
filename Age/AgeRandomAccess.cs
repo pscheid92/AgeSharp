@@ -228,7 +228,13 @@ public sealed class AgeRandomAccess : IDisposable
         var plaintext = StreamEncryption.DecryptChunk(_payloadKey, chunkIndex, isFinal, encChunk);
 
         if (isFinal && plaintext.Length == 0 && chunkIndex > 0)
+        {
+            // Consistency only: the guard condition is plaintext.Length == 0, so the array being
+            // abandoned here is zero-length and there is nothing to leak. Cleared anyway so
+            // "every decrypted chunk is zeroed on every path" holds without a caveat.
+            CryptographicOperations.ZeroMemory(plaintext);
             throw new AgePayloadException("final STREAM chunk is empty but there were preceding chunks");
+        }
 
         return plaintext;
     }
