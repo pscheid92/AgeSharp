@@ -16,6 +16,7 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
     private const int CiphertextBufferSize = StreamEncryption.EncryptedChunkSize;
 
     private State _state = State.Preamble;
+    private bool _disposed;
     private readonly byte[] _preamble = [..headerBytes, ..payloadNonce];
     private int _preambleOffset;
 
@@ -45,6 +46,9 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
 
     public override int Read(Span<byte> buffer)
     {
+        // See DecryptStream.Read: the pooled buffers no longer belong to this stream.
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var totalRead = 0;
 
         while (totalRead < buffer.Length)
@@ -149,10 +153,13 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         return total;
     }
 
+    // See DecryptStream.Dispose: without the guard, a legal Close()+Dispose() Returns each
+    // pooled buffer twice and two later renters are handed the same array.
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
+        if (disposing && !_disposed)
         {
+            _disposed = true;
             _cipher.Dispose();
             CryptographicOperations.ZeroMemory(payloadKey);
             CryptographicOperations.ZeroMemory(_plaintextBuffer.AsSpan(0, PlaintextBufferSize));

@@ -15,6 +15,7 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
     private const int PlaintextBufferSize = StreamEncryption.ChunkSize;
 
     private State _state = State.Chunks;
+    private bool _disposed;
 
     // Chunk buffering — rented from the shared pool, reused across chunks
     private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
@@ -41,6 +42,10 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
 
     public override int Read(Span<byte> buffer)
     {
+        // The buffers are back on the ArrayPool after Dispose, so reading here would serve
+        // whatever the next renter has since written into them.
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var totalRead = 0;
 
         while (totalRead < buffer.Length)
@@ -145,10 +150,14 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         return total;
     }
 
+    // Stream.Dispose() is not idempotent and Close() is a documented alias for it, so a caller
+    // doing both is legal — and without this guard the second pass Returns buffers that are
+    // already on the pool's free list, after which two unrelated Rent calls get the same array.
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
+        if (disposing && !_disposed)
         {
+            _disposed = true;
             _cipher.Dispose();
             CryptographicOperations.ZeroMemory(payloadKey);
             CryptographicOperations.ZeroMemory(_plaintextBuffer.AsSpan(0, PlaintextBufferSize));
