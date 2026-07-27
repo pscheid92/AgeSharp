@@ -99,19 +99,5 @@ internal sealed class HeaderReader(Stream stream)
     /// These bytes are NOT tracked in RawBytes.
     /// </summary>
     public int ReadPayloadBytes(Span<byte> buffer)
-    {
-        var total = 0;
-
-        while (total < buffer.Length)
-        {
-            var read = stream.Read(buffer[total..]);
-
-            if (read == 0)
-                break;
-
-            total += read;
-        }
-
-        return total;
-    }
+        => stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
 }

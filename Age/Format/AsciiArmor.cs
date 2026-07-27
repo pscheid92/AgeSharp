@@ -104,20 +104,6 @@ internal static class AsciiArmor
     }
 
     private static int ReadChunk(Stream stream, byte[] buffer)
-    {
-        var total = 0;
-
-        while (total < buffer.Length)
-        {
-            var read = stream.Read(buffer, total, buffer.Length - total);
-
-            if (read == 0)
-                break;
-
-            total += read;
-        }
-
-        return total;
-    }
+        => stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
 
 }

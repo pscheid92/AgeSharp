@@ -140,15 +140,7 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
             _pendingByte = false;
         }
 
-        while (total < count)
-        {
-            var read = plaintext.Read(buffer, total, count - total);
-
-            if (read == 0)
-                break;
-
-            total += read;
-        }
+        total += plaintext.ReadAtLeast(buffer.AsSpan(total, count - total), count - total, throwOnEndOfStream: false);
 
         return total;
     }

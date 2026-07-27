@@ -109,16 +109,7 @@ internal sealed class ArmorStream : Stream
     }
 
     private int ReadFullChunk()
-    {
-        var total = 0;
-        while (total < _sourceScratch.Length)
-        {
-            var read = _source.Read(_sourceScratch, total, _sourceScratch.Length - total);
-            if (read == 0) break;
-            total += read;
-        }
-        return total;
-    }
+        => _source.ReadAtLeast(_sourceScratch, _sourceScratch.Length, throwOnEndOfStream: false);
 
     // Guarded for the same reason as the streams it wraps: _source is an EncryptStream whose
     // Dispose returns pooled buffers, so forwarding a second Dispose would return them twice.

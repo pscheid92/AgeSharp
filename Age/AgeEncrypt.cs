@@ -12,7 +12,6 @@ namespace Age;
 /// </summary>
 public static class AgeEncrypt
 {
-    private const int FileKeySize = 16;
     internal const int PayloadNonceSize = 16;
     internal const int PayloadKeySize = 32;
 
@@ -42,7 +41,6 @@ public static class AgeEncrypt
     public static void Encrypt(Stream input, Stream output, bool armor, params ReadOnlySpan<IRecipient> recipients)
     {
         ArgumentException.ThrowIfEmpty(recipients, "recipient");
-
         using var stream = EncryptReader(input, armor, recipients);
         stream.CopyTo(output);
     }
@@ -64,9 +62,7 @@ public static class AgeEncrypt
     {
         using var stream = DecryptReader(input, identities);
         stream.CopyTo(output);
-        // Ensure output is touched even when plaintext is empty — matters for
-        // lazy-creating writers that only materialize on first Write.
-        output.Write(ReadOnlySpan<byte>.Empty);
+        output.EnsureMaterialized();
     }
 
     /// <summary>
@@ -104,17 +100,7 @@ public static class AgeEncrypt
         using var fileKey = UnwrapFileKey(headerInput, identities);
 
         var payloadNonce = new byte[PayloadNonceSize];
-        var total = 0;
-
-        while (total < PayloadNonceSize)
-        {
-            var read = payloadInput.Read(payloadNonce.AsSpan(total));
-            if (read == 0)
-                break;
-
-            total += read;
-        }
-
+        var total = payloadInput.ReadAtLeast(payloadNonce, PayloadNonceSize, throwOnEndOfStream: false);
         if (total != PayloadNonceSize)
             throw new AgeHeaderException($"expected {PayloadNonceSize}-byte payload nonce, got {total} bytes");
 
@@ -122,9 +108,7 @@ public static class AgeEncrypt
 
         using var decryptStream = new DecryptStream(payloadKey, payloadInput, ownsStream: false);
         decryptStream.CopyTo(output);
-        // Ensure output is touched even when plaintext is empty — matters for
-        // lazy-creating writers that only materialize on first Write.
-        output.Write(ReadOnlySpan<byte>.Empty);
+        output.EnsureMaterialized();
     }
 
     /// <summary>

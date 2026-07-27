@@ -137,15 +137,7 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         }
 
         const int target = StreamEncryption.EncryptedChunkSize + 1;
-        while (total < target)
-        {
-            var read = ciphertext.Read(_ciphertextBuffer, total, target - total);
-
-            if (read == 0)
-                break;
-
-            total += read;
-        }
+        total += ciphertext.ReadAtLeast(_ciphertextBuffer.AsSpan(total, target - total), target - total, throwOnEndOfStream: false);
 
         return total;
     }

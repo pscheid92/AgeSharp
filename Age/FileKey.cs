@@ -15,7 +15,7 @@ namespace Age;
 /// </remarks>
 internal sealed class FileKey : IDisposable
 {
-    internal const int Size = 16;
+    private const int Size = 16;
 
     private readonly byte[] _bytes;
     private bool _disposed;
