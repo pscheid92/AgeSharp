@@ -310,8 +310,34 @@ public class PluginTests
         var sent = capturedOutput.ToString();
         Assert.Contains("-> add-recipient", sent);
         Assert.Contains("-> wrap-file-key", sent);
-        Assert.Contains("-> extension-labels", sent);
         Assert.Contains("-> done", sent);
+
+        // S6: we must NOT advertise extension-labels. Doing so promises the
+        // client will enforce the plugin's label set across all stanzas
+        // wrapping the file key, which this API shape cannot do — the reply
+        // was answered "unsupported" and the constraint silently dropped.
+        Assert.DoesNotContain("-> extension-labels", sent);
+    }
+
+    [Fact]
+    public void PluginRecipient_Wrap_DoesNotAdvertiseExtensionLabels()
+    {
+        var recipient = new PluginRecipient(MakePluginRecipient("lbl"));
+
+        var pluginOutput = new StringWriter();
+        var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
+        mockConn.WriteStanza("recipient-stanza", ["0", "lbl", "arg"], [0x01]);
+        mockConn.WriteStanza("done", [], []);
+
+        var capturedOutput = new StringWriter();
+        var conn = new PluginConnection(new StringReader(pluginOutput.ToString()), capturedOutput);
+        recipient.WrapWithConnection(conn, new byte[16]);
+
+        var sent = capturedOutput.ToString();
+        Assert.DoesNotContain("extension-labels", sent);
+        // …and we never answer a labels command with "unsupported", because a
+        // conforming plugin will not send one.
+        Assert.DoesNotContain("-> unsupported", sent);
     }
 
     [Fact]

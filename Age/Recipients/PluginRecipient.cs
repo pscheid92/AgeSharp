@@ -43,7 +43,10 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
     {
         conn.WriteStanza("add-recipient", [recipient], []);
         conn.WriteStanza("wrap-file-key", [], fileKey.ToArray());
-        conn.WriteStanza("extension-labels", [], []);
+        // Deliberately no "extension-labels": advertising it promises we will act
+        // on the plugin's "labels" reply, and IRecipient.Label cannot carry a
+        // label set. Staying silent keeps a conforming plugin from sending
+        // "labels" at all, rather than having us discard a constraint it relies on.
         conn.WriteStanza("done", [], []);
     }
 
