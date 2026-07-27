@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 namespace Age.Crypto;
 
 // Bech32 encoding/decoding per BIP-173.
@@ -146,9 +147,20 @@ internal static class Bech32
 
         // Strip checksum
         var data5NoCheck = data5[..^6];
-        var data8 = ConvertBits(data5NoCheck, 5, 8, false);
 
-        return (hrp, data8);
+        try
+        {
+            return (hrp, ConvertBits(data5NoCheck, 5, 8, false));
+        }
+        finally
+        {
+            // X25519Identity.Parse and MlKem768X25519Identity.Parse both zero the byte[] this
+            // returns — while these hold a trivially invertible 5-bit representation of the very
+            // same AGE-SECRET-KEY payload. Clearing them here is what makes that care mean
+            // something. (The lowercased string cannot be cleared; see the caveat in the docs.)
+            CryptographicOperations.ZeroMemory(data5);
+            CryptographicOperations.ZeroMemory(data5NoCheck);
+        }
     }
 
     // BIP-173: General power-of-2 base conversion. Regroups bits from fromBits-sized groups
@@ -158,7 +170,15 @@ internal static class Bech32
         var acc = 0;
         var bits = 0;
         var maxv = (1 << toBits) - 1;
-        var ret = new List<byte>();
+
+        // Sized exactly rather than grown from an empty List<byte>: that reallocated its backing
+        // array as it filled and dropped every superseded generation uncleared, so the number of
+        // stray copies of a secret key was non-deterministic. Writing straight into the result
+        // also removes the extra ToArray copy.
+        var totalBits = data.Length * fromBits;
+        var count = pad ? (totalBits + toBits - 1) / toBits : totalBits / toBits;
+        var result = new byte[count];
+        var written = 0;
 
         foreach (var value in data)
         {
@@ -171,23 +191,24 @@ internal static class Bech32
             while (bits >= toBits)
             {
                 bits -= toBits;
-                ret.Add((byte)((acc >> bits) & maxv));
+                result[written++] = (byte)((acc >> bits) & maxv);
             }
         }
 
         if (pad)
         {
             if (bits > 0)
-                ret.Add((byte)((acc << (toBits - bits)) & maxv));
+                result[written++] = (byte)((acc << (toBits - bits)) & maxv);
         }
         else
         {
             if (bits >= fromBits)
                 throw new FormatException("excess padding in bech32 data");
+
             if (((acc << (toBits - bits)) & maxv) != 0)
                 throw new FormatException("non-zero padding bits in bech32 data");
         }
 
-        return ret.ToArray();
+        return written == result.Length ? result : result[..written];
     }
 }

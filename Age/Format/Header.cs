@@ -89,8 +89,17 @@ internal sealed class Header
         // HKDF-SHA-256(ikm=fileKey, salt="", info="header") → hmac_key (32 bytes)
         var hmacKeyBytes = CryptoHelper.HkdfDerive(fileKey, ReadOnlySpan<byte>.Empty, "header", 32);
 
-        // HMAC-SHA-256(key=hmac_key, message=headerBytes)
-        return CryptoHelper.HmacSha256(hmacKeyBytes, headerBytes);
+        try
+        {
+            // HMAC-SHA-256(key=hmac_key, message=headerBytes)
+            return CryptoHelper.HmacSha256(hmacKeyBytes, headerBytes);
+        }
+        finally
+        {
+            // A file-key-derived secret, left on the heap on every encrypt and every decrypt.
+            // Every other derived key on main is cleared by its owner; this was the omission.
+            CryptographicOperations.ZeroMemory(hmacKeyBytes);
+        }
     }
 
     public void WriteTo(Stream stream, ReadOnlySpan<byte> fileKey)

@@ -169,16 +169,24 @@ public static class AgeEncrypt
 
         var (header, fileKey) = BuildHeaderAndFileKey(recipients);
 
-        using var headerMs = new MemoryStream();
-        header.WriteTo(headerMs, fileKey);
-        var headerBytes = headerMs.ToArray();
+        // Anything between here and the clear below — header.WriteTo, the HKDF — used to
+        // abandon the file key if it threw.
+        try
+        {
+            using var headerMs = new MemoryStream();
+            header.WriteTo(headerMs, fileKey);
+            var headerBytes = headerMs.ToArray();
 
-        var payloadNonce = new byte[PayloadNonceSize];
-        RandomNumberGenerator.Fill(payloadNonce);
-        var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
-        CryptographicOperations.ZeroMemory(fileKey);
+            var payloadNonce = new byte[PayloadNonceSize];
+            RandomNumberGenerator.Fill(payloadNonce);
+            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
 
-        return new EncryptStream(headerBytes, payloadNonce, payloadKey, plaintext);
+            return new EncryptStream(headerBytes, payloadNonce, payloadKey, plaintext);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(fileKey);
+        }
     }
 
     /// <summary>
@@ -197,11 +205,20 @@ public static class AgeEncrypt
         try
         {
             var (fileKey, reader) = UnwrapHeaderFromReader(binaryInput, identities);
-            var payloadNonce = ReadPayloadNonce(reader);
-            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
-            CryptographicOperations.ZeroMemory(fileKey);
 
-            return new DecryptStream(payloadKey, binaryInput, needsDispose);
+            // ReadPayloadNonce throws on a file truncated inside the nonce — reachable from any
+            // attacker-supplied input — and the clear below was simply skipped.
+            try
+            {
+                var payloadNonce = ReadPayloadNonce(reader);
+                var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+
+                return new DecryptStream(payloadKey, binaryInput, needsDispose);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(fileKey);
+            }
         }
         catch
         {
@@ -226,27 +243,34 @@ public static class AgeEncrypt
 
         var header = new Header();
 
-        // A plugin may legitimately answer one wrap-file-key with several stanzas, so ask for
-        // all of them where the recipient can produce more than one. IRecipient.Wrap is public,
-        // shipped API returning a single Stanza and cannot be widened.
-        foreach (var recipient in recipients)
+        // Wrap can fail for entirely routine reasons — a plugin binary missing, a user declining
+        // a touch prompt — and every one of them used to abandon the fresh file key uncleared.
+        try
         {
-            if (recipient is IMultiStanzaRecipient multi)
-                header.Stanzas.AddRange(multi.WrapAll(fileKey));
-            else
-                header.Stanzas.Add(recipient.Wrap(fileKey));
-        }
+            // A plugin may legitimately answer one wrap-file-key with several stanzas, so ask for
+            // all of them where the recipient can produce more than one. IRecipient.Wrap is
+            // public, shipped API returning a single Stanza and cannot be widened.
+            foreach (var recipient in recipients)
+            {
+                if (recipient is IMultiStanzaRecipient multi)
+                    header.Stanzas.AddRange(multi.WrapAll(fileKey));
+                else
+                    header.Stanzas.Add(recipient.Wrap(fileKey));
+            }
 
-        // A scrypt stanza must be the only stanza in the header — the same rule
-        // decryption enforces. Checked post-Wrap so custom recipients that emit
-        // scrypt stanzas are caught too.
-        if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
+            // A scrypt stanza must be the only stanza in the header — the same rule decryption
+            // enforces. Checked post-Wrap so custom recipients that emit scrypt stanzas are
+            // caught too.
+            if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
+                throw new AgeException("a passphrase (scrypt) recipient must be the only recipient");
+
+            return (header, fileKey);
+        }
+        catch
         {
             CryptographicOperations.ZeroMemory(fileKey);
-            throw new AgeException("a passphrase (scrypt) recipient must be the only recipient");
+            throw;
         }
-
-        return (header, fileKey);
     }
 
     private static byte[] UnwrapFileKey(Stream headerInput, ReadOnlySpan<IIdentity> identities)
@@ -277,11 +301,22 @@ public static class AgeEncrypt
         if (fileKey is null)
             throw new NoIdentityMatchException();
 
-        if (fileKey.Length != FileKeySize)
-            throw new AgeHeaderException($"file key must be {FileKeySize} bytes, got {fileKey.Length}");
+        // Past this point the file key is genuine, so every throw must clear it. VerifyMac
+        // failing is entirely routine — a tampered or corrupted header — and left the real
+        // file key on the heap.
+        try
+        {
+            if (fileKey.Length != FileKeySize)
+                throw new AgeHeaderException($"file key must be {FileKeySize} bytes, got {fileKey.Length}");
 
-        header.VerifyMac(fileKey);
-        return (fileKey, reader);
+            header.VerifyMac(fileKey);
+            return (fileKey, reader);
+        }
+        catch
+        {
+            CryptographicOperations.ZeroMemory(fileKey);
+            throw;
+        }
     }
 
     private static (Stream binaryInput, bool needsDispose) DeArmorIfNeeded(Stream input)

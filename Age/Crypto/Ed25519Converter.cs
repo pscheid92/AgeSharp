@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Math.EC.Rfc7748;
 
@@ -57,11 +58,23 @@ internal static class Ed25519Converter
 
         var sha512 = new Sha512Digest();
         var hash = new byte[64];
-        sha512.BlockUpdate(ed25519Seed, 0, ed25519Seed.Length);
-        sha512.DoFinal(hash, 0);
 
-        var result = new byte[32];
-        Array.Copy(hash, result, 32);
-        return result;
+        try
+        {
+            sha512.BlockUpdate(ed25519Seed, 0, ed25519Seed.Length);
+            sha512.DoFinal(hash, 0);
+
+            var result = new byte[32];
+            Array.Copy(hash, result, 32);
+            return result;
+        }
+        finally
+        {
+            // Bytes 0-32 are the X25519 private key that SshEd25519Identity.Dispose is careful
+            // to zero, and bytes 32-64 are the Ed25519 signing nonce prefix — also private key
+            // material. Dropping this uncleared meant Dispose zeroed one copy while a complete
+            // second copy, plus the nonce, stayed in freed memory.
+            CryptographicOperations.ZeroMemory(hash);
+        }
     }
 }

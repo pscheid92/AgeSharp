@@ -143,26 +143,32 @@ public sealed class X25519Identity : IIdentity, IDisposable
 
         // DH: identity × ephemeral. This site already had the guard; it now shares the one
         // implementation so all eight agreement sites behave identically.
+        // The try opens before the agreement rather than after the derivation, so the shared
+        // secret is covered for its whole lifetime. The practical exposure of the old window was
+        // nil — on every path that could throw inside it the secret is all-zero by definition —
+        // but "covered from allocation" is the rule that does not need that argument to hold.
         var sharedSecret = new byte[CryptoHelper.X25519SharedSecretSize];
-        CryptoHelper.X25519Agree(privateKeyParams, ephPub, sharedSecret);
-
-        // HKDF: salt = ephPub || recipientPub, info = label
-        var recipientPubBytes = PublicKeyParams.GetEncoded();
-        var salt = (byte[])[.. ephPubBytes, .. recipientPubBytes];
-
-        var wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, AgeProtocol.X25519HkdfLabel, KeySize);
+        byte[]? wrapKey = null;
 
         try
         {
-            // Decrypt file key
-            var zeroNonce = new byte[12];
+            CryptoHelper.X25519Agree(privateKeyParams, ephPub, sharedSecret);
 
-            // AEAD failure → wrong recipient, not our stanza
+            // HKDF: salt = ephPub || recipientPub, info = label
+            var recipientPubBytes = PublicKeyParams.GetEncoded();
+            var salt = (byte[])[.. ephPubBytes, .. recipientPubBytes];
+
+            wrapKey = CryptoHelper.HkdfDerive(sharedSecret, salt, AgeProtocol.X25519HkdfLabel, KeySize);
+
+            // Decrypt file key. An AEAD failure means a wrong recipient, not our stanza.
+            var zeroNonce = new byte[12];
             return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span);
         }
         finally
         {
-            CryptographicOperations.ZeroMemory(wrapKey);
+            if (wrapKey is not null)
+                CryptographicOperations.ZeroMemory(wrapKey);
+
             CryptographicOperations.ZeroMemory(sharedSecret);
         }
     }

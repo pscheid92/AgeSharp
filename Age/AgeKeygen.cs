@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Age.Crypto;
 using Age.Plugin;
@@ -137,26 +138,56 @@ public static class AgeKeygen
     /// <summary>
     /// Decrypts an encrypted (passphrase-protected) identity file and parses the contained identities.
     /// </summary>
+    /// <remarks>
+    ///     The decrypted file contains <c>AGE-SECRET-KEY-1…</c> lines in the clear. The byte
+    ///     copies are cleared here; the <see cref="string" /> they are decoded into cannot be,
+    ///     because <see cref="ParseIdentityFile" /> takes a string and is shipped public API.
+    ///     Treat this as reducing the exposure rather than eliminating it.
+    /// </remarks>
     public static IIdentity[] DecryptIdentityFile(byte[] data, string passphrase)
     {
         using var input = new MemoryStream(data);
         using var output = new MemoryStream();
 
         AgeEncrypt.Decrypt(input, output, new ScryptRecipient(passphrase));
-        var plaintext = Encoding.UTF8.GetString(output.ToArray());
-        return ParseIdentityFile(plaintext);
+
+        // ToArray copies out, and the MemoryStream's own buffer keeps the plaintext too —
+        // Dispose does not clear it. Both are private keys in the clear.
+        var plaintextBytes = output.ToArray();
+
+        try
+        {
+            return ParseIdentityFile(Encoding.UTF8.GetString(plaintextBytes));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintextBytes);
+            CryptographicOperations.ZeroMemory(output.GetBuffer());
+        }
     }
 
     /// <summary>
     /// Encrypts an identity file with a passphrase using scrypt.
     /// </summary>
+    /// <remarks>
+    ///     <paramref name="identityFileText" /> holds private keys in the clear. The UTF-8 copy
+    ///     made here is cleared; the caller's string cannot be.
+    /// </remarks>
     public static byte[] EncryptIdentityFile(string identityFileText, string passphrase, bool armor = false, int workFactor = 18)
     {
         var plaintextBytes = Encoding.UTF8.GetBytes(identityFileText);
-        using var input = new MemoryStream(plaintextBytes);
-        using var output = new MemoryStream();
 
-        AgeEncrypt.Encrypt(input, output, armor, new ScryptRecipient(passphrase, workFactor));
-        return output.ToArray();
+        try
+        {
+            using var input = new MemoryStream(plaintextBytes);
+            using var output = new MemoryStream();
+
+            AgeEncrypt.Encrypt(input, output, armor, new ScryptRecipient(passphrase, workFactor));
+            return output.ToArray();
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintextBytes);
+        }
     }
 }

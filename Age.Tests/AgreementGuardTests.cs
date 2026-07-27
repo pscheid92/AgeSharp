@@ -31,6 +31,8 @@ public class AgreementGuardTests
     [MemberData(nameof(LowOrderPoints))]
     public void X25519Agree_RejectsLowOrderPoints(string name, string pointHex)
     {
+        Assert.NotEmpty(name);
+
         var privateKey = new X25519PrivateKeyParameters(new SecureRandom());
         var point = new X25519PublicKeyParameters(Convert.FromHexString(pointHex));
         var sharedSecret = new byte[CryptoHelper.X25519SharedSecretSize];
@@ -63,6 +65,8 @@ public class AgreementGuardTests
     [MemberData(nameof(LowOrderPoints))]
     public void TamperedEphemeralShare_IsCatchableAsAgeException(string name, string pointHex)
     {
+        Assert.NotEmpty(name);
+
         using var identity = X25519Identity.Generate();
 
         using var input = new MemoryStream("guarded"u8.ToArray());
@@ -88,6 +92,8 @@ public class AgreementGuardTests
     [MemberData(nameof(LowOrderPoints))]
     public void RecipientCarryingALowOrderPoint_IsCatchableAsAgeException(string name, string pointHex)
     {
+        Assert.NotEmpty(name);
+
         var recipient = X25519Recipient.Parse(Bech32.Encode("age", Convert.FromHexString(pointHex)));
 
         var ex = Record.Exception(() =>

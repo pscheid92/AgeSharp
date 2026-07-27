@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Generators;
@@ -18,19 +19,40 @@ internal static class HpkeHelper
 
     private static readonly byte[] HpkeV1 = "HPKE-v1"u8.ToArray();
 
+    // ss is the X-Wing shared secret and key is the ChaCha20-Poly1305 key that wraps the file
+    // key. Neither was cleared anywhere in this file, on either path.
     public static (byte[] Enc, byte[] Ct) SealBase(byte[] publicKey, byte[] info, byte[] plaintext)
     {
         var (ss, enc) = XWing.Encaps(publicKey);
         var (key, nonce) = KeyScheduleBase(ss, info);
-        var ct = CryptoHelper.ChaChaEncrypt(key, nonce, plaintext);
-        return (enc, ct);
+
+        try
+        {
+            return (enc, CryptoHelper.ChaChaEncrypt(key, nonce, plaintext));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(ss);
+            CryptographicOperations.ZeroMemory(key);
+            CryptographicOperations.ZeroMemory(nonce);
+        }
     }
 
     public static byte[]? OpenBase(byte[] enc, byte[] seed, byte[] info, byte[] ct)
     {
         var ss = XWing.Decaps(enc, seed);
         var (key, nonce) = KeyScheduleBase(ss, info);
-        return CryptoHelper.ChaChaDecrypt(key, nonce, ct);
+
+        try
+        {
+            return CryptoHelper.ChaChaDecrypt(key, nonce, ct);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(ss);
+            CryptographicOperations.ZeroMemory(key);
+            CryptographicOperations.ZeroMemory(nonce);
+        }
     }
 
     private static (byte[] Key, byte[] Nonce) KeyScheduleBase(byte[] sharedSecret, byte[] info)
@@ -46,11 +68,19 @@ internal static class HpkeHelper
         pskIdHash.CopyTo(ksContext, 1);
         infoHash.CopyTo(ksContext, 33);
 
+        // secret is the HPKE PRK — both the key and the nonce derive from it, so it outlives
+        // neither and is cleared as soon as they exist.
         var secret = LabeledExtract(sharedSecret, "secret", empty);
-        var key = LabeledExpand(secret, "key", ksContext, 32);
-        var baseNonce = LabeledExpand(secret, "base_nonce", ksContext, 12);
 
-        return (key, baseNonce);
+        try
+        {
+            return (LabeledExpand(secret, "key", ksContext, 32),
+                    LabeledExpand(secret, "base_nonce", ksContext, 12));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(secret);
+        }
     }
 
     private static byte[] LabeledExtract(byte[] salt, string label, byte[] ikm)
@@ -74,8 +104,17 @@ internal static class HpkeHelper
         // actual_salt: if empty, use Nh zero bytes (32 for SHA-256)
         var actualSalt = salt.Length > 0 ? salt : new byte[32];
 
-        // HKDF-Extract = HMAC(salt, ikm)
-        return CryptoHelper.HmacSha256(actualSalt, labeledIkm);
+        try
+        {
+            // HKDF-Extract = HMAC(salt, ikm)
+            return CryptoHelper.HmacSha256(actualSalt, labeledIkm);
+        }
+        finally
+        {
+            // labeledIkm ends with a verbatim copy of ikm, which on the "secret" call is the
+            // X-Wing shared secret.
+            CryptographicOperations.ZeroMemory(labeledIkm);
+        }
     }
 
     private static byte[] LabeledExpand(byte[] prk, string label, byte[] info, int length)
