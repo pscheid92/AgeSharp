@@ -209,6 +209,92 @@ public class PluginProcessTests
     // The tests above prove a planted binary is *not* run. This proves the fix did not simply
     // break plugin support, and it is the only test that drives PluginConnection's real process
     // path: launching, the stanza framing over stdio, the stderr drain (C6) and Dispose (H7).
+    // C4's dispatch, end to end. AgeEncrypt prefers IMultiStanzaRecipient when a recipient
+    // implements it, and nothing exercised that seam through the public API — the scripted tests
+    // all call WrapWithConnection directly.
+    [Fact]
+    public void EncryptingToAPluginRecipient_GoesThroughTheMultiStanzaPath()
+    {
+        var dir = NewTempDir();
+        var originalPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+        var name = "multi" + Guid.NewGuid().ToString("N")[..8];
+
+        PlantFakePlugin(dir, name, "plugin-stanza", Path.Combine(dir, "RAN"));
+
+        try
+        {
+            Environment.SetEnvironmentVariable("PATH", $"{dir}{Path.PathSeparator}{originalPath}");
+
+            var recipient = new PluginRecipient(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
+
+            using var input = new MemoryStream("through the facade"u8.ToArray());
+            using var output = new MemoryStream();
+            AgeEncrypt.Encrypt(input, output, recipient);
+
+            // The plugin's stanza reached the header, so the file is well formed even though we
+            // hold no identity that could open it.
+            var text = System.Text.Encoding.ASCII.GetString(output.ToArray());
+            Assert.Contains("-> plugin-stanza", text, StringComparison.Ordinal);
+            Assert.StartsWith("age-encryption.org/v1\n", text, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", originalPath);
+            TryDeleteTempDir(dir);
+        }
+    }
+
+    // H7: a plugin that ignores the close-and-wait must be killed rather than abandoned, or it
+    // leaks for the lifetime of the host along with its hold on any hardware token.
+    [Fact]
+    public void APluginThatRefusesToExit_IsKilledRatherThanAbandoned()
+    {
+        var dir = NewTempDir();
+        var originalPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+        var name = "stubborn" + Guid.NewGuid().ToString("N")[..8];
+
+        // Answers correctly, then sleeps well past the grace period instead of exiting when
+        // stdin closes.
+        if (OperatingSystem.IsWindows())
+        {
+            File.WriteAllText(Path.Combine(dir, $"age-plugin-{name}.CMD"),
+                "@echo off\r\n" +
+                "echo -^> recipient-stanza 0 stubborn-type\r\n" +
+                "echo QUFBQQ\r\n" +
+                "echo -^> done\r\n" +
+                "echo.\r\n" +
+                "ping -n 60 127.0.0.1 >nul\r\n");
+        }
+        else
+        {
+            PlantScript(dir, $"age-plugin-{name}",
+                "printf '\\055> recipient-stanza 0 stubborn-type\\nQUFBQQ\\n\\055> done\\n\\n'\n" +
+                "sleep 60\n");
+        }
+
+        try
+        {
+            Environment.SetEnvironmentVariable("PATH", $"{dir}{Path.PathSeparator}{originalPath}");
+
+            var recipient = new PluginRecipient(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
+
+            var started = DateTime.UtcNow;
+            var stanza = recipient.Wrap(new byte[16]);
+            var elapsed = DateTime.UtcNow - started;
+
+            Assert.Equal("stubborn-type", stanza.Type);
+
+            // Dispose waits out the 5s grace period and then kills; what matters is that it
+            // returns at all rather than waiting on a process that never exits.
+            Assert.True(elapsed < TimeSpan.FromSeconds(30), $"Dispose did not return promptly: {elapsed}");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", originalPath);
+            TryDeleteTempDir(dir);
+        }
+    }
+
     // C6's other half: draining stderr is only useful if the diagnostics reach the caller. When a
     // plugin dies without answering, its stderr is the sole account of why — previously discarded.
     [Fact]

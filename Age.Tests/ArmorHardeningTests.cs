@@ -25,10 +25,10 @@ public class ArmorHardeningTests
         return output.ToArray();
     }
 
-    // Honest note: this passes with and without the explicit CR guard, because the fragments a
-    // bare CR creates already fail the line-width rules. The guard makes the rejection explicit
-    // and refactor-proof rather than incidental — it does not close a reachable acceptance, and
-    // this test documents the behaviour rather than proving the fix.
+    // H9. There is no explicit CR guard and deliberately so — StreamReader.ReadLine splits on a
+    // lone CR, so a returned line can never contain one and any check would be dead code. The CR
+    // is still rejected, because the fragments it creates fail the line-width rules. This test
+    // pins that outcome rather than proving a fix.
     [Fact]
     public void BareCarriageReturnInArmorBody_IsRejected()
     {
