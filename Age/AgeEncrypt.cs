@@ -161,10 +161,14 @@ public static class AgeEncrypt
     {
         ArgumentException.ThrowIfEmpty(identities, "identity");
 
-        // Ownership leaves this method: on success it passes to the returned DecryptStream, so the
-        // only cleanup here is the failure path. That is why this one keeps an explicit flag while
-        // the other two dearmor sites express ownership by which variable holds the stream.
-        var (binaryInput, ownsStream) = DeArmorIfNeeded(ciphertext);
+        // `dearmored` is the ownership token: non-null means we made it and must dispose it.
+        // Unlike the other two dearmor sites this one cannot use `using`, because on success
+        // ownership passes to the returned DecryptStream — so the catch covers failure alone.
+        var dearmored = ciphertext.CanSeek && AsciiArmor.IsArmored(ciphertext)
+            ? AsciiArmor.Dearmor(ciphertext)
+            : null;
+
+        var binaryInput = dearmored ?? ciphertext;
 
         try
         {
@@ -175,12 +179,12 @@ public static class AgeEncrypt
                 var payloadNonce = ReadPayloadNonce(reader);
                 var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", PayloadKeySize);
 
-                return new DecryptStream(payloadKey, binaryInput, ownsStream);
+                return new DecryptStream(payloadKey, binaryInput, ownsStream: dearmored is not null);
             }
         }
         catch
         {
-            if (ownsStream) binaryInput.Dispose();
+            dearmored?.Dispose();
             throw;
         }
     }
@@ -271,17 +275,6 @@ public static class AgeEncrypt
             owned.Dispose();
             throw;
         }
-    }
-
-    // The bool is an ownership claim, not a cleanup instruction — same meaning as DecryptStream's
-    // ownsStream and the BCL's leaveOpen. Its load-bearing half is `false`: `input` belongs to the
-    // caller, and disposing it would close a stream they still hold.
-    private static (Stream binaryInput, bool ownsStream) DeArmorIfNeeded(Stream input)
-    {
-        if (input.CanSeek && AsciiArmor.IsArmored(input))
-            return (AsciiArmor.Dearmor(input), true);
-
-        return (input, false);
     }
 
     private static byte[] ReadPayloadNonce(HeaderReader reader)
