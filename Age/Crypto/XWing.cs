@@ -61,6 +61,34 @@ internal static class XWing
         {
             throw new FormatException($"invalid ML-KEM-768 encapsulation key: {ex.Message}", ex);
         }
+
+        // FromEncoding does not check the coefficients — BouncyCastle defers that to
+        // Encapsulate, which is far too late for a parse. FIPS 203's ByteDecode_12 requires every
+        // coefficient below q, and Go performs the equivalent ByteEncode(ByteDecode(x)) == x
+        // round trip when parsing a recipient. Without this, Parse accepted a key that then blew
+        // up mid-encryption, which is the whole defect.
+        if (!CoefficientsAreInRange(publicKey.AsSpan(0, CoefficientBytes)))
+            throw new FormatException(
+                "invalid ML-KEM-768 encapsulation key: a coefficient is not less than the modulus");
+    }
+
+    // The encapsulation key is k polynomials of 256 coefficients packed at 12 bits each, followed
+    // by a 32-byte seed. Three bytes carry two coefficients.
+    private const int CoefficientBytes = 1152;
+    private const int Modulus = 3329;
+
+    private static bool CoefficientsAreInRange(ReadOnlySpan<byte> packed)
+    {
+        for (var i = 0; i + 2 < packed.Length; i += 3)
+        {
+            var low = packed[i] | ((packed[i + 1] & 0x0F) << 8);
+            var high = (packed[i + 1] >> 4) | (packed[i + 2] << 4);
+
+            if (low >= Modulus || high >= Modulus)
+                return false;
+        }
+
+        return true;
     }
 
     public static (byte[] SharedSecret, byte[] Enc) Encaps(byte[] publicKey)
@@ -88,6 +116,14 @@ internal static class XWing
         var encapsulator = new MLKemEncapsulator(MLKemParameters.ml_kem_768);
         encapsulator.Init(mlKemPub);
         var ctM = new byte[MlKemCiphertextSize];
+
+        // BouncyCastle runs its modulus check inside Encapsulate rather than FromEncoding, so
+        // guarding only the decode above missed it and a raw ArgumentException escaped the public
+        // Encrypt. Reachable here because Encaps is internal and callable without going through
+        // Parse; through the public API, Parse now rejects such a key first.
+        if (!CoefficientsAreInRange(pkM.AsSpan(0, CoefficientBytes)))
+            throw new AgeHeaderException(
+                "invalid ML-KEM-768 public key: a coefficient is not less than the modulus");
 
         // ssM and ssX are the two halves the combiner hashes into the shared secret; both are
         // key material and neither was cleared anywhere in this file.
