@@ -95,6 +95,33 @@ public class BackportEdgeCaseTests
         return text.IndexOf('\n', macLine) + 1;
     }
 
+    // H6 — deriving the post-quantum recipient runs a full ML-KEM-768 key generation, and it was
+    // re-run on every access, so decrypting an N-stanza header cost N keygens. Caching makes that
+    // one. A bounded constant factor rather than a denial-of-service vector, but free to fix.
+    [Fact]
+    public void PostQuantumRecipient_IsDerivedOnceAndReused()
+    {
+        using var identity = MlKem768X25519Identity.Generate();
+
+        var first = identity.Recipient;
+        var second = identity.Recipient;
+
+        Assert.Same(first, second);
+        Assert.Equal(first.ToString(), second.ToString());
+    }
+
+    [Fact]
+    public void PostQuantumRecipient_IsStillGuardedAfterDispose()
+    {
+        var identity = MlKem768X25519Identity.Generate();
+        _ = identity.Recipient; // populate the cache first
+
+        identity.Dispose();
+
+        // The cache must not become a way to reach a disposed identity's derived key.
+        Assert.Throws<ObjectDisposedException>(() => identity.Recipient);
+    }
+
     // --- The span-filling encoder's own guard ---
 
     [Fact]
