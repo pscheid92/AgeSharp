@@ -30,20 +30,60 @@ public class PluginProcessTests
         return path;
     }
 
+    /// <summary>
+    /// Plants a fake <c>age-plugin-&lt;name&gt;</c> that records having run, answers recipient-v1
+    /// with one stanza, writes a few KiB to stderr, then holds stdin open until the client closes
+    /// it — the lifecycle a real plugin has.
+    /// </summary>
+    /// <remarks>
+    /// Cross-platform on purpose. S1 matters most on Windows, where <c>CreateProcess</c> searches
+    /// the application directory and the working directory by documented design, so skipping the
+    /// process tests there would leave the more dangerous platform unverified end to end.
+    /// </remarks>
+    private static string PlantFakePlugin(string directory, string pluginName, string stanzaType, string evidence)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            // `^` escapes `>` for cmd; `echo.` emits a blank line; `more` drains stdin to EOF.
+            var cmd = Path.Combine(directory, $"age-plugin-{pluginName}.CMD");
+            File.WriteAllText(cmd,
+                "@echo off\r\n" +
+                $"echo ran>\"{evidence}\"\r\n" +
+                "for /L %%i in (1,1,200) do echo plugin diagnostic noise 1>&2\r\n" +
+                $"echo -^> recipient-stanza 0 {stanzaType}\r\n" +
+                "echo QUFBQQ\r\n" +
+                "echo -^> done\r\n" +
+                "echo.\r\n" +
+                "more >nul\r\n");
+            return cmd;
+        }
+
+        return PlantScript(directory, $"age-plugin-{pluginName}",
+            $"touch '{evidence}'\n" +
+            "i=0; while [ $i -lt 200 ]; do echo 'plugin diagnostic noise' >&2; i=$((i+1)); done\n" +
+            // A body ends at the first line under 64 characters, so the 6-char body needs no
+            // terminator; an empty body is a multiple of 64 and does, hence the blank after done.
+            $"printf '\\055> recipient-stanza 0 {stanzaType}\\nQUFBQQ\\n\\055> done\\n\\n'\n" +
+            // Foreground: POSIX sh redirects a background job's stdin from /dev/null, so a
+            // backgrounded drain would take EOF at once and the script would exit under the
+            // client's writes.
+            "cat >/dev/null\n");
+    }
+
     // --- S1: plugin binaries must never be resolved from the current working directory ---
 
-    [SkippableFact]
+    // Runs on every platform, including Windows — where CreateProcess searches the working
+    // directory by design and this is therefore the most important place to assert it does not.
+    [Fact]
     public void PluginConnection_NeverExecutesBinaryFromCurrentDirectory()
     {
-        Skip.If(OperatingSystem.IsWindows(), "planting an executable requires POSIX file modes");
-
         var dir = NewTempDir();
         var marker = Path.Combine(dir, "EXECUTED");
 
         // The plugin name has to be one nothing else could plausibly provide, so a hit
         // can only have come from the current directory.
         var name = "cwdprobe" + Guid.NewGuid().ToString("N")[..8];
-        PlantScript(dir, $"age-plugin-{name}", $"touch '{marker}'\nexit 0\n");
+        PlantFakePlugin(dir, name, "cwd-type", marker);
 
         var previous = Directory.GetCurrentDirectory();
 
@@ -152,31 +192,15 @@ public class PluginProcessTests
     // The tests above prove a planted binary is *not* run. This proves the fix did not simply
     // break plugin support, and it is the only test that drives PluginConnection's real process
     // path: launching, the stanza framing over stdio, the stderr drain (C6) and Dispose (H7).
-    [SkippableFact]
+    [Fact]
     public void PluginOnPath_IsLaunchedAndItsStanzaIsUsed()
     {
-        Skip.If(OperatingSystem.IsWindows(), "planting an executable requires POSIX file modes");
-
         var dir = NewTempDir();
         var originalPath = Environment.GetEnvironmentVariable("PATH") ?? "";
         var name = "onpath" + Guid.NewGuid().ToString("N")[..8];
         var evidence = Path.Combine(dir, "RAN");
 
-        // recipient-v1: answer wrap-file-key with one stanza, then done. Also writes a few KiB
-        // to stderr, which deadlocked before C6 drained it.
-        PlantScript(dir, $"age-plugin-{name}",
-            $"touch '{evidence}'\n" +
-            // A few KiB of stderr, exercising the C6 drain.
-            "i=0; while [ $i -lt 200 ]; do echo 'plugin diagnostic noise' >&2; i=$((i+1)); done\n" +
-            // Framing: a body ends at the first line shorter than 64 characters, so the 6-char
-            // body needs no terminator. An empty body is a multiple of 64 and does need one,
-            // which is why "done" is followed by a blank line and the stanza above is not.
-            "printf '\\055> recipient-stanza 0 onpath-type\\nQUFBQQ\\n\\055> done\\n\\n'\n" +
-            // Then hold stdin open until the client closes it, the way a real plugin does.
-            // Backgrounding this would not work: POSIX sh redirects a background job's stdin
-            // from /dev/null, so the drain would take EOF immediately and the script would exit
-            // under the client's writes.
-            "cat >/dev/null\n");
+        PlantFakePlugin(dir, name, "onpath-type", evidence);
 
         try
         {
