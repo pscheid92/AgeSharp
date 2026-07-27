@@ -13,7 +13,19 @@ public sealed class PluginLocatorTests : IDisposable
 {
     private readonly string _dir = Directory.CreateTempSubdirectory("agesharp-locator-").FullName;
 
-    public void Dispose() => Directory.Delete(_dir, recursive: true);
+    // Best-effort: on Windows a just-written executable is often still held open by the virus
+    // scanner, and a temp directory the OS reclaims anyway must not fail a passing test.
+    public void Dispose()
+    {
+        try
+        {
+            Directory.Delete(_dir, recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Left for the OS to reclaim.
+        }
+    }
 
     private string Plant(string name, string? directory = null)
     {

@@ -18,6 +18,23 @@ public class PluginProcessTests
         return dir;
     }
 
+    /// <summary>
+    /// Best-effort cleanup. On Windows a just-written executable is often still held open by the
+    /// virus scanner, and a temp directory the OS will reclaim anyway must not decide whether a
+    /// test passed — the assertions have already run by the time this is reached.
+    /// </summary>
+    private static void TryDeleteTempDir(string dir)
+    {
+        try
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Left for the OS to reclaim.
+        }
+    }
+
     /// <summary>Writes an executable shell script that records the fact that it ran.</summary>
     private static string PlantScript(string directory, string fileName, string body)
     {
@@ -100,7 +117,7 @@ public class PluginProcessTests
 
         Assert.False(File.Exists(marker), "the planted binary in the current directory was executed");
 
-        Directory.Delete(dir, recursive: true);
+        TryDeleteTempDir(dir);
     }
 
     [SkippableFact]
@@ -124,7 +141,7 @@ public class PluginProcessTests
         finally
         {
             Directory.SetCurrentDirectory(previous);
-            Directory.Delete(dir, recursive: true);
+            TryDeleteTempDir(dir);
         }
     }
 
@@ -145,7 +162,7 @@ public class PluginProcessTests
         }
         finally
         {
-            Directory.Delete(dir, recursive: true);
+            TryDeleteTempDir(dir);
         }
     }
 
@@ -168,7 +185,7 @@ public class PluginProcessTests
         }
         finally
         {
-            Directory.Delete(dir, recursive: true);
+            TryDeleteTempDir(dir);
         }
     }
 
@@ -183,7 +200,7 @@ public class PluginProcessTests
         }
         finally
         {
-            Directory.Delete(dir, recursive: true);
+            TryDeleteTempDir(dir);
         }
     }
 
@@ -218,7 +235,7 @@ public class PluginProcessTests
         finally
         {
             Environment.SetEnvironmentVariable("PATH", originalPath);
-            Directory.Delete(dir, recursive: true);
+            TryDeleteTempDir(dir);
         }
     }
 }
