@@ -72,8 +72,16 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
             switch (type)
             {
                 case "file-key":
-                    if (args.Length < 1)
-                        throw new AgePluginException("file-key stanza missing file index");
+                    // One file was sent, so index 0 is the only valid answer, and a second
+                    // file-key is a protocol error rather than a replacement — silently
+                    // overwriting left the discarded key material unzeroed on the heap.
+                    if (args.Length != 1 || args[0] != "0")
+                        throw new AgePluginException(
+                            $"file-key stanza has unexpected file index: {string.Join(' ', args)}");
+
+                    if (result is not null)
+                        throw new AgePluginException("duplicate file-key stanza");
+
                     result = body;
                     conn.WriteStanza("ok", [], []);
                     break;
@@ -141,8 +149,13 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
 
     private void HandleConfirm(PluginConnection conn, string[] args, byte[] body)
     {
+        // See PluginRecipient.HandleConfirm — the yes label is mandatory per the spec, and
+        // this pair of methods is duplicated verbatim across the two plugin types.
+        if (args.Length is not (1 or 2))
+            throw new AgePluginException("malformed confirm stanza: unexpected number of arguments");
+
         var message = Encoding.UTF8.GetString(body);
-        var yes = args.Length > 0 ? DecodeOptionLabel(args[0]) : "yes";
+        var yes = DecodeOptionLabel(args[0]);
         var no = args.Length > 1 ? DecodeOptionLabel(args[1]) : null;
         var confirmed = callbacks!.Confirm(message, yes, no);
         conn.WriteStanza("ok", [confirmed ? "yes" : "no"], []);

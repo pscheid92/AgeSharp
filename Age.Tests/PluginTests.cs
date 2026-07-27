@@ -549,7 +549,9 @@ public class PluginTests
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("file-key", ["1"], fileKey);
+        // Index 0: the client sends one file, so a conforming plugin answers for file 0.
+        // This fixture used "1", which is now rejected (I4).
+        mockConn.WriteStanza("file-key", ["0"], fileKey);
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
 
@@ -953,8 +955,13 @@ public class PluginTests
         Assert.DoesNotContain("-> fail", capturedOutput.ToString());
     }
 
+    // Previously named ..._UsesDefaults and asserting that a zero-argument confirm was answered
+    // with a fabricated "yes" label. That was the defect (I5): the spec's form is
+    // (confirm, Base64(YES_STRING) [Base64(NO_STRING)]; MESSAGE), so the yes label is mandatory.
+    // Inventing one showed the user a prompt whose affirmative button text the library made up,
+    // and answered a malformed command as though it were well formed. go-age rejects it.
     [Fact]
-    public void PluginRecipient_Wrap_ConfirmWithoutLabels_UsesDefaults()
+    public void PluginRecipient_Wrap_ConfirmWithoutLabels_Throws()
     {
         var recipientStr = MakePluginRecipient("test");
         var callbacks = new TestCallbacks { ConfirmResponse = true };
@@ -967,14 +974,11 @@ public class PluginTests
         mockConn.WriteStanza("done", [], []);
         var pluginResponse = pluginOutput.ToString();
 
-        var capturedOutput = new StringWriter();
-        var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapWithConnection(conn, new byte[16]);
+        var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
 
-        Assert.Single(callbacks.Confirmations);
-        Assert.Equal("yes", callbacks.Confirmations[0].Yes);
-        Assert.Null(callbacks.Confirmations[0].No);
-        Assert.Contains("-> ok yes", capturedOutput.ToString());
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
+        Assert.Contains("malformed confirm stanza", ex.Message);
+        Assert.Empty(callbacks.Confirmations);
     }
 
     [Fact]
@@ -1239,7 +1243,7 @@ public class PluginTests
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
         var ex = Assert.Throws<AgePluginException>(() => identity.UnwrapWithConnection(conn, stanzas));
-        Assert.Contains("missing file index", ex.Message);
+        Assert.Contains("unexpected file index", ex.Message);
     }
 
     [Fact]

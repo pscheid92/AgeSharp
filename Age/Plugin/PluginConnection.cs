@@ -231,10 +231,27 @@ internal sealed class PluginConnection : IDisposable
         }
         catch
         {
-            // EMPTY
+            // Already closed or the process is gone; nothing to do either way.
         }
 
-        _process.WaitForExit(5000);
+        // Closing stdin asks the plugin to exit. If it declines, kill it: previously the wait
+        // simply expired and the process was abandoned, leaking it (and its hold on any hardware
+        // token) for the lifetime of the host.
+        if (!_process.WaitForExit(ExitGraceMilliseconds))
+        {
+            try
+            {
+                _process.Kill(entireProcessTree: true);
+                _process.WaitForExit(ExitGraceMilliseconds);
+            }
+            catch (InvalidOperationException)
+            {
+                // Raced us and exited on its own between the wait and the kill.
+            }
+        }
+
         _process.Dispose();
     }
+
+    private const int ExitGraceMilliseconds = 5000;
 }

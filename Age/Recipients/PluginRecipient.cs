@@ -119,6 +119,12 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
         if (args.Length < 2)
             throw new AgePluginException("recipient-stanza missing file index or type");
 
+        // We send exactly one file key, so the only index the plugin may answer with is 0.
+        // Accepting a stanza addressed to a file we never mentioned is protocol
+        // non-conformance; go-age rejects it outright.
+        if (args[0] != "0")
+            throw new AgePluginException($"recipient-stanza has unexpected file index: {args[0]}");
+
         var stanzaType = args[1];
         var stanzaArgs = args.Length > 2 ? args[2..] : [];
         return new Stanza(stanzaType, stanzaArgs, body);
@@ -164,8 +170,15 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
     private void HandleConfirm(PluginConnection conn, string[] args, byte[] body)
     {
+        // The spec's form is (confirm, Base64(YES_STRING) [Base64(NO_STRING)]; MESSAGE) — the
+        // yes label is mandatory. Inventing "yes" showed the user a prompt whose affirmative
+        // button text the library made up, and then answered a malformed command as if it were
+        // well formed.
+        if (args.Length is not (1 or 2))
+            throw new AgePluginException("malformed confirm stanza: unexpected number of arguments");
+
         var message = Encoding.UTF8.GetString(body);
-        var yes = args.Length > 0 ? DecodeOptionLabel(args[0]) : "yes";
+        var yes = DecodeOptionLabel(args[0]);
         var no = args.Length > 1 ? DecodeOptionLabel(args[1]) : null;
         var confirmed = callbacks!.Confirm(message, yes, no);
         conn.WriteStanza("ok", [confirmed ? "yes" : "no"], []);
