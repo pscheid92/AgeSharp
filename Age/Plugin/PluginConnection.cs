@@ -137,7 +137,7 @@ internal sealed class PluginConnection : IDisposable
         if (line == null)
             return null;
 
-        if (!line.StartsWith("-> "))
+        if (!line.StartsWith("-> ", StringComparison.Ordinal))
             throw new AgePluginException($"expected stanza prefix '-> ', got: {line}");
 
         var parts = line[3..].Split(' ');

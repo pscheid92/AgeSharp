@@ -93,7 +93,7 @@ public sealed class Stanza
     {
         var line = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header while reading stanza");
 
-        if (!line.StartsWith("-> "))
+        if (!line.StartsWith("-> ", StringComparison.Ordinal))
             throw new AgeHeaderException($"expected stanza prefix '-> ', got: {line}");
 
         var parts = line[3..].Split(' ');

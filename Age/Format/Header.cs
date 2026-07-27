@@ -30,12 +30,12 @@ internal sealed class Header
         {
             var line = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header");
 
-            if (line.StartsWith("-> "))
+            if (line.StartsWith("-> ", StringComparison.Ordinal))
             {
                 reader.PushBack(line);
                 header.Stanzas.Add(Stanza.Parse(reader));
             }
-            else if (line.StartsWith("---"))
+            else if (line.StartsWith("---", StringComparison.Ordinal))
             {
                 ParseMacLine(header, line, reader);
                 break;
@@ -53,7 +53,7 @@ internal sealed class Header
 
     private static void ParseMacLine(Header header, string line, HeaderReader reader)
     {
-        if (!line.StartsWith("--- "))
+        if (!line.StartsWith("--- ", StringComparison.Ordinal))
             throw new AgeHeaderException($"expected MAC line starting with '--- ', got: {line}");
 
         var macB64 = line[4..];

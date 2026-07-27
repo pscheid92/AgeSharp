@@ -101,8 +101,8 @@ public static class AgeKeygen
         {
             "age" => X25519Recipient.Parse(line),
             "age1pq" => MlKem768X25519Recipient.Parse(line),
-            _ when hrp.StartsWith("age1") => new PluginRecipient(line, callbacks),
-            _ when line.StartsWith("ssh-") => ParseSshRecipient(line),
+            _ when hrp.StartsWith("age1", StringComparison.Ordinal) => new PluginRecipient(line, callbacks),
+            _ when line.StartsWith("ssh-", StringComparison.Ordinal) => ParseSshRecipient(line),
             _ => throw new FormatException($"unrecognized recipient: {line}")
         };
     }
@@ -122,11 +122,11 @@ public static class AgeKeygen
             if (trimmed.Length == 0 || trimmed.StartsWith('#'))
                 continue;
 
-            if (trimmed.StartsWith("AGE-SECRET-KEY-PQ-"))
+            if (trimmed.StartsWith("AGE-SECRET-KEY-PQ-", StringComparison.Ordinal))
                 identities.Add(MlKem768X25519Identity.Parse(trimmed));
-            else if (trimmed.StartsWith("AGE-SECRET-KEY-"))
+            else if (trimmed.StartsWith("AGE-SECRET-KEY-", StringComparison.Ordinal))
                 identities.Add(X25519Identity.Parse(trimmed));
-            else if (trimmed.StartsWith("AGE-PLUGIN-"))
+            else if (trimmed.StartsWith("AGE-PLUGIN-", StringComparison.Ordinal))
                 identities.Add(new PluginIdentity(trimmed, callbacks));
             else
                 throw new FormatException($"unrecognized line in identity file: {trimmed}");

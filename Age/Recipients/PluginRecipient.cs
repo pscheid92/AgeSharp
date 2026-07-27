@@ -203,7 +203,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
         // A plugin recipient HRP is "age1<name>"; require the "age1" prefix so hrp[4..]
         // is always in range (a shorter HRP like "age" would otherwise throw).
-        var name = hrp.StartsWith("age1")
+        var name = hrp.StartsWith("age1", StringComparison.Ordinal)
             ? hrp[4..]
             : throw new FormatException($"invalid plugin recipient HRP: {hrp}");
 
