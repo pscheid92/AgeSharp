@@ -27,7 +27,17 @@ public sealed class X25519Identity : IIdentity, IDisposable
     }
 
     /// <summary>The matching public recipient (<c>age1…</c>), derived from the secret key.</summary>
-    public X25519Recipient Recipient => new(PublicKeyParams);
+    /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
+    public X25519Recipient Recipient
+    {
+        get
+        {
+            // Without this guard a disposed identity derives from the all-zero key
+            // and returns a well-formed, publicly derivable recipient.
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return new(PublicKeyParams);
+        }
+    }
 
     private X25519PublicKeyParameters PublicKeyParams
     {
@@ -73,8 +83,11 @@ public sealed class X25519Identity : IIdentity, IDisposable
     /// Returns the bech32-encoded secret key (<c>AGE-SECRET-KEY-1…</c>), e.g. for
     /// writing to an identity file. Handle the result as a secret.
     /// </summary>
+    /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public string ToSecretString()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var rawCopy = new byte[KeySize];
         Array.Copy(_rawPrivateKey, rawCopy, KeySize);
 
@@ -88,9 +101,11 @@ public sealed class X25519Identity : IIdentity, IDisposable
     /// Returns a redacted representation containing only the public recipient, so
     /// accidental logging or string interpolation cannot leak the secret key.
     /// Use <see cref="ToSecretString"/> to export the secret key.
+    /// Never throws: a disposed identity renders as <c>X25519Identity(disposed)</c>,
+    /// so debugger and logging calls stay safe.
     /// </summary>
     public override string ToString() =>
-        $"X25519Identity({Recipient})";
+        _disposed ? "X25519Identity(disposed)" : $"X25519Identity({Recipient})";
 
     /// <summary>
     /// Attempts to unwrap the file key from an X25519 stanza. Returns null for
