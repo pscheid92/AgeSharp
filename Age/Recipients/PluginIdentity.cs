@@ -46,10 +46,15 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
     {
         conn.WriteStanza("add-identity", [identity], []);
 
-        for (var i = 0; i < stanzas.Count; i++)
+        // FILE_INDEX identifies the file, not the stanza: "Duplicate file indices indicate
+        // stanzas that are from the same file header, and wrap the same file key." We are
+        // decrypting exactly one file, so every stanza carries 0 — as go-age does. Numbering
+        // them 0..n-1 presented one header as n phantom files, which defeats the spec's
+        // same-index invalidation rule and stops a plugin from ever reassembling a file key
+        // that is split across stanzas.
+        foreach (var s in stanzas)
         {
-            var s = stanzas[i];
-            string[] args = [i.ToString(), s.Type, .. s.Args];
+            string[] args = ["0", s.Type, .. s.Args];
             conn.WriteStanza("recipient-stanza", args, s.Body.ToArray());
         }
 

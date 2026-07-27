@@ -565,8 +565,11 @@ public class PluginTests
 
         Assert.NotNull(result);
         var sent = capturedOutput.ToString();
+        // Both stanzas come from ONE header, so both carry FILE_INDEX 0. This previously
+        // asserted 0 and 1, pinning a defect: numbering per stanza told the plugin it was
+        // looking at two separate files.
         Assert.Contains("-> recipient-stanza 0 X25519 a1", sent);
-        Assert.Contains("-> recipient-stanza 1 scrypt a2 18", sent);
+        Assert.Contains("-> recipient-stanza 0 scrypt a2 18", sent);
     }
 
     [Fact]

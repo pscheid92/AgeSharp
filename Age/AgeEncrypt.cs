@@ -226,8 +226,16 @@ public static class AgeEncrypt
 
         var header = new Header();
 
+        // A plugin may legitimately answer one wrap-file-key with several stanzas, so ask for
+        // all of them where the recipient can produce more than one. IRecipient.Wrap is public,
+        // shipped API returning a single Stanza and cannot be widened.
         foreach (var recipient in recipients)
-            header.Stanzas.Add(recipient.Wrap(fileKey));
+        {
+            if (recipient is IMultiStanzaRecipient multi)
+                header.Stanzas.AddRange(multi.WrapAll(fileKey));
+            else
+                header.Stanzas.Add(recipient.Wrap(fileKey));
+        }
 
         // A scrypt stanza must be the only stanza in the header — the same rule
         // decryption enforces. Checked post-Wrap so custom recipients that emit
