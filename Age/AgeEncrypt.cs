@@ -168,10 +168,9 @@ public static class AgeEncrypt
             ? AsciiArmor.Dearmor(ciphertext)
             : null;
 
-        var binaryInput = dearmored ?? ciphertext;
-
         try
         {
+            var binaryInput = dearmored ?? ciphertext;
             var (fileKey, reader) = UnwrapHeaderFromReader(binaryInput, identities);
 
             using (fileKey)
@@ -202,13 +201,15 @@ public static class AgeEncrypt
     /// </remarks>
     private static Header BuildHeader(ReadOnlySpan<IRecipient> recipients, ReadOnlySpan<byte> fileKey)
     {
-        // Check label consistency — reject mixing PQ and non-PQ recipients
+        // age-plugin.md:227 — every stanza wrapping one file key must carry the exact same label
+        // set, with no partial overlap. Comparing each against the first is that check: string
+        // equality is transitive, so agreeing with the first implies agreeing pairwise.
         var firstLabel = recipients[0].Label;
 
         for (var i = 1; i < recipients.Length; i++)
         {
             if (recipients[i].Label != firstLabel)
-                throw new AgeException("cannot mix recipients with different security labels");
+                throw new AgeException(IncompatibleLabels(firstLabel, recipients[i].Label));
         }
 
         var header = new Header();
@@ -231,6 +232,23 @@ public static class AgeEncrypt
             throw new AgeException("a passphrase (scrypt) recipient must be the only recipient");
 
         return header;
+    }
+
+    /// <summary>
+    /// Explains a label mismatch, naming the consequence when post-quantum security is what was
+    /// lost. "Different security labels" is accurate but leaves the user to work out the cost.
+    /// </summary>
+    private static string IncompatibleLabels(string? a, string? b)
+    {
+        const string postQuantum = "postquantum";
+
+        if (a == postQuantum || b == postQuantum)
+            return "cannot mix post-quantum and classical recipients: the file would be "
+                 + "readable by a quantum computer, so the post-quantum recipient buys nothing";
+
+        return $"cannot mix recipients with different security labels: {Describe(a)} and {Describe(b)}";
+
+        static string Describe(string? label) => label is null ? "none" : $"\"{label}\"";
     }
 
     private static FileKey UnwrapFileKey(Stream headerInput, ReadOnlySpan<IIdentity> identities)

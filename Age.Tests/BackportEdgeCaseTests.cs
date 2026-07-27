@@ -20,6 +20,48 @@ public class BackportEdgeCaseTests
         public byte[]? Unwrap(Stanza stanza) => new byte[15];
     }
 
+    // age-plugin.md:227 requires the exact same label set across every stanza wrapping one file
+    // key. Wrap throws, so these also prove the check runs before any wrapping happens.
+    private sealed class LabelledRecipient(string? label) : IRecipient
+    {
+        public string? Label => label;
+
+        public Stanza Wrap(ReadOnlySpan<byte> fileKey) =>
+            throw new NotSupportedException("label check should have rejected this first");
+    }
+
+    [Theory]
+    [InlineData("postquantum", null)]
+    [InlineData(null, "postquantum")]
+    [InlineData("postquantum", "acme-internal")]
+    public void MixingPostQuantumWithAnythingElse_NamesWhatIsLost(string? a, string? b)
+    {
+        var ex = Assert.Throws<AgeException>(() => Encrypt(a, b));
+
+        Assert.Contains("post-quantum and classical", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("quantum computer", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("acme-internal", null, "\"acme-internal\"", "none")]
+    [InlineData("acme-internal", "globex", "\"acme-internal\"", "\"globex\"")]
+    public void MixingOtherLabels_NamesBothSides(string? a, string? b, string expectedA, string expectedB)
+    {
+        var ex = Assert.Throws<AgeException>(() => Encrypt(a, b));
+
+        Assert.Contains(expectedA, ex.Message, StringComparison.Ordinal);
+        Assert.Contains(expectedB, ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("quantum", ex.Message, StringComparison.Ordinal);
+    }
+
+    private static void Encrypt(string? a, string? b)
+    {
+        using var input = new MemoryStream("x"u8.ToArray());
+        using var output = new MemoryStream();
+
+        AgeEncrypt.Encrypt(input, output, new LabelledRecipient(a), new LabelledRecipient(b));
+    }
+
     [Fact]
     public void FileKey_ZeroesOnDispose()
     {

@@ -426,6 +426,54 @@ asserts `-> extension-labels` is sent and must be updated.
 
 **Confidence** — certain; reproduced.
 
+**Follow-up: what the spec actually asks for, and why v0.2 cannot give it**
+
+`references/age-plugin.md` is normative and unambiguous that a label is a *set* per recipient:
+
+- `:307` — "The order of labels in the command is irrelevant. Clients MUST treat them as an
+  unordered set."
+- `:227` — "Clients MUST check that all recipient stanzas wrapping a given file key have the exact
+  same label set. Clients MUST NOT permit partial overlapping sets."
+- `:305` — "Plugins MUST NOT send duplicate labels", so sorted-list equality is set equality for any
+  conforming plugin. `references/go-age/age.go:130` relies on exactly that (`sort.Strings` then
+  `slices.Equal`).
+- `:291-304` names three idioms: a *common public* label (`postquantum`), a *common private* label
+  (plugins from one vendor that may only combine with each other), and a *random* label (force the
+  stanza to be used alone).
+
+Our `IRecipient.Label` is `string?`, so it represents the empty set and singletons only. Of the
+three idioms, two survive: `postquantum` is a singleton, and the random-label idiom works because
+`firstLabel` is read once and cached, so a lone recipient passes and any pairing fails. What cannot
+be represented is a set of size >= 2 — a vendor plugin wanting `{postquantum, acme-internal}` has to
+drop one, and dropping either silently loosens a constraint the plugin was relying on.
+
+There is a second, structural reason the type alone is not the whole gap. `Label` is a property read
+*before* any wrapping (`AgeEncrypt.BuildHeader`), whereas a plugin can only declare its labels
+partway through the recipient-v1 conversation — `references/go-age/plugin/client.go:141` takes them
+from the wrap exchange, which is why Go's interface is
+`WrapWithLabels(fileKey) (stanzas, labels, err)`. A property that must answer before the plugin
+process starts cannot carry plugin labels whatever its type is.
+
+Both are why S6's fix is to stop advertising `extension-labels` rather than to half-implement it.
+
+**Related divergence: scrypt's implicit label set (not a defect)**
+
+`references/age-plugin.md:232-233` — "The `scrypt` recipient stanza has an implicit label set
+containing a single random label. In other words, it can't be combined with any other stanza."
+`ScryptRecipient` declares no label at all, so by the spec's model it reports the *empty* set, the
+same as x25519 (`:231`), and the label check alone would let `scrypt + x25519` through. The rule is
+enforced instead by the explicit structural check in `BuildHeader` that rejects a scrypt stanza
+alongside any other. Same outcome by a different mechanism, and arguably the stronger one: it runs
+*after* `Wrap` and keys off the emitted stanza type, so a custom recipient that emits a scrypt
+stanza is caught too, which a label on `ScryptRecipient` would not catch. Recorded so the divergence
+is deliberate rather than discovered later.
+
+**v0.3 shape** — move labels onto the wrap result rather than a property, and widen to a set:
+`WrapResult Wrap(ReadOnlySpan<byte> fileKey)` carrying `IReadOnlyList<Stanza>` plus
+`IReadOnlySet<string> Labels`. That subsumes S6, the `IMultiStanzaRecipient` side-interface added for
+C4, and this scrypt special case in one change — scrypt then genuinely returns a random singleton,
+as the spec describes.
+
 ---
 
 <a id="s7"></a>
