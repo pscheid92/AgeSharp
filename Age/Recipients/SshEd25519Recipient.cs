@@ -49,8 +49,6 @@ public sealed class SshEd25519Recipient : IRecipient
 
         // tweakedKey = X25519.ScalarMult(tweak, _x25519PublicKey)
         var tweakPrivate = new X25519PrivateKeyParameters(tweak);
-        // A recipient parsed from a hostile authorized_keys line can carry a low-order point,
-        // so both agreements go through the guarded helper here too.
         var recipientPub = new X25519PublicKeyParameters(_x25519PublicKey);
         var tweakedKey = new byte[CryptoHelper.X25519SharedSecretSize];
         CryptoHelper.X25519Agree(tweakPrivate, recipientPub, tweakedKey);

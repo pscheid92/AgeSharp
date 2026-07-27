@@ -45,11 +45,6 @@ internal static class PluginLocator
 
     private static IEnumerable<string> Candidates(string directory, string binaryName, string? pathExt)
     {
-        // No try/catch around Path.Combine: .NET Core dropped the invalid-character check, so it
-        // does not throw for a PATH entry the platform cannot express — it just yields a path
-        // that File.Exists then reports as absent. A catch here would be unreachable by
-        // construction, and unreachable defensive code is worse than none: it reads as a handled
-        // case that has never been handled.
         var basePath = Path.Combine(directory, binaryName);
 
         yield return basePath;

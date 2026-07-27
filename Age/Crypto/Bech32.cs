@@ -154,10 +154,8 @@ internal static class Bech32
         }
         finally
         {
-            // X25519Identity.Parse and MlKem768X25519Identity.Parse both zero the byte[] this
-            // returns — while these hold a trivially invertible 5-bit representation of the very
-            // same AGE-SECRET-KEY payload. Clearing them here is what makes that care mean
-            // something. (The lowercased string cannot be cleared; see the caveat in the docs.)
+            // A trivially invertible 5-bit image of the same secret key. (The lowercased string
+            // cannot be cleared.)
             CryptographicOperations.ZeroMemory(data5);
             CryptographicOperations.ZeroMemory(data5NoCheck);
         }
@@ -171,10 +169,8 @@ internal static class Bech32
         var bits = 0;
         var maxv = (1 << toBits) - 1;
 
-        // Sized exactly rather than grown from an empty List<byte>: that reallocated its backing
-        // array as it filled and dropped every superseded generation uncleared, so the number of
-        // stray copies of a secret key was non-deterministic. Writing straight into the result
-        // also removes the extra ToArray copy.
+        // Sized exactly: growing a List<byte> would scatter uncleared copies of a secret key
+        // across every reallocated backing array.
         var totalBits = data.Length * fromBits;
         var count = pad ? (totalBits + toBits - 1) / toBits : totalBits / toBits;
         var result = new byte[count];

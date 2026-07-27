@@ -141,8 +141,7 @@ public sealed class X25519Identity : IIdentity, IDisposable
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
         var privateKeyParams = new X25519PrivateKeyParameters(_rawPrivateKey);
 
-        // DH: identity × ephemeral. This site already had the guard; it now shares the one
-        // implementation so all eight agreement sites behave identically.
+        // DH: identity × ephemeral
         // The try opens before the agreement rather than after the derivation, so the shared
         // secret is covered for its whole lifetime. The practical exposure of the old window was
         // nil — on every path that could throw inside it the secret is all-zero by definition —

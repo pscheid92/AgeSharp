@@ -70,10 +70,8 @@ internal static class Ed25519Converter
         }
         finally
         {
-            // Bytes 0-32 are the X25519 private key that SshEd25519Identity.Dispose is careful
-            // to zero, and bytes 32-64 are the Ed25519 signing nonce prefix — also private key
-            // material. Dropping this uncleared meant Dispose zeroed one copy while a complete
-            // second copy, plus the nonce, stayed in freed memory.
+            // Bytes 0-32 are the X25519 private key; 32-64 the Ed25519 signing nonce prefix.
+            // Both are key material.
             CryptographicOperations.ZeroMemory(hash);
         }
     }

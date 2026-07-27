@@ -25,10 +25,8 @@ internal sealed class PluginConnection : IDisposable
 
         var binaryName = $"age-plugin-{pluginName}";
 
-        // Resolve against PATH explicitly. Process.Start would otherwise find a bare file
-        // name in the caller's current working directory — arbitrary code execution from
-        // any untrusted tree the caller happens to be sitting in — which the age-plugin
-        // spec prohibits verbatim.
+        // Resolved explicitly: Process.Start would find a bare name in the caller's working
+        // directory, which age-plugin.md prohibits ("MUST NOT be searched").
         var binaryPath = PluginLocator.Find(binaryName)
                          ?? throw new AgePluginException($"plugin not found: {binaryName}");
 
@@ -58,10 +56,8 @@ internal sealed class PluginConnection : IDisposable
         _reader = _process.StandardOutput;
         _writer = _process.StandardInput;
 
-        // The redirect above creates a pipe. Nothing read it, so once a chatty plugin wrote past
-        // the OS pipe buffer (65536 bytes on macOS and Linux) its write(2) blocked while we sat
-        // blocked reading stdout — a deadlock with no timeout. Drain it off-thread, and keep the
-        // tail so a failure can quote what the plugin actually said.
+        // Drained off-thread: an undrained stderr pipe deadlocks once the plugin writes past the
+        // OS buffer (65536 bytes on macOS and Linux). The tail is kept for error messages.
         _process.ErrorDataReceived += (_, e) =>
         {
             if (e.Data is null)
@@ -92,11 +88,9 @@ internal sealed class PluginConnection : IDisposable
     /// </summary>
     internal AgePluginException Failure(string message, Exception? inner = null)
     {
-        // BeginErrorReadLine delivers asynchronously, so at the moment a failure is detected the
-        // plugin's last words may not have arrived yet. On an error path a short bounded wait is
-        // worth it: without this the tail is usually empty exactly when it would be most useful.
-        // WaitForExit(int) does not flush the async readers — only the parameterless overload
-        // does, and it returns at once once the process is gone.
+        // BeginErrorReadLine delivers asynchronously, so the plugin's last words may not have
+        // arrived yet. WaitForExit(int) does not flush the async readers; the parameterless
+        // overload does.
         if (_process is not null && _process.WaitForExit(StderrFlushMilliseconds))
             _process.WaitForExit();
 
@@ -156,9 +150,8 @@ internal sealed class PluginConnection : IDisposable
 
         _writer.Write('\n');
 
-        // The body carries the wrapped file key on wrap-file-key and the recovered one on the
-        // way back, so it is encoded into a buffer we can clear rather than into an immutable
-        // string that would sit on the heap until a GC happened to move it.
+        // The body carries the file key, so it is encoded into a clearable buffer rather than an
+        // immutable string.
         var encoded = ArrayPool<char>.Shared.Rent(Base64Unpadded.MaxEncodedLength(body.Length));
 
         try
@@ -205,10 +198,8 @@ internal sealed class PluginConnection : IDisposable
         var stanzaType = parts[0];
         var stanzaArgs = parts.Length > 1 ? parts[1..] : [];
 
-        // Stanza.Parse validates the charset on the file-parsing path; this path did not, so a
-        // plugin's strings reached `new Stanza(...)` and surfaced as a raw ArgumentException out
-        // of a method documented to throw AgePluginException. Two consecutive spaces sufficed.
-        // Validating here covers PluginRecipient and PluginIdentity with one guard.
+        // Validated here rather than at `new Stanza(...)`, so both plugin types are covered and
+        // a malformed stanza is an AgePluginException rather than a raw ArgumentException.
         ValidateStanzaString(stanzaType, "type");
 
         foreach (var arg in stanzaArgs)
@@ -245,9 +236,8 @@ internal sealed class PluginConnection : IDisposable
                 case > 64:
                     throw new AgePluginException("stanza body line exceeds 64 characters");
                 case > 0:
-                    // Base64Unpadded.Decode throws FormatException for malformed, padded and
-                    // non-canonical input alike. Unwrapped, that escaped a method documented to
-                    // throw AgePluginException — DecodeOptionLabel next door already got this right.
+                    // Decode throws FormatException for malformed, padded and non-canonical input
+                    // alike; the plugin path reports all three as AgePluginException.
                     try
                     {
                         bodyChunks.Add(Base64Unpadded.Decode(bodyLine));
@@ -291,9 +281,8 @@ internal sealed class PluginConnection : IDisposable
             // Already closed or the process is gone; nothing to do either way.
         }
 
-        // Closing stdin asks the plugin to exit. If it declines, kill it: previously the wait
-        // simply expired and the process was abandoned, leaking it (and its hold on any hardware
-        // token) for the lifetime of the host.
+        // Closing stdin asks the plugin to exit; if it declines, kill it rather than leak the
+        // process and its hold on any hardware token.
         if (!_process.WaitForExit(ExitGraceMilliseconds))
         {
             try

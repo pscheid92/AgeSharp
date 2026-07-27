@@ -33,9 +33,8 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable
             // and returns a well-formed, publicly derivable recipient.
             ObjectDisposedException.ThrowIf(_disposed, this);
 
-            // Cached: the derivation is deterministic and runs a full ML-KEM-768 key generation,
-            // so recomputing it per access made decrypting an N-stanza header cost N keygens.
-            // No lock — racing threads compute the same value and reference assignment is atomic.
+            // Cached: deriving this runs a full ML-KEM-768 keygen. No lock — the derivation is
+            // deterministic, so racing threads compute the same value.
             return _recipient ??= new MlKem768X25519Recipient(XWing.GeneratePublicKey(_seed));
         }
     }

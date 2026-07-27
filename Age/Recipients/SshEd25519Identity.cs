@@ -96,18 +96,14 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         var privateKey = new X25519PrivateKeyParameters(_x25519PrivateKey);
 
         // rawSS = X25519.ScalarMult(_x25519PrivateKey, ephPub). The ephemeral share comes from
-        // the stanza, so it is attacker-controlled: routed through the guarded helper so a
-        // low-order point is an AgeHeaderException rather than a raw BCL exception escaping
-        // the public Decrypt.
+        // the stanza, so it is attacker-controlled.
         var rawSS = new byte[CryptoHelper.X25519SharedSecretSize];
         CryptoHelper.X25519Agree(privateKey, ephPub, rawSS);
 
         // tweak = HKDF(ikm=[], salt=sshWireBytes, info=label, 32)
         var tweak = CryptoHelper.HkdfDerive([], _sshWireBytes, AgeProtocol.SshEd25519HkdfLabel, KeySize);
 
-        // tweakedSS = X25519.ScalarMult(tweak, rawSS). This one cannot yield zero once the
-        // agreement above succeeded — the clamped scalar puts the result in the prime-order
-        // subgroup — but routing it too costs nothing and keeps the rule in one place.
+        // tweakedSS = X25519.ScalarMult(tweak, rawSS)
         var tweakPrivate = new X25519PrivateKeyParameters(tweak);
         var rawSSPub = new X25519PublicKeyParameters(rawSS);
 
