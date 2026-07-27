@@ -968,19 +968,22 @@ public class ScryptRecipientTests
     }
 
     [Fact]
-    public void Unwrap_Rejects_WorkFactor_Over_20()
+    // The cap is 22, matching Go's ScryptIdentity default, so that files the reference CLI
+    // produces are readable. This asserted 21 was rejected, which is exactly the interop
+    // failure (I3): genuine age-produced files at work factor 21 and 22 were refused.
+    public void Unwrap_Rejects_WorkFactor_Over_22()
     {
         var recipient = new ScryptRecipient("password");
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
-        var stanza = new Stanza("scrypt", [saltB64, "21"], new byte[32]);
+        var stanza = new Stanza("scrypt", [saltB64, "23"], new byte[32]);
         Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
     }
 
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    [InlineData(21)]
+    [InlineData(23)]
     [InlineData(31)]
     [InlineData(64)]
     public void Constructor_Rejects_OutOfRange_WorkFactor(int workFactor)

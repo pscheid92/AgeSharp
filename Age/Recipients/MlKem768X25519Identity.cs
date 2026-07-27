@@ -32,9 +32,15 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable
             // Without this guard a disposed identity derives from the all-zero seed
             // and returns a well-formed, publicly derivable recipient.
             ObjectDisposedException.ThrowIf(_disposed, this);
-            return new(XWing.GeneratePublicKey(_seed));
+
+            // Cached: the derivation is deterministic and runs a full ML-KEM-768 key generation,
+            // so recomputing it per access made decrypting an N-stanza header cost N keygens.
+            // No lock — racing threads compute the same value and reference assignment is atomic.
+            return _recipient ??= new MlKem768X25519Recipient(XWing.GeneratePublicKey(_seed));
         }
     }
+
+    private MlKem768X25519Recipient? _recipient;
 
     /// <summary>Generates a new identity from a cryptographically secure random seed.</summary>
     public static MlKem768X25519Identity Generate()

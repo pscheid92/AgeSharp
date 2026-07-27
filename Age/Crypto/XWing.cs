@@ -43,6 +43,26 @@ internal static class XWing
         }
     }
 
+    /// <summary>
+    ///     Checks that the ML-KEM half of an X-Wing public key actually decodes, so a malformed
+    ///     recipient is rejected at parse time rather than partway through an encryption.
+    /// </summary>
+    /// <exception cref="FormatException">The ML-KEM-768 encapsulation key is not well formed.</exception>
+    public static void ValidatePublicKey(byte[] publicKey)
+    {
+        if (publicKey.Length != PublicKeySize)
+            throw new FormatException($"public key must be {PublicKeySize} bytes, got {publicKey.Length}");
+
+        try
+        {
+            MLKemPublicKeyParameters.FromEncoding(MLKemParameters.ml_kem_768, publicKey[..MlKemPublicKeySize]);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            throw new FormatException($"invalid ML-KEM-768 encapsulation key: {ex.Message}", ex);
+        }
+    }
+
     public static (byte[] SharedSecret, byte[] Enc) Encaps(byte[] publicKey)
     {
         if (publicKey.Length != PublicKeySize)
