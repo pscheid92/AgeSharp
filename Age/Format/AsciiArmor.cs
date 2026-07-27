@@ -45,7 +45,9 @@ internal static class AsciiArmor
     {
         // Bound the line length at the byte level so the reader below can keep
         // using the fast ReadLine path without risking an unbounded allocation.
-        var bounded = new NewlineBoundedStream(input, AgeLimits.MaxArmorLineBytes);
+        // leaveOpen: true stops the dispose chain at the wrapper — `input` belongs to the caller.
+        // The StreamReader keeps leaveOpen: false so it still disposes the wrapper we created.
+        var bounded = new NewlineBoundedStream(input, AgeLimits.MaxArmorLineBytes, leaveOpen: true);
         var reader = new StreamReader(bounded, Encoding.ASCII, detectEncodingFromByteOrderMarks: false,
             bufferSize: 4096, leaveOpen: false);
 
