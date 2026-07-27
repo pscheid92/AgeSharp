@@ -119,7 +119,31 @@ internal sealed class PluginConnection : IDisposable
         _writer = writer;
     }
 
+    /// <summary>
+    /// Writes one stanza to the plugin.
+    /// </summary>
+    /// <remarks>
+    /// A plugin that has already died leaves us writing into a closed pipe, which surfaces as a
+    /// raw <see cref="IOException"/> out of a path documented to throw
+    /// <see cref="AgePluginException"/>. Which end of the protocol noticed the death first is a
+    /// timing accident — the client writes its whole request before reading a byte, so on a fast
+    /// machine the write fails and on a slow one the read does. Both now report the same way,
+    /// with the plugin's stderr attached.
+    /// </remarks>
+    /// <exception cref="AgePluginException">The plugin exited or the pipe broke.</exception>
     public void WriteStanza(string type, string[] args, byte[] body)
+    {
+        try
+        {
+            WriteStanzaCore(type, args, body);
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+        {
+            throw Failure("the plugin exited before the request could be sent", ex);
+        }
+    }
+
+    private void WriteStanzaCore(string type, string[] args, byte[] body)
     {
         _writer.Write("-> ");
         _writer.Write(type);

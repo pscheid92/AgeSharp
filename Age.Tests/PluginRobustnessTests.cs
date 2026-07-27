@@ -60,6 +60,32 @@ public class PluginRobustnessTests
         Assert.Contains("invalid character", ex.Message, StringComparison.Ordinal);
     }
 
+    // A plugin that has already died leaves us writing into a closed pipe. Which side notices
+    // first is a timing accident — the client sends its whole request before reading a byte — so
+    // on a fast exit the write breaks and on a slow one the read does. Both must report the same
+    // way. Driven through a throwing writer so it is deterministic on every platform, rather than
+    // depending on winning a race with a real process.
+    [Fact]
+    public void WriteToADeadPlugin_IsAPluginException()
+    {
+        var recipient = new PluginRecipient(MakePluginRecipient("dead"));
+        var conn = new PluginConnection(new StringReader(""), new BrokenPipeWriter());
+
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
+
+        Assert.Contains("exited before the request could be sent", ex.Message, StringComparison.Ordinal);
+        Assert.IsType<IOException>(ex.InnerException);
+    }
+
+    private sealed class BrokenPipeWriter : TextWriter
+    {
+        public override System.Text.Encoding Encoding => System.Text.Encoding.ASCII;
+
+        public override void Write(char value) => throw new IOException("Broken pipe");
+
+        public override void Write(string? value) => throw new IOException("Broken pipe");
+    }
+
     [Fact]
     public void MalformedPluginInput_IsAlwaysCatchableAsAgeException()
     {

@@ -234,6 +234,9 @@ public class PluginProcessTests
             Environment.SetEnvironmentVariable("PATH", $"{dir}{Path.PathSeparator}{originalPath}");
 
             var recipient = new PluginRecipient(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
+            // Which side notices the death is a timing accident — the client writes its whole
+            // request before reading, so a fast exit breaks the write and a slow one breaks the
+            // read. Both must report as AgePluginException, with the stderr attached.
             var ex = Assert.Throws<AgePluginException>(() => recipient.Wrap(new byte[16]));
 
             Assert.Contains("catastrophic plugin failure", ex.Message, StringComparison.Ordinal);
