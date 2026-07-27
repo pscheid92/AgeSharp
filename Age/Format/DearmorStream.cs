@@ -22,7 +22,7 @@ internal sealed class DearmorStream : Stream
     private int _decodeOffset;
     private int _decodeCount;
     private bool _finished;
-    private bool _lastLineWasShort;
+    private bool _bodyEnded;
 
     public DearmorStream(StreamReader reader)
     {
@@ -98,14 +98,11 @@ internal sealed class DearmorStream : Stream
         if (!Convert.TryFromBase64Chars(line.AsSpan(), _decodeBuffer, out var bytesWritten))
             throw new AgeArmorException("invalid base64 in armor");
 
-        // Full-length lines (64 chars) encode exactly 48 bytes with no padding.
-        // If padding is present on a full line, the decode succeeds but is non-canonical.
-        if (line.Length == ColumnsPerLine && bytesWritten != MaxDecodedPerLine)
-            throw new AgeArmorException("non-canonical base64 in armor");
-
-        // Short lines may have padding — validate the trailing bits are zero.
-        if (line.Length < ColumnsPerLine)
-            ValidateCanonicalPadding(line.AsSpan());
+        // Padding may appear on a line of any width: a final chunk of 46 bytes encodes to a
+        // full 64 characters ending "==", and 47 bytes to 64 characters ending "=". Wherever it
+        // appears, the bits the padding covers must be zero. Runs after the decode above so a
+        // structurally malformed line fails there first.
+        ValidateCanonicalPadding(line.AsSpan());
 
         _decodeOffset = 0;
         _decodeCount = bytesWritten;
@@ -137,11 +134,14 @@ internal sealed class DearmorStream : Stream
         if (line.Length > ColumnsPerLine)
             throw new AgeArmorException($"armor body line exceeds {ColumnsPerLine} characters");
 
-        if (_lastLineWasShort)
+        if (_bodyEnded)
             throw new AgeArmorException("short line in armor body is not the last line");
 
-        if (line.Length < ColumnsPerLine)
-            _lastLineWasShort = true;
+        // The body ends at the first line that cannot be followed by another: one shorter than
+        // the full column width, or a full-width line carrying base64 padding (46- and 47-byte
+        // final chunks encode to exactly 64 characters).
+        if (line.Length < ColumnsPerLine || line[^1] == '=')
+            _bodyEnded = true;
 
         var invalid = line.AsSpan().IndexOfAnyExcept(Base64Chars);
 

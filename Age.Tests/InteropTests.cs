@@ -207,4 +207,40 @@ public class InteropTests
 
         Assert.Equal(plaintext, result);
     }
+
+    // --- Armor: every plaintext length through more than four mod-48 cycles ---
+
+    [SkippableFact]
+    public void Armored_EncryptWithAge_DecryptWithCSharp_AcrossEveryLengthResidue()
+    {
+        // The armored body is base64 in 64-character lines, so the shape of the final line
+        // cycles with the ciphertext length mod 48. Two residues out of every 48 produce a
+        // full-width final line that carries padding — a 46- or 47-byte final chunk — and the
+        // decoder used to reject exactly those. Walking 0..220 covers the cycle four times over
+        // and pins the two residues that failed (plaintext sizes 38, 39, 86, 87, 134, 135,
+        // 182, 183 for a single X25519 recipient).
+        Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
+
+        using var identity = X25519Identity.Generate();
+        var recipient = identity.Recipient.ToString();
+        var failures = new List<int>();
+
+        for (var size = 0; size <= 220; size++)
+        {
+            var plaintext = MakePlaintext(size);
+            var ciphertext = AgeCli.Encrypt(plaintext, armored: true, recipient);
+
+            try
+            {
+                if (!DecryptWithCSharp(ciphertext, identity).SequenceEqual(plaintext))
+                    failures.Add(size);
+            }
+            catch (AgeException)
+            {
+                failures.Add(size);
+            }
+        }
+
+        Assert.Empty(failures);
+    }
 }
