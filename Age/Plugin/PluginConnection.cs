@@ -54,6 +54,40 @@ internal sealed class PluginConnection : IDisposable
 
         _reader = _process.StandardOutput;
         _writer = _process.StandardInput;
+
+        // The redirect above creates a pipe. Nothing read it, so once a chatty plugin wrote past
+        // the OS pipe buffer (65536 bytes on macOS and Linux) its write(2) blocked while we sat
+        // blocked reading stdout — a deadlock with no timeout. Drain it off-thread, and keep the
+        // tail so a failure can quote what the plugin actually said.
+        _process.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data is null)
+                return;
+
+            lock (_stderrTail)
+            {
+                _stderrTail.Enqueue(e.Data);
+
+                while (_stderrTail.Count > StderrTailLines)
+                    _stderrTail.Dequeue();
+            }
+        };
+
+        _process.BeginErrorReadLine();
+    }
+
+    private const int StderrTailLines = 20;
+
+    private readonly Queue<string> _stderrTail = new();
+
+    /// <summary>The last few lines the plugin wrote to stderr, for quoting in error messages.</summary>
+    internal string StderrTail
+    {
+        get
+        {
+            lock (_stderrTail)
+                return _stderrTail.Count == 0 ? "" : string.Join('\n', _stderrTail);
+        }
     }
 
     /// <summary>
@@ -113,9 +147,32 @@ internal sealed class PluginConnection : IDisposable
 
         var stanzaType = parts[0];
         var stanzaArgs = parts.Length > 1 ? parts[1..] : [];
+
+        // Stanza.Parse validates the charset on the file-parsing path; this path did not, so a
+        // plugin's strings reached `new Stanza(...)` and surfaced as a raw ArgumentException out
+        // of a method documented to throw AgePluginException. Two consecutive spaces sufficed.
+        // Validating here covers PluginRecipient and PluginIdentity with one guard.
+        ValidateStanzaString(stanzaType, "type");
+
+        foreach (var arg in stanzaArgs)
+            ValidateStanzaString(arg, "argument");
+
         var body = ReadBody();
 
         return (stanzaType, stanzaArgs, body);
+    }
+
+    // Printable ASCII only (0x21-0x7E): a space or newline would corrupt the stanza framing.
+    private static void ValidateStanzaString(string s, string what)
+    {
+        if (string.IsNullOrEmpty(s))
+            throw new AgePluginException($"plugin sent an empty stanza {what}");
+
+        var invalid = s.AsSpan().IndexOfAnyExceptInRange('!', '~');
+
+        if (invalid >= 0)
+            throw new AgePluginException(
+                $"plugin sent an invalid character in a stanza {what}: 0x{(int)s[invalid]:X2}");
     }
 
     private byte[] ReadBody()
@@ -131,7 +188,18 @@ internal sealed class PluginConnection : IDisposable
                 case > 64:
                     throw new AgePluginException("stanza body line exceeds 64 characters");
                 case > 0:
-                    bodyChunks.Add(Base64Unpadded.Decode(bodyLine));
+                    // Base64Unpadded.Decode throws FormatException for malformed, padded and
+                    // non-canonical input alike. Unwrapped, that escaped a method documented to
+                    // throw AgePluginException — DecodeOptionLabel next door already got this right.
+                    try
+                    {
+                        bodyChunks.Add(Base64Unpadded.Decode(bodyLine));
+                    }
+                    catch (FormatException ex)
+                    {
+                        throw new AgePluginException($"plugin sent an invalid stanza body: {ex.Message}", ex);
+                    }
+
                     break;
             }
 
