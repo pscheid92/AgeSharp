@@ -86,6 +86,14 @@ internal sealed class DearmorStream : Stream
         var line = _reader.ReadLine()
             ?? throw new AgeArmorException("unexpected end of armored data");
 
+        // StreamReader.ReadLine treats a lone CR as a terminator. go-age strips \r only when it
+        // follows \n, so a bare CR stays in the line and fails base64; rage rejects it explicitly
+        // (ArmoredReadError::LineContainsCr). A bare CR is already rejected here in every case
+        // tried — the fragments it creates fail the line-width rules — so this makes the
+        // rejection explicit and refactor-proof rather than incidental.
+        if (line.Contains('\r'))
+            throw new AgeArmorException("armor line contains a carriage return");
+
         if (line == EndMarker)
         {
             _finished = true;

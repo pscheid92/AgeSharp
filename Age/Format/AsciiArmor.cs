@@ -56,10 +56,17 @@ internal static class AsciiArmor
         // "  \n\t-----BEGIN AGE ENCRYPTED FILE-----" is valid. With line-based
         // reading we skip blank lines, then TrimStart the marker line.
         string? line;
+        var skippedWhitespace = 0;
 
         do
         {
             line = reader.ReadLine();
+
+            // Bounded, as go-age bounds it: an unbounded skip means a file that is nothing but
+            // newlines is read to its end before the header is even looked for.
+            if (line is not null && (skippedWhitespace += line.Length + 1) > AgeLimits.MaxLeadingWhitespaceBytes)
+                throw new AgeArmorException(
+                    $"more than {AgeLimits.MaxLeadingWhitespaceBytes} bytes of whitespace before the armor header");
         } while (line != null && line.AsSpan().Trim().Length == 0);
 
         if (line == null)

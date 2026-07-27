@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Age.Crypto;
 using Age.Format;
@@ -73,7 +74,20 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
     private void SendWrapRequest(PluginConnection conn, ReadOnlySpan<byte> fileKey)
     {
         conn.WriteStanza("add-recipient", [recipient], []);
-        conn.WriteStanza("wrap-file-key", [], fileKey.ToArray());
+
+        // Named rather than inlined so the raw copy of the file key can be cleared; passing
+        // fileKey.ToArray() as an argument left it on the heap with no reference to clear it by.
+        var fileKeyCopy = fileKey.ToArray();
+
+        try
+        {
+            conn.WriteStanza("wrap-file-key", [], fileKeyCopy);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(fileKeyCopy);
+        }
+
         // Deliberately no "extension-labels": advertising it promises we will act
         // on the plugin's "labels" reply, and IRecipient.Label cannot carry a
         // label set. Staying silent keeps a conforming plugin from sending

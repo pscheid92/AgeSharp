@@ -1,5 +1,8 @@
+using System.Buffers;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using Age.Crypto;
 
 namespace Age.Plugin;
@@ -112,22 +115,35 @@ internal sealed class PluginConnection : IDisposable
 
         _writer.Write('\n');
 
-        var encoded = Base64Unpadded.Encode(body);
-        var offset = 0;
+        // The body carries the wrapped file key on wrap-file-key and the recovered one on the
+        // way back, so it is encoded into a buffer we can clear rather than into an immutable
+        // string that would sit on the heap until a GC happened to move it.
+        var encoded = ArrayPool<char>.Shared.Rent(Base64Unpadded.MaxEncodedLength(body.Length));
 
-        while (offset < encoded.Length)
+        try
         {
-            var len = Math.Min(64, encoded.Length - offset);
-            _writer.Write(encoded.AsSpan(offset, len));
-            _writer.Write('\n');
-            offset += len;
+            var length = Base64Unpadded.Encode(body, encoded);
+            var offset = 0;
+
+            while (offset < length)
+            {
+                var len = Math.Min(64, length - offset);
+                _writer.Write(encoded.AsSpan(offset, len));
+                _writer.Write('\n');
+                offset += len;
+            }
+
+            // Empty body or exact multiple of 64 chars both need an empty terminator line
+            if (length % 64 == 0)
+                _writer.Write('\n');
+
+            _writer.Flush();
         }
-
-        // Empty body or exact multiple of 64 chars both need an empty terminator line
-        if (encoded.Length % 64 == 0)
-            _writer.Write('\n');
-
-        _writer.Flush();
+        finally
+        {
+            CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(encoded.AsSpan()));
+            ArrayPool<char>.Shared.Return(encoded);
+        }
     }
 
     public (string Type, string[] Args, byte[] Body)? ReadStanza()
