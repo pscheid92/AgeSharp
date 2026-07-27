@@ -81,16 +81,33 @@ internal sealed class PluginConnection : IDisposable
 
     private const int StderrTailLines = 20;
 
+    private const int StderrFlushMilliseconds = 500;
+
     private readonly Queue<string> _stderrTail = new();
 
-    /// <summary>The last few lines the plugin wrote to stderr, for quoting in error messages.</summary>
-    internal string StderrTail
+    /// <summary>
+    /// Builds an <see cref="AgePluginException"/> carrying the last few lines the plugin wrote to
+    /// stderr. When a plugin dies or misbehaves its diagnostics are the only evidence of why, and
+    /// before the stderr pipe was drained they were unreachable.
+    /// </summary>
+    internal AgePluginException Failure(string message, Exception? inner = null)
     {
-        get
-        {
-            lock (_stderrTail)
-                return _stderrTail.Count == 0 ? "" : string.Join('\n', _stderrTail);
-        }
+        // BeginErrorReadLine delivers asynchronously, so at the moment a failure is detected the
+        // plugin's last words may not have arrived yet. On an error path a short bounded wait is
+        // worth it: without this the tail is usually empty exactly when it would be most useful.
+        // WaitForExit(int) does not flush the async readers — only the parameterless overload
+        // does, and it returns at once once the process is gone.
+        if (_process is not null && _process.WaitForExit(StderrFlushMilliseconds))
+            _process.WaitForExit();
+
+        string tail;
+
+        lock (_stderrTail)
+            tail = _stderrTail.Count == 0 ? "" : string.Join('\n', _stderrTail);
+
+        var full = tail.Length == 0 ? message : $"{message}; plugin stderr:\n{tail}";
+
+        return inner is null ? new AgePluginException(full) : new AgePluginException(full, inner);
     }
 
     /// <summary>

@@ -114,7 +114,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
                     break;
 
                 case "error":
-                    throw new AgePluginException($"plugin error: {Encoding.UTF8.GetString(body)}");
+                    throw conn.Failure($"plugin error: {Encoding.UTF8.GetString(body)}");
 
                 case "done":
                     return result.Count > 0
@@ -146,7 +146,9 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
     private static (string Type, string[] Args, byte[] Body) ReadNextStanza(PluginConnection conn)
     {
-        var raw = conn.ReadStanza() ?? throw new AgePluginException("unexpected end of plugin output");
+        // The plugin died or closed stdout. Its stderr is the only account of why, so it is
+        // quoted into the message rather than discarded.
+        var raw = conn.ReadStanza() ?? throw conn.Failure("unexpected end of plugin output");
         return raw;
     }
 

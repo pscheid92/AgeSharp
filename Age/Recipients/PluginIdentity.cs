@@ -103,7 +103,7 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
     private static void HandleError(PluginConnection conn, string[] args, byte[] body)
     {
         if (args.Length > 0 && args[0] == "internal")
-            throw new AgePluginException($"plugin internal error: {Encoding.UTF8.GetString(body)}");
+            throw conn.Failure($"plugin internal error: {Encoding.UTF8.GetString(body)}");
 
         // Identity errors mean this identity doesn't match — return null
         conn.WriteStanza("ok", [], []);
@@ -111,7 +111,9 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
 
     private static (string Type, string[] Args, byte[] Body) ReadNextStanza(PluginConnection conn)
     {
-        var raw = conn.ReadStanza() ?? throw new AgePluginException("unexpected end of plugin output");
+        // The plugin died or closed stdout. Its stderr is the only account of why, so it is
+        // quoted into the message rather than discarded.
+        var raw = conn.ReadStanza() ?? throw conn.Failure("unexpected end of plugin output");
         return raw;
     }
 

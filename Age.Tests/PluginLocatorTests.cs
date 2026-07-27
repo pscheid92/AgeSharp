@@ -76,7 +76,10 @@ public sealed class PluginLocatorTests : IDisposable
         Assert.DoesNotContain("second", result, StringComparison.Ordinal);
     }
 
-    // A PATH entry the platform cannot express must be skipped, not throw out of Find.
+    // A PATH entry the platform cannot express must not derail the search. Note this passes for
+    // a duller reason than it looks: .NET Core's Path.Combine no longer rejects such characters,
+    // so the entry simply resolves to a path that does not exist. Kept as a regression guard in
+    // case that ever changes.
     [Fact]
     public void UnusablePathEntry_IsSkippedRatherThanThrowing()
     {

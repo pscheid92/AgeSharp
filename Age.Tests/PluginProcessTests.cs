@@ -209,6 +209,42 @@ public class PluginProcessTests
     // The tests above prove a planted binary is *not* run. This proves the fix did not simply
     // break plugin support, and it is the only test that drives PluginConnection's real process
     // path: launching, the stanza framing over stdio, the stderr drain (C6) and Dispose (H7).
+    // C6's other half: draining stderr is only useful if the diagnostics reach the caller. When a
+    // plugin dies without answering, its stderr is the sole account of why — previously discarded.
+    [Fact]
+    public void WhenAPluginDies_ItsStderrIsQuotedInTheException()
+    {
+        var dir = NewTempDir();
+        var originalPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+        var name = "dying" + Guid.NewGuid().ToString("N")[..8];
+
+        if (OperatingSystem.IsWindows())
+        {
+            File.WriteAllText(Path.Combine(dir, $"age-plugin-{name}.CMD"),
+                "@echo off\r\necho catastrophic plugin failure 1>&2\r\nexit /b 1\r\n");
+        }
+        else
+        {
+            PlantScript(dir, $"age-plugin-{name}",
+                "echo 'catastrophic plugin failure' >&2\nexit 1\n");
+        }
+
+        try
+        {
+            Environment.SetEnvironmentVariable("PATH", $"{dir}{Path.PathSeparator}{originalPath}");
+
+            var recipient = new PluginRecipient(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
+            var ex = Assert.Throws<AgePluginException>(() => recipient.Wrap(new byte[16]));
+
+            Assert.Contains("catastrophic plugin failure", ex.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", originalPath);
+            TryDeleteTempDir(dir);
+        }
+    }
+
     [Fact]
     public void PluginOnPath_IsLaunchedAndItsStanzaIsUsed()
     {
