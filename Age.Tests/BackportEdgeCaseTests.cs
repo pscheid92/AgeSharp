@@ -21,6 +21,33 @@ public class BackportEdgeCaseTests
     }
 
     [Fact]
+    public void FileKey_ZeroesOnDispose()
+    {
+        var key = FileKey.Fresh();
+        var live = key.Bytes.ToArray();
+
+        Assert.Contains(live, b => b != 0);
+
+        key.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => key.Bytes.ToArray());
+        key.Dispose(); // idempotent
+    }
+
+    [Fact]
+    public void FileKey_AdoptZeroesWhatItRejects()
+    {
+        var wrongSized = new byte[15];
+        Array.Fill(wrongSized, (byte)0xAB);
+
+        Assert.Throws<AgeHeaderException>(() => FileKey.Adopt(wrongSized));
+
+        // The rejected array came from caller-supplied identity code and still held key
+        // material; refusing it must not mean abandoning it.
+        Assert.DoesNotContain(wrongSized, b => b != 0);
+    }
+
+    [Fact]
     public void IdentityReturningAWrongSizedFileKey_IsRejected()
     {
         using var real = X25519Identity.Generate();

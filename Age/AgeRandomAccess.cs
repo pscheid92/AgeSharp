@@ -148,10 +148,10 @@ public sealed class AgeRandomAccess : IDisposable
     {
         var (fileKey, reader) = AgeEncrypt.UnwrapHeaderFromReader(binaryInput, identities);
 
-        try
+        using (fileKey)
         {
             var payloadNonce = ReadPayloadNonce(reader);
-            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", AgeEncrypt.PayloadKeySize);
+            var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", AgeEncrypt.PayloadKeySize);
 
             try
             {
@@ -161,9 +161,8 @@ public sealed class AgeRandomAccess : IDisposable
                 if (totalEncrypted == 0)
                     throw new AgePayloadException("payload is empty (no chunks)");
 
-                // The spec requires that a seekable reader verify the final chunk before it can
-                // report a length: chunk layout alone cannot tell a truncated file from a shorter
-                // one, so PlaintextLength has to come from an authenticated final chunk.
+                // The spec requires a seekable reader to verify the final chunk before reporting
+                // a length: chunk layout alone cannot tell a truncated file from a shorter one.
                 var plaintextLength = AuthenticateFinalChunk(binaryInput, payloadKey, payloadStart, totalEncrypted);
                 return new PayloadInfo(payloadKey, payloadStart, totalEncrypted, plaintextLength);
             }
@@ -172,10 +171,6 @@ public sealed class AgeRandomAccess : IDisposable
                 CryptographicOperations.ZeroMemory(payloadKey);
                 throw;
             }
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(fileKey);
         }
     }
 

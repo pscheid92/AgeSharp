@@ -80,26 +80,17 @@ public static class AgeEncrypt
     {
         ArgumentException.ThrowIfEmpty(recipients, "recipient");
 
-        // Created here so the finally that clears it is visible in the same method: every path
-        // out of this method, including a throw inside BuildHeader, passes through it.
-        var fileKey = NewFileKey();
+        using var fileKey = FileKey.Fresh();
 
-        try
-        {
-            var header = BuildHeader(recipients, fileKey);
-            header.WriteTo(headerOutput, fileKey);
+        var header = BuildHeader(recipients, fileKey.Bytes);
+        header.WriteTo(headerOutput, fileKey.Bytes);
 
-            var payloadNonce = new byte[PayloadNonceSize];
-            RandomNumberGenerator.Fill(payloadNonce);
-            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+        var payloadNonce = new byte[PayloadNonceSize];
+        RandomNumberGenerator.Fill(payloadNonce);
+        var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", PayloadKeySize);
 
-            using var payloadStream = new EncryptStream([], payloadNonce, payloadKey, input);
-            payloadStream.CopyTo(payloadOutput);
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(fileKey);
-        }
+        using var payloadStream = new EncryptStream([], payloadNonce, payloadKey, input);
+        payloadStream.CopyTo(payloadOutput);
     }
 
     /// <summary>
@@ -110,36 +101,30 @@ public static class AgeEncrypt
     {
         ArgumentException.ThrowIfEmpty(identities, "identity");
 
-        var fileKey = UnwrapFileKey(headerInput, identities);
-        try
+        using var fileKey = UnwrapFileKey(headerInput, identities);
+
+        var payloadNonce = new byte[PayloadNonceSize];
+        var total = 0;
+
+        while (total < PayloadNonceSize)
         {
-            var payloadNonce = new byte[PayloadNonceSize];
-            var total = 0;
+            var read = payloadInput.Read(payloadNonce.AsSpan(total));
+            if (read == 0)
+                break;
 
-            while (total < PayloadNonceSize)
-            {
-                var read = payloadInput.Read(payloadNonce.AsSpan(total));
-                if (read == 0)
-                    break;
-
-                total += read;
-            }
-
-            if (total != PayloadNonceSize)
-                throw new AgeHeaderException($"expected {PayloadNonceSize}-byte payload nonce, got {total} bytes");
-
-            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
-
-            using var decryptStream = new DecryptStream(payloadKey, payloadInput, ownsStream: false);
-            decryptStream.CopyTo(output);
-            // Ensure output is touched even when plaintext is empty — matters for
-            // lazy-creating writers that only materialize on first Write.
-            output.Write(ReadOnlySpan<byte>.Empty);
+            total += read;
         }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(fileKey);
-        }
+
+        if (total != PayloadNonceSize)
+            throw new AgeHeaderException($"expected {PayloadNonceSize}-byte payload nonce, got {total} bytes");
+
+        var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", PayloadKeySize);
+
+        using var decryptStream = new DecryptStream(payloadKey, payloadInput, ownsStream: false);
+        decryptStream.CopyTo(output);
+        // Ensure output is touched even when plaintext is empty — matters for
+        // lazy-creating writers that only materialize on first Write.
+        output.Write(ReadOnlySpan<byte>.Empty);
     }
 
     /// <summary>
@@ -167,28 +152,19 @@ public static class AgeEncrypt
             return new ArmorStream(ciphertextStream);
         }
 
-        // Created here so the finally that clears it is visible in the same method: every path
-        // out of this method, including a throw inside BuildHeader, passes through it.
-        var fileKey = NewFileKey();
+        using var fileKey = FileKey.Fresh();
 
-        try
-        {
-            var header = BuildHeader(recipients, fileKey);
+        var header = BuildHeader(recipients, fileKey.Bytes);
 
-            using var headerMs = new MemoryStream();
-            header.WriteTo(headerMs, fileKey);
-            var headerBytes = headerMs.ToArray();
+        using var headerMs = new MemoryStream();
+        header.WriteTo(headerMs, fileKey.Bytes);
+        var headerBytes = headerMs.ToArray();
 
-            var payloadNonce = new byte[PayloadNonceSize];
-            RandomNumberGenerator.Fill(payloadNonce);
-            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+        var payloadNonce = new byte[PayloadNonceSize];
+        RandomNumberGenerator.Fill(payloadNonce);
+        var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", PayloadKeySize);
 
-            return new EncryptStream(headerBytes, payloadNonce, payloadKey, plaintext);
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(fileKey);
-        }
+        return new EncryptStream(headerBytes, payloadNonce, payloadKey, plaintext);
     }
 
     /// <summary>
@@ -207,18 +183,12 @@ public static class AgeEncrypt
         {
             var (fileKey, reader) = UnwrapHeaderFromReader(binaryInput, identities);
 
-            // ReadPayloadNonce throws on a file truncated inside the nonce — reachable from any
-            // attacker-supplied input — and the clear below was simply skipped.
-            try
+            using (fileKey)
             {
                 var payloadNonce = ReadPayloadNonce(reader);
-                var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+                var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", PayloadKeySize);
 
                 return new DecryptStream(payloadKey, binaryInput, needsDispose);
-            }
-            finally
-            {
-                CryptographicOperations.ZeroMemory(fileKey);
             }
         }
         catch
@@ -272,21 +242,13 @@ public static class AgeEncrypt
         return header;
     }
 
-    /// <summary>Creates a fresh file key. The caller owns it and must clear it in a finally.</summary>
-    private static byte[] NewFileKey()
-    {
-        var fileKey = new byte[FileKeySize];
-        RandomNumberGenerator.Fill(fileKey);
-        return fileKey;
-    }
-
-    private static byte[] UnwrapFileKey(Stream headerInput, ReadOnlySpan<IIdentity> identities)
+    private static FileKey UnwrapFileKey(Stream headerInput, ReadOnlySpan<IIdentity> identities)
     {
         var (fileKey, _) = UnwrapHeaderFromReader(headerInput, identities);
         return fileKey;
     }
 
-    internal static (byte[] fileKey, HeaderReader reader) UnwrapHeaderFromReader(Stream binaryInput, ReadOnlySpan<IIdentity> identities)
+    internal static (FileKey fileKey, HeaderReader reader) UnwrapHeaderFromReader(Stream binaryInput, ReadOnlySpan<IIdentity> identities)
     {
         var reader = new HeaderReader(binaryInput);
         var header = ParseHeader(reader);
@@ -308,20 +270,18 @@ public static class AgeEncrypt
         if (fileKey is null)
             throw new NoIdentityMatchException();
 
-        // Past this point the file key is genuine, so every throw must clear it. VerifyMac
-        // failing is entirely routine — a tampered or corrupted header — and left the real
-        // file key on the heap.
+        // Adopt validates the length and takes ownership, so from here a throw disposes rather
+        // than abandons. VerifyMac failing is routine — a tampered or corrupted header.
+        var owned = FileKey.Adopt(fileKey);
+
         try
         {
-            if (fileKey.Length != FileKeySize)
-                throw new AgeHeaderException($"file key must be {FileKeySize} bytes, got {fileKey.Length}");
-
-            header.VerifyMac(fileKey);
-            return (fileKey, reader);
+            header.VerifyMac(owned.Bytes);
+            return (owned, reader);
         }
         catch
         {
-            CryptographicOperations.ZeroMemory(fileKey);
+            owned.Dispose();
             throw;
         }
     }
