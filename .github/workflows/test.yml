@@ -64,12 +64,16 @@ jobs:
       - name: Test
         run: dotnet test --no-build --collect:"XPlat Code Coverage"
 
-      # Coverage is identical across platforms; upload once from Linux to avoid duplicate reports
+      # Upload from every platform and let Codecov merge them. This used to run on Linux alone,
+      # on the assumption that coverage is identical everywhere — which stopped being true once
+      # PluginLocator gained genuinely platform-specific code (PATHEXT expansion and the Windows
+      # branch of the executable check simply cannot execute on Linux). A Linux-only report shows
+      # those lines as untested when they are in fact covered by the Windows job.
       - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          flags: ${{ matrix.os }}
 
   # Runs the whole suite + CCTV vectors through the managed BouncyCastle AEAD backend —
   # the same path Blazor/WASM takes. Managed code is OS-independent, so one OS is enough.
