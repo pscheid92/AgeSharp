@@ -53,7 +53,7 @@ public sealed class AgeRandomAccess : IDisposable
         if (!ciphertext.CanSeek)
             throw new ArgumentException("ciphertext stream must be seekable", nameof(ciphertext));
 
-        ArgumentGuard.ThrowIfEmpty(identities, "identity");
+        ArgumentException.ThrowIfEmpty(identities, "identity");
 
         BinaryStream = ciphertext;
         var (binaryInput, needsDispose) = DeArmorInput(ciphertext);
