@@ -21,15 +21,26 @@ internal sealed class PluginConnection : IDisposable
             throw new AgePluginException($"refusing to launch plugin with invalid name: '{pluginName}'");
 
         var binaryName = $"age-plugin-{pluginName}";
+
+        // Resolve against PATH explicitly. Process.Start would otherwise find a bare file
+        // name in the caller's current working directory — arbitrary code execution from
+        // any untrusted tree the caller happens to be sitting in — which the age-plugin
+        // spec prohibits verbatim.
+        var binaryPath = PluginLocator.Find(binaryName)
+                         ?? throw new AgePluginException($"plugin not found: {binaryName}");
+
         var startInfo = new ProcessStartInfo
         {
-            FileName = binaryName,
+            FileName = binaryPath,
             Arguments = $"--age-plugin={stateMachine}",
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
+            // Don't hand the plugin the caller's working directory either; go-age uses
+            // the temp directory here for the same reason.
+            WorkingDirectory = Path.GetTempPath(),
         };
 
         try
@@ -38,7 +49,7 @@ internal sealed class PluginConnection : IDisposable
         }
         catch (Win32Exception ex)
         {
-            throw new AgePluginException($"plugin not found: {binaryName}", ex);
+            throw new AgePluginException($"failed to start plugin: {binaryName}: {ex.Message}", ex);
         }
 
         _reader = _process.StandardOutput;
