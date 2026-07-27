@@ -41,8 +41,7 @@ public static class AgeEncrypt
     /// <param name="recipients">One or more recipients. Must all share the same <see cref="IRecipient.Label"/>.</param>
     public static void Encrypt(Stream input, Stream output, bool armor, params ReadOnlySpan<IRecipient> recipients)
     {
-        if (recipients.Length == 0)
-            throw new ArgumentException("at least one recipient is required", nameof(recipients));
+        ArgumentGuard.ThrowIfEmpty(recipients, "recipient");
 
         using var stream = EncryptReader(input, armor, recipients);
         stream.CopyTo(output);
@@ -79,8 +78,7 @@ public static class AgeEncrypt
     /// </summary>
     public static void EncryptDetached(Stream input, Stream headerOutput, Stream payloadOutput, params ReadOnlySpan<IRecipient> recipients)
     {
-        if (recipients.Length == 0)
-            throw new ArgumentException("at least one recipient is required", nameof(recipients));
+        ArgumentGuard.ThrowIfEmpty(recipients, "recipient");
 
         var (header, fileKey) = BuildHeaderAndFileKey(recipients);
         try
@@ -106,8 +104,7 @@ public static class AgeEncrypt
     /// </summary>
     public static void DecryptDetached(Stream headerInput, Stream payloadInput, Stream output, params ReadOnlySpan<IIdentity> identities)
     {
-        if (identities.Length == 0)
-            throw new ArgumentException("at least one identity is required", nameof(identities));
+        ArgumentGuard.ThrowIfEmpty(identities, "identity");
 
         var fileKey = UnwrapFileKey(headerInput, identities);
         try
@@ -158,8 +155,7 @@ public static class AgeEncrypt
     /// </summary>
     public static Stream EncryptReader(Stream plaintext, bool armor, params ReadOnlySpan<IRecipient> recipients)
     {
-        if (recipients.Length == 0)
-            throw new ArgumentException("at least one recipient is required", nameof(recipients));
+        ArgumentGuard.ThrowIfEmpty(recipients, "recipient");
 
         if (armor)
         {
@@ -197,8 +193,7 @@ public static class AgeEncrypt
     /// </summary>
     public static Stream DecryptReader(Stream ciphertext, params ReadOnlySpan<IIdentity> identities)
     {
-        if (identities.Length == 0)
-            throw new ArgumentException("at least one identity is required", nameof(identities));
+        ArgumentGuard.ThrowIfEmpty(identities, "identity");
 
         var (binaryInput, needsDispose) = DeArmorIfNeeded(ciphertext);
 
