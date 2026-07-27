@@ -80,9 +80,13 @@ public static class AgeEncrypt
     {
         ArgumentException.ThrowIfEmpty(recipients, "recipient");
 
-        var (header, fileKey) = BuildHeaderAndFileKey(recipients);
+        // Created here so the finally that clears it is visible in the same method: every path
+        // out of this method, including a throw inside BuildHeader, passes through it.
+        var fileKey = NewFileKey();
+
         try
         {
+            var header = BuildHeader(recipients, fileKey);
             header.WriteTo(headerOutput, fileKey);
 
             var payloadNonce = new byte[PayloadNonceSize];
@@ -163,12 +167,14 @@ public static class AgeEncrypt
             return new ArmorStream(ciphertextStream);
         }
 
-        var (header, fileKey) = BuildHeaderAndFileKey(recipients);
+        // Created here so the finally that clears it is visible in the same method: every path
+        // out of this method, including a throw inside BuildHeader, passes through it.
+        var fileKey = NewFileKey();
 
-        // Anything between here and the clear below — header.WriteTo, the HKDF — used to
-        // abandon the file key if it threw.
         try
         {
+            var header = BuildHeader(recipients, fileKey);
+
             using var headerMs = new MemoryStream();
             header.WriteTo(headerMs, fileKey);
             var headerBytes = headerMs.ToArray();
@@ -222,7 +228,18 @@ public static class AgeEncrypt
         }
     }
 
-    private static (Header header, byte[] fileKey) BuildHeaderAndFileKey(ReadOnlySpan<IRecipient> recipients)
+    /// <summary>
+    /// Wraps <paramref name="fileKey"/> for every recipient and returns the resulting header.
+    /// </summary>
+    /// <remarks>
+    /// Takes the file key rather than creating one, so that whoever created it also holds the
+    /// only <c>finally</c> that clears it. When this returned the key as well, a caller reading
+    /// its own method could not tell whether a throw in here leaked — the guarantee lived in
+    /// another method's <c>catch</c>. That non-locality is how S9 happened: all five sites the
+    /// survey found were "the clear is somewhere else" situations. Nothing here owns the key, so
+    /// nothing here has to remember to clear it.
+    /// </remarks>
+    private static Header BuildHeader(ReadOnlySpan<IRecipient> recipients, ReadOnlySpan<byte> fileKey)
     {
         // Check label consistency — reject mixing PQ and non-PQ recipients
         var firstLabel = recipients[0].Label;
@@ -233,39 +250,34 @@ public static class AgeEncrypt
                 throw new AgeException("cannot mix recipients with different security labels");
         }
 
-        var fileKey = new byte[FileKeySize];
-        RandomNumberGenerator.Fill(fileKey);
-
         var header = new Header();
 
-        // Wrap can fail for entirely routine reasons — a plugin binary missing, a user declining
-        // a touch prompt — and every one of them used to abandon the fresh file key uncleared.
-        try
+        // A plugin may legitimately answer one wrap-file-key with several stanzas, so ask for
+        // all of them where the recipient can produce more than one. IRecipient.Wrap is
+        // public, shipped API returning a single Stanza and cannot be widened.
+        foreach (var recipient in recipients)
         {
-            // A plugin may legitimately answer one wrap-file-key with several stanzas, so ask for
-            // all of them where the recipient can produce more than one. IRecipient.Wrap is
-            // public, shipped API returning a single Stanza and cannot be widened.
-            foreach (var recipient in recipients)
-            {
-                if (recipient is IMultiStanzaRecipient multi)
-                    header.Stanzas.AddRange(multi.WrapAll(fileKey));
-                else
-                    header.Stanzas.Add(recipient.Wrap(fileKey));
-            }
-
-            // A scrypt stanza must be the only stanza in the header — the same rule decryption
-            // enforces. Checked post-Wrap so custom recipients that emit scrypt stanzas are
-            // caught too.
-            if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
-                throw new AgeException("a passphrase (scrypt) recipient must be the only recipient");
-
-            return (header, fileKey);
+            if (recipient is IMultiStanzaRecipient multi)
+                header.Stanzas.AddRange(multi.WrapAll(fileKey));
+            else
+                header.Stanzas.Add(recipient.Wrap(fileKey));
         }
-        catch
-        {
-            CryptographicOperations.ZeroMemory(fileKey);
-            throw;
-        }
+
+        // A scrypt stanza must be the only stanza in the header — the same rule decryption
+        // enforces. Checked post-Wrap so custom recipients that emit scrypt stanzas are
+        // caught too.
+        if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
+            throw new AgeException("a passphrase (scrypt) recipient must be the only recipient");
+
+        return header;
+    }
+
+    /// <summary>Creates a fresh file key. The caller owns it and must clear it in a finally.</summary>
+    private static byte[] NewFileKey()
+    {
+        var fileKey = new byte[FileKeySize];
+        RandomNumberGenerator.Fill(fileKey);
+        return fileKey;
     }
 
     private static byte[] UnwrapFileKey(Stream headerInput, ReadOnlySpan<IIdentity> identities)

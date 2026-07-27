@@ -34,10 +34,7 @@ internal static class ArgumentExceptionExtensions
         /// </param>
         /// <param name="paramName">Captured from the call site; do not pass explicitly.</param>
         /// <exception cref="ArgumentException"><paramref name="value"/> is empty.</exception>
-        public static void ThrowIfEmpty<T>(
-            ReadOnlySpan<T> value,
-            string noun,
-            [CallerArgumentExpression(nameof(value))] string? paramName = null)
+        public static void ThrowIfEmpty<T>(ReadOnlySpan<T> value, string noun, [CallerArgumentExpression(nameof(value))] string? paramName = null)
         {
             if (value.IsEmpty)
                 throw new ArgumentException($"at least one {noun} is required", paramName);
