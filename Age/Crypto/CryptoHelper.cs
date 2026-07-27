@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
@@ -11,6 +12,52 @@ internal static class CryptoHelper
     private const int ChaChaTagSize = 16;
     private const int Sha256Size = 32;
 
+    /// <summary>Size of an X25519 shared secret, and so of the buffer <see cref="X25519Agree" /> fills.</summary>
+    public const int X25519SharedSecretSize = 32;
+
+    /// <summary>
+    ///     The one place an X25519 agreement is performed. The spec requires rejecting an
+    ///     all-zero shared secret, and BouncyCastle already refuses low-order and identity points
+    ///     — but it does so with a raw <see cref="InvalidOperationException" />, which escaped
+    ///     five of the eight call sites and surfaced from public Encrypt/Decrypt as an unhandled
+    ///     BCL exception. main's own CLI reported a merely-malformed input file as a library bug.
+    /// </summary>
+    /// <remarks>
+    ///     This is defence in depth plus a consistent exception type, not the closing of an
+    ///     exploitable hole: no zero shared secret was ever used, because the agreement itself
+    ///     fails first.
+    /// </remarks>
+    public static void X25519Agree(X25519PrivateKeyParameters privateKey, X25519PublicKeyParameters publicKey,
+        Span<byte> sharedSecret)
+    {
+        var agreement = new X25519Agreement();
+        agreement.Init(privateKey);
+
+        // BouncyCastle writes into an array, so one transient heap copy is unavoidable here.
+        var buffer = new byte[agreement.AgreementSize];
+
+        try
+        {
+            try
+            {
+                agreement.CalculateAgreement(publicKey, buffer, 0);
+            }
+            catch (InvalidOperationException ex)
+            {
+                throw new AgeHeaderException("X25519 shared secret is all-zero (low-order or identity point)", ex);
+            }
+
+            if (buffer.All(b => b == 0))
+                throw new AgeHeaderException("X25519 shared secret is all-zero (low-order or identity point)");
+
+            buffer.CopyTo(sharedSecret);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(buffer);
+        }
+    }
+
     public static byte[] HkdfDerive(ReadOnlySpan<byte> ikm, ReadOnlySpan<byte> salt, string info, int length)
     {
         // Delegated to BouncyCastle's HkdfBytesGenerator for RFC 5869
@@ -19,11 +66,23 @@ internal static class CryptoHelper
         // IKM for the SSH-Ed25519 tweak derivation. BouncyCastle handles
         // this uniformly. HKDF is called once per session, not per chunk,
         // so the ToArray() allocations here are not a hot path.
-        var hkdf = new HkdfBytesGenerator(new Sha256Digest());
-        hkdf.Init(new HkdfParameters(ikm.ToArray(), salt.ToArray(), Encoding.ASCII.GetBytes(info)));
-        var result = new byte[length];
-        hkdf.GenerateBytes(result, 0, length);
-        return result;
+        //
+        // ikm is key material — a file key, a shared secret — so the copy BouncyCastle
+        // requires is cleared here rather than left on the heap until a GC happens to move it.
+        var ikmCopy = ikm.ToArray();
+
+        try
+        {
+            var hkdf = new HkdfBytesGenerator(new Sha256Digest());
+            hkdf.Init(new HkdfParameters(ikmCopy, salt.ToArray(), Encoding.ASCII.GetBytes(info)));
+            var result = new byte[length];
+            hkdf.GenerateBytes(result, 0, length);
+            return result;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(ikmCopy);
+        }
     }
 
     public static void ChaChaEncrypt(IAeadCipher cipher, ReadOnlySpan<byte> nonce,

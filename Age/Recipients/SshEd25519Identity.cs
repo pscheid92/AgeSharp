@@ -95,25 +95,24 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
         var privateKey = new X25519PrivateKeyParameters(_x25519PrivateKey);
 
-        // rawSS = X25519.ScalarMult(_x25519PrivateKey, ephPub)
-        var agreement = new X25519Agreement();
-        agreement.Init(privateKey);
-
-        var rawSS = new byte[agreement.AgreementSize];
-        agreement.CalculateAgreement(ephPub, rawSS, 0);
+        // rawSS = X25519.ScalarMult(_x25519PrivateKey, ephPub). The ephemeral share comes from
+        // the stanza, so it is attacker-controlled: routed through the guarded helper so a
+        // low-order point is an AgeHeaderException rather than a raw BCL exception escaping
+        // the public Decrypt.
+        var rawSS = new byte[CryptoHelper.X25519SharedSecretSize];
+        CryptoHelper.X25519Agree(privateKey, ephPub, rawSS);
 
         // tweak = HKDF(ikm=[], salt=sshWireBytes, info=label, 32)
         var tweak = CryptoHelper.HkdfDerive([], _sshWireBytes, AgeProtocol.SshEd25519HkdfLabel, KeySize);
 
-        // tweakedSS = X25519.ScalarMult(tweak, rawSS)
+        // tweakedSS = X25519.ScalarMult(tweak, rawSS). This one cannot yield zero once the
+        // agreement above succeeded — the clamped scalar puts the result in the prime-order
+        // subgroup — but routing it too costs nothing and keeps the rule in one place.
         var tweakPrivate = new X25519PrivateKeyParameters(tweak);
         var rawSSPub = new X25519PublicKeyParameters(rawSS);
 
-        var tweakAgreement = new X25519Agreement();
-        tweakAgreement.Init(tweakPrivate);
-
-        var tweakedSS = new byte[tweakAgreement.AgreementSize];
-        tweakAgreement.CalculateAgreement(rawSSPub, tweakedSS, 0);
+        var tweakedSS = new byte[CryptoHelper.X25519SharedSecretSize];
+        CryptoHelper.X25519Agree(tweakPrivate, rawSSPub, tweakedSS);
 
         // wrapKey = HKDF(ikm=tweakedSS, salt=ephPub||convertedKey, info=label, 32)
         var salt = (byte[])[.. ephPubBytes, .. _x25519PublicKey];

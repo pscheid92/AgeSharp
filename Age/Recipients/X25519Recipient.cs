@@ -53,23 +53,10 @@ public sealed class X25519Recipient : IRecipient
         var ephemeral = new X25519PrivateKeyParameters(new SecureRandom());
         var ephPubBytes = ephemeral.GeneratePublicKey().GetEncoded();
 
-        // DH: ephemeral × recipient
-        var agreement = new X25519Agreement();
-        agreement.Init(ephemeral);
-        var sharedSecret = new byte[agreement.AgreementSize];
-
-        try
-        {
-            agreement.CalculateAgreement(_publicKey, sharedSecret, 0);
-        }
-        catch (InvalidOperationException)
-        {
-            throw new AgeException("X25519 key agreement failed (shared secret is zero)");
-        }
-
-        // BouncyCastle may not reject all low-order points — check for all-zero shared secret
-        if (sharedSecret.All(b => b == 0))
-            throw new AgeException("X25519 key agreement failed (shared secret is zero)");
+        // DH: ephemeral × recipient. A recipient parsed from a hostile age1… string can carry a
+        // low-order point, so this is guarded on the encrypt side too.
+        var sharedSecret = new byte[CryptoHelper.X25519SharedSecretSize];
+        CryptoHelper.X25519Agree(ephemeral, _publicKey, sharedSecret);
 
         // HKDF: salt = ephPub || recipientPub, info = label
         var recipientPubBytes = _publicKey.GetEncoded();
