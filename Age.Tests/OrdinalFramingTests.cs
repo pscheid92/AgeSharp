@@ -76,4 +76,39 @@ public class OrdinalFramingTests
     private static byte[] BuildHeader(string stanzaLine) =>
         System.Text.Encoding.ASCII.GetBytes(
             $"age-encryption.org/v1\n{stanzaLine}\nAAAA\n--- AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n");
+
+    // age.md:132 — body = *full-line final-line, where full-line is exactly 64 base64 chars and
+    // final-line is 0-63. The final line is therefore never optional: an empty body and a body
+    // whose encoding is an exact multiple of 64 both end with an empty line. Swept across the
+    // boundaries rather than spot-checked, because the off-by-one only shows at the multiples.
+    [Theory]
+    [InlineData(0)]    // empty body -> a lone empty line
+    [InlineData(1)]
+    [InlineData(47)]   // 63 chars encoded: still one short line
+    [InlineData(48)]   // 64 chars encoded: one full line + empty terminator
+    [InlineData(49)]
+    [InlineData(95)]
+    [InlineData(96)]   // 128 chars encoded: two full lines + empty terminator
+    [InlineData(97)]
+    public void StanzaBody_AlwaysEndsWithALineShorterThan64(int bodyLength)
+    {
+        var body = new byte[bodyLength];
+        for (var i = 0; i < bodyLength; i++) body[i] = (byte)(i * 37 % 251);
+
+        using var ms = new MemoryStream();
+        new Stanza("test", [], body).WriteTo(ms);
+
+        var text = System.Text.Encoding.ASCII.GetString(ms.ToArray());
+        Assert.EndsWith("\n", text, StringComparison.Ordinal);
+
+        // Drop the "-> test" header line, then split off the trailing LF the last line owns.
+        var lines = text[..^1].Split('\n')[1..];
+
+        Assert.All(lines[..^1], l => Assert.Equal(64, l.Length));
+        Assert.True(lines[^1].Length < 64, $"final line was {lines[^1].Length} chars");
+
+        // And it round-trips through the parser.
+        using var back = new MemoryStream(ms.ToArray());
+        Assert.Equal(body, Stanza.Parse(new HeaderReader(back)).Body.ToArray());
+    }
 }

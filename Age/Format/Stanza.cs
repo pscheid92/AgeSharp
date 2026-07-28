@@ -15,8 +15,31 @@ namespace Age.Format;
 /// </remarks>
 public sealed class Stanza
 {
+    internal const int ColumnsPerLine = 64;
+
     private readonly string[] _args;
     private readonly byte[] _body;
+
+    /// <summary>
+    /// Writes an encoded body as the spec's <c>*full-line final-line</c> (age.md:132): zero or
+    /// more full 64-column lines, then one final line of 0-63 characters.
+    /// </summary>
+    /// <remarks>
+    /// The final line is unconditional, which is what makes an empty body and a body that is an
+    /// exact multiple of 64 both terminate with an empty line — no trailing special case.
+    /// </remarks>
+    internal static void WriteBody(TextWriter writer, ReadOnlySpan<char> encoded)
+    {
+        while (encoded.Length >= ColumnsPerLine)
+        {
+            writer.Write(encoded[..ColumnsPerLine]);
+            writer.Write('\n');
+            encoded = encoded[ColumnsPerLine..];
+        }
+
+        writer.Write(encoded);
+        writer.Write('\n');
+    }
 
     /// <summary>
     /// Constructs a stanza with the given type, arguments, and body. The
@@ -43,8 +66,8 @@ public sealed class Stanza
             EnsureValidStanzaString(arg, nameof(args));
 
         Type = type;
-        _args = (string[])args.Clone();
-        _body = (byte[])body.Clone();
+        _args = [.. args];
+        _body = [.. body];
     }
 
     /// <summary>The recipient type tag (e.g. <c>"X25519"</c>, <c>"scrypt"</c>).</summary>
@@ -71,21 +94,7 @@ public sealed class Stanza
         writer.Write('\n');
         writer.Flush();
 
-        var encoded = Base64Unpadded.Encode(_body);
-        var offset = 0;
-
-        while (offset < encoded.Length)
-        {
-            var len = Math.Min(64, encoded.Length - offset);
-            writer.Write(encoded.AsSpan(offset, len));
-            writer.Write('\n');
-            offset += len;
-        }
-
-        // Empty body or exact multiple of 64 chars both need an empty terminator line
-        if (encoded.Length % 64 == 0)
-            writer.Write('\n');
-
+        WriteBody(writer, Base64Unpadded.Encode(_body));
         writer.Flush();
     }
 

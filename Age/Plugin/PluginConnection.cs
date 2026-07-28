@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Age.Crypto;
+using Age.Format;
 
 namespace Age.Plugin;
 
@@ -157,20 +158,8 @@ internal sealed class PluginConnection : IDisposable
         try
         {
             var length = Base64Unpadded.Encode(body, encoded);
-            var offset = 0;
 
-            while (offset < length)
-            {
-                var len = Math.Min(64, length - offset);
-                _writer.Write(encoded.AsSpan(offset, len));
-                _writer.Write('\n');
-                offset += len;
-            }
-
-            // Empty body or exact multiple of 64 chars both need an empty terminator line
-            if (length % 64 == 0)
-                _writer.Write('\n');
-
+            Stanza.WriteBody(_writer, encoded.AsSpan(0, length));
             _writer.Flush();
         }
         finally
