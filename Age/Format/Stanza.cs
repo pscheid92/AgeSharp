@@ -122,35 +122,42 @@ public sealed class Stanza
         return new Stanza(stanzaType, stanzaArgs, body);
     }
 
+    /// <summary>
+    /// Reads the <c>*full-line final-line</c> that <see cref="WriteBody"/> writes: full 64-column
+    /// lines until one comes up short, which ends the body and may be empty.
+    /// </summary>
     private static byte[] ReadBody(HeaderReader reader)
     {
-        var bodyChunks = new List<byte[]>();
+        var chunks = new List<byte[]>();
 
         while (true)
         {
-            var bodyLine = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header while reading stanza body");
+            var line = reader.ReadLine()
+                       ?? throw new AgeHeaderException("unexpected end of header while reading stanza body");
 
-            switch (bodyLine.Length)
-            {
-                case > 64:
-                    throw new AgeHeaderException("stanza body line exceeds 64 characters");
-                case > 0:
-                    bodyChunks.Add(Base64Unpadded.Decode(bodyLine));
-                    break;
-            }
+            if (line.Length > ColumnsPerLine)
+                throw new AgeHeaderException($"stanza body line exceeds {ColumnsPerLine} characters");
 
-            // A short line (< 64 chars) or empty line terminates the body
-            if (bodyLine.Length < 64)
-                break;
+            if (line.Length > 0)
+                chunks.Add(Base64Unpadded.Decode(line));
+
+            if (line.Length < ColumnsPerLine)
+                return Concat(chunks);
         }
-
-        return AssembleBody(bodyChunks);
     }
 
-    private static byte[] AssembleBody(List<byte[]> chunks)
+    /// <summary>
+    /// Joins the decoded lines into one exactly-sized array.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not <c>List&lt;byte&gt;</c> or <c>SelectMany().ToArray()</c>, both of which
+    /// would be shorter: those grow by reallocating, and every abandoned backing array keeps a
+    /// copy of the wrapped file key that nothing can reach to clear. Same reasoning as
+    /// <see cref="Age.Crypto.Bech32"/>, which sizes its output exactly for the same reason.
+    /// </remarks>
+    private static byte[] Concat(List<byte[]> chunks)
     {
-        var totalLen = chunks.Sum(c => c.Length);
-        var body = new byte[totalLen];
+        var body = new byte[chunks.Sum(c => c.Length)];
         var pos = 0;
 
         foreach (var chunk in chunks)
@@ -171,7 +178,8 @@ public sealed class Stanza
     /// a plugin sends. Only the rule is shared — each site words its own message, because they
     /// blame different parties: malformed wire data, a bad argument, or a misbehaving plugin.
     /// </remarks>
-    internal static int IndexOfNonVChar(ReadOnlySpan<char> s) => s.IndexOfAnyExceptInRange('!', '~');
+    internal static int IndexOfNonVChar(ReadOnlySpan<char> s) =>
+        s.IndexOfAnyExceptInRange('!', '~');
 
     /// <summary>Why a stanza string is unacceptable, or null if it is fine.</summary>
     private static string? InvalidReason(string? s)

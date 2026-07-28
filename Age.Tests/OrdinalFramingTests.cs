@@ -77,6 +77,20 @@ public class OrdinalFramingTests
         System.Text.Encoding.ASCII.GetBytes(
             $"age-encryption.org/v1\n{stanzaLine}\nAAAA\n--- AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n");
 
+    // The other half of the framing rule: a line wider than a full-line cannot be one, and the
+    // guard is what stops a single line from growing without bound. Covered on the plugin side
+    // (PluginTests) but not on the header side until now.
+    [Fact]
+    public void StanzaBody_RejectsALineWiderThanAFullLine()
+    {
+        var tooWide = new string('A', 65);
+        using var ms = new MemoryStream(System.Text.Encoding.ASCII.GetBytes($"-> test\n{tooWide}\n"));
+
+        var ex = Assert.Throws<AgeHeaderException>(() => Stanza.Parse(new HeaderReader(ms)));
+
+        Assert.Contains("exceeds 64 characters", ex.Message, StringComparison.Ordinal);
+    }
+
     // age.md:132 — body = *full-line final-line, where full-line is exactly 64 base64 chars and
     // final-line is 0-63. The final line is therefore never optional: an empty body and a body
     // whose encoding is an exact multiple of 64 both end with an empty line. Swept across the
