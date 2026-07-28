@@ -15,7 +15,7 @@ namespace Age.Format;
 /// </remarks>
 public sealed class Stanza
 {
-    internal const int ColumnsPerLine = 64;
+    private const int ColumnsPerLine = 64;
 
     private readonly string[] _args;
     private readonly byte[] _body;
@@ -162,26 +162,41 @@ public sealed class Stanza
         return body;
     }
 
-    private static void ValidateStanzaString(string s)
+    /// <summary>
+    /// The spec's <c>argument = 1*VCHAR</c> (age.md:130): non-empty printable ASCII. Returns the
+    /// index of the first character outside 0x21-0x7E, or -1 if there is none.
+    /// </summary>
+    /// <remarks>
+    /// Shared with <see cref="Age.Plugin.PluginConnection"/>, which applies the same rule to what
+    /// a plugin sends. Only the rule is shared — each site words its own message, because they
+    /// blame different parties: malformed wire data, a bad argument, or a misbehaving plugin.
+    /// </remarks>
+    internal static int IndexOfNonVChar(ReadOnlySpan<char> s) => s.IndexOfAnyExceptInRange('!', '~');
+
+    /// <summary>Why a stanza string is unacceptable, or null if it is fine.</summary>
+    private static string? StanzaStringError(string? s)
     {
         if (string.IsNullOrEmpty(s))
-            throw new AgeHeaderException("stanza type/argument cannot be empty");
+            return "stanza type/argument cannot be empty";
 
-        var invalid = s.IndexOfAnyExceptInRange('!', '~');
-        if (invalid >= 0)
-            throw new AgeHeaderException($"invalid character in stanza type/argument: 0x{(int)s[invalid]:X2}");
+        var invalid = IndexOfNonVChar(s);
+
+        return invalid >= 0
+            ? $"invalid character in stanza type/argument: 0x{(int)s[invalid]:X2}"
+            : null;
     }
 
-    // Same rule as ValidateStanzaString, but for caller-supplied constructor input,
-    // where ArgumentException is the idiomatic failure (the parse path keeps
-    // AgeHeaderException for malformed wire data).
+    // Wire data: a malformed header, not a caller mistake.
+    private static void ValidateStanzaString(string s)
+    {
+        if (StanzaStringError(s) is { } error)
+            throw new AgeHeaderException(error);
+    }
+
+    // Caller-supplied constructor input, where ArgumentException is the idiomatic failure.
     private static void EnsureValidStanzaString(string? s, string paramName)
     {
-        if (string.IsNullOrEmpty(s))
-            throw new ArgumentException("stanza type/argument cannot be empty", paramName);
-
-        var invalid = s.IndexOfAnyExceptInRange('!', '~');
-        if (invalid >= 0)
-            throw new ArgumentException($"invalid character in stanza type/argument: 0x{(int)s[invalid]:X2}", paramName);
+        if (StanzaStringError(s) is { } error)
+            throw new ArgumentException(error, paramName);
     }
 }

@@ -199,13 +199,14 @@ internal sealed class PluginConnection : IDisposable
         return (stanzaType, stanzaArgs, body);
     }
 
-    // Printable ASCII only (0x21-0x7E): a space or newline would corrupt the stanza framing.
+    // Same rule Stanza applies to its own input — a space or newline would corrupt the framing —
+    // but worded to name the plugin, since that is who got it wrong here.
     private static void ValidateStanzaString(string s, string what)
     {
         if (string.IsNullOrEmpty(s))
             throw new AgePluginException($"plugin sent an empty stanza {what}");
 
-        var invalid = s.AsSpan().IndexOfAnyExceptInRange('!', '~');
+        var invalid = Stanza.IndexOfNonVChar(s);
 
         if (invalid >= 0)
             throw new AgePluginException(
