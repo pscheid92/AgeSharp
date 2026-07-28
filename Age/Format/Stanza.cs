@@ -129,21 +129,34 @@ public sealed class Stanza
     private static byte[] ReadBody(HeaderReader reader)
     {
         var chunks = new List<byte[]>();
+        string line;
 
-        while (true)
+        // The loop condition is the grammar: a full-width line is a full-line, so another line
+        // follows it. The first line that is not full width is the final-line and ends the body.
+        do
         {
-            var line = reader.ReadLine()
-                       ?? throw new AgeHeaderException("unexpected end of header while reading stanza body");
-
-            if (line.Length > ColumnsPerLine)
-                throw new AgeHeaderException($"stanza body line exceeds {ColumnsPerLine} characters");
+            line = ReadBodyLine(reader);
 
             if (line.Length > 0)
                 chunks.Add(Base64Unpadded.Decode(line));
-
-            if (line.Length < ColumnsPerLine)
-                return Concat(chunks);
         }
+        while (line.Length == ColumnsPerLine);
+
+        return Concat(chunks);
+    }
+
+    /// <summary>
+    /// One body line, guaranteed no wider than a full-line — so the caller can read "not full
+    /// width" as "final line" without also having to rule out an over-long one.
+    /// </summary>
+    private static string ReadBodyLine(HeaderReader reader)
+    {
+        var line = reader.ReadLine()
+                   ?? throw new AgeHeaderException("unexpected end of header while reading stanza body");
+
+        return line.Length <= ColumnsPerLine
+            ? line
+            : throw new AgeHeaderException($"stanza body line exceeds {ColumnsPerLine} characters");
     }
 
     /// <summary>
