@@ -131,14 +131,10 @@ public sealed class Stanza
         var chunks = new List<byte[]>();
         string line;
 
-        // Read full-lines for as long as they keep coming in at full width.
         while ((line = ReadBodyLine(reader)).Length == ColumnsPerLine)
             chunks.Add(Base64Unpadded.Decode(line));
 
-        // Then exactly one more — the final-line, which the loop has already read. It is 0-63
-        // characters and "MAY be empty" (age.md:87); an empty one decodes to nothing.
         chunks.Add(Base64Unpadded.Decode(line));
-
         return Concat(chunks);
     }
 
@@ -148,8 +144,7 @@ public sealed class Stanza
     /// </summary>
     private static string ReadBodyLine(HeaderReader reader)
     {
-        var line = reader.ReadLine()
-                   ?? throw new AgeHeaderException("unexpected end of header while reading stanza body");
+        var line = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header while reading stanza body");
 
         return line.Length <= ColumnsPerLine
             ? line
@@ -167,7 +162,8 @@ public sealed class Stanza
     /// </remarks>
     private static byte[] Concat(List<byte[]> chunks)
     {
-        var body = new byte[chunks.Sum(c => c.Length)];
+        var total = chunks.Sum(c => c.Length);
+        var body = new byte[total];
         var pos = 0;
 
         foreach (var chunk in chunks)
