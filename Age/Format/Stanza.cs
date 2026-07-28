@@ -131,16 +131,13 @@ public sealed class Stanza
         var chunks = new List<byte[]>();
         string line;
 
-        // The loop condition is the grammar: a full-width line is a full-line, so another line
-        // follows it. The first line that is not full width is the final-line and ends the body.
-        do
-        {
-            line = ReadBodyLine(reader);
+        // Read full-lines for as long as they keep coming in at full width.
+        while ((line = ReadBodyLine(reader)).Length == ColumnsPerLine)
+            chunks.Add(Base64Unpadded.Decode(line));
 
-            if (line.Length > 0)
-                chunks.Add(Base64Unpadded.Decode(line));
-        }
-        while (line.Length == ColumnsPerLine);
+        // Then exactly one more — the final-line, which the loop has already read. It is 0-63
+        // characters and "MAY be empty" (age.md:87); an empty one decodes to nothing.
+        chunks.Add(Base64Unpadded.Decode(line));
 
         return Concat(chunks);
     }
