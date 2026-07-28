@@ -77,13 +77,18 @@ public class OrdinalFramingTests
         System.Text.Encoding.ASCII.GetBytes(
             $"age-encryption.org/v1\n{stanzaLine}\nAAAA\n--- AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n");
 
-    // The other half of the framing rule: a line wider than a full-line cannot be one, and the
-    // guard is what stops a single line from growing without bound. Covered on the plugin side
-    // (PluginTests) but not on the header side until now.
-    [Fact]
-    public void StanzaBody_RejectsALineWiderThanAFullLine()
+    // The other half of the framing rule: a line wider than a full-line cannot be one.
+    //
+    // 68 rather than 65 is the case that carries the weight. 65 is not a decodable base64
+    // length (65 % 4 == 1), so the decoder rejects it whether or not the width guard exists —
+    // a test using only 65 passes for the wrong reason. 68 decodes cleanly to 51 bytes, so
+    // nothing but the width guard stands between it and a silently over-long line.
+    [Theory]
+    [InlineData(65)] // not a valid base64 length
+    [InlineData(68)] // valid base64 — only the width guard rejects this
+    public void StanzaBody_RejectsALineWiderThanAFullLine(int width)
     {
-        var tooWide = new string('A', 65);
+        var tooWide = new string('A', width);
         using var ms = new MemoryStream(System.Text.Encoding.ASCII.GetBytes($"-> test\n{tooWide}\n"));
 
         var ex = Assert.Throws<AgeHeaderException>(() => Stanza.Parse(new HeaderReader(ms)));
@@ -125,4 +130,5 @@ public class OrdinalFramingTests
         using var back = new MemoryStream(ms.ToArray());
         Assert.Equal(body, Stanza.Parse(new HeaderReader(back)).Body.ToArray());
     }
+
 }
