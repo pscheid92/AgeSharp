@@ -75,8 +75,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
     {
         conn.WriteStanza("add-recipient", [recipient], []);
 
-        // Named rather than inlined so the raw copy of the file key can be cleared; passing
-        // fileKey.ToArray() as an argument left it on the heap with no reference to clear it by.
+        // Named, not inlined: an argument-position ToArray() leaves no reference to clear it by.
         var fileKeyCopy = fileKey.ToArray();
 
         try
@@ -88,18 +87,16 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
             CryptographicOperations.ZeroMemory(fileKeyCopy);
         }
 
-        // Deliberately no "extension-labels": advertising it promises we will act
-        // on the plugin's "labels" reply, and IRecipient.Label cannot carry a
-        // label set. Staying silent keeps a conforming plugin from sending
-        // "labels" at all, rather than having us discard a constraint it relies on.
+        // No "extension-labels": advertising it promises we act on the plugin's "labels" reply, and
+        // IRecipient.Label cannot hold a label set. Staying silent stops a conforming plugin from
+        // sending one, rather than having us discard a constraint it relies on.
         conn.WriteStanza("done", [], []);
     }
 
     private List<Stanza> ReadWrapResponse(PluginConnection conn)
     {
-        // Accumulate: the spec's own recipient-v1 example has a plugin emit two stanzas for one
-        // file index, and go-age appends. Overwriting here discarded every stanza but the last,
-        // which for a share-splitting plugin means the file key can never be reassembled.
+        // Accumulate rather than replace: the spec's recipient-v1 example has one plugin emit two
+        // stanzas for a single file index, and a share-splitting plugin needs all of them.
         var result = new List<Stanza>();
 
         while (true)
@@ -133,9 +130,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
         if (args.Length < 2)
             throw new AgePluginException("recipient-stanza missing file index or type");
 
-        // We send exactly one file key, so the only index the plugin may answer with is 0.
-        // Accepting a stanza addressed to a file we never mentioned is protocol
-        // non-conformance; go-age rejects it outright.
+        // One file key was sent, so 0 is the only index the plugin may answer with.
         if (args[0] != "0")
             throw new AgePluginException($"recipient-stanza has unexpected file index: {args[0]}");
 
@@ -146,8 +141,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
     private static (string Type, string[] Args, byte[] Body) ReadNextStanza(PluginConnection conn)
     {
-        // The plugin died or closed stdout. Its stderr is the only account of why, so it is
-        // quoted into the message rather than discarded.
+        // stderr is the only account of why the plugin died, so Failure() quotes it.
         var raw = conn.ReadStanza() ?? throw conn.Failure("unexpected end of plugin output");
         return raw;
     }
@@ -156,8 +150,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
     {
         switch (type)
         {
-            // Per the age-plugin spec, interactive requests are answered with
-            // fail when the client has no UI to present them
+            // The spec answers interactive requests with fail when the client has no UI.
             case "msg" or "request-secret" or "request-public" or "confirm" when callbacks is null:
                 conn.WriteStanza("fail", [], []);
                 break;
@@ -212,17 +205,15 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
     internal static string ExtractPluginName(string recipient)
     {
-        // Bech32-decode to get HRP. For "age1yubikey1...", HRP = "age1yubikey", name = HRP[4..] = "yubikey"
+        // A plugin recipient HRP is "age1<name>" — "age1yubikey1..." gives name "yubikey". The prefix
+        // check keeps hrp[4..] in range for a short HRP like "age".
         var (hrp, _) = Bech32.Decode(recipient);
 
-        // A plugin recipient HRP is "age1<name>"; require the "age1" prefix so hrp[4..]
-        // is always in range (a shorter HRP like "age" would otherwise throw).
         var name = hrp.StartsWith("age1", StringComparison.Ordinal)
             ? hrp[4..]
             : throw new FormatException($"invalid plugin recipient HRP: {hrp}");
 
-        // The name becomes the age-plugin-<name> executable path, so reject anything
-        // outside the allowed set (notably path separators) before it reaches Process.Start.
+        // The name becomes an executable path, so reject path separators before Process.Start.
         return PluginNameValidator.Validate(name);
     }
 
