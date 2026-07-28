@@ -186,10 +186,8 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
     private void HandleConfirm(PluginConnection conn, string[] args, byte[] body)
     {
-        // The spec's form is (confirm, Base64(YES_STRING) [Base64(NO_STRING)]; MESSAGE) — the
-        // yes label is mandatory. Inventing "yes" showed the user a prompt whose affirmative
-        // button text the library made up, and then answered a malformed command as if it were
-        // well formed.
+        // (confirm, Base64(YES_STRING) [Base64(NO_STRING)]; MESSAGE) — the yes label is
+        // mandatory, so a missing one is a malformed command, not a prompt to invent a label for.
         if (args.Length is not (1 or 2))
             throw new AgePluginException("malformed confirm stanza: unexpected number of arguments");
 

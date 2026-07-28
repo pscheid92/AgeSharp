@@ -51,10 +51,7 @@ internal static class AsciiArmor
         var reader = new StreamReader(bounded, Encoding.ASCII, detectEncodingFromByteOrderMarks: false,
             bufferSize: 4096, leaveOpen: false);
 
-        // Skip leading whitespace (allowed per spec).
-        // The old byte-level parser skipped individual whitespace bytes, so
-        // "  \n\t-----BEGIN AGE ENCRYPTED FILE-----" is valid. With line-based
-        // reading we skip blank lines, then TrimStart the marker line.
+        // Leading whitespace is allowed: skip blank lines, then TrimStart the marker line.
         string? line;
         var skippedWhitespace = 0;
 

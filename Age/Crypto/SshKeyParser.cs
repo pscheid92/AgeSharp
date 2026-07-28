@@ -50,7 +50,6 @@ internal static class SshKeyParser
 
         if (pemText.Contains("BEGIN OPENSSH PRIVATE KEY"))
         {
-            // OpenSSH format: extract the base64 blob and parse
             var pemReader = new PemReader(new StringReader(pemText));
             var pemObject = pemReader.ReadPemObject();
             if (pemObject == null)
@@ -60,7 +59,6 @@ internal static class SshKeyParser
         }
         else
         {
-            // PKCS#1 or PKCS#8 format
             var pemReader = new PemReader(new StringReader(pemText));
             var obj = pemReader.ReadObject();
 
@@ -72,7 +70,6 @@ internal static class SshKeyParser
             };
         }
 
-        // Derive public key and encode to SSH wire format
         AsymmetricKeyParameter publicKey;
         string keyType;
 

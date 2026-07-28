@@ -262,12 +262,10 @@ public static class AgeEncrypt
         var reader = new HeaderReader(binaryInput);
         var header = ParseHeader(reader);
 
-        // Check scrypt constraint: if any stanza is scrypt, it must be the only one
         var hasScrypt = header.Stanzas.Any(s => s.Type == "scrypt");
         if (hasScrypt && header.Stanzas.Count > 1)
             throw new AgeHeaderException("scrypt stanza must be the only stanza in the header");
 
-        // Try each identity against all stanzas (batch unwrap supports plugin protocol)
         byte[]? fileKey = null;
         foreach (var identity in identities)
         {

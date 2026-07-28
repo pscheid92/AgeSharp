@@ -61,7 +61,6 @@ public sealed class X25519Identity : IIdentity, IDisposable
     /// <exception cref="FormatException">The string is not a valid X25519 secret key.</exception>
     public static X25519Identity Parse(string s)
     {
-        // Must be uppercase
         if (s != s.ToUpperInvariant())
             throw new FormatException("age secret key must be uppercase");
 
@@ -141,11 +140,8 @@ public sealed class X25519Identity : IIdentity, IDisposable
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
         var privateKeyParams = new X25519PrivateKeyParameters(_rawPrivateKey);
 
-        // DH: identity × ephemeral
-        // The try opens before the agreement rather than after the derivation, so the shared
-        // secret is covered for its whole lifetime. The practical exposure of the old window was
-        // nil — on every path that could throw inside it the secret is all-zero by definition —
-        // but "covered from allocation" is the rule that does not need that argument to hold.
+        // The try opens before the agreement, not after the derivation, so the shared secret is
+        // covered from allocation rather than from first use.
         var sharedSecret = new byte[CryptoHelper.X25519SharedSecretSize];
         byte[]? wrapKey = null;
 

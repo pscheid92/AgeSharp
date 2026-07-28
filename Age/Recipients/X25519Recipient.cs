@@ -35,7 +35,6 @@ public sealed class X25519Recipient : IRecipient
         if (data.Length != KeySize)
             throw new FormatException($"X25519 public key must be {KeySize} bytes, got {data.Length}");
 
-        // Must be lowercase
         if (s != s.ToLowerInvariant())
             throw new FormatException("age recipient must be lowercase");
 
@@ -49,7 +48,6 @@ public sealed class X25519Recipient : IRecipient
     /// <summary>Wraps the file key for this recipient using ephemeral X25519 + ChaCha20-Poly1305.</summary>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
-        // Generate ephemeral X25519 key pair
         var ephemeral = new X25519PrivateKeyParameters(new SecureRandom());
         var ephPubBytes = ephemeral.GeneratePublicKey().GetEncoded();
 

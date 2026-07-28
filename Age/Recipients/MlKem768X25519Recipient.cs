@@ -41,14 +41,11 @@ public sealed class MlKem768X25519Recipient : IRecipient
         if (data.Length != XWing.PublicKeySize)
             throw new FormatException($"ML-KEM-768-X25519 public key must be {XWing.PublicKeySize} bytes, got {data.Length}");
 
-        // Must be lowercase
         if (s != s.ToLowerInvariant())
             throw new FormatException("age recipient must be lowercase");
 
-        // Length and case alone let a structurally invalid ML-KEM encapsulation key through, so
-        // a recipients-file validator passed a file that then failed mid-encryption. Go's
-        // ParseHybridRecipient runs the ByteEncode/ByteDecode round trip here and rejects
-        // immediately; this does the same by asking BouncyCastle to decode the key half.
+        // Length and case alone let a structurally invalid ML-KEM key through, deferring the
+        // failure to mid-encryption. Go's ParseHybridRecipient round-trips the encoding here.
         XWing.ValidatePublicKey(data);
 
         return new MlKem768X25519Recipient(data);

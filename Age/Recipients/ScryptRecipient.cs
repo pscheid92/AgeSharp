@@ -23,11 +23,8 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
     private const string ScryptSaltLabel = "age-encryption.org/v1/scrypt";
     private const int SaltSize = 16;
     // Matches Go's ScryptIdentity default (references/go-age/scrypt.go:129, "15s on a modern
-    // machine"). The spec only says an identity implementation SHOULD apply an upper limit, so
-    // 20 was legal — but the reference CLI's decrypt path accepts 21 and 22, so main refused
-    // genuine age-produced files and could not produce them either. Matching the reference means
-    // accepting the same worst-case work an attacker-supplied header can demand, which is the
-    // trade the reference already makes.
+    // machine"). The spec only says SHOULD apply an upper limit; a lower one rejects genuine
+    // age-produced files, so this accepts the same attacker-demandable work the reference does.
     private const int MaxWorkFactor = 22;
     private const int KeySize = 32;
     private const int NonceSize = 12;

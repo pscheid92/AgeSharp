@@ -37,8 +37,7 @@ internal static class XWing
         }
         finally
         {
-            // seedPq is the ML-KEM-768 private seed (d,z). Both call sites used to discard it
-            // with `_`, leaving it on the heap with no reference left to clear it by.
+            // seedPq is the ML-KEM-768 private seed (d,z).
             CryptographicOperations.ZeroMemory(seedPq);
         }
     }
@@ -96,7 +95,6 @@ internal static class XWing
         var pkM = publicKey[..MlKemPublicKeySize];
         var pkX = publicKey[MlKemPublicKeySize..];
 
-        // ML-KEM-768 encapsulate
         MLKemPublicKeyParameters mlKemPub;
 
         try
@@ -122,8 +120,7 @@ internal static class XWing
         var ssM = new byte[SharedSecretSize];
         encapsulator.Encapsulate(ctM, 0, MlKemCiphertextSize, ssM, 0, SharedSecretSize);
 
-        // X25519 ephemeral DH. Decaps guarded this and Encaps did not — the asymmetry sat inside
-        // one file. Both now go through the single guarded helper.
+        // X25519 ephemeral DH, through the same guarded helper Decaps uses.
         var ekX = new X25519PrivateKeyParameters(new SecureRandom());
         var ctX = ekX.GeneratePublicKey().GetEncoded();
         var ssX = new byte[SharedSecretSize];
@@ -132,7 +129,6 @@ internal static class XWing
         {
             CryptoHelper.X25519Agree(ekX, new X25519PublicKeyParameters(pkX), ssX);
 
-            // Combine: enc = ct_M || ct_X
             var enc = new byte[EncSize];
             ctM.CopyTo(enc, 0);
             ctX.CopyTo(enc, MlKemCiphertextSize);
@@ -162,12 +158,11 @@ internal static class XWing
 
         try
         {
-            // ML-KEM-768 decapsulate
             var decapsulator = new MLKemDecapsulator(MLKemParameters.ml_kem_768);
             decapsulator.Init(mlKemPrivate);
             decapsulator.Decapsulate(ctM, 0, MlKemCiphertextSize, ssM, 0, SharedSecretSize);
 
-            // X25519 DH — the guard and the all-zero check both live in the helper now.
+            // X25519 DH — the low-order guard and all-zero check live in the helper.
             CryptoHelper.X25519Agree(x25519Private, new X25519PublicKeyParameters(ctX), ssX);
 
             // ss = SHA3-256(ss_M || ss_X || ct_X || pk_X || XWingLabel)

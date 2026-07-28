@@ -105,7 +105,6 @@ internal static class Bech32
     // and converting the 5-bit data back to 8-bit bytes.
     public static (string Hrp, byte[] Data) Decode(string bech)
     {
-        // BIP-173: "The last '1' in the string is the separator."
         var sepPos = bech.LastIndexOf('1');
         if (sepPos < 1 || sepPos + 7 > bech.Length)
             throw new FormatException("invalid bech32 string: separator not found or invalid position");
@@ -145,7 +144,6 @@ internal static class Bech32
         if (!VerifyChecksum(hrp, data5))
             throw new FormatException("invalid bech32 checksum");
 
-        // Strip checksum
         var data5NoCheck = data5[..^6];
 
         try

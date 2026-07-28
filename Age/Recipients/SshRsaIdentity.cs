@@ -58,7 +58,6 @@ public sealed class SshRsaIdentity : IIdentity, IDisposable
         if (stanza.Args.Count != 1)
             throw new AgeHeaderException($"ssh-rsa stanza must have exactly 1 argument, got {stanza.Args.Count}");
 
-        // Check tag matches
         if (stanza.Args[0] != _tag)
             return null;
 

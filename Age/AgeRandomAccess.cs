@@ -270,7 +270,6 @@ public sealed class AgeRandomAccess : IDisposable
         var fullChunks = totalEncryptedPayload / StreamEncryption.EncryptedChunkSize;
         var remainder = totalEncryptedPayload % StreamEncryption.EncryptedChunkSize;
 
-        // If no remainder, the last full-sized chunk IS the final chunk
         return remainder == 0 ? fullChunks : fullChunks + 1;
     }
 }

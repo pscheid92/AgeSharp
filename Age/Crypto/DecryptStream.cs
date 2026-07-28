@@ -17,7 +17,6 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
     private State _state = State.Chunks;
     private bool _disposed;
 
-    // Chunk buffering — rented from the shared pool, reused across chunks
     private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
     private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(PlaintextBufferSize);
     private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
@@ -50,7 +49,6 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
 
         while (totalRead < buffer.Length)
         {
-            // Drain any buffered plaintext first
             if (_plaintextOffset < _plaintextLength)
             {
                 var available = _plaintextLength - _plaintextOffset;

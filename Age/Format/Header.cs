@@ -32,7 +32,6 @@ internal sealed class Header
                       "stream; buffer it first (for example into a MemoryStream) or strip the armor"
                     : $"unsupported version: {versionLine}");
 
-        // Read stanzas until we hit the MAC line
         while (true)
         {
             var line = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header");
@@ -98,13 +97,11 @@ internal sealed class Header
 
         try
         {
-            // HMAC-SHA-256(key=hmac_key, message=headerBytes)
             return CryptoHelper.HmacSha256(hmacKeyBytes, headerBytes);
         }
         finally
         {
-            // A file-key-derived secret, left on the heap on every encrypt and every decrypt.
-            // Every other derived key on main is cleared by its owner; this was the omission.
+            // A file-key-derived secret, produced on every encrypt and every decrypt.
             CryptographicOperations.ZeroMemory(hmacKeyBytes);
         }
     }
@@ -124,7 +121,6 @@ internal sealed class Header
         writer.Write("---");
         writer.Flush();
 
-        // Compute MAC over everything written so far (through "---", no trailing space)
         var headerBytesForMac = headerStream.ToArray();
         var mac = ComputeMac(fileKey, headerBytesForMac);
 
@@ -133,7 +129,6 @@ internal sealed class Header
         writer.Write('\n');
         writer.Flush();
 
-        // Write to actual output
         headerStream.Position = 0;
         headerStream.CopyTo(stream);
     }

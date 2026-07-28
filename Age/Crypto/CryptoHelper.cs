@@ -60,15 +60,9 @@ internal static class CryptoHelper
 
     public static byte[] HkdfDerive(ReadOnlySpan<byte> ikm, ReadOnlySpan<byte> salt, string info, int length)
     {
-        // Delegated to BouncyCastle's HkdfBytesGenerator for RFC 5869
-        // correctness across all platforms. .NET's HKDF.DeriveKey uses OpenSSL
-        // on Linux, which rejects empty IKM — but the age spec uses empty
-        // IKM for the SSH-Ed25519 tweak derivation. BouncyCastle handles
-        // this uniformly. HKDF is called once per session, not per chunk,
-        // so the ToArray() allocations here are not a hot path.
-        //
-        // ikm is key material — a file key, a shared secret — so the copy BouncyCastle
-        // requires is cleared here rather than left on the heap until a GC happens to move it.
+        // BouncyCastle rather than HKDF.DeriveKey: the latter uses OpenSSL on Linux, which
+        // rejects the empty IKM the spec's SSH-Ed25519 tweak derivation needs. The copy
+        // BouncyCastle requires is key material, so it is cleared rather than left to the GC.
         var ikmCopy = ikm.ToArray();
 
         try

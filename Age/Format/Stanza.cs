@@ -104,7 +104,6 @@ public sealed class Stanza
         var stanzaType = parts[0];
         var stanzaArgs = parts.Length > 1 ? parts[1..] : [];
 
-        // Validate type and args: only printable ASCII (33-126)
         ValidateStanzaString(stanzaType);
 
         foreach (var arg in stanzaArgs)

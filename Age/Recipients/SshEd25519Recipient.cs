@@ -53,7 +53,6 @@ public sealed class SshEd25519Recipient : IRecipient
         var tweakedKey = new byte[CryptoHelper.X25519SharedSecretSize];
         CryptoHelper.X25519Agree(tweakPrivate, recipientPub, tweakedKey);
 
-        // Generate ephemeral X25519 key pair
         var ephemeral = new X25519PrivateKeyParameters(new SecureRandom());
         var ephPubBytes = ephemeral.GeneratePublicKey().GetEncoded();
 

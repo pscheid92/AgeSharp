@@ -106,7 +106,6 @@ internal static class HpkeHelper
 
         try
         {
-            // HKDF-Extract = HMAC(salt, ikm)
             return CryptoHelper.HmacSha256(actualSalt, labeledIkm);
         }
         finally
@@ -137,7 +136,6 @@ internal static class HpkeHelper
         pos += labelBytes.Length;
         info.CopyTo(labeledInfo, pos);
 
-        // HKDF-Expand with PRK and labeled_info
         var hkdf = new HkdfBytesGenerator(new Sha256Digest());
         hkdf.Init(HkdfParameters.SkipExtractParameters(prk, labeledInfo));
         var result = new byte[length];

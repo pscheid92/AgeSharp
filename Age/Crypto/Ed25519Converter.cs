@@ -20,7 +20,6 @@ internal static class Ed25519Converter
         Array.Copy(ed25519PublicKey, yBytes, 32);
         yBytes[31] &= 0x7F;
 
-        // Decode y into field element limbs
         var y = new int[X25519Field.Size];
         X25519Field.Decode(yBytes, 0, y);
 
@@ -40,7 +39,6 @@ internal static class Ed25519Converter
         var u = new int[X25519Field.Size];
         X25519Field.Mul(numerator, invDenom, u);
 
-        // Normalize and encode
         X25519Field.Normalize(u);
         var result = new byte[32];
         X25519Field.Encode(u, result, 0);

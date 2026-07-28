@@ -53,7 +53,6 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable
     /// <exception cref="FormatException">The string is not a valid ML-KEM-768-X25519 secret key.</exception>
     public static MlKem768X25519Identity Parse(string s)
     {
-        // Must be uppercase
         if (s != s.ToUpperInvariant())
             throw new FormatException("age secret key must be uppercase");
 

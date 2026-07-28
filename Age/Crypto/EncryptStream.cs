@@ -20,7 +20,6 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
     private readonly byte[] _preamble = [..headerBytes, ..payloadNonce];
     private int _preambleOffset;
 
-    // Chunk buffering — rented from the shared pool, reused across chunks
     private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(PlaintextBufferSize);
     private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
     private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
@@ -112,7 +111,6 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         }
         else
         {
-            // Save the look-ahead byte for the next read
             _plaintextBuffer[0] = _plaintextBuffer[StreamEncryption.ChunkSize];
             _pendingByte = true;
         }
