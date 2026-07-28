@@ -61,9 +61,9 @@ public sealed class Stanza
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(body);
 
-        EnsureValidStanzaString(type, nameof(type));
+        ThrowIfInvalidArgument(type, nameof(type));
         foreach (var arg in args)
-            EnsureValidStanzaString(arg, nameof(args));
+            ThrowIfInvalidArgument(arg, nameof(args));
 
         Type = type;
         _args = [.. args];
@@ -113,10 +113,10 @@ public sealed class Stanza
         var stanzaType = parts[0];
         var stanzaArgs = parts.Length > 1 ? parts[1..] : [];
 
-        ValidateStanzaString(stanzaType);
+        ThrowIfMalformed(stanzaType);
 
         foreach (var arg in stanzaArgs)
-            ValidateStanzaString(arg);
+            ThrowIfMalformed(arg);
 
         var body = ReadBody(reader);
         return new Stanza(stanzaType, stanzaArgs, body);
@@ -174,7 +174,7 @@ public sealed class Stanza
     internal static int IndexOfNonVChar(ReadOnlySpan<char> s) => s.IndexOfAnyExceptInRange('!', '~');
 
     /// <summary>Why a stanza string is unacceptable, or null if it is fine.</summary>
-    private static string? StanzaStringError(string? s)
+    private static string? InvalidReason(string? s)
     {
         if (string.IsNullOrEmpty(s))
             return "stanza type/argument cannot be empty";
@@ -186,17 +186,17 @@ public sealed class Stanza
             : null;
     }
 
-    // Wire data: a malformed header, not a caller mistake.
-    private static void ValidateStanzaString(string s)
+    /// <summary>The string came off the wire, so a bad one means the file is malformed.</summary>
+    private static void ThrowIfMalformed(string s)
     {
-        if (StanzaStringError(s) is { } error)
-            throw new AgeHeaderException(error);
+        if (InvalidReason(s) is { } reason)
+            throw new AgeHeaderException(reason);
     }
 
-    // Caller-supplied constructor input, where ArgumentException is the idiomatic failure.
-    private static void EnsureValidStanzaString(string? s, string paramName)
+    /// <summary>The string came from the caller, so a bad one means they passed a bad argument.</summary>
+    private static void ThrowIfInvalidArgument(string? s, string paramName)
     {
-        if (StanzaStringError(s) is { } error)
-            throw new ArgumentException(error, paramName);
+        if (InvalidReason(s) is { } reason)
+            throw new ArgumentException(reason, paramName);
     }
 }
