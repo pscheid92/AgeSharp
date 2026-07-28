@@ -96,10 +96,29 @@ most allocation is the output `MemoryStream`'s growth, not the crypto path.
 
 ### Key Generation
 
+Both types defer part of the work, in opposite directions, so `Generate()` alone is
+not a comparable number. X25519 does its keygen in `Generate()`; ML-KEM-768-X25519
+fills a 32-byte seed there and runs the ML-KEM keygen on first access to `Recipient`
+(cached thereafter). Measuring only `Generate()` reports post-quantum keygen as eight
+times *faster* than X25519, which is backwards — it simply has not happened yet.
+
+**Secret key to usable public key** — the comparable figure:
+
 | Operation | Time | Allocated |
 |---|---:|---:|
-| X25519 | 1,982 ns | 880 B |
-| ML-KEM-768-X25519 | 251 ns | 88 B |
+| X25519 | 28.6 us | 2.1 KB |
+| ML-KEM-768-X25519 | 91.3 us | 28.5 KB |
+
+Post-quantum costs ~3.2x the time and ~14x the memory, which is the expected shape
+for ML-KEM-768 against a curve operation.
+
+**`Generate()` alone**, for reference — useful only when you are generating a secret
+that will be stored and not immediately turned into a recipient:
+
+| Operation | Time | Allocated |
+|---|---:|---:|
+| X25519 | 2,150 ns | 880 B |
+| ML-KEM-768-X25519 | 275 ns | 96 B |
 
 ### Recipient Wrap / Unwrap
 
