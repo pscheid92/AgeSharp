@@ -373,7 +373,7 @@ public class PqRoundTripTests
 
         var ex = Assert.Throws<AgeException>(() =>
             AgeEncrypt.Encrypt(encInput, encOutput, pqId.Recipient, x25519Id.Recipient));
-        Assert.Contains("different security labels", ex.Message);
+        Assert.Contains("post-quantum and classical", ex.Message);
     }
 
     [Fact]
@@ -388,6 +388,6 @@ public class PqRoundTripTests
 
         var ex = Assert.Throws<AgeException>(() =>
             AgeEncrypt.Encrypt(encInput, encOutput, x25519Id.Recipient, pqId.Recipient));
-        Assert.Contains("different security labels", ex.Message);
+        Assert.Contains("post-quantum and classical", ex.Message);
     }
 }

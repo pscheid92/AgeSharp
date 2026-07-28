@@ -752,6 +752,73 @@ public class AsciiArmorTests
         using var dearmored = AsciiArmor.Dearmor(armored);
         Assert.Equal(data, ReadAllBytes(dearmored));
     }
+
+    // --- C1: a full-width final line may carry base64 padding ---
+
+    [Fact]
+    public void Armor_Dearmor_RoundTrip_Every_Length_Through_A_Full_Mod48_Cycle()
+    {
+        // A final chunk of 46 bytes encodes to 64 characters ending "==", and one of 47 bytes to
+        // 64 characters ending "=". The decoder used to require every 64-character line to decode
+        // to a full 48 bytes, so it rejected its own output at those two residues — 2 of every 48
+        // payload lengths, ~4% of arbitrary armored files.
+        for (var length = 0; length <= 200; length++)
+        {
+            var data = new byte[length];
+            new Random(length).NextBytes(data);
+
+            using var input = new MemoryStream(data);
+            using var armored = new MemoryStream();
+            AsciiArmor.Armor(input, armored);
+
+            armored.Position = 0;
+            using var dearmored = AsciiArmor.Dearmor(armored);
+            Assert.Equal(data, ReadAllBytes(dearmored));
+        }
+    }
+
+    [Fact]
+    public void Accepts_Full_Width_Final_Line_With_Padding()
+    {
+        // 46 bytes -> "…==", 47 bytes -> "…=", both exactly 64 characters wide.
+        foreach (var length in new[] { 46, 47 })
+        {
+            var data = new byte[length];
+            new Random(length).NextBytes(data);
+
+            var body = Convert.ToBase64String(data);
+            Assert.Equal(64, body.Length);
+
+            var text = $"-----BEGIN AGE ENCRYPTED FILE-----\n{body}\n-----END AGE ENCRYPTED FILE-----\n";
+            using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
+            using var dearmored = AsciiArmor.Dearmor(stream);
+            Assert.Equal(data, ReadAllBytes(dearmored));
+        }
+    }
+
+    [Fact]
+    public void Reject_NonCanonical_Padding_On_A_Full_Width_Line()
+    {
+        // Accepting padded full-width lines must not weaken canonicality: the bits the padding
+        // covers still have to be zero. "…B==" sets bits that "…A==" leaves clear.
+        var body = new string('A', 61) + "B==";
+        Assert.Equal(64, body.Length);
+        var text = $"-----BEGIN AGE ENCRYPTED FILE-----\n{body}\n-----END AGE ENCRYPTED FILE-----\n";
+        using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
+        var ex = Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Contains("non-canonical", ex.Message);
+    }
+
+    [Fact]
+    public void Reject_Full_Width_Padded_Line_Followed_By_Another_Body_Line()
+    {
+        // A padded line ends the body whatever its width, so anything after it is an error.
+        var padded = Convert.ToBase64String(new byte[46]);
+        var text = $"-----BEGIN AGE ENCRYPTED FILE-----\n{padded}\n{new string('A', 64)}\n-----END AGE ENCRYPTED FILE-----\n";
+        using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
+        var ex = Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Contains("not the last line", ex.Message);
+    }
 }
 
 public class StreamEncryptionTests
@@ -901,19 +968,22 @@ public class ScryptRecipientTests
     }
 
     [Fact]
-    public void Unwrap_Rejects_WorkFactor_Over_20()
+    // The cap is 22, matching Go's ScryptIdentity default, so that files the reference CLI
+    // produces are readable. This asserted 21 was rejected, which is exactly the interop
+    // failure (I3): genuine age-produced files at work factor 21 and 22 were refused.
+    public void Unwrap_Rejects_WorkFactor_Over_22()
     {
         var recipient = new ScryptRecipient("password");
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
-        var stanza = new Stanza("scrypt", [saltB64, "21"], new byte[32]);
+        var stanza = new Stanza("scrypt", [saltB64, "23"], new byte[32]);
         Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
     }
 
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    [InlineData(21)]
+    [InlineData(23)]
     [InlineData(31)]
     [InlineData(64)]
     public void Constructor_Rejects_OutOfRange_WorkFactor(int workFactor)

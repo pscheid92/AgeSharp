@@ -22,7 +22,10 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
     private const string StanzaType = "scrypt";
     private const string ScryptSaltLabel = "age-encryption.org/v1/scrypt";
     private const int SaltSize = 16;
-    private const int MaxWorkFactor = 20;
+    // Matches Go's ScryptIdentity default (references/go-age/scrypt.go:129, "15s on a modern
+    // machine"). The spec only says SHOULD apply an upper limit; a lower one rejects genuine
+    // age-produced files, so this accepts the same attacker-demandable work the reference does.
+    private const int MaxWorkFactor = 22;
     private const int KeySize = 32;
     private const int NonceSize = 12;
     private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
@@ -46,12 +49,17 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
 
         var wrapKey = DeriveWrapKey(passphrase, salt, _workFactor);
 
-        var zeroNonce = new byte[NonceSize];
-        var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
-        CryptographicOperations.ZeroMemory(wrapKey);
+        try
+        {
+            var zeroNonce = new byte[NonceSize];
+            var body = CryptoHelper.ChaChaEncrypt(wrapKey, zeroNonce, fileKey);
 
-        var saltB64 = Base64Unpadded.Encode(salt);
-        return new Stanza(StanzaType, [saltB64, _workFactor.ToString()], body);
+            return new Stanza(StanzaType, [Base64Unpadded.Encode(salt), _workFactor.ToString()], body);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(wrapKey);
+        }
     }
 
     /// <summary>
@@ -91,12 +99,16 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
 
         var wrapKey = DeriveWrapKey(passphrase, salt, stanzaWorkFactor);
 
-        var zeroNonce = new byte[NonceSize];
-        var fileKey = CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span);
-        CryptographicOperations.ZeroMemory(wrapKey);
-
-        // AEAD auth failure → wrong passphrase, return null to signal no match
-        return fileKey;
+        try
+        {
+            // AEAD auth failure → wrong passphrase, return null to signal no match
+            var zeroNonce = new byte[NonceSize];
+            return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(wrapKey);
+        }
     }
 
     internal static bool ValidateWorkFactor(string s, out int workFactor)
@@ -127,10 +139,15 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
         var n = 1 << workFactor;
         var passphraseBytes = Encoding.UTF8.GetBytes(passphrase);
 
-        var result = SCrypt.Generate(passphraseBytes, scryptSalt, n, 8, 1, KeySize);
-
-        CryptographicOperations.ZeroMemory(passphraseBytes);
-
-        return result;
+        try
+        {
+            return SCrypt.Generate(passphraseBytes, scryptSalt, n, 8, 1, KeySize);
+        }
+        finally
+        {
+            // The UTF-8 copy of the passphrase. The caller's string cannot be cleared — that
+            // would need a Passphrase type taking ReadOnlySpan<char>, which is new public API.
+            CryptographicOperations.ZeroMemory(passphraseBytes);
+        }
     }
 }

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Age.Crypto;
 using Age.Format;
@@ -15,7 +16,8 @@ namespace Age.Recipients;
 /// Optional UI callbacks for interactive plugins; when null, interactive
 /// requests are answered with failure per the plugin protocol.
 /// </param>
-public sealed class PluginRecipient(string recipient, IPluginCallbacks? callbacks = null) : IRecipient
+public sealed class PluginRecipient(string recipient, IPluginCallbacks? callbacks = null)
+    : IRecipient, IMultiStanzaRecipient
 {
     internal string PluginName { get; } =
         ExtractPluginName(recipient);
@@ -25,15 +27,45 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
         null;
 
 
-    /// <summary>Wraps the file key by running the plugin binary (recipient-v1 protocol).</summary>
-    /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an error.</exception>
+    /// <summary>
+    /// Wraps the file key by running the plugin binary (recipient-v1 protocol).
+    /// </summary>
+    /// <remarks>
+    ///     A plugin is permitted to answer with several stanzas. This returns a single one and so
+    ///     cannot represent that, and silently dropping the rest would destroy the file key beyond
+    ///     recovery — so it throws instead. The library itself does not go through here: it uses
+    ///     the multi-stanza path and keeps every stanza.
+    /// </remarks>
+    /// <exception cref="AgePluginException">The plugin failed, or produced more than one stanza.</exception>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
         using var conn = new PluginConnection(PluginName, "recipient-v1");
-        return WrapWithConnection(conn, fileKey);
+        var stanzas = WrapAllWithConnection(conn, fileKey);
+
+        return stanzas.Count == 1
+            ? stanzas[0]
+            : throw new AgePluginException(
+                $"plugin '{PluginName}' produced {stanzas.Count} recipient stanzas, which a single " +
+                "Stanza cannot carry; encrypt through Age instead of calling Wrap directly");
+    }
+
+    IReadOnlyList<Stanza> IMultiStanzaRecipient.WrapAll(ReadOnlySpan<byte> fileKey)
+    {
+        using var conn = new PluginConnection(PluginName, "recipient-v1");
+        return WrapAllWithConnection(conn, fileKey);
     }
 
     internal Stanza WrapWithConnection(PluginConnection conn, ReadOnlySpan<byte> fileKey)
+    {
+        var stanzas = WrapAllWithConnection(conn, fileKey);
+
+        return stanzas.Count == 1
+            ? stanzas[0]
+            : throw new AgePluginException(
+                $"plugin '{PluginName}' produced {stanzas.Count} recipient stanzas");
+    }
+
+    internal IReadOnlyList<Stanza> WrapAllWithConnection(PluginConnection conn, ReadOnlySpan<byte> fileKey)
     {
         SendWrapRequest(conn, fileKey);
         return ReadWrapResponse(conn);
@@ -42,14 +74,30 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
     private void SendWrapRequest(PluginConnection conn, ReadOnlySpan<byte> fileKey)
     {
         conn.WriteStanza("add-recipient", [recipient], []);
-        conn.WriteStanza("wrap-file-key", [], fileKey.ToArray());
-        conn.WriteStanza("extension-labels", [], []);
+
+        // Named, not inlined: an argument-position ToArray() leaves no reference to clear it by.
+        var fileKeyCopy = fileKey.ToArray();
+
+        try
+        {
+            conn.WriteStanza("wrap-file-key", [], fileKeyCopy);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(fileKeyCopy);
+        }
+
+        // No "extension-labels": advertising it promises we act on the plugin's "labels" reply, and
+        // IRecipient.Label cannot hold a label set. Staying silent stops a conforming plugin from
+        // sending one, rather than having us discard a constraint it relies on.
         conn.WriteStanza("done", [], []);
     }
 
-    private Stanza ReadWrapResponse(PluginConnection conn)
+    private List<Stanza> ReadWrapResponse(PluginConnection conn)
     {
-        Stanza? result = null;
+        // Accumulate rather than replace: the spec's recipient-v1 example has one plugin emit two
+        // stanzas for a single file index, and a share-splitting plugin needs all of them.
+        var result = new List<Stanza>();
 
         while (true)
         {
@@ -58,16 +106,17 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
             switch (type)
             {
                 case "recipient-stanza":
-                    result = ParseRecipientStanza(args, body);
+                    result.Add(ParseRecipientStanza(args, body));
                     conn.WriteStanza("ok", [], []);
                     break;
 
                 case "error":
-                    throw new AgePluginException($"plugin error: {Encoding.UTF8.GetString(body)}");
+                    throw conn.Failure($"plugin error: {Encoding.UTF8.GetString(body)}");
 
                 case "done":
-                    return result
-                           ?? throw new AgePluginException("plugin completed without producing a recipient stanza");
+                    return result.Count > 0
+                        ? result
+                        : throw new AgePluginException("plugin completed without producing a recipient stanza");
 
                 default:
                     HandleCommonStanza(conn, type, args, body);
@@ -81,6 +130,10 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
         if (args.Length < 2)
             throw new AgePluginException("recipient-stanza missing file index or type");
 
+        // One file key was sent, so 0 is the only index the plugin may answer with.
+        if (args[0] != "0")
+            throw new AgePluginException($"recipient-stanza has unexpected file index: {args[0]}");
+
         var stanzaType = args[1];
         var stanzaArgs = args.Length > 2 ? args[2..] : [];
         return new Stanza(stanzaType, stanzaArgs, body);
@@ -88,7 +141,8 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
     private static (string Type, string[] Args, byte[] Body) ReadNextStanza(PluginConnection conn)
     {
-        var raw = conn.ReadStanza() ?? throw new AgePluginException("unexpected end of plugin output");
+        // stderr is the only account of why the plugin died, so Failure() quotes it.
+        var raw = conn.ReadStanza() ?? throw conn.Failure("unexpected end of plugin output");
         return raw;
     }
 
@@ -96,8 +150,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
     {
         switch (type)
         {
-            // Per the age-plugin spec, interactive requests are answered with
-            // fail when the client has no UI to present them
+            // The spec answers interactive requests with fail when the client has no UI.
             case "msg" or "request-secret" or "request-public" or "confirm" when callbacks is null:
                 conn.WriteStanza("fail", [], []);
                 break;
@@ -126,8 +179,13 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
     private void HandleConfirm(PluginConnection conn, string[] args, byte[] body)
     {
+        // (confirm, Base64(YES_STRING) [Base64(NO_STRING)]; MESSAGE) — the yes label is
+        // mandatory, so a missing one is a malformed command, not a prompt to invent a label for.
+        if (args.Length is not (1 or 2))
+            throw new AgePluginException("malformed confirm stanza: unexpected number of arguments");
+
         var message = Encoding.UTF8.GetString(body);
-        var yes = args.Length > 0 ? DecodeOptionLabel(args[0]) : "yes";
+        var yes = DecodeOptionLabel(args[0]);
         var no = args.Length > 1 ? DecodeOptionLabel(args[1]) : null;
         var confirmed = callbacks!.Confirm(message, yes, no);
         conn.WriteStanza("ok", [confirmed ? "yes" : "no"], []);
@@ -147,17 +205,15 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
     internal static string ExtractPluginName(string recipient)
     {
-        // Bech32-decode to get HRP. For "age1yubikey1...", HRP = "age1yubikey", name = HRP[4..] = "yubikey"
+        // A plugin recipient HRP is "age1<name>" — "age1yubikey1..." gives name "yubikey". The prefix
+        // check keeps hrp[4..] in range for a short HRP like "age".
         var (hrp, _) = Bech32.Decode(recipient);
 
-        // A plugin recipient HRP is "age1<name>"; require the "age1" prefix so hrp[4..]
-        // is always in range (a shorter HRP like "age" would otherwise throw).
-        var name = hrp.StartsWith("age1")
+        var name = hrp.StartsWith("age1", StringComparison.Ordinal)
             ? hrp[4..]
             : throw new FormatException($"invalid plugin recipient HRP: {hrp}");
 
-        // The name becomes the age-plugin-<name> executable path, so reject anything
-        // outside the allowed set (notably path separators) before it reaches Process.Start.
+        // The name becomes an executable path, so reject path separators before Process.Start.
         return PluginNameValidator.Validate(name);
     }
 

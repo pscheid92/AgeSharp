@@ -15,8 +15,8 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
     private const int PlaintextBufferSize = StreamEncryption.ChunkSize;
 
     private State _state = State.Chunks;
+    private bool _disposed;
 
-    // Chunk buffering — rented from the shared pool, reused across chunks
     private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
     private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(PlaintextBufferSize);
     private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
@@ -41,11 +41,14 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
 
     public override int Read(Span<byte> buffer)
     {
+        // The buffers are back on the ArrayPool after Dispose, so reading here would serve
+        // whatever the next renter has since written into them.
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var totalRead = 0;
 
         while (totalRead < buffer.Length)
         {
-            // Drain any buffered plaintext first
             if (_plaintextOffset < _plaintextLength)
             {
                 var available = _plaintextLength - _plaintextOffset;
@@ -132,23 +135,19 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         }
 
         const int target = StreamEncryption.EncryptedChunkSize + 1;
-        while (total < target)
-        {
-            var read = ciphertext.Read(_ciphertextBuffer, total, target - total);
-
-            if (read == 0)
-                break;
-
-            total += read;
-        }
+        total += ciphertext.ReadAtLeast(_ciphertextBuffer.AsSpan(total, target - total), target - total, throwOnEndOfStream: false);
 
         return total;
     }
 
+    // Stream.Dispose() is not idempotent and Close() is a documented alias for it, so a caller
+    // doing both is legal — and without this guard the second pass Returns buffers that are
+    // already on the pool's free list, after which two unrelated Rent calls get the same array.
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
+        if (disposing && !_disposed)
         {
+            _disposed = true;
             _cipher.Dispose();
             CryptographicOperations.ZeroMemory(payloadKey);
             CryptographicOperations.ZeroMemory(_plaintextBuffer.AsSpan(0, PlaintextBufferSize));

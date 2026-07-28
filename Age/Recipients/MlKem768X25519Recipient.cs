@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Age.Crypto;
 using Age.Format;
 
@@ -40,10 +41,14 @@ public sealed class MlKem768X25519Recipient : IRecipient
         if (data.Length != XWing.PublicKeySize)
             throw new FormatException($"ML-KEM-768-X25519 public key must be {XWing.PublicKeySize} bytes, got {data.Length}");
 
-        // Must be lowercase
-        return s == s.ToLowerInvariant()
-            ? new MlKem768X25519Recipient(data)
-            : throw new FormatException("age recipient must be lowercase");
+        if (s != s.ToLowerInvariant())
+            throw new FormatException("age recipient must be lowercase");
+
+        // Length and case alone let a structurally invalid ML-KEM key through, deferring the
+        // failure to mid-encryption. Go's ParseHybridRecipient round-trips the encoding here.
+        XWing.ValidatePublicKey(data);
+
+        return new MlKem768X25519Recipient(data);
     }
 
     /// <summary>Returns the bech32-encoded recipient string (<c>age1pq1…</c>).</summary>
@@ -53,8 +58,18 @@ public sealed class MlKem768X25519Recipient : IRecipient
     /// <summary>Wraps the file key for this recipient via X-Wing HPKE (ML-KEM-768 + X25519).</summary>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
-        var (enc, ct) = HpkeHelper.SealBase(_publicKey, AgeProtocol.MlKemHpkeInfo, fileKey.ToArray());
-        var encB64 = Base64Unpadded.Encode(enc);
-        return new Stanza(AgeProtocol.MlKemStanzaType, [encB64], ct);
+        // Named rather than inlined: passing fileKey.ToArray() as an argument left an uncleared
+        // heap copy of the file key itself with no reference to clear it by.
+        var fileKeyCopy = fileKey.ToArray();
+
+        try
+        {
+            var (enc, ct) = HpkeHelper.SealBase(_publicKey, AgeProtocol.MlKemHpkeInfo, fileKeyCopy);
+            return new Stanza(AgeProtocol.MlKemStanzaType, [Base64Unpadded.Encode(enc)], ct);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(fileKeyCopy);
+        }
     }
 }

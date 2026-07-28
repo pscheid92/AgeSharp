@@ -46,10 +46,11 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
     {
         conn.WriteStanza("add-identity", [identity], []);
 
-        for (var i = 0; i < stanzas.Count; i++)
+        // FILE_INDEX identifies the file, not the stanza: "Duplicate file indices indicate stanzas
+        // that are from the same file header, and wrap the same file key." One file, so all carry 0.
+        foreach (var s in stanzas)
         {
-            var s = stanzas[i];
-            string[] args = [i.ToString(), s.Type, .. s.Args];
+            string[] args = ["0", s.Type, .. s.Args];
             conn.WriteStanza("recipient-stanza", args, s.Body.ToArray());
         }
 
@@ -67,8 +68,15 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
             switch (type)
             {
                 case "file-key":
-                    if (args.Length < 1)
-                        throw new AgePluginException("file-key stanza missing file index");
+                    // One file was sent, so 0 is the only valid index, and a second file-key is a protocol
+                    // error rather than a replacement.
+                    if (args.Length != 1 || args[0] != "0")
+                        throw new AgePluginException(
+                            $"file-key stanza has unexpected file index: {string.Join(' ', args)}");
+
+                    if (result is not null)
+                        throw new AgePluginException("duplicate file-key stanza");
+
                     result = body;
                     conn.WriteStanza("ok", [], []);
                     break;
@@ -90,7 +98,7 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
     private static void HandleError(PluginConnection conn, string[] args, byte[] body)
     {
         if (args.Length > 0 && args[0] == "internal")
-            throw new AgePluginException($"plugin internal error: {Encoding.UTF8.GetString(body)}");
+            throw conn.Failure($"plugin internal error: {Encoding.UTF8.GetString(body)}");
 
         // Identity errors mean this identity doesn't match — return null
         conn.WriteStanza("ok", [], []);
@@ -98,7 +106,8 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
 
     private static (string Type, string[] Args, byte[] Body) ReadNextStanza(PluginConnection conn)
     {
-        var raw = conn.ReadStanza() ?? throw new AgePluginException("unexpected end of plugin output");
+        // stderr is the only account of why the plugin died, so Failure() quotes it.
+        var raw = conn.ReadStanza() ?? throw conn.Failure("unexpected end of plugin output");
         return raw;
     }
 
@@ -106,8 +115,7 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
     {
         switch (type)
         {
-            // Per the age-plugin spec, interactive requests are answered with
-            // fail when the client has no UI to present them
+            // The spec answers interactive requests with fail when the client has no UI.
             case "msg" or "request-secret" or "request-public" or "confirm" when callbacks is null:
                 conn.WriteStanza("fail", [], []);
                 break;
@@ -136,8 +144,13 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
 
     private void HandleConfirm(PluginConnection conn, string[] args, byte[] body)
     {
+        // (confirm, Base64(YES_STRING) [Base64(NO_STRING)]; MESSAGE) — the yes label is
+        // mandatory, so a missing one is a malformed command, not a label to invent.
+        if (args.Length is not (1 or 2))
+            throw new AgePluginException("malformed confirm stanza: unexpected number of arguments");
+
         var message = Encoding.UTF8.GetString(body);
-        var yes = args.Length > 0 ? DecodeOptionLabel(args[0]) : "yes";
+        var yes = DecodeOptionLabel(args[0]);
         var no = args.Length > 1 ? DecodeOptionLabel(args[1]) : null;
         var confirmed = callbacks!.Confirm(message, yes, no);
         conn.WriteStanza("ok", [confirmed ? "yes" : "no"], []);
@@ -157,17 +170,15 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
 
     internal static string ExtractPluginName(string identity)
     {
-        // Bech32-decode to get HRP. For "AGE-PLUGIN-YUBIKEY-1...", HRP = "age-plugin-yubikey-", name = HRP[11..^1] = "yubikey"
+        // A plugin identity HRP is "age-plugin-<name>-" — "AGE-PLUGIN-YUBIKEY-1..." gives "yubikey".
+        // Both affixes are required so hrp[11..^1] cannot run out of range.
         var (hrp, _) = Bech32.Decode(identity);
 
-        // A plugin identity HRP is "age-plugin-<name>-"; require both affixes (with room
-        // between them) so the hrp[11..^1] slice can't run out of range on a malformed value.
-        var name = hrp.StartsWith("age-plugin-") && hrp.EndsWith("-") && hrp.Length > 11
+        var name = hrp.StartsWith("age-plugin-", StringComparison.Ordinal) && hrp.EndsWith("-", StringComparison.Ordinal) && hrp.Length > 11
             ? hrp[11..^1]
             : throw new FormatException($"invalid plugin identity HRP: {hrp}");
 
-        // The name becomes the age-plugin-<name> executable path, so reject anything
-        // outside the allowed set (notably path separators) before it reaches Process.Start.
+        // The name becomes an executable path, so reject path separators before Process.Start.
         return PluginNameValidator.Validate(name);
     }
 

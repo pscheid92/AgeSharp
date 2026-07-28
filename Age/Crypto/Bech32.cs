@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 namespace Age.Crypto;
 
 // Bech32 encoding/decoding per BIP-173.
@@ -104,7 +105,6 @@ internal static class Bech32
     // and converting the 5-bit data back to 8-bit bytes.
     public static (string Hrp, byte[] Data) Decode(string bech)
     {
-        // BIP-173: "The last '1' in the string is the separator."
         var sepPos = bech.LastIndexOf('1');
         if (sepPos < 1 || sepPos + 7 > bech.Length)
             throw new FormatException("invalid bech32 string: separator not found or invalid position");
@@ -144,11 +144,19 @@ internal static class Bech32
         if (!VerifyChecksum(hrp, data5))
             throw new FormatException("invalid bech32 checksum");
 
-        // Strip checksum
         var data5NoCheck = data5[..^6];
-        var data8 = ConvertBits(data5NoCheck, 5, 8, false);
 
-        return (hrp, data8);
+        try
+        {
+            return (hrp, ConvertBits(data5NoCheck, 5, 8, false));
+        }
+        finally
+        {
+            // A trivially invertible 5-bit image of the same secret key. (The lowercased string
+            // cannot be cleared.)
+            CryptographicOperations.ZeroMemory(data5);
+            CryptographicOperations.ZeroMemory(data5NoCheck);
+        }
     }
 
     // BIP-173: General power-of-2 base conversion. Regroups bits from fromBits-sized groups
@@ -158,7 +166,13 @@ internal static class Bech32
         var acc = 0;
         var bits = 0;
         var maxv = (1 << toBits) - 1;
-        var ret = new List<byte>();
+
+        // Sized exactly: growing a List<byte> would scatter uncleared copies of a secret key
+        // across every reallocated backing array.
+        var totalBits = data.Length * fromBits;
+        var count = pad ? (totalBits + toBits - 1) / toBits : totalBits / toBits;
+        var result = new byte[count];
+        var written = 0;
 
         foreach (var value in data)
         {
@@ -171,23 +185,24 @@ internal static class Bech32
             while (bits >= toBits)
             {
                 bits -= toBits;
-                ret.Add((byte)((acc >> bits) & maxv));
+                result[written++] = (byte)((acc >> bits) & maxv);
             }
         }
 
         if (pad)
         {
             if (bits > 0)
-                ret.Add((byte)((acc << (toBits - bits)) & maxv));
+                result[written++] = (byte)((acc << (toBits - bits)) & maxv);
         }
         else
         {
             if (bits >= fromBits)
                 throw new FormatException("excess padding in bech32 data");
+
             if (((acc << (toBits - bits)) & maxv) != 0)
                 throw new FormatException("non-zero padding bits in bech32 data");
         }
 
-        return ret.ToArray();
+        return written == result.Length ? result : result[..written];
     }
 }

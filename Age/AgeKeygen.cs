@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Age.Crypto;
 using Age.Plugin;
@@ -100,8 +101,8 @@ public static class AgeKeygen
         {
             "age" => X25519Recipient.Parse(line),
             "age1pq" => MlKem768X25519Recipient.Parse(line),
-            _ when hrp.StartsWith("age1") => new PluginRecipient(line, callbacks),
-            _ when line.StartsWith("ssh-") => ParseSshRecipient(line),
+            _ when hrp.StartsWith("age1", StringComparison.Ordinal) => new PluginRecipient(line, callbacks),
+            _ when line.StartsWith("ssh-", StringComparison.Ordinal) => ParseSshRecipient(line),
             _ => throw new FormatException($"unrecognized recipient: {line}")
         };
     }
@@ -121,11 +122,11 @@ public static class AgeKeygen
             if (trimmed.Length == 0 || trimmed.StartsWith('#'))
                 continue;
 
-            if (trimmed.StartsWith("AGE-SECRET-KEY-PQ-"))
+            if (trimmed.StartsWith("AGE-SECRET-KEY-PQ-", StringComparison.Ordinal))
                 identities.Add(MlKem768X25519Identity.Parse(trimmed));
-            else if (trimmed.StartsWith("AGE-SECRET-KEY-"))
+            else if (trimmed.StartsWith("AGE-SECRET-KEY-", StringComparison.Ordinal))
                 identities.Add(X25519Identity.Parse(trimmed));
-            else if (trimmed.StartsWith("AGE-PLUGIN-"))
+            else if (trimmed.StartsWith("AGE-PLUGIN-", StringComparison.Ordinal))
                 identities.Add(new PluginIdentity(trimmed, callbacks));
             else
                 throw new FormatException($"unrecognized line in identity file: {trimmed}");
@@ -137,26 +138,56 @@ public static class AgeKeygen
     /// <summary>
     /// Decrypts an encrypted (passphrase-protected) identity file and parses the contained identities.
     /// </summary>
+    /// <remarks>
+    ///     The decrypted file contains <c>AGE-SECRET-KEY-1…</c> lines in the clear. The byte
+    ///     copies are cleared here; the <see cref="string" /> they are decoded into cannot be,
+    ///     because <see cref="ParseIdentityFile" /> takes a string and is shipped public API.
+    ///     Treat this as reducing the exposure rather than eliminating it.
+    /// </remarks>
     public static IIdentity[] DecryptIdentityFile(byte[] data, string passphrase)
     {
         using var input = new MemoryStream(data);
         using var output = new MemoryStream();
 
         AgeEncrypt.Decrypt(input, output, new ScryptRecipient(passphrase));
-        var plaintext = Encoding.UTF8.GetString(output.ToArray());
-        return ParseIdentityFile(plaintext);
+
+        // ToArray copies out, and the MemoryStream's own buffer keeps the plaintext too —
+        // Dispose does not clear it. Both are private keys in the clear.
+        var plaintextBytes = output.ToArray();
+
+        try
+        {
+            return ParseIdentityFile(Encoding.UTF8.GetString(plaintextBytes));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintextBytes);
+            CryptographicOperations.ZeroMemory(output.GetBuffer());
+        }
     }
 
     /// <summary>
     /// Encrypts an identity file with a passphrase using scrypt.
     /// </summary>
+    /// <remarks>
+    ///     <paramref name="identityFileText" /> holds private keys in the clear. The UTF-8 copy
+    ///     made here is cleared; the caller's string cannot be.
+    /// </remarks>
     public static byte[] EncryptIdentityFile(string identityFileText, string passphrase, bool armor = false, int workFactor = 18)
     {
         var plaintextBytes = Encoding.UTF8.GetBytes(identityFileText);
-        using var input = new MemoryStream(plaintextBytes);
-        using var output = new MemoryStream();
 
-        AgeEncrypt.Encrypt(input, output, armor, new ScryptRecipient(passphrase, workFactor));
-        return output.ToArray();
+        try
+        {
+            using var input = new MemoryStream(plaintextBytes);
+            using var output = new MemoryStream();
+
+            AgeEncrypt.Encrypt(input, output, armor, new ScryptRecipient(passphrase, workFactor));
+            return output.ToArray();
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintextBytes);
+        }
     }
 }

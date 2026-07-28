@@ -23,19 +23,25 @@ internal sealed class Header
         var versionLine = reader.ReadLine() ?? throw new AgeHeaderException("empty header");
 
         if (versionLine != VersionLine)
-            throw new AgeHeaderException($"unsupported version: {versionLine}");
+            throw new AgeHeaderException(
+                // Armor is auto-detected only on a seekable stream, so armored input from a pipe
+                // arrives here intact. Reporting its BEGIN marker as an "unsupported version"
+                // sent people looking for a version problem that does not exist.
+                versionLine.TrimStart().StartsWith("-----BEGIN AGE ENCRYPTED FILE-----", StringComparison.Ordinal)
+                    ? "input is ASCII-armored, but armor is only auto-detected on a seekable " +
+                      "stream; buffer it first (for example into a MemoryStream) or strip the armor"
+                    : $"unsupported version: {versionLine}");
 
-        // Read stanzas until we hit the MAC line
         while (true)
         {
             var line = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header");
 
-            if (line.StartsWith("-> "))
+            if (line.StartsWith("-> ", StringComparison.Ordinal))
             {
                 reader.PushBack(line);
                 header.Stanzas.Add(Stanza.Parse(reader));
             }
-            else if (line.StartsWith("---"))
+            else if (line.StartsWith("---", StringComparison.Ordinal))
             {
                 ParseMacLine(header, line, reader);
                 break;
@@ -53,7 +59,7 @@ internal sealed class Header
 
     private static void ParseMacLine(Header header, string line, HeaderReader reader)
     {
-        if (!line.StartsWith("--- "))
+        if (!line.StartsWith("--- ", StringComparison.Ordinal))
             throw new AgeHeaderException($"expected MAC line starting with '--- ', got: {line}");
 
         var macB64 = line[4..];
@@ -89,8 +95,15 @@ internal sealed class Header
         // HKDF-SHA-256(ikm=fileKey, salt="", info="header") → hmac_key (32 bytes)
         var hmacKeyBytes = CryptoHelper.HkdfDerive(fileKey, ReadOnlySpan<byte>.Empty, "header", 32);
 
-        // HMAC-SHA-256(key=hmac_key, message=headerBytes)
-        return CryptoHelper.HmacSha256(hmacKeyBytes, headerBytes);
+        try
+        {
+            return CryptoHelper.HmacSha256(hmacKeyBytes, headerBytes);
+        }
+        finally
+        {
+            // A file-key-derived secret, produced on every encrypt and every decrypt.
+            CryptographicOperations.ZeroMemory(hmacKeyBytes);
+        }
     }
 
     public void WriteTo(Stream stream, ReadOnlySpan<byte> fileKey)
@@ -108,7 +121,6 @@ internal sealed class Header
         writer.Write("---");
         writer.Flush();
 
-        // Compute MAC over everything written so far (through "---", no trailing space)
         var headerBytesForMac = headerStream.ToArray();
         var mac = ComputeMac(fileKey, headerBytesForMac);
 
@@ -117,7 +129,6 @@ internal sealed class Header
         writer.Write('\n');
         writer.Flush();
 
-        // Write to actual output
         headerStream.Position = 0;
         headerStream.CopyTo(stream);
     }

@@ -16,10 +16,10 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
     private const int CiphertextBufferSize = StreamEncryption.EncryptedChunkSize;
 
     private State _state = State.Preamble;
+    private bool _disposed;
     private readonly byte[] _preamble = [..headerBytes, ..payloadNonce];
     private int _preambleOffset;
 
-    // Chunk buffering — rented from the shared pool, reused across chunks
     private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(PlaintextBufferSize);
     private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
     private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
@@ -45,6 +45,9 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
 
     public override int Read(Span<byte> buffer)
     {
+        // See DecryptStream.Read: the pooled buffers no longer belong to this stream.
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var totalRead = 0;
 
         while (totalRead < buffer.Length)
@@ -108,7 +111,6 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         }
         else
         {
-            // Save the look-ahead byte for the next read
             _plaintextBuffer[0] = _plaintextBuffer[StreamEncryption.ChunkSize];
             _pendingByte = true;
         }
@@ -136,23 +138,18 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
             _pendingByte = false;
         }
 
-        while (total < count)
-        {
-            var read = plaintext.Read(buffer, total, count - total);
-
-            if (read == 0)
-                break;
-
-            total += read;
-        }
+        total += plaintext.ReadAtLeast(buffer.AsSpan(total, count - total), count - total, throwOnEndOfStream: false);
 
         return total;
     }
 
+    // See DecryptStream.Dispose: without the guard, a legal Close()+Dispose() Returns each
+    // pooled buffer twice and two later renters are handed the same array.
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
+        if (disposing && !_disposed)
         {
+            _disposed = true;
             _cipher.Dispose();
             CryptographicOperations.ZeroMemory(payloadKey);
             CryptographicOperations.ZeroMemory(_plaintextBuffer.AsSpan(0, PlaintextBufferSize));

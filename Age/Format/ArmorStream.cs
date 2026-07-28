@@ -14,6 +14,7 @@ internal sealed class ArmorStream : Stream
     private enum Phase { Begin, Body, End, Done }
 
     private readonly Stream _source;
+    private bool _disposed;
     private readonly byte[] _sourceScratch = new byte[BytesPerLine];
     private readonly byte[] _scratch = new byte[CharsPerLine + 1];
     private int _scratchOffset;
@@ -41,6 +42,9 @@ internal sealed class ArmorStream : Stream
 
     public override int Read(Span<byte> buffer)
     {
+        // Reading would pull from the disposed inner EncryptStream's returned buffers.
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var totalWritten = 0;
 
         while (totalWritten < buffer.Length)
@@ -105,21 +109,17 @@ internal sealed class ArmorStream : Stream
     }
 
     private int ReadFullChunk()
-    {
-        var total = 0;
-        while (total < _sourceScratch.Length)
-        {
-            var read = _source.Read(_sourceScratch, total, _sourceScratch.Length - total);
-            if (read == 0) break;
-            total += read;
-        }
-        return total;
-    }
+        => _source.ReadAtLeast(_sourceScratch, _sourceScratch.Length, throwOnEndOfStream: false);
 
+    // Guarded for the same reason as the streams it wraps: _source is an EncryptStream whose
+    // Dispose returns pooled buffers, so forwarding a second Dispose would return them twice.
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
+        if (disposing && !_disposed)
+        {
+            _disposed = true;
             _source.Dispose();
+        }
 
         base.Dispose(disposing);
     }

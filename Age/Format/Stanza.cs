@@ -15,8 +15,31 @@ namespace Age.Format;
 /// </remarks>
 public sealed class Stanza
 {
+    private const int ColumnsPerLine = 64;
+
     private readonly string[] _args;
     private readonly byte[] _body;
+
+    /// <summary>
+    /// Writes an encoded body as the spec's <c>*full-line final-line</c> (age.md:132): zero or
+    /// more full 64-column lines, then one final line of 0-63 characters.
+    /// </summary>
+    /// <remarks>
+    /// The final line is unconditional, which is what makes an empty body and a body that is an
+    /// exact multiple of 64 both terminate with an empty line — no trailing special case.
+    /// </remarks>
+    internal static void WriteBody(TextWriter writer, ReadOnlySpan<char> encoded)
+    {
+        while (encoded.Length >= ColumnsPerLine)
+        {
+            writer.Write(encoded[..ColumnsPerLine]);
+            writer.Write('\n');
+            encoded = encoded[ColumnsPerLine..];
+        }
+
+        writer.Write(encoded);
+        writer.Write('\n');
+    }
 
     /// <summary>
     /// Constructs a stanza with the given type, arguments, and body. The
@@ -38,13 +61,13 @@ public sealed class Stanza
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(body);
 
-        EnsureValidStanzaString(type, nameof(type));
+        ThrowIfInvalidArgument(type, nameof(type));
         foreach (var arg in args)
-            EnsureValidStanzaString(arg, nameof(args));
+            ThrowIfInvalidArgument(arg, nameof(args));
 
         Type = type;
-        _args = (string[])args.Clone();
-        _body = (byte[])body.Clone();
+        _args = [.. args];
+        _body = [.. body];
     }
 
     /// <summary>The recipient type tag (e.g. <c>"X25519"</c>, <c>"scrypt"</c>).</summary>
@@ -71,21 +94,7 @@ public sealed class Stanza
         writer.Write('\n');
         writer.Flush();
 
-        var encoded = Base64Unpadded.Encode(_body);
-        var offset = 0;
-
-        while (offset < encoded.Length)
-        {
-            var len = Math.Min(64, encoded.Length - offset);
-            writer.Write(encoded.AsSpan(offset, len));
-            writer.Write('\n');
-            offset += len;
-        }
-
-        // Empty body or exact multiple of 64 chars both need an empty terminator line
-        if (encoded.Length % 64 == 0)
-            writer.Write('\n');
-
+        WriteBody(writer, Base64Unpadded.Encode(_body));
         writer.Flush();
     }
 
@@ -93,7 +102,7 @@ public sealed class Stanza
     {
         var line = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header while reading stanza");
 
-        if (!line.StartsWith("-> "))
+        if (!line.StartsWith("-> ", StringComparison.Ordinal))
             throw new AgeHeaderException($"expected stanza prefix '-> ', got: {line}");
 
         var parts = line[3..].Split(' ');
@@ -104,45 +113,57 @@ public sealed class Stanza
         var stanzaType = parts[0];
         var stanzaArgs = parts.Length > 1 ? parts[1..] : [];
 
-        // Validate type and args: only printable ASCII (33-126)
-        ValidateStanzaString(stanzaType);
+        ThrowIfMalformed(stanzaType);
 
         foreach (var arg in stanzaArgs)
-            ValidateStanzaString(arg);
+            ThrowIfMalformed(arg);
 
         var body = ReadBody(reader);
         return new Stanza(stanzaType, stanzaArgs, body);
     }
 
+    /// <summary>
+    /// Reads the <c>*full-line final-line</c> that <see cref="WriteBody"/> writes: full 64-column
+    /// lines until one comes up short, which ends the body and may be empty.
+    /// </summary>
     private static byte[] ReadBody(HeaderReader reader)
     {
-        var bodyChunks = new List<byte[]>();
+        var chunks = new List<byte[]>();
+        string line;
 
-        while (true)
-        {
-            var bodyLine = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header while reading stanza body");
+        while ((line = ReadBodyLine(reader)).Length == ColumnsPerLine)
+            chunks.Add(Base64Unpadded.Decode(line));
 
-            switch (bodyLine.Length)
-            {
-                case > 64:
-                    throw new AgeHeaderException("stanza body line exceeds 64 characters");
-                case > 0:
-                    bodyChunks.Add(Base64Unpadded.Decode(bodyLine));
-                    break;
-            }
-
-            // A short line (< 64 chars) or empty line terminates the body
-            if (bodyLine.Length < 64)
-                break;
-        }
-
-        return AssembleBody(bodyChunks);
+        chunks.Add(Base64Unpadded.Decode(line));
+        return Concat(chunks);
     }
 
-    private static byte[] AssembleBody(List<byte[]> chunks)
+    /// <summary>
+    /// One body line, guaranteed no wider than a full-line — so the caller can read "not full
+    /// width" as "final line" without also having to rule out an over-long one.
+    /// </summary>
+    private static string ReadBodyLine(HeaderReader reader)
     {
-        var totalLen = chunks.Sum(c => c.Length);
-        var body = new byte[totalLen];
+        var line = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header while reading stanza body");
+
+        return line.Length <= ColumnsPerLine
+            ? line
+            : throw new AgeHeaderException($"stanza body line exceeds {ColumnsPerLine} characters");
+    }
+
+    /// <summary>
+    /// Joins the decoded lines into one exactly-sized array.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not <c>List&lt;byte&gt;</c> or <c>SelectMany().ToArray()</c>, both of which
+    /// would be shorter: those grow by reallocating, and every abandoned backing array keeps a
+    /// copy of the wrapped file key that nothing can reach to clear. Same reasoning as
+    /// <see cref="Age.Crypto.Bech32"/>, which sizes its output exactly for the same reason.
+    /// </remarks>
+    private static byte[] Concat(List<byte[]> chunks)
+    {
+        var total = chunks.Sum(c => c.Length);
+        var body = new byte[total];
         var pos = 0;
 
         foreach (var chunk in chunks)
@@ -154,26 +175,42 @@ public sealed class Stanza
         return body;
     }
 
-    private static void ValidateStanzaString(string s)
+    /// <summary>
+    /// The spec's <c>argument = 1*VCHAR</c> (age.md:130): non-empty printable ASCII. Returns the
+    /// index of the first character outside 0x21-0x7E, or -1 if there is none.
+    /// </summary>
+    /// <remarks>
+    /// Shared with <see cref="Age.Plugin.PluginConnection"/>, which applies the same rule to what
+    /// a plugin sends. Only the rule is shared — each site words its own message, because they
+    /// blame different parties: malformed wire data, a bad argument, or a misbehaving plugin.
+    /// </remarks>
+    internal static int IndexOfNonVChar(ReadOnlySpan<char> s) =>
+        s.IndexOfAnyExceptInRange('!', '~');
+
+    /// <summary>Why a stanza string is unacceptable, or null if it is fine.</summary>
+    private static string? InvalidReason(string? s)
     {
         if (string.IsNullOrEmpty(s))
-            throw new AgeHeaderException("stanza type/argument cannot be empty");
+            return "stanza type/argument cannot be empty";
 
-        var invalid = s.IndexOfAnyExceptInRange('!', '~');
-        if (invalid >= 0)
-            throw new AgeHeaderException($"invalid character in stanza type/argument: 0x{(int)s[invalid]:X2}");
+        var invalid = IndexOfNonVChar(s);
+
+        return invalid >= 0
+            ? $"invalid character in stanza type/argument: 0x{(int)s[invalid]:X2}"
+            : null;
     }
 
-    // Same rule as ValidateStanzaString, but for caller-supplied constructor input,
-    // where ArgumentException is the idiomatic failure (the parse path keeps
-    // AgeHeaderException for malformed wire data).
-    private static void EnsureValidStanzaString(string? s, string paramName)
+    /// <summary>The string came off the wire, so a bad one means the file is malformed.</summary>
+    private static void ThrowIfMalformed(string s)
     {
-        if (string.IsNullOrEmpty(s))
-            throw new ArgumentException("stanza type/argument cannot be empty", paramName);
+        if (InvalidReason(s) is { } reason)
+            throw new AgeHeaderException(reason);
+    }
 
-        var invalid = s.IndexOfAnyExceptInRange('!', '~');
-        if (invalid >= 0)
-            throw new ArgumentException($"invalid character in stanza type/argument: 0x{(int)s[invalid]:X2}", paramName);
+    /// <summary>The string came from the caller, so a bad one means they passed a bad argument.</summary>
+    private static void ThrowIfInvalidArgument(string? s, string paramName)
+    {
+        if (InvalidReason(s) is { } reason)
+            throw new ArgumentException(reason, paramName);
     }
 }

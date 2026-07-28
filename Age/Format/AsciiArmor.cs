@@ -45,19 +45,25 @@ internal static class AsciiArmor
     {
         // Bound the line length at the byte level so the reader below can keep
         // using the fast ReadLine path without risking an unbounded allocation.
-        var bounded = new NewlineBoundedStream(input, AgeLimits.MaxArmorLineBytes);
+        // leaveOpen: true stops the dispose chain at the wrapper — `input` belongs to the caller.
+        // The StreamReader keeps leaveOpen: false so it still disposes the wrapper we created.
+        var bounded = new NewlineBoundedStream(input, AgeLimits.MaxArmorLineBytes, leaveOpen: true);
         var reader = new StreamReader(bounded, Encoding.ASCII, detectEncodingFromByteOrderMarks: false,
             bufferSize: 4096, leaveOpen: false);
 
-        // Skip leading whitespace (allowed per spec).
-        // The old byte-level parser skipped individual whitespace bytes, so
-        // "  \n\t-----BEGIN AGE ENCRYPTED FILE-----" is valid. With line-based
-        // reading we skip blank lines, then TrimStart the marker line.
+        // Leading whitespace is allowed: skip blank lines, then TrimStart the marker line.
         string? line;
+        var skippedWhitespace = 0;
 
         do
         {
             line = reader.ReadLine();
+
+            // Bounded, as go-age bounds it: an unbounded skip means a file that is nothing but
+            // newlines is read to its end before the header is even looked for.
+            if (line is not null && (skippedWhitespace += line.Length + 1) > AgeLimits.MaxLeadingWhitespaceBytes)
+                throw new AgeArmorException(
+                    $"more than {AgeLimits.MaxLeadingWhitespaceBytes} bytes of whitespace before the armor header");
         } while (line != null && line.AsSpan().Trim().Length == 0);
 
         if (line == null)
@@ -95,20 +101,6 @@ internal static class AsciiArmor
     }
 
     private static int ReadChunk(Stream stream, byte[] buffer)
-    {
-        var total = 0;
-
-        while (total < buffer.Length)
-        {
-            var read = stream.Read(buffer, total, buffer.Length - total);
-
-            if (read == 0)
-                break;
-
-            total += read;
-        }
-
-        return total;
-    }
+        => stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
 
 }

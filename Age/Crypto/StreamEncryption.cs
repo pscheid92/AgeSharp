@@ -9,6 +9,16 @@ internal static class StreamEncryption
     internal const int EncryptedChunkSize = ChunkSize + TagSize;
     private const int NonceSize = 12;
 
+    /// <summary>
+    ///     TEST HELPER ONLY — do not call from library code.
+    /// </summary>
+    /// <remarks>
+    ///     This buffers the entire input into a <see cref="MemoryStream" /> before doing any work,
+    ///     which contradicts the library's memory-bounded guarantee: a 1 GiB file would cost 1 GiB
+    ///     of working set rather than two 64 KiB chunk buffers. Production encryption goes through
+    ///     <c>EncryptStream</c>, which streams chunk by chunk. Kept because the chunk-sequencing
+    ///     tests are written against this simpler shape.
+    /// </remarks>
     public static void Encrypt(ReadOnlySpan<byte> payloadKey, Stream input, Stream output)
     {
         using var inputMs = new MemoryStream();
@@ -36,6 +46,10 @@ internal static class StreamEncryption
         }
     }
 
+    /// <summary>
+    ///     TEST HELPER ONLY — do not call from library code. See <see cref="Encrypt" />: this
+    ///     buffers the whole payload. Production decryption goes through <c>DecryptStream</c>.
+    /// </summary>
     public static void Decrypt(ReadOnlySpan<byte> payloadKey, Stream input, Stream output)
     {
         using var inputMs = new MemoryStream();

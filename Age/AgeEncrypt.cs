@@ -12,7 +12,6 @@ namespace Age;
 /// </summary>
 public static class AgeEncrypt
 {
-    private const int FileKeySize = 16;
     internal const int PayloadNonceSize = 16;
     internal const int PayloadKeySize = 32;
 
@@ -41,9 +40,7 @@ public static class AgeEncrypt
     /// <param name="recipients">One or more recipients. Must all share the same <see cref="IRecipient.Label"/>.</param>
     public static void Encrypt(Stream input, Stream output, bool armor, params ReadOnlySpan<IRecipient> recipients)
     {
-        if (recipients.Length == 0)
-            throw new ArgumentException("at least one recipient is required", nameof(recipients));
-
+        ArgumentException.ThrowIfEmpty(recipients, "recipient");
         using var stream = EncryptReader(input, armor, recipients);
         stream.CopyTo(output);
     }
@@ -65,9 +62,7 @@ public static class AgeEncrypt
     {
         using var stream = DecryptReader(input, identities);
         stream.CopyTo(output);
-        // Ensure output is touched even when plaintext is empty — matters for
-        // lazy-creating writers that only materialize on first Write.
-        output.Write(ReadOnlySpan<byte>.Empty);
+        output.EnsureMaterialized();
     }
 
     /// <summary>
@@ -79,25 +74,19 @@ public static class AgeEncrypt
     /// </summary>
     public static void EncryptDetached(Stream input, Stream headerOutput, Stream payloadOutput, params ReadOnlySpan<IRecipient> recipients)
     {
-        if (recipients.Length == 0)
-            throw new ArgumentException("at least one recipient is required", nameof(recipients));
+        ArgumentException.ThrowIfEmpty(recipients, "recipient");
 
-        var (header, fileKey) = BuildHeaderAndFileKey(recipients);
-        try
-        {
-            header.WriteTo(headerOutput, fileKey);
+        using var fileKey = FileKey.Fresh();
 
-            var payloadNonce = new byte[PayloadNonceSize];
-            RandomNumberGenerator.Fill(payloadNonce);
-            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
+        var header = BuildHeader(recipients, fileKey.Bytes);
+        header.WriteTo(headerOutput, fileKey.Bytes);
 
-            using var payloadStream = new EncryptStream([], payloadNonce, payloadKey, input);
-            payloadStream.CopyTo(payloadOutput);
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(fileKey);
-        }
+        var payloadNonce = new byte[PayloadNonceSize];
+        RandomNumberGenerator.Fill(payloadNonce);
+        var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", PayloadKeySize);
+
+        using var payloadStream = new EncryptStream([], payloadNonce, payloadKey, input);
+        payloadStream.CopyTo(payloadOutput);
     }
 
     /// <summary>
@@ -106,39 +95,20 @@ public static class AgeEncrypt
     /// </summary>
     public static void DecryptDetached(Stream headerInput, Stream payloadInput, Stream output, params ReadOnlySpan<IIdentity> identities)
     {
-        if (identities.Length == 0)
-            throw new ArgumentException("at least one identity is required", nameof(identities));
+        ArgumentException.ThrowIfEmpty(identities, "identity");
 
-        var fileKey = UnwrapFileKey(headerInput, identities);
-        try
-        {
-            var payloadNonce = new byte[PayloadNonceSize];
-            var total = 0;
+        using var fileKey = UnwrapFileKey(headerInput, identities);
 
-            while (total < PayloadNonceSize)
-            {
-                var read = payloadInput.Read(payloadNonce.AsSpan(total));
-                if (read == 0)
-                    break;
+        var payloadNonce = new byte[PayloadNonceSize];
+        var total = payloadInput.ReadAtLeast(payloadNonce, PayloadNonceSize, throwOnEndOfStream: false);
+        if (total != PayloadNonceSize)
+            throw new AgeHeaderException($"expected {PayloadNonceSize}-byte payload nonce, got {total} bytes");
 
-                total += read;
-            }
+        var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", PayloadKeySize);
 
-            if (total != PayloadNonceSize)
-                throw new AgeHeaderException($"expected {PayloadNonceSize}-byte payload nonce, got {total} bytes");
-
-            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
-
-            using var decryptStream = new DecryptStream(payloadKey, payloadInput, ownsStream: false);
-            decryptStream.CopyTo(output);
-            // Ensure output is touched even when plaintext is empty — matters for
-            // lazy-creating writers that only materialize on first Write.
-            output.Write(ReadOnlySpan<byte>.Empty);
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(fileKey);
-        }
+        using var decryptStream = new DecryptStream(payloadKey, payloadInput, ownsStream: false);
+        decryptStream.CopyTo(output);
+        output.EnsureMaterialized();
     }
 
     /// <summary>
@@ -158,8 +128,7 @@ public static class AgeEncrypt
     /// </summary>
     public static Stream EncryptReader(Stream plaintext, bool armor, params ReadOnlySpan<IRecipient> recipients)
     {
-        if (recipients.Length == 0)
-            throw new ArgumentException("at least one recipient is required", nameof(recipients));
+        ArgumentException.ThrowIfEmpty(recipients, "recipient");
 
         if (armor)
         {
@@ -167,16 +136,17 @@ public static class AgeEncrypt
             return new ArmorStream(ciphertextStream);
         }
 
-        var (header, fileKey) = BuildHeaderAndFileKey(recipients);
+        using var fileKey = FileKey.Fresh();
+
+        var header = BuildHeader(recipients, fileKey.Bytes);
 
         using var headerMs = new MemoryStream();
-        header.WriteTo(headerMs, fileKey);
+        header.WriteTo(headerMs, fileKey.Bytes);
         var headerBytes = headerMs.ToArray();
 
         var payloadNonce = new byte[PayloadNonceSize];
         RandomNumberGenerator.Fill(payloadNonce);
-        var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
-        CryptographicOperations.ZeroMemory(fileKey);
+        var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", PayloadKeySize);
 
         return new EncryptStream(headerBytes, payloadNonce, payloadKey, plaintext);
     }
@@ -189,75 +159,113 @@ public static class AgeEncrypt
     /// </summary>
     public static Stream DecryptReader(Stream ciphertext, params ReadOnlySpan<IIdentity> identities)
     {
-        if (identities.Length == 0)
-            throw new ArgumentException("at least one identity is required", nameof(identities));
+        ArgumentException.ThrowIfEmpty(identities, "identity");
 
-        var (binaryInput, needsDispose) = DeArmorIfNeeded(ciphertext);
+        // `dearmored` is the ownership token: non-null means we made it and must dispose it.
+        // Unlike the other two dearmor sites this one cannot use `using`, because on success
+        // ownership passes to the returned DecryptStream — so the catch covers failure alone.
+        var dearmored = ciphertext.CanSeek && AsciiArmor.IsArmored(ciphertext)
+            ? AsciiArmor.Dearmor(ciphertext)
+            : null;
 
         try
         {
+            var binaryInput = dearmored ?? ciphertext;
             var (fileKey, reader) = UnwrapHeaderFromReader(binaryInput, identities);
-            var payloadNonce = ReadPayloadNonce(reader);
-            var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", PayloadKeySize);
-            CryptographicOperations.ZeroMemory(fileKey);
 
-            return new DecryptStream(payloadKey, binaryInput, needsDispose);
+            using (fileKey)
+            {
+                var payloadNonce = ReadPayloadNonce(reader);
+                var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", PayloadKeySize);
+
+                return new DecryptStream(payloadKey, binaryInput, ownsStream: dearmored is not null);
+            }
         }
         catch
         {
-            if (needsDispose) binaryInput.Dispose();
+            dearmored?.Dispose();
             throw;
         }
     }
 
-    private static (Header header, byte[] fileKey) BuildHeaderAndFileKey(ReadOnlySpan<IRecipient> recipients)
+    /// <summary>
+    /// Wraps <paramref name="fileKey"/> for every recipient and returns the resulting header.
+    /// </summary>
+    /// <remarks>
+    /// Takes the file key rather than creating one, so that whoever created it also holds the
+    /// only <c>finally</c> that clears it. When this returned the key as well, a caller reading
+    /// its own method could not tell whether a throw in here leaked — the guarantee lived in
+    /// another method's <c>catch</c>. That non-locality is how S9 happened: all five sites the
+    /// survey found were "the clear is somewhere else" situations. Nothing here owns the key, so
+    /// nothing here has to remember to clear it.
+    /// </remarks>
+    private static Header BuildHeader(ReadOnlySpan<IRecipient> recipients, ReadOnlySpan<byte> fileKey)
     {
-        // Check label consistency — reject mixing PQ and non-PQ recipients
+        // age-plugin.md:227 — every stanza wrapping one file key must carry the exact same label
+        // set, with no partial overlap. Comparing each against the first is that check: string
+        // equality is transitive, so agreeing with the first implies agreeing pairwise.
         var firstLabel = recipients[0].Label;
 
         for (var i = 1; i < recipients.Length; i++)
         {
             if (recipients[i].Label != firstLabel)
-                throw new AgeException("cannot mix recipients with different security labels");
+                throw new AgeException(IncompatibleLabels(firstLabel, recipients[i].Label));
         }
-
-        var fileKey = new byte[FileKeySize];
-        RandomNumberGenerator.Fill(fileKey);
 
         var header = new Header();
 
+        // A plugin may legitimately answer one wrap-file-key with several stanzas, so ask for
+        // all of them where the recipient can produce more than one. IRecipient.Wrap is
+        // public, shipped API returning a single Stanza and cannot be widened.
         foreach (var recipient in recipients)
-            header.Stanzas.Add(recipient.Wrap(fileKey));
-
-        // A scrypt stanza must be the only stanza in the header — the same rule
-        // decryption enforces. Checked post-Wrap so custom recipients that emit
-        // scrypt stanzas are caught too.
-        if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
         {
-            CryptographicOperations.ZeroMemory(fileKey);
-            throw new AgeException("a passphrase (scrypt) recipient must be the only recipient");
+            if (recipient is IMultiStanzaRecipient multi)
+                header.Stanzas.AddRange(multi.WrapAll(fileKey));
+            else
+                header.Stanzas.Add(recipient.Wrap(fileKey));
         }
 
-        return (header, fileKey);
+        // A scrypt stanza must be the only stanza in the header — the same rule decryption
+        // enforces. Checked post-Wrap so custom recipients that emit scrypt stanzas are
+        // caught too.
+        if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
+            throw new AgeException("a passphrase (scrypt) recipient must be the only recipient");
+
+        return header;
     }
 
-    private static byte[] UnwrapFileKey(Stream headerInput, ReadOnlySpan<IIdentity> identities)
+    /// <summary>
+    /// Explains a label mismatch, naming the consequence when post-quantum security is what was
+    /// lost. "Different security labels" is accurate but leaves the user to work out the cost.
+    /// </summary>
+    private static string IncompatibleLabels(string? a, string? b)
+    {
+        const string postQuantum = "postquantum";
+
+        if (a == postQuantum || b == postQuantum)
+            return "cannot mix post-quantum and classical recipients: the file would be "
+                 + "readable by a quantum computer, so the post-quantum recipient buys nothing";
+
+        return $"cannot mix recipients with different security labels: {Describe(a)} and {Describe(b)}";
+
+        static string Describe(string? label) => label is null ? "none" : $"\"{label}\"";
+    }
+
+    private static FileKey UnwrapFileKey(Stream headerInput, ReadOnlySpan<IIdentity> identities)
     {
         var (fileKey, _) = UnwrapHeaderFromReader(headerInput, identities);
         return fileKey;
     }
 
-    internal static (byte[] fileKey, HeaderReader reader) UnwrapHeaderFromReader(Stream binaryInput, ReadOnlySpan<IIdentity> identities)
+    internal static (FileKey fileKey, HeaderReader reader) UnwrapHeaderFromReader(Stream binaryInput, ReadOnlySpan<IIdentity> identities)
     {
         var reader = new HeaderReader(binaryInput);
         var header = ParseHeader(reader);
 
-        // Check scrypt constraint: if any stanza is scrypt, it must be the only one
         var hasScrypt = header.Stanzas.Any(s => s.Type == "scrypt");
         if (hasScrypt && header.Stanzas.Count > 1)
             throw new AgeHeaderException("scrypt stanza must be the only stanza in the header");
 
-        // Try each identity against all stanzas (batch unwrap supports plugin protocol)
         byte[]? fileKey = null;
         foreach (var identity in identities)
         {
@@ -269,19 +277,20 @@ public static class AgeEncrypt
         if (fileKey is null)
             throw new NoIdentityMatchException();
 
-        if (fileKey.Length != FileKeySize)
-            throw new AgeHeaderException($"file key must be {FileKeySize} bytes, got {fileKey.Length}");
+        // Adopt validates the length and takes ownership, so from here a throw disposes rather
+        // than abandons. VerifyMac failing is routine — a tampered or corrupted header.
+        var owned = FileKey.Adopt(fileKey);
 
-        header.VerifyMac(fileKey);
-        return (fileKey, reader);
-    }
-
-    private static (Stream binaryInput, bool needsDispose) DeArmorIfNeeded(Stream input)
-    {
-        if (input.CanSeek && AsciiArmor.IsArmored(input))
-            return (AsciiArmor.Dearmor(input), true);
-
-        return (input, false);
+        try
+        {
+            header.VerifyMac(owned.Bytes);
+            return (owned, reader);
+        }
+        catch
+        {
+            owned.Dispose();
+            throw;
+        }
     }
 
     private static byte[] ReadPayloadNonce(HeaderReader reader)

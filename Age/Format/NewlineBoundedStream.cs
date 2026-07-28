@@ -7,7 +7,12 @@ namespace Age.Format;
 /// a hostile stream with a multi-gigabyte line cannot be buffered, because the
 /// limit trips during the underlying read instead.
 /// </summary>
-internal sealed class NewlineBoundedStream(Stream inner, int maxLineBytes) : Stream
+/// <remarks>
+/// When <paramref name="leaveOpen"/> is true, disposing this stream does not dispose
+/// <paramref name="inner"/>. The armor reader passes true because <paramref name="inner"/> is the
+/// caller's ciphertext stream, and the library never disposes a stream it did not create.
+/// </remarks>
+internal sealed class NewlineBoundedStream(Stream inner, int maxLineBytes, bool leaveOpen = false) : Stream
 {
     private int _run; // bytes seen since the last CR/LF
 
@@ -60,7 +65,7 @@ internal sealed class NewlineBoundedStream(Stream inner, int maxLineBytes) : Str
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
+        if (disposing && !leaveOpen)
             inner.Dispose();
 
         base.Dispose(disposing);

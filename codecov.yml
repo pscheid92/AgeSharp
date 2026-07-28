@@ -1,3 +1,12 @@
+# Coverage now arrives from all three matrix legs, because some code is genuinely
+# platform-specific (PluginLocator's PATHEXT expansion cannot run on Linux, and the
+# plugin process tests were long skipped on Windows). Wait for all three before
+# computing a status, or whichever upload lands first decides the verdict and the
+# numbers swing between runs.
+codecov:
+  notify:
+    after_n_builds: 3
+
 # Allow trivial coverage fluctuations (e.g. an unexercised defensive branch)
 # to pass rather than failing the PR on a fraction-of-a-percent change.
 coverage:

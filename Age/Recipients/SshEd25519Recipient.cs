@@ -50,25 +50,17 @@ public sealed class SshEd25519Recipient : IRecipient
         // tweakedKey = X25519.ScalarMult(tweak, _x25519PublicKey)
         var tweakPrivate = new X25519PrivateKeyParameters(tweak);
         var recipientPub = new X25519PublicKeyParameters(_x25519PublicKey);
-        var agreement = new X25519Agreement();
-        
-        agreement.Init(tweakPrivate);
-        var tweakedKey = new byte[agreement.AgreementSize];
-        
-        agreement.CalculateAgreement(recipientPub, tweakedKey, 0);
+        var tweakedKey = new byte[CryptoHelper.X25519SharedSecretSize];
+        CryptoHelper.X25519Agree(tweakPrivate, recipientPub, tweakedKey);
 
-        // Generate ephemeral X25519 key pair
         var ephemeral = new X25519PrivateKeyParameters(new SecureRandom());
         var ephPubBytes = ephemeral.GeneratePublicKey().GetEncoded();
 
-        // sharedSecret = X25519.ScalarMult(ephSecret, tweakedKey)
-        // We need to do DH(ephemeral, tweakedKey) but tweakedKey is a point, not a public key parameter
-        // Use the tweakedKey as a public key for the agreement
+        // sharedSecret = X25519.ScalarMult(ephSecret, tweakedKey). tweakedKey is a point rather
+        // than a public key parameter, so it is wrapped as one for the agreement.
         var tweakedPub = new X25519PublicKeyParameters(tweakedKey);
-        var ephAgreement = new X25519Agreement();
-        ephAgreement.Init(ephemeral);
-        var sharedSecret = new byte[ephAgreement.AgreementSize];
-        ephAgreement.CalculateAgreement(tweakedPub, sharedSecret, 0);
+        var sharedSecret = new byte[CryptoHelper.X25519SharedSecretSize];
+        CryptoHelper.X25519Agree(ephemeral, tweakedPub, sharedSecret);
 
         // wrapKey = HKDF(ikm=sharedSecret, salt=ephPub||convertedKey, info=label, 32)
         var salt = (byte[])[.. ephPubBytes, .. _x25519PublicKey];

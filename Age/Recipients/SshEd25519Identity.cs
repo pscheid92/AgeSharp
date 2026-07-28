@@ -44,10 +44,8 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
 
         var ed25519Private = (Ed25519PrivateKeyParameters)privateKey;
 
-        // Convert Ed25519 private key seed → X25519 private key
         var x25519Private = Ed25519Converter.PrivateKeyToX25519(ed25519Private.GetEncoded());
 
-        // Derive X25519 public key from the X25519 private key
         var x25519PrivateParam = new X25519PrivateKeyParameters(x25519Private);
         var x25519Pub = x25519PrivateParam.GeneratePublicKey().GetEncoded();
 
@@ -70,12 +68,10 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         if (stanza.Args.Count != 2)
             throw new AgeHeaderException($"ssh-ed25519 stanza must have exactly 2 arguments, got {stanza.Args.Count}");
 
-        // Check tag matches
         var stanzaTag = stanza.Args[0];
         if (stanzaTag != _tag)
             return null;
 
-        // Decode ephemeral public key
         byte[] ephPubBytes;
         try
         {
@@ -95,12 +91,10 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
         var privateKey = new X25519PrivateKeyParameters(_x25519PrivateKey);
 
-        // rawSS = X25519.ScalarMult(_x25519PrivateKey, ephPub)
-        var agreement = new X25519Agreement();
-        agreement.Init(privateKey);
-
-        var rawSS = new byte[agreement.AgreementSize];
-        agreement.CalculateAgreement(ephPub, rawSS, 0);
+        // rawSS = X25519.ScalarMult(_x25519PrivateKey, ephPub). The ephemeral share comes from
+        // the stanza, so it is attacker-controlled.
+        var rawSS = new byte[CryptoHelper.X25519SharedSecretSize];
+        CryptoHelper.X25519Agree(privateKey, ephPub, rawSS);
 
         // tweak = HKDF(ikm=[], salt=sshWireBytes, info=label, 32)
         var tweak = CryptoHelper.HkdfDerive([], _sshWireBytes, AgeProtocol.SshEd25519HkdfLabel, KeySize);
@@ -109,11 +103,8 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         var tweakPrivate = new X25519PrivateKeyParameters(tweak);
         var rawSSPub = new X25519PublicKeyParameters(rawSS);
 
-        var tweakAgreement = new X25519Agreement();
-        tweakAgreement.Init(tweakPrivate);
-
-        var tweakedSS = new byte[tweakAgreement.AgreementSize];
-        tweakAgreement.CalculateAgreement(rawSSPub, tweakedSS, 0);
+        var tweakedSS = new byte[CryptoHelper.X25519SharedSecretSize];
+        CryptoHelper.X25519Agree(tweakPrivate, rawSSPub, tweakedSS);
 
         // wrapKey = HKDF(ikm=tweakedSS, salt=ephPub||convertedKey, info=label, 32)
         var salt = (byte[])[.. ephPubBytes, .. _x25519PublicKey];

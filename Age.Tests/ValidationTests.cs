@@ -150,6 +150,35 @@ public class ValidationTests
         Assert.Throws<ArgumentException>(() => new Stanza("type", [arg], []));
     }
 
+    // age.md:130 gives `argument = 1*VCHAR`, so the legal range is exactly 0x21-0x7E. One
+    // predicate now serves the constructor, the parser and PluginConnection, so these pin its
+    // edges: a drift of one in either direction changes which files the library accepts.
+    [Theory]
+    [InlineData(' ', false)] // space — the argument separator
+    [InlineData('!', true)]  // '!' — first legal
+    [InlineData('~', true)]  // '~' — last legal
+    [InlineData('', false)] // DEL — passes the byte validator, must fail here
+    public void StanzaString_AcceptsExactlyTheVCharRange(char c, bool legal)
+    {
+        var type = $"a{c}b";
+
+        if (legal)
+            Assert.Equal(type, new Stanza(type, [], []).Type);
+        else
+            Assert.Throws<ArgumentException>(() => new Stanza(type, [], []));
+    }
+
+    // The same rule on the parse path, where the failure is malformed wire data rather than a
+    // caller mistake. Space is excluded: on the wire it is the separator, so "-> a b" is a
+    // legal stanza with an argument, not an invalid type.
+    [Fact]
+    public void Stanza_Parse_RejectsDelInATypeTag()
+    {
+        using var ms = new MemoryStream("-> ab\n\n"u8.ToArray());
+
+        Assert.Throws<AgeHeaderException>(() => Stanza.Parse(new HeaderReader(ms)));
+    }
+
     [Fact]
     public void Stanza_Ctor_NullInputs_ThrowArgumentNullException()
     {
