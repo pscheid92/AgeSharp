@@ -189,19 +189,22 @@ internal sealed class PluginConnection : IDisposable
 
         // Validated here rather than at `new Stanza(...)`, so both plugin types are covered and
         // a malformed stanza is an AgePluginException rather than a raw ArgumentException.
-        ValidateStanzaString(stanzaType, "type");
+        ThrowIfMalformed(stanzaType, "type");
 
         foreach (var arg in stanzaArgs)
-            ValidateStanzaString(arg, "argument");
+            ThrowIfMalformed(arg, "argument");
 
         var body = ReadBody();
 
         return (stanzaType, stanzaArgs, body);
     }
 
-    // Same rule Stanza applies to its own input — a space or newline would corrupt the framing —
-    // but worded to name the plugin, since that is who got it wrong here.
-    private static void ValidateStanzaString(string s, string what)
+    /// <summary>
+    /// The string came from the plugin, so a bad one means the plugin misbehaved. Same rule
+    /// <see cref="Stanza"/> applies to its own input — a space or newline would corrupt the
+    /// framing — but worded to name the plugin, since that is who got it wrong here.
+    /// </summary>
+    private static void ThrowIfMalformed(string s, string what)
     {
         if (string.IsNullOrEmpty(s))
             throw new AgePluginException($"plugin sent an empty stanza {what}");
