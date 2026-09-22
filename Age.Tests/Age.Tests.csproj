@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Age\Age.csproj" />
+    <ProjectReference Include="..\Age.Cli\Age.Cli.csproj" />
   </ItemGroup>
 
 </Project>

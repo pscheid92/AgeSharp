@@ -35,15 +35,16 @@ internal static class KeygenCommand
     {
         if (outputPath is not null)
         {
-            if (File.Exists(outputPath))
+            // No existence check first: the create itself refuses, so nothing can slip in between.
+            try
+            {
+                SecretKeyFile.Create(outputPath, output);
+            }
+            catch (IOException) when (File.Exists(outputPath) || Directory.Exists(outputPath))
             {
                 Error($"output file already exists: {outputPath}");
                 return 1;
             }
-
-            File.WriteAllText(outputPath, output);
-            if (!OperatingSystem.IsWindows())
-                File.SetUnixFileMode(outputPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
 
             Console.Error.WriteLine($"Public key: {publicKey}");
         }
