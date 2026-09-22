@@ -351,9 +351,13 @@ public class PluginTests
         mockConn.WriteStanza("error", [], System.Text.Encoding.UTF8.GetBytes("something went wrong"));
         var pluginResponse = pluginOutput.ToString();
 
-        var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
+        var clientOutput = new StringWriter();
+        var conn = new PluginConnection(new StringReader(pluginResponse), clientOutput);
         var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
         Assert.Contains("something went wrong", ex.Message);
+
+        // Acknowledged before failing, as the spec requires and go-age does.
+        Assert.EndsWith("-> ok\n\n", clientOutput.ToString());
     }
 
     [Fact]
@@ -609,23 +613,31 @@ public class PluginTests
         Assert.Contains("plugin crashed", ex.Message);
     }
 
-    [Fact]
-    public void PluginIdentity_Unwrap_IdentityError_ContinuesToDone()
+    // Every error is fatal, as in go-age (plugin/client.go): acknowledged with ok as the spec
+    // requires, then reported with the plugin's own message. An identity error is how a plugin
+    // says "wrong PIN" or "no token inserted", and a stanza error means the header is invalid;
+    // swallowing them turned both into a bare "no identity matched".
+    [Theory]
+    [InlineData("identity", "0")]
+    [InlineData("stanza", "0 0")]
+    [InlineData("internal", "")]
+    public void PluginIdentity_Unwrap_AnyError_AcknowledgesThenFailsWithTheMessage(string kind, string indices)
     {
-        var identityStr = MakePluginIdentity("test");
-        var identity = new PluginIdentity(identityStr);
+        var identity = new PluginIdentity(MakePluginIdentity("test"));
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
-        mockConn.WriteStanza("error", ["identity"], System.Text.Encoding.UTF8.GetBytes("wrong key"));
+        string[] args = [kind, .. indices.Split(' ', StringSplitOptions.RemoveEmptyEntries)];
+        mockConn.WriteStanza("error", args, System.Text.Encoding.UTF8.GetBytes("wrong PIN"));
         mockConn.WriteStanza("done", [], []);
-        var pluginResponse = pluginOutput.ToString();
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
-        var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var result = identity.UnwrapWithConnection(conn, stanzas);
+        var clientOutput = new StringWriter();
+        var conn = new PluginConnection(new StringReader(pluginOutput.ToString()), clientOutput);
 
-        Assert.Null(result);
+        var ex = Assert.Throws<AgePluginException>(() => identity.UnwrapWithConnection(conn, stanzas));
+        Assert.Contains("wrong PIN", ex.Message);
+        Assert.EndsWith("-> ok\n\n", clientOutput.ToString());
     }
 
     [Fact]

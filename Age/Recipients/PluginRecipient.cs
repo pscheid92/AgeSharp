@@ -111,6 +111,8 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
                     break;
 
                 case "error":
+                    // Acknowledged first, as the spec requires and go-age does, then fatal.
+                    conn.WriteStanza("ok", [], []);
                     throw conn.Failure($"plugin error: {Encoding.UTF8.GetString(body)}");
 
                 case "done":

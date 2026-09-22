@@ -19,7 +19,7 @@ internal static class AgeCommand
 
     private static int Encrypt(bool armor, bool passphrase, List<IRecipient> recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath)
     {
-        var callbacks = new CliPluginCallbacks();
+        var callbacks = new CliPluginCallbacks(Terminal.OpenDefault);
 
         if (passphrase)
         {
@@ -89,12 +89,8 @@ internal static class AgeCommand
     {
         var identities = CollectDecryptIdentities(passphrase, identityFiles);
 
-        // Buffer input into a seekable MemoryStream so armor auto-detection works
         using var rawInput = OpenInput(inputPath);
-        using var input = new MemoryStream();
-
-        rawInput.CopyTo(input);
-        input.Position = 0;
+        using var input = SeekableInput.From(rawInput);
 
         using var output = OpenOutput(outputPath);
         AgeEncrypt.Decrypt(input, output, [.. identities]);
@@ -103,7 +99,7 @@ internal static class AgeCommand
 
     private static List<IIdentity> CollectDecryptIdentities(bool passphrase, string[] identityFiles)
     {
-        var callbacks = new CliPluginCallbacks();
+        var callbacks = new CliPluginCallbacks(Terminal.OpenDefault);
         var identities = new List<IIdentity>();
 
         if (passphrase)
@@ -118,7 +114,12 @@ internal static class AgeCommand
             if (identityFiles.Length == 0)
                 throw new AgeException("missing identity (-i required for decryption, or use -p for passphrase)");
 
-            identities.AddRange(from file in identityFiles from id in LoadIdentities(file, callbacks) select id is ScryptRecipient ? new RejectScryptIdentity() : id);
+            // First, so a passphrase-encrypted file is explained before any identity — a plugin
+            // process, say — is tried against its scrypt stanza.
+            identities.Add(new RejectScryptIdentity());
+
+            foreach (var file in identityFiles)
+                identities.AddRange(LoadIdentities(file, callbacks));
         }
 
         return identities;
@@ -134,7 +135,7 @@ internal static class AgeCommand
     };
 
     private static IRecipient ParseRecipient(string s) =>
-        AgeKeygen.ParseRecipientLine(s, new CliPluginCallbacks());
+        AgeKeygen.ParseRecipientLine(s, new CliPluginCallbacks(Terminal.OpenDefault));
 
     private static List<IIdentity> LoadIdentities(string path, IPluginCallbacks callbacks)
     {
@@ -157,35 +158,8 @@ internal static class AgeCommand
         return [.. AgeKeygen.ParseIdentityFile(text, callbacks)];
     }
 
-    private static string ReadPassphrase(string prompt)
-    {
-        var envPass = Environment.GetEnvironmentVariable("AGE_PASSPHRASE");
-        if (envPass is not null)
-            return envPass;
-
-        Console.Error.Write(prompt);
-        var sb = new StringBuilder();
-
-        while (true)
-        {
-            var key = Console.ReadKey(intercept: true);
-            switch (key.Key)
-            {
-                case ConsoleKey.Enter:
-                    Console.Error.WriteLine();
-                    return sb.ToString();
-
-                case ConsoleKey.Backspace when sb.Length > 0:
-                    sb.Remove(sb.Length - 1, 1);
-                    break;
-
-                default:
-                    if (key.KeyChar != '\0')
-                        sb.Append(key.KeyChar);
-                    break;
-            }
-        }
-    }
+    private static string ReadPassphrase(string prompt) =>
+        Environment.GetEnvironmentVariable("AGE_PASSPHRASE") ?? Terminal.ReadSecret(prompt);
 
     private static string GeneratePassphrase()
     {
@@ -275,41 +249,4 @@ internal static class AgeCommand
         }
     }
 
-    /// <summary>
-    /// Console-based implementation of <see cref="IPluginCallbacks"/> for CLI use.
-    /// </summary>
-    private sealed class CliPluginCallbacks : IPluginCallbacks
-    {
-        public void DisplayMessage(string message) =>
-            Console.Error.WriteLine(message);
-
-        public string RequestValue(string prompt, bool secret)
-        {
-            if (secret)
-                return ReadPassphrase(prompt + ": ");
-
-            Console.Error.Write(prompt + ": ");
-            return Console.ReadLine() ?? "";
-        }
-
-        public bool Confirm(string message, string yes, string? no)
-        {
-            var options = no is not null ? $"[y: {yes} / n: {no}]" : $"[y: {yes}]";
-            Console.Error.Write($"{message} {options} (y/N): ");
-
-            while (true)
-            {
-                var response = Console.ReadLine()?.Trim().ToLowerInvariant() ?? "";
-                switch (response)
-                {
-                    case "" or "n" or "no":
-                        return false;
-                    case "y" or "yes":
-                        return true;
-                }
-
-                Console.Error.Write("Please answer y or n (y/N): ");
-            }
-        }
-    }
 }

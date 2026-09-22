@@ -34,9 +34,16 @@ public sealed class SshRsaRecipient : IRecipient
     {
         var (keyType, wireBytes, pubKey) = SshKeyParser.ParsePublicKey(authorizedKeysLine);
 
-        return keyType == "ssh-rsa"
-            ? new SshRsaRecipient((RsaKeyParameters)pubKey, wireBytes)
-            : throw new FormatException($"expected ssh-rsa, got {keyType}");
+        if (keyType != "ssh-rsa")
+            throw new FormatException($"expected ssh-rsa, got {keyType}");
+
+        // Checked here as well as in the constructor, so a small key read from text is a format
+        // error rather than the constructor's ArgumentException.
+        var rsaKey = (RsaKeyParameters)pubKey;
+        if (rsaKey.Modulus.BitLength < MinKeyBits)
+            throw new FormatException($"RSA key must be at least {MinKeyBits} bits, got {rsaKey.Modulus.BitLength}");
+
+        return new SshRsaRecipient(rsaKey, wireBytes);
     }
 
     /// <summary>Wraps the file key for this SSH key using RSA-OAEP (SHA-256).</summary>
