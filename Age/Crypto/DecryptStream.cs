@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 
 namespace Age.Crypto;
@@ -16,6 +17,7 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
 
     private State _state = State.Chunks;
     private bool _disposed;
+    private ExceptionDispatchInfo? _failure;
 
     private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
     private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(PlaintextBufferSize);
@@ -45,6 +47,23 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         // whatever the next renter has since written into them.
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        // Sticky, as in go-age: after a failure the next chunk boundary is unknown, and a stream
+        // that kept reading would silently skip whatever failed to authenticate.
+        _failure?.Throw();
+
+        try
+        {
+            return ReadCore(buffer);
+        }
+        catch (Exception ex)
+        {
+            _failure = ExceptionDispatchInfo.Capture(ex);
+            throw;
+        }
+    }
+
+    private int ReadCore(Span<byte> buffer)
+    {
         var totalRead = 0;
 
         while (totalRead < buffer.Length)
@@ -125,17 +144,13 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
 
     private int ReadFromCiphertext()
     {
-        var total = 0;
-
-        if (_hasSavedByte)
-        {
-            // _ciphertextBuffer[0] already contains the saved byte
-            total = 1;
-            _hasSavedByte = false;
-        }
+        // _ciphertextBuffer[0] already contains the saved byte. As in EncryptStream, the flag is
+        // cleared only once the read has succeeded.
+        var total = _hasSavedByte ? 1 : 0;
 
         const int target = StreamEncryption.EncryptedChunkSize + 1;
         total += ciphertext.ReadAtLeast(_ciphertextBuffer.AsSpan(total, target - total), target - total, throwOnEndOfStream: false);
+        _hasSavedByte = false;
 
         return total;
     }
