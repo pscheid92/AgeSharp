@@ -89,12 +89,8 @@ internal static class AgeCommand
     {
         var identities = CollectDecryptIdentities(passphrase, identityFiles);
 
-        // Buffer input into a seekable MemoryStream so armor auto-detection works
         using var rawInput = OpenInput(inputPath);
-        using var input = new MemoryStream();
-
-        rawInput.CopyTo(input);
-        input.Position = 0;
+        using var input = SeekableInput.From(rawInput);
 
         using var output = OpenOutput(outputPath);
         AgeEncrypt.Decrypt(input, output, [.. identities]);

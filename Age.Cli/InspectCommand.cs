@@ -19,13 +19,10 @@ internal static class InspectCommand
 
         using (rawInput)
         {
-            var ms = new MemoryStream();
+            using var input = SeekableInput.From(rawInput);
+            var totalSize = input.Length;
 
-            rawInput.CopyTo(ms);
-            var totalSize = ms.Length;
-            ms.Position = 0;
-
-            var header = AgeHeader.Parse(ms);
+            var header = AgeHeader.Parse(input);
 
             if (json)
                 PrintJson(header, displayName, totalSize);
