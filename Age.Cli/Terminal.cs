@@ -27,9 +27,13 @@ internal static class Terminal
 
     public static string ReadLine(string prompt) => Read(prompt, secret: false);
 
+    /// <summary>The terminal to ask on: <c>/dev/tty</c>, else stdin if it is a terminal.</summary>
+    public static ITerminal OpenDefault() =>
+        Open(() => OpenControllingTerminal("/dev/tty"), stdinIsTerminal: !Console.IsInputRedirected);
+
     private static string Read(string prompt, bool secret)
     {
-        using var terminal = Open(OpenControllingTerminal, stdinIsTerminal: !Console.IsInputRedirected);
+        using var terminal = OpenDefault();
         return terminal.ReadLine(prompt, secret);
     }
 
@@ -40,7 +44,8 @@ internal static class Terminal
             : throw new AgeException(
                 "cannot ask for input: standard input is not a terminal, and no terminal is available"));
 
-    private static ITerminal? OpenControllingTerminal()
+    /// <summary>Opens the controlling terminal at <paramref name="path"/>, or null if there is none.</summary>
+    internal static ITerminal? OpenControllingTerminal(string path)
     {
         // go-age opens CONIN$/CONOUT$ on Windows. Until that is done here, a redirected stdin on
         // Windows gets Open's error rather than a crash.
@@ -51,7 +56,7 @@ internal static class Terminal
 
         try
         {
-            tty = new FileStream("/dev/tty", FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite, bufferSize: 0);
+            tty = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite, bufferSize: 0);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -59,7 +64,7 @@ internal static class Terminal
             return null;
         }
 
-        return new StreamTerminal(tty, tty, SttyEcho.Hide, owner: tty);
+        return new StreamTerminal(tty, tty, SttyEcho.OnControllingTerminal.Hide, owner: tty);
     }
 }
 
@@ -183,16 +188,21 @@ internal sealed class ConsoleTerminal : ITerminal
 /// passed as an argument, never spliced into the shell command. If echo cannot be turned off,
 /// the secret is not read at all — showing it would be worse than failing.
 /// </remarks>
-internal static class SttyEcho
+/// <param name="stty">Runs stty on the terminal with the given arguments and returns its output,
+/// throwing if it fails.</param>
+internal sealed class SttyEcho(Func<string[], string> stty)
 {
-    public static IDisposable Hide()
+    public static SttyEcho OnControllingTerminal { get; } = new(args => Run("/dev/tty", args));
+
+    public IDisposable Hide()
     {
-        var saved = Stty("-g").Trim();
-        Stty("-echo");
-        return new Restorer(saved);
+        var saved = stty(["-g"]).Trim();
+        stty(["-echo"]);
+        return new Restorer(() => stty([saved]));
     }
 
-    private static string Stty(params string[] args)
+    /// <summary>Runs stty on <paramref name="terminal"/>; throws if it fails.</summary>
+    internal static string Run(string terminal, string[] args)
     {
         var start = new ProcessStartInfo("/bin/sh")
         {
@@ -201,8 +211,9 @@ internal static class SttyEcho
         };
 
         start.ArgumentList.Add("-c");
-        start.ArgumentList.Add("stty \"$@\" < /dev/tty");
+        start.ArgumentList.Add("terminal=$1; shift; stty \"$@\" < \"$terminal\"");
         start.ArgumentList.Add("sh");
+        start.ArgumentList.Add(terminal);
 
         foreach (var arg in args)
             start.ArgumentList.Add(arg);
@@ -217,17 +228,19 @@ internal static class SttyEcho
     private static AgeException CannotHide() =>
         new("cannot turn off echo on the terminal, so the secret would be shown; not reading it");
 
-    /// <summary>Restores on dispose, and on Ctrl+C or termination while the answer is being typed.</summary>
+    /// <summary>
+    /// Restores once: on dispose, or on Ctrl+C or termination while the answer is being typed.
+    /// </summary>
     private sealed class Restorer : IDisposable
     {
-        private readonly string _saved;
+        private readonly Action _restore;
         private readonly PosixSignalRegistration _interrupt;
         private readonly PosixSignalRegistration _terminate;
         private int _restored;
 
-        public Restorer(string saved)
+        public Restorer(Action restore)
         {
-            _saved = saved;
+            _restore = restore;
             _interrupt = PosixSignalRegistration.Create(PosixSignal.SIGINT, _ => Restore());
             _terminate = PosixSignalRegistration.Create(PosixSignal.SIGTERM, _ => Restore());
         }
@@ -242,7 +255,7 @@ internal static class SttyEcho
         private void Restore()
         {
             if (Interlocked.Exchange(ref _restored, 1) == 0)
-                Stty(_saved);
+                _restore();
         }
     }
 }

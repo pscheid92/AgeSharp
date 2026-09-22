@@ -74,6 +74,106 @@ public class TerminalTests
         Assert.Throws<AgeException>(() => terminal.ReadLine("Passphrase: ", secret: true));
     }
 
+    [Fact]
+    public void ReadLine_TakesAnAnswerLongerThanItsFirstBuffer()
+    {
+        var answer = new string('x', 1000);
+        using var terminal = new StreamTerminal(Input(answer + "\n"), new MemoryStream(), NoHiding);
+
+        Assert.Equal(answer, terminal.ReadLine("Passphrase: ", secret: true));
+    }
+
+    // Against a regular file stty fails as it would with no terminal, so this runs the real
+    // process without touching the terminal of whoever runs the tests.
+    [SkippableFact]
+    public void SttyRun_WhenStdinIsNotATerminal_RefusesRatherThanShowTheSecret()
+    {
+        Skip.If(OperatingSystem.IsWindows(), "stty is Unix only");
+
+        var notATerminal = Path.GetTempFileName();
+
+        try
+        {
+            var ex = Assert.Throws<AgeException>(() => SttyEcho.Run(notATerminal, ["-g"]));
+            Assert.Contains("secret would be shown", ex.Message);
+        }
+        finally
+        {
+            File.Delete(notATerminal);
+        }
+    }
+
+    [Fact]
+    public void OpenControllingTerminal_WhereThereIsNone_IsNull() =>
+        Assert.Null(Terminal.OpenControllingTerminal(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString())));
+
+    [SkippableFact]
+    public void OpenControllingTerminal_OpensWhatIsThere()
+    {
+        Skip.If(OperatingSystem.IsWindows(), "the controlling terminal is /dev/tty on Unix only");
+
+        var path = Path.GetTempFileName();
+
+        try
+        {
+            using var terminal = Terminal.OpenControllingTerminal(path);
+            Assert.IsType<StreamTerminal>(terminal);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void SttyEcho_SavesTheSettings_TurnsEchoOff_AndRestoresExactlyThemOnce()
+    {
+        var calls = new List<string>();
+        var echo = new SttyEcho(args =>
+        {
+            calls.Add(string.Join(' ', args));
+            return args is ["-g"] ? "saved:settings\n" : "";
+        });
+
+        var hidden = echo.Hide();
+        Assert.Equal(["-g", "-echo"], calls);
+
+        hidden.Dispose();
+        hidden.Dispose();
+        Assert.Equal(["-g", "-echo", "saved:settings"], calls);
+    }
+
+    [Fact]
+    public void SttyEcho_WhenSttyFails_ThrowsWithoutTouchingEcho()
+    {
+        var calls = new List<string>();
+        var echo = new SttyEcho(args =>
+        {
+            calls.Add(string.Join(' ', args));
+            throw new AgeException("stty failed");
+        });
+
+        Assert.Throws<AgeException>(echo.Hide);
+        Assert.Equal(["-g"], calls);
+    }
+
+    [Fact]
+    public void ConsoleTerminal_ReadsAPublicAnswerFromStdin_AndPromptsOnStderr()
+    {
+        using var console = new ConsoleCapture("yes\n");
+
+        Assert.Equal("yes", new ConsoleTerminal().ReadLine("Continue? ", secret: false));
+        Assert.Equal("Continue? ", console.Error);
+    }
+
+    [Fact]
+    public void ConsoleTerminal_WhenStdinEnds_Fails()
+    {
+        using var console = new ConsoleCapture("");
+
+        Assert.Throws<AgeException>(() => new ConsoleTerminal().ReadLine("Continue? ", secret: false));
+    }
+
     private static MemoryStream Input(string text) => new(Encoding.UTF8.GetBytes(text));
 
     private static IDisposable NoHiding() => new HidingProbe.Restore(() => { });

@@ -19,7 +19,7 @@ internal static class AgeCommand
 
     private static int Encrypt(bool armor, bool passphrase, List<IRecipient> recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath)
     {
-        var callbacks = new CliPluginCallbacks();
+        var callbacks = new CliPluginCallbacks(Terminal.OpenDefault);
 
         if (passphrase)
         {
@@ -99,7 +99,7 @@ internal static class AgeCommand
 
     private static List<IIdentity> CollectDecryptIdentities(bool passphrase, string[] identityFiles)
     {
-        var callbacks = new CliPluginCallbacks();
+        var callbacks = new CliPluginCallbacks(Terminal.OpenDefault);
         var identities = new List<IIdentity>();
 
         if (passphrase)
@@ -135,7 +135,7 @@ internal static class AgeCommand
     };
 
     private static IRecipient ParseRecipient(string s) =>
-        AgeKeygen.ParseRecipientLine(s, new CliPluginCallbacks());
+        AgeKeygen.ParseRecipientLine(s, new CliPluginCallbacks(Terminal.OpenDefault));
 
     private static List<IIdentity> LoadIdentities(string path, IPluginCallbacks callbacks)
     {
@@ -249,35 +249,4 @@ internal static class AgeCommand
         }
     }
 
-    /// <summary>
-    /// Console-based implementation of <see cref="IPluginCallbacks"/> for CLI use.
-    /// </summary>
-    private sealed class CliPluginCallbacks : IPluginCallbacks
-    {
-        public void DisplayMessage(string message) =>
-            Console.Error.WriteLine(message);
-
-        // Answers come from the terminal: stdin may be the data being decrypted.
-        public string RequestValue(string prompt, bool secret) =>
-            secret ? Terminal.ReadSecret(prompt + ": ") : Terminal.ReadLine(prompt + ": ");
-
-        public bool Confirm(string message, string yes, string? no)
-        {
-            var options = no is not null ? $"[y: {yes} / n: {no}]" : $"[y: {yes}]";
-            var prompt = $"{message} {options} (y/N): ";
-
-            while (true)
-            {
-                switch (Terminal.ReadLine(prompt).Trim().ToLowerInvariant())
-                {
-                    case "" or "n" or "no":
-                        return false;
-                    case "y" or "yes":
-                        return true;
-                }
-
-                prompt = "Please answer y or n (y/N): ";
-            }
-        }
-    }
 }

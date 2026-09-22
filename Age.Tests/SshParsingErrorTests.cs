@@ -28,6 +28,7 @@ public class SshParsingErrorTests
     {
         { "ed25519 type, rsa key", $"ssh-ed25519 {Wire(Rsa2048)}" },
         { "rsa type, ed25519 key", $"ssh-rsa {Convert.ToBase64String(Ed25519Wire)}" },
+        { "ed25519 type, ecdsa key", $"ssh-ed25519 {Wire(EcdsaP256())}" },
         { "rsa under 2048 bits", $"ssh-rsa {Wire(Rsa1024)}" },
         { "garbage key data", "ssh-ed25519 AAAA" },
         { "truncated key data", $"ssh-ed25519 {Convert.ToBase64String(Ed25519Wire[..^10])}" },
@@ -84,6 +85,14 @@ public class SshParsingErrorTests
     {
         var generator = new RsaKeyPairGenerator();
         generator.Init(new KeyGenerationParameters(new SecureRandom(), bits));
+        return generator.GenerateKeyPair();
+    }
+
+    private static AsymmetricCipherKeyPair EcdsaP256()
+    {
+        var generator = new ECKeyPairGenerator();
+        generator.Init(new ECKeyGenerationParameters(
+            Org.BouncyCastle.Asn1.Sec.SecObjectIdentifiers.SecP256r1, new SecureRandom()));
         return generator.GenerateKeyPair();
     }
 

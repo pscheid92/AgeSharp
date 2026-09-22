@@ -24,6 +24,28 @@ public sealed class DecryptCommandTests : IDisposable
         Assert.Contains("use -p", ex.Message);
     }
 
+    [Fact]
+    public void Passphrase_FromTheEnvironment_Decrypts()
+    {
+        var input = Write("secret.age", Encrypt("plaintext"u8.ToArray(), new ScryptRecipient("pw", workFactor: 10)));
+        var output = Path.Combine(_dir, "out");
+        var before = Environment.GetEnvironmentVariable("AGE_PASSPHRASE");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("AGE_PASSPHRASE", "pw");
+
+            Assert.Equal(0, AgeCommand.Execute(encrypt: false, armor: false, passphrase: true,
+                recipients: [], recipientFiles: [], identityFiles: [], outputPath: output, inputPath: input));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("AGE_PASSPHRASE", before);
+        }
+
+        Assert.Equal("plaintext"u8.ToArray(), File.ReadAllBytes(output));
+    }
+
     private int Decrypt(string identityFile, string input, string output) =>
         AgeCommand.Execute(encrypt: false, armor: false, passphrase: false,
             recipients: [], recipientFiles: [], identityFiles: [identityFile],
