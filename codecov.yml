@@ -9,11 +9,20 @@ codecov:
 
 # Allow trivial coverage fluctuations (e.g. an unexercised defensive branch)
 # to pass rather than failing the PR on a fraction-of-a-percent change.
+#
+# The library and the CLI are judged separately, as their tests are. One blended figure let the
+# CLI's arrival in the measurement read as a ten-point regression, and would let a library
+# regression hide behind CLI gains. The CLI is informational while its tests are built up —
+# patch coverage still gates every changed line in it; make it a real gate once it has caught up.
 coverage:
   status:
     project:
-      default:
+      library:
+        paths: ["Age/"]
         threshold: 1%
+      cli:
+        paths: ["Age.Cli/"]
+        informational: true
     patch:
       default:
         threshold: 1%
