@@ -158,35 +158,8 @@ internal static class AgeCommand
         return [.. AgeKeygen.ParseIdentityFile(text, callbacks)];
     }
 
-    private static string ReadPassphrase(string prompt)
-    {
-        var envPass = Environment.GetEnvironmentVariable("AGE_PASSPHRASE");
-        if (envPass is not null)
-            return envPass;
-
-        Console.Error.Write(prompt);
-        var sb = new StringBuilder();
-
-        while (true)
-        {
-            var key = Console.ReadKey(intercept: true);
-            switch (key.Key)
-            {
-                case ConsoleKey.Enter:
-                    Console.Error.WriteLine();
-                    return sb.ToString();
-
-                case ConsoleKey.Backspace when sb.Length > 0:
-                    sb.Remove(sb.Length - 1, 1);
-                    break;
-
-                default:
-                    if (key.KeyChar != '\0')
-                        sb.Append(key.KeyChar);
-                    break;
-            }
-        }
-    }
+    private static string ReadPassphrase(string prompt) =>
+        Environment.GetEnvironmentVariable("AGE_PASSPHRASE") ?? Terminal.ReadSecret(prompt);
 
     private static string GeneratePassphrase()
     {
@@ -284,24 +257,18 @@ internal static class AgeCommand
         public void DisplayMessage(string message) =>
             Console.Error.WriteLine(message);
 
-        public string RequestValue(string prompt, bool secret)
-        {
-            if (secret)
-                return ReadPassphrase(prompt + ": ");
-
-            Console.Error.Write(prompt + ": ");
-            return Console.ReadLine() ?? "";
-        }
+        // Answers come from the terminal: stdin may be the data being decrypted.
+        public string RequestValue(string prompt, bool secret) =>
+            secret ? Terminal.ReadSecret(prompt + ": ") : Terminal.ReadLine(prompt + ": ");
 
         public bool Confirm(string message, string yes, string? no)
         {
             var options = no is not null ? $"[y: {yes} / n: {no}]" : $"[y: {yes}]";
-            Console.Error.Write($"{message} {options} (y/N): ");
+            var prompt = $"{message} {options} (y/N): ";
 
             while (true)
             {
-                var response = Console.ReadLine()?.Trim().ToLowerInvariant() ?? "";
-                switch (response)
+                switch (Terminal.ReadLine(prompt).Trim().ToLowerInvariant())
                 {
                     case "" or "n" or "no":
                         return false;
@@ -309,7 +276,7 @@ internal static class AgeCommand
                         return true;
                 }
 
-                Console.Error.Write("Please answer y or n (y/N): ");
+                prompt = "Please answer y or n (y/N): ";
             }
         }
     }
