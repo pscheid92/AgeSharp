@@ -77,14 +77,9 @@ try
 {
     return parsed.Invoke(new InvocationConfiguration { EnableDefaultExceptionHandler = false });
 }
-catch (Exception ex) when (ex is AgeException or FormatException)
+catch (Exception ex) when (UserError.Describe(ex) is { } message)
 {
-    Console.Error.WriteLine($"{CommandPrefix(parsed)}: {ex.Message}");
-    return 1;
-}
-catch (FileNotFoundException ex)
-{
-    Console.Error.WriteLine($"{CommandPrefix(parsed)}: no such file: {ex.FileName}");
+    Console.Error.WriteLine($"{CommandPrefix(parsed)}: {message}");
     return 1;
 }
 catch (Exception ex)
