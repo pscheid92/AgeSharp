@@ -73,6 +73,45 @@ public class FailStopStreamTests
         Assert.Same(first, retry);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DecryptReader_AfterCopyFails_KeepsFailing(bool async)
+    {
+        using var identity = X25519Identity.Generate();
+        var ciphertext = Encrypt(Plaintext(3 * StreamEncryption.ChunkSize + 10), identity.Recipient);
+
+        // Corrupt chunk 1, so the copy delivers chunk 0 and fails partway through.
+        var payloadStart = (int)AgeHeader.Parse(new MemoryStream(ciphertext)).PayloadOffset + PayloadNonceSize;
+        ciphertext[payloadStart + StreamEncryption.EncryptedChunkSize] ^= 0x01;
+
+        using var decrypted = AgeEncrypt.DecryptReader(new MemoryStream(ciphertext), identity);
+
+        var first = async
+            ? await Assert.ThrowsAsync<AgePayloadException>(() => decrypted.CopyToAsync(Stream.Null))
+            : Assert.Throws<AgePayloadException>(() => decrypted.CopyTo(Stream.Null));
+        var retry = Assert.Throws<AgePayloadException>(() => Drain(decrypted));
+
+        Assert.Same(first, retry);
+    }
+
+    [Fact]
+    public async Task DecryptReader_AfterCopyIsCancelled_KeepsFailing()
+    {
+        using var identity = X25519Identity.Generate();
+        var ciphertext = Encrypt(Plaintext(200_000), identity.Recipient);
+
+        using var decrypted = AgeEncrypt.DecryptReader(new MemoryStream(ciphertext), identity);
+
+        // A cancelled read may already have consumed ciphertext, so the stream cannot tell where
+        // the next chunk starts: cancellation is a failure like any other.
+        var first = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => decrypted.CopyToAsync(Stream.Null, new CancellationToken(canceled: true)));
+        var retry = Assert.ThrowsAny<OperationCanceledException>(() => Drain(decrypted));
+
+        Assert.Same(first, retry);
+    }
+
     private static byte[] Plaintext(int length)
     {
         var bytes = new byte[length];

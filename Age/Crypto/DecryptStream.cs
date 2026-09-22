@@ -12,6 +12,8 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         Done
     }
 
+    // One encrypted chunk plus one look-ahead byte, which tells a full final chunk from a full
+    // non-final one.
     private const int CiphertextBufferSize = StreamEncryption.EncryptedChunkSize + 1;
     private const int PlaintextBufferSize = StreamEncryption.ChunkSize;
 
@@ -43,27 +45,8 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
 
     public override int Read(Span<byte> buffer)
     {
-        // The buffers are back on the ArrayPool after Dispose, so reading here would serve
-        // whatever the next renter has since written into them.
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ThrowIfUnusable();
 
-        // Sticky, as in go-age: after a failure the next chunk boundary is unknown, and a stream
-        // that kept reading would silently skip whatever failed to authenticate.
-        _failure?.Throw();
-
-        try
-        {
-            return ReadCore(buffer);
-        }
-        catch (Exception ex)
-        {
-            _failure = ExceptionDispatchInfo.Capture(ex);
-            throw;
-        }
-    }
-
-    private int ReadCore(Span<byte> buffer)
-    {
         var totalRead = 0;
 
         while (totalRead < buffer.Length)
@@ -81,16 +64,110 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
             if (_state == State.Done)
                 return totalRead;
 
-            DecryptNextChunk();
+            NextChunk();
         }
 
         return totalRead;
     }
 
-    private void DecryptNextChunk()
+    /// <summary>
+    /// Writes each chunk straight from the plaintext buffer, which Dispose clears.
+    /// <paramref name="bufferSize"/> is ignored: the chunk is the unit.
+    /// </summary>
+    /// <remarks>
+    /// Stream's own CopyTo copies through a pooled buffer and returns it uncleared, so every
+    /// decrypted chunk would outlive this stream in <c>ArrayPool.Shared</c>. The array overload of
+    /// Write is deliberate for the same reason: Stream's span overload, which a destination may
+    /// not override, copies into a pooled buffer too.
+    /// </remarks>
+    public override void CopyTo(Stream destination, int bufferSize)
+    {
+        ValidateCopyToArguments(destination, bufferSize);
+        ThrowIfUnusable();
+
+        while (true)
+        {
+            if (_plaintextOffset < _plaintextLength)
+            {
+                destination.Write(_plaintextBuffer, _plaintextOffset, _plaintextLength - _plaintextOffset);
+                _plaintextOffset = _plaintextLength;
+            }
+
+            if (_state == State.Done)
+                return;
+
+            NextChunk();
+        }
+    }
+
+    /// <summary>
+    /// The async counterpart of <see cref="CopyTo(Stream, int)"/>, for the same reason: Stream's
+    /// own CopyToAsync copies through a pooled buffer and returns it uncleared. Ciphertext is read
+    /// asynchronously rather than through Stream's default ReadAsync, which blocks a pool thread.
+    /// </summary>
+    public override async Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken)
+    {
+        ValidateCopyToArguments(destination, bufferSize);
+        ThrowIfUnusable();
+
+        while (true)
+        {
+            if (_plaintextOffset < _plaintextLength)
+            {
+                await destination.WriteAsync(_plaintextBuffer, _plaintextOffset, _plaintextLength - _plaintextOffset, cancellationToken)
+                    .ConfigureAwait(false);
+                _plaintextOffset = _plaintextLength;
+            }
+
+            if (_state == State.Done)
+                return;
+
+            await NextChunkAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private void ThrowIfUnusable()
+    {
+        // The buffers are back on the ArrayPool after Dispose, so reading here would serve
+        // whatever the next renter has since written into them.
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // Sticky, as in go-age: after a failure the next chunk boundary is unknown, and a stream
+        // that kept reading would silently skip whatever failed to authenticate.
+        _failure?.Throw();
+    }
+
+    private void NextChunk()
+    {
+        try
+        {
+            DecryptChunk(ReadFromCiphertext());
+        }
+        catch (Exception ex)
+        {
+            _failure = ExceptionDispatchInfo.Capture(ex);
+            throw;
+        }
+    }
+
+    private async ValueTask NextChunkAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            DecryptChunk(await ReadFromCiphertextAsync(cancellationToken).ConfigureAwait(false));
+        }
+        catch (Exception ex)
+        {
+            // Cancellation included: a cancelled read may already have consumed ciphertext.
+            _failure = ExceptionDispatchInfo.Capture(ex);
+            throw;
+        }
+    }
+
+    /// <summary>Decrypts the <paramref name="bytesRead"/> bytes the last ciphertext read left in the buffer.</summary>
+    private void DecryptChunk(int bytesRead)
     {
         var prevPlaintextLength = _plaintextLength;
-        var bytesRead = ReadFromCiphertext();
 
         switch (bytesRead)
         {
@@ -148,8 +225,19 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         // cleared only once the read has succeeded.
         var total = _hasSavedByte ? 1 : 0;
 
-        const int target = StreamEncryption.EncryptedChunkSize + 1;
-        total += ciphertext.ReadAtLeast(_ciphertextBuffer.AsSpan(total, target - total), target - total, throwOnEndOfStream: false);
+        total += ciphertext.ReadAtLeast(_ciphertextBuffer.AsSpan(total, CiphertextBufferSize - total), CiphertextBufferSize - total, throwOnEndOfStream: false);
+        _hasSavedByte = false;
+
+        return total;
+    }
+
+    private async ValueTask<int> ReadFromCiphertextAsync(CancellationToken cancellationToken)
+    {
+        var total = _hasSavedByte ? 1 : 0;
+
+        total += await ciphertext.ReadAtLeastAsync(
+            _ciphertextBuffer.AsMemory(total, CiphertextBufferSize - total), CiphertextBufferSize - total,
+            throwOnEndOfStream: false, cancellationToken).ConfigureAwait(false);
         _hasSavedByte = false;
 
         return total;
