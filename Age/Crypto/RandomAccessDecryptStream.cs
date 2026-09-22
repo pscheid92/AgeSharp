@@ -34,6 +34,22 @@ internal sealed class RandomAccessDecryptStream(AgeRandomAccess reader, long ini
         return read;
     }
 
+    // Both copies go through the reader, which writes each decrypted chunk directly and zeroes
+    // it; Stream's defaults would leave plaintext in an uncleared pooled buffer.
+    public override void CopyTo(Stream destination, int bufferSize)
+    {
+        ValidateCopyToArguments(destination, bufferSize);
+        reader.CopyTo(_position, destination);
+        _position = Math.Max(_position, _length);
+    }
+
+    public override async Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken)
+    {
+        ValidateCopyToArguments(destination, bufferSize);
+        await reader.CopyToAsync(_position, destination, cancellationToken).ConfigureAwait(false);
+        _position = Math.Max(_position, _length);
+    }
+
     public override long Seek(long offset, SeekOrigin origin)
     {
         var newPos = origin switch

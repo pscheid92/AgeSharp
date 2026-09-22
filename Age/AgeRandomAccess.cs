@@ -110,6 +110,58 @@ public sealed class AgeRandomAccess : IDisposable
     }
 
     /// <summary>
+    /// Writes the plaintext from <paramref name="plaintextOffset"/> to the end into
+    /// <paramref name="destination"/>, straight from each decrypted chunk, which is zeroed once
+    /// written. Backs the plaintext stream's CopyTo, whose Stream default would copy through a
+    /// pooled buffer and return it to <c>ArrayPool.Shared</c> uncleared.
+    /// </summary>
+    internal void CopyTo(long plaintextOffset, Stream destination)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        while (plaintextOffset < PlaintextLength)
+        {
+            var plaintext = DecryptChunkAt(plaintextOffset, out var offsetInChunk);
+
+            try
+            {
+                // The array overload, as in DecryptStream.CopyTo: Stream's span overload copies
+                // into a pooled buffer when the destination does not override it.
+                destination.Write(plaintext, offsetInChunk, plaintext.Length - offsetInChunk);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(plaintext);
+            }
+
+            plaintextOffset += plaintext.Length - offsetInChunk;
+        }
+    }
+
+    /// <summary>The async counterpart of <see cref="CopyTo(long, Stream)"/>.</summary>
+    internal async Task CopyToAsync(long plaintextOffset, Stream destination, CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        while (plaintextOffset < PlaintextLength)
+        {
+            var plaintext = DecryptChunkAt(plaintextOffset, out var offsetInChunk);
+
+            try
+            {
+                await destination.WriteAsync(plaintext, offsetInChunk, plaintext.Length - offsetInChunk, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(plaintext);
+            }
+
+            plaintextOffset += plaintext.Length - offsetInChunk;
+        }
+    }
+
+    /// <summary>
     /// Returns a readable, seekable plaintext <see cref="Stream"/> view over this
     /// reader, starting at <paramref name="plaintextOffset"/>. The stream shares
     /// this instance's state: streams from multiple calls must not be used
