@@ -112,27 +112,53 @@ public static class AgeKeygen
     /// The returned array converts implicitly to the <c>ReadOnlySpan&lt;IIdentity&gt;</c>
     /// that <see cref="AgeEncrypt.Decrypt(Stream, Stream, ReadOnlySpan{IIdentity})"/> accepts.
     /// </summary>
+    /// <exception cref="FormatException">
+    /// A line is not a valid identity. The message names the line by number and never quotes it.
+    /// </exception>
     public static IIdentity[] ParseIdentityFile(string text, IPluginCallbacks? callbacks = null)
     {
         var identities = new List<IIdentity>();
+        var lines = text.Split('\n');
 
-        foreach (var line in text.Split('\n'))
+        for (var i = 0; i < lines.Length; i++)
         {
-            var trimmed = line.TrimEnd('\r');
-            if (trimmed.Length == 0 || trimmed.StartsWith('#'))
+            var line = lines[i].TrimEnd('\r');
+            if (line.Length == 0 || line.StartsWith('#'))
                 continue;
 
-            if (trimmed.StartsWith("AGE-SECRET-KEY-PQ-", StringComparison.Ordinal))
-                identities.Add(MlKem768X25519Identity.Parse(trimmed));
-            else if (trimmed.StartsWith("AGE-SECRET-KEY-", StringComparison.Ordinal))
-                identities.Add(X25519Identity.Parse(trimmed));
-            else if (trimmed.StartsWith("AGE-PLUGIN-", StringComparison.Ordinal))
-                identities.Add(new PluginIdentity(trimmed, callbacks));
-            else
-                throw new FormatException($"unrecognized line in identity file: {trimmed}");
+            identities.Add(ParseIdentityLine(line, lineNumber: i + 1, callbacks));
         }
 
         return [.. identities];
+    }
+
+    /// <remarks>
+    /// Errors cite <paramref name="lineNumber"/> instead of the line, as go-age does: a line that
+    /// fails to parse is often a secret key with a stray space or the wrong case, and exception
+    /// messages end up in logs and terminals. The parsers' own messages are safe to pass on —
+    /// at most they name a single offending character.
+    /// </remarks>
+    private static IIdentity ParseIdentityLine(string line, int lineNumber, IPluginCallbacks? callbacks)
+    {
+        try
+        {
+            if (line.StartsWith("AGE-SECRET-KEY-PQ-", StringComparison.Ordinal))
+                return MlKem768X25519Identity.Parse(line);
+
+            if (line.StartsWith("AGE-SECRET-KEY-", StringComparison.Ordinal))
+                return X25519Identity.Parse(line);
+
+            if (line.StartsWith("AGE-PLUGIN-", StringComparison.Ordinal))
+                return new PluginIdentity(line, callbacks);
+        }
+        catch (FormatException ex)
+        {
+            throw new FormatException($"invalid identity on line {lineNumber}: {ex.Message}", ex);
+        }
+
+        throw new FormatException(
+            $"unrecognized line {lineNumber} in identity file: expected AGE-SECRET-KEY-1..., " +
+            "AGE-SECRET-KEY-PQ-1... or AGE-PLUGIN-... with no surrounding whitespace");
     }
 
     /// <summary>
