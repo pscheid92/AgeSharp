@@ -95,13 +95,20 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
         }
     }
 
+    /// <summary>
+    /// Acknowledges the error as the spec requires, then fails with the plugin's message.
+    /// </summary>
+    /// <remarks>
+    /// Every kind is fatal, as in go-age (plugin/client.go). An identity error is how a plugin
+    /// says "wrong PIN" or "no token inserted", and a stanza error means the header is invalid;
+    /// neither means "not for this identity", which a plugin says by finishing without a file key.
+    /// </remarks>
     private static void HandleError(PluginConnection conn, string[] args, byte[] body)
     {
-        if (args.Length > 0 && args[0] == "internal")
-            throw conn.Failure($"plugin internal error: {Encoding.UTF8.GetString(body)}");
-
-        // Identity errors mean this identity doesn't match — return null
         conn.WriteStanza("ok", [], []);
+
+        var kind = args.Length > 0 ? $"{args[0]} " : "";
+        throw conn.Failure($"plugin {kind}error: {Encoding.UTF8.GetString(body)}");
     }
 
     private static (string Type, string[] Args, byte[] Body) ReadNextStanza(PluginConnection conn)
