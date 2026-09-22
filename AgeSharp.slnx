@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="Age.Cli/Age.Cli.csproj" />
+  <Project Path="Age.Cli.Tests/Age.Cli.Tests.csproj" />
   <Project Path="Age.Tests/Age.Tests.csproj" />
   <Project Path="Age.TestKit/Age.TestKit.csproj" />
   <Project Path="Age/Age.csproj" />

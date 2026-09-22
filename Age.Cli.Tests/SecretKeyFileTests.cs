@@ -1,8 +1,7 @@
-using Age.Cli;
 using Age.Recipients;
 using Xunit;
 
-namespace Age.Tests;
+namespace Age.Cli.Tests;
 
 /// <summary>
 /// A secret key file is readable by its owner alone from the moment it exists, and is only ever
