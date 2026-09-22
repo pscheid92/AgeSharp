@@ -67,6 +67,46 @@ public class EncryptedIdentityFileTests
         Assert.Contains("unrecognized line", ex.Message);
     }
 
+    // A line that almost is a key is still a key. Error messages reach logs and terminals, so a
+    // malformed line is reported by its number, never quoted — as go-age does.
+    [Theory]
+    [InlineData("leading space")]
+    [InlineData("leading tab")]
+    [InlineData("lowercase")]
+    [InlineData("lowercase post-quantum")]
+    [InlineData("lowercase plugin")]
+    [InlineData("trailing space")]
+    [InlineData("corrupted checksum")]
+    public void ParseIdentityFile_MalformedKeyLine_IsNotQuoted(string malformation)
+    {
+        using var x25519 = X25519Identity.Generate();
+        using var pq = MlKem768X25519Identity.Generate();
+        const string plugin = "AGE-PLUGIN-YUBIKEY-1QQSR4HXQY3MX3";
+
+        var secret = malformation switch
+        {
+            "lowercase post-quantum" => pq.ToSecretString(),
+            "lowercase plugin" => plugin,
+            _ => x25519.ToSecretString(),
+        };
+
+        var line = malformation switch
+        {
+            "leading space" => " " + secret,
+            "leading tab" => "\t" + secret,
+            "trailing space" => secret + " ",
+            "corrupted checksum" => secret[..^1] + (secret[^1] == 'Q' ? 'P' : 'Q'),
+            _ => secret.ToLowerInvariant(),
+        };
+
+        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseIdentityFile($"# comment\n\n{line}\n"));
+
+        // The key material is the bech32 data after the last '1'; no part of the message may carry it.
+        var keyData = secret[(secret.LastIndexOf('1') + 1)..];
+        Assert.DoesNotContain(keyData, ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("line 3", ex.Message);
+    }
+
     [Fact]
     public void ParseIdentityFile_Empty_ReturnsEmpty()
     {
