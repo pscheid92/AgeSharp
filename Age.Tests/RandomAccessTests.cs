@@ -280,6 +280,26 @@ public class RandomAccessTests
         Assert.Equal(plaintext, buf);
     }
 
+    // The constructor promises to rewind first. Armor detection used to run before the rewind, so
+    // armored input left at its end — where Encrypt leaves it — was read as binary and failed.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StreamLeftAtItsEnd_IsRewound(bool armor)
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = "random access from wherever the stream was left"u8.ToArray();
+
+        var ciphertext = new MemoryStream();
+        AgeEncrypt.Encrypt(new MemoryStream(plaintext), ciphertext, armor, identity.Recipient);
+
+        using var ra = new AgeRandomAccess(ciphertext, identity);
+        var buf = new byte[plaintext.Length];
+
+        Assert.Equal(plaintext.Length, ra.ReadAt(0, buf));
+        Assert.Equal(plaintext, buf);
+    }
+
     [Fact]
     public void NonSeekableStream_Rejected()
     {

@@ -57,14 +57,15 @@ public sealed class AgeRandomAccess : IDisposable
 
         BinaryStream = ciphertext;
 
+        // Rewound before armor detection, which looks from the current position: a stream left at
+        // its end would otherwise read as binary. IsArmored restores the position it found.
+        ciphertext.Position = 0;
+
         // Armored input is materialized up front because ReadAt needs to seek; the MemoryStream is
         // kept for the reader's lifetime and released by Dispose. No ownership flag: if the setup
         // below throws, the constructor throws, nothing is handed out, and the MemoryStream is
         // garbage — which is all disposing it would achieve, since that does not free its buffer.
         _armoredBinaryInput = AsciiArmor.IsArmored(ciphertext) ? Materialize(ciphertext) : null;
-
-        if (_armoredBinaryInput is null)
-            ciphertext.Position = 0;
 
         var info = InitializeFromStream(BinaryStream, identities);
         _payloadKey = info.PayloadKey;
