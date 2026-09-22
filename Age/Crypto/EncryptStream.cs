@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 
 namespace Age.Crypto;
@@ -17,6 +18,7 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
 
     private State _state = State.Preamble;
     private bool _disposed;
+    private ExceptionDispatchInfo? _failure;
     private readonly byte[] _preamble = [..headerBytes, ..payloadNonce];
     private int _preambleOffset;
 
@@ -48,6 +50,23 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         // See DecryptStream.Read: the pooled buffers no longer belong to this stream.
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        // A failed read has already consumed the look-ahead byte. Carrying on would encrypt the
+        // plaintext without it, and the result would still authenticate — so fail every read.
+        _failure?.Throw();
+
+        try
+        {
+            return ReadCore(buffer);
+        }
+        catch (Exception ex)
+        {
+            _failure = ExceptionDispatchInfo.Capture(ex);
+            throw;
+        }
+    }
+
+    private int ReadCore(Span<byte> buffer)
+    {
         var totalRead = 0;
 
         while (totalRead < buffer.Length)
@@ -129,16 +148,12 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
 
     private int ReadFromPlaintext(byte[] buffer, int count)
     {
-        var total = 0;
-
-        if (_pendingByte)
-        {
-            // buffer[0] already contains the pending byte
-            total = 1;
-            _pendingByte = false;
-        }
+        // buffer[0] already contains the pending byte. The flag is cleared only once the read has
+        // succeeded, so a throw leaves it describing the buffer truthfully.
+        var total = _pendingByte ? 1 : 0;
 
         total += plaintext.ReadAtLeast(buffer.AsSpan(total, count - total), count - total, throwOnEndOfStream: false);
+        _pendingByte = false;
 
         return total;
     }
