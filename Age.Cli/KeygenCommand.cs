@@ -1,3 +1,4 @@
+using System.Globalization;
 using Age.Recipients;
 
 namespace Age.Cli;
@@ -14,7 +15,9 @@ internal static class KeygenCommand
     private static int Generate(string? outputPath, bool postQuantum)
     {
         var (publicKey, secretKey) = GenerateKeyPair(postQuantum);
-        var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+        // Invariant: under the user's culture the calendar and time separator vary (th-TH gave
+        // year 2569), and this is a machine-readable RFC 3339 timestamp.
+        var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
         var output = $"# created: {timestamp}\n# public key: {publicKey}\n{secretKey}\n";
         return WriteKeyOutput(output, publicKey, outputPath);
     }
