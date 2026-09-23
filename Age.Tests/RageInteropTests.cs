@@ -10,7 +10,8 @@ namespace Age.Tests;
 /// <summary>
 /// Interop with Rust's <c>rage</c>, the second implementation AgeSharp must agree with, in the
 /// shape of <see cref="InteropTests"/>. Every test skips cleanly when rage is not on PATH.
-/// rage 0.11 has no mlkem768x25519 recipients, so post-quantum interop is Go's alone.
+/// rage 0.12 has no built-in mlkem768x25519 recipients (it looks for age-plugin-pq), so
+/// post-quantum interop is Go's alone.
 /// </summary>
 public class RageInteropTests
 {
