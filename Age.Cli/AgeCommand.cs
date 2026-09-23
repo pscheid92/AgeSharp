@@ -142,8 +142,11 @@ internal static class AgeCommand
     {
         foreach (var file in recipientFiles)
         {
-            var text = File.ReadAllText(file);
-            recipients.AddRange(AgeKeygen.ParseRecipientsFile(text, callbacks));
+            var bytes = ReadKeyFile(file);
+            if (bytes.Length > KeyFileLimit)
+                throw new AgeException($"\"{file}\": recipients file is too long");
+
+            recipients.AddRange(AgeKeygen.ParseRecipientsFile(Encoding.UTF8.GetString(bytes), callbacks));
         }
 
         foreach (var file in identityFiles)
@@ -257,24 +260,50 @@ internal static class AgeCommand
     private static IRecipient ParseRecipient(string s) =>
         AgeKeygen.ParseRecipientLine(s, new CliPluginCallbacks(Terminal.OpenDefault));
 
+    // Key files are read into memory whole, so their size is bounded, with go-age v1.3.2's limits
+    // (cmd/age/parse.go): 16 MiB for recipients and identity files, under 16 KiB for an SSH key.
+    private const int KeyFileLimit = 16 * 1024 * 1024;
+    private const int SshKeyFileLimit = 16 * 1024;
+
+    /// <summary>At most one byte past <see cref="KeyFileLimit"/>, so an oversized file is detectable.</summary>
+    private static byte[] ReadKeyFile(string path)
+    {
+        using var file = File.OpenRead(path);
+        var contents = new byte[Math.Min(file.Length, KeyFileLimit + 1)];
+        var read = file.ReadAtLeast(contents, contents.Length, throwOnEndOfStream: false);
+        return read == contents.Length ? contents : contents[..read];
+    }
+
     private static List<IIdentity> LoadIdentities(string path, IPluginCallbacks callbacks)
     {
-        var bytes = File.ReadAllBytes(path);
+        var bytes = ReadKeyFile(path);
         var text = Encoding.UTF8.GetString(bytes);
         var trimmed = text.TrimStart();
 
-        // Encrypted identity file
+        // Encrypted identity file. go-age limits its decrypted contents to under 16 MiB; limiting
+        // the file itself is stricter only for an armored file holding over ~11.6 MiB of keys.
         if (trimmed.StartsWith("age-encryption.org/v1") || trimmed.StartsWith("-----BEGIN AGE ENCRYPTED FILE-----"))
         {
+            if (bytes.Length >= KeyFileLimit)
+                throw new AgeException($"failed to read \"{path}\": file too long");
+
             var pass = ReadPassphrase($"Enter passphrase for identity file \"{path}\": ");
             return [.. AgeKeygen.DecryptIdentityFile(bytes, pass)];
         }
 
         // SSH private key
         if (trimmed.StartsWith("-----BEGIN"))
+        {
+            if (bytes.Length >= SshKeyFileLimit)
+                throw new AgeException($"failed to read \"{path}\": file too long");
+
             return [AgeKeygen.ParseSshIdentity(text)];
+        }
 
         // Standard age identity file (AGE-SECRET-KEY-, AGE-SECRET-KEY-PQ-, AGE-PLUGIN-)
+        if (bytes.Length > KeyFileLimit)
+            throw new AgeException("identities file is too long");
+
         return [.. AgeKeygen.ParseIdentityFile(text, callbacks)];
     }
 
