@@ -33,6 +33,18 @@ public class CliPluginCallbacksTests
         Assert.Equal(answers.StartsWith("maybe"), output().Contains("Please answer y or n"));
     }
 
+    // The message and both labels come from the plugin; none may reach the terminal as control
+    // characters.
+    [Fact]
+    public void Confirm_ShowsThePluginsTextWithoutControlCharacters()
+    {
+        var (callbacks, output, _) = Answering("y\n");
+
+        callbacks.Confirm("Touch\u001b[2J your key", "do\u0007ne", "can\u009bcel");
+
+        Assert.StartsWith("Touch\uFFFD[2J your key [y: do\uFFFDne / n: can\uFFFDcel] (y/N): ", output());
+    }
+
     [Fact]
     public void DisplayMessage_GoesToStandardError()
     {
