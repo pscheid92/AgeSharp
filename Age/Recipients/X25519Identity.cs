@@ -51,9 +51,10 @@ public sealed class X25519Identity : IIdentity, IDisposable
     /// <summary>Generates a new identity from a cryptographically secure random key.</summary>
     public static X25519Identity Generate()
     {
-        var privateKeyParams = new X25519PrivateKeyParameters(new SecureRandom());
+        // Encoded straight into the array this identity owns and clears: GetEncoded would hand
+        // back one more copy of the key, which nothing clears.
         var raw = new byte[KeySize];
-        Array.Copy(privateKeyParams.GetEncoded(), raw, KeySize);
+        new X25519PrivateKeyParameters(new SecureRandom()).Encode(raw, 0);
         return new X25519Identity(raw);
     }
 

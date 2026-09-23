@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Age.Crypto;
 using Age.Format;
@@ -52,9 +53,19 @@ public sealed class SshRsaRecipient : IRecipient
         var oaep = new OaepEncoding(new RsaBlindedEngine(), new Sha256Digest(), new Sha256Digest(), Encoding.ASCII.GetBytes(AgeProtocol.SshRsaOaepLabel));
 
         oaep.Init(true, _publicKey);
-        var input = fileKey.ToArray();
-        var body = oaep.ProcessBlock(input, 0, input.Length);
 
-        return new Stanza(AgeProtocol.SshRsaStanzaType, [_tag], body);
+        // BouncyCastle takes an array, so the file key is copied; the copy is cleared, as the
+        // other recipients clear theirs.
+        var input = fileKey.ToArray();
+
+        try
+        {
+            var body = oaep.ProcessBlock(input, 0, input.Length);
+            return new Stanza(AgeProtocol.SshRsaStanzaType, [_tag], body);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(input);
+        }
     }
 }

@@ -44,7 +44,21 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
 
         var ed25519Private = (Ed25519PrivateKeyParameters)privateKey;
 
-        var x25519Private = Ed25519Converter.PrivateKeyToX25519(ed25519Private.GetEncoded());
+        // The Ed25519 seed is the SSH private key itself; this copy of it is cleared once the
+        // X25519 key is derived. GetEncoded would leave a copy nothing clears.
+        var seed = new byte[Ed25519PrivateKeyParameters.KeySize];
+        ed25519Private.Encode(seed, 0);
+
+        byte[] x25519Private;
+
+        try
+        {
+            x25519Private = Ed25519Converter.PrivateKeyToX25519(seed);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(seed);
+        }
 
         var x25519PrivateParam = new X25519PrivateKeyParameters(x25519Private);
         var x25519Pub = x25519PrivateParam.GeneratePublicKey().GetEncoded();
