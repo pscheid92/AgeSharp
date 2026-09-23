@@ -60,20 +60,17 @@ public sealed class PipeFileTests : IDisposable
         Skip.If(OperatingSystem.IsWindows(), "named pipes are a Unix concept here");
 
         var output = Fifo("out.pipe");
+        var received = Path.Combine(_dir, "received.txt");
 
-        // Read the way a shell's reader, such as cat, does: without a lock. File.ReadAllText would
-        // take .NET's shared advisory lock, which on Linux applies to a FIFO too and would collide
-        // with the output's exclusive create — a clash between two .NET readers, not a real one.
-        var reader = Task.Run(() =>
-        {
-            using var pipe = new FileStream(output, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            return new StreamReader(pipe).ReadToEnd();
-        });
+        // The reader is cat, as in a shell pipeline. A .NET reader would take .NET's shared
+        // advisory lock, which on Linux applies to a FIFO too, and collide with the output's
+        // exclusive create — a clash no real reader causes.
+        using var cat = Process.Start("/bin/sh", ["-c", "cat \"$0\" > \"$1\"", output, received])!;
 
         Finish(() => Execute(decrypt: true, identityFiles: [KeyFile()], output: output, input: EncryptedFile("plaintext")));
 
-        Assert.True(reader.Wait(Patience));
-        Assert.Equal("plaintext", reader.Result);
+        Assert.True(cat.WaitForExit(Patience));
+        Assert.Equal("plaintext", File.ReadAllText(received));
     }
 
     // Run on another thread, so a hang fails the test instead of stalling the run.
