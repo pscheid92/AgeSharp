@@ -159,7 +159,7 @@ public sealed class PluginLocatorTests : IDisposable
 
     [Fact]
     public void Candidates_OnUnix_AreJustTheName() =>
-        Assert.Equal(["/usr/bin/age-plugin-x"], PluginLocator.Candidates("/usr/bin", "age-plugin-x", ".EXE", windows: false));
+        Assert.Equal([Path.Combine("/usr/bin", "age-plugin-x")], PluginLocator.Candidates("/usr/bin", "age-plugin-x", ".EXE", windows: false));
 
     [SkippableFact]
     public void ExtensionlessFile_DoesNotShadowTheExe_OnWindows()
