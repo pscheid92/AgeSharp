@@ -18,6 +18,8 @@ internal static class AgeCommand
         if (!encrypt)
             RefuseEncryptionOnlyFlags(encryptFlag, armor, recipients, recipientFiles);
 
+        RefuseOutputThatIsAnInput(outputPath, [inputPath, .. identityFiles, .. recipientFiles]);
+
         var parsedRecipients = recipients.Select(ParseRecipient).ToList();
 
         return encrypt
@@ -46,6 +48,64 @@ internal static class AgeCommand
         if (recipientFiles.Length > 0)
             throw new AgeException("-R/--recipients-file can't be used with -d/--decrypt; " +
                                    "did you mean to use -i/--identity to specify a private key?");
+    }
+
+    /// <summary>
+    /// The output must not be a file the command reads — the input, an identity file or a
+    /// recipients file. go-age v1.3.2 refuses it; here, -d -i key.txt -o key.txt overwrote the
+    /// private key with the plaintext.
+    /// </summary>
+    /// <remarks>
+    /// Paths are compared first. go-age also compares the files themselves, catching symlinks,
+    /// hard links and case variants; .NET has no public way to ask whether two paths are one file,
+    /// so this asks the OS's file locks instead. With an input held open for shared reading, an
+    /// exclusive open of the output fails only if it is the same file. The probe opens the output
+    /// read-only, so it cannot truncate anything. Where .NET's file locking is disabled only the
+    /// paths are compared, and an output another process holds exclusively reads as the same.
+    /// </remarks>
+    private static void RefuseOutputThatIsAnInput(string? outputPath, string?[] inputPaths)
+    {
+        if (outputPath is null or "-")
+            return;
+
+        var inputs = inputPaths.OfType<string>().Where(path => path != "-").ToList();
+        var output = Path.GetFullPath(outputPath);
+
+        if (inputs.Any(input => Path.GetFullPath(input) == output) ||
+            (File.Exists(output) && inputs.Any(input => IsSameFile(input, output))))
+            throw new AgeException($"input and output file are the same: \"{outputPath}\"");
+
+        static bool IsSameFile(string input, string output)
+        {
+            FileStream held;
+
+            try
+            {
+                held = new FileStream(input, FileMode.Open, FileAccess.Read, FileShare.Read);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Unreadable or missing: the command itself will report that.
+                return false;
+            }
+
+            using (held)
+            {
+                try
+                {
+                    using var probe = new FileStream(output, FileMode.Open, FileAccess.Read, FileShare.None);
+                    return false;
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return false;
+                }
+                catch (IOException)
+                {
+                    return true;
+                }
+            }
+        }
     }
 
     private static int Encrypt(bool armor, bool passphrase, List<IRecipient> recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath, StandardStreams streams)
