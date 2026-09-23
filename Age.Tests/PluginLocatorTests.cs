@@ -133,4 +133,42 @@ public sealed class PluginLocatorTests : IDisposable
         Assert.NotNull(PluginLocator.Find("age-plugin-default", _dir, null));
         Assert.NotNull(PluginLocator.Find("age-plugin-default", _dir, ""));
     }
+
+    // On Windows an extensionless file is not executable, so it must not shadow the .EXE beside
+    // it. Go's exec.LookPath, which go-age uses, tries the bare name only when it already has an
+    // extension, then each PATHEXT suffix.
+    [Fact]
+    public void Candidates_OnWindows_SkipTheBareName_WhenItHasNoExtension()
+    {
+        var dir = Path.Combine("C:", "bin");
+
+        Assert.Equal(
+            [Path.Combine(dir, "age-plugin-x.COM"), Path.Combine(dir, "age-plugin-x.EXE")],
+            PluginLocator.Candidates(dir, "age-plugin-x", ".COM;.EXE", windows: true));
+    }
+
+    [Fact]
+    public void Candidates_OnWindows_TryTheBareNameFirst_WhenItHasAnExtension()
+    {
+        var dir = Path.Combine("C:", "bin");
+
+        Assert.Equal(
+            [Path.Combine(dir, "age-plugin-x.v2"), Path.Combine(dir, "age-plugin-x.v2.COM"), Path.Combine(dir, "age-plugin-x.v2.EXE")],
+            PluginLocator.Candidates(dir, "age-plugin-x.v2", ".COM;.EXE", windows: true));
+    }
+
+    [Fact]
+    public void Candidates_OnUnix_AreJustTheName() =>
+        Assert.Equal(["/usr/bin/age-plugin-x"], PluginLocator.Candidates("/usr/bin", "age-plugin-x", ".EXE", windows: false));
+
+    [SkippableFact]
+    public void ExtensionlessFile_DoesNotShadowTheExe_OnWindows()
+    {
+        Skip.IfNot(OperatingSystem.IsWindows(), "PATHEXT is a Windows concept");
+
+        Plant("age-plugin-shadow");
+        var exe = Plant("age-plugin-shadow.EXE");
+
+        Assert.Equal(exe, PluginLocator.Find("age-plugin-shadow", _dir, WindowsPathExt));
+    }
 }
