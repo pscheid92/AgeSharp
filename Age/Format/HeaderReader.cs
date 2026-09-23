@@ -59,9 +59,8 @@ internal sealed class HeaderReader(Stream stream)
 
             ValidateByte(b);
 
-            if (lineBytes.Count >= AgeLimits.MaxHeaderLineBytes)
-                throw new AgeHeaderException($"header line exceeds {AgeLimits.MaxHeaderLineBytes} bytes");
-
+            // No separate line limit: as in go-age, a line may use whatever the header allows,
+            // which ReadAndTrackByte bounds.
             lineBytes.Add((byte)b);
         }
 

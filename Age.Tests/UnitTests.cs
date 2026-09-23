@@ -575,8 +575,9 @@ public class AsciiArmorTests
     [Fact]
     public void Reject_Oversized_Header_Line()
     {
-        // A header line with no newline must be bounded before authentication.
-        var text = "age-encryption.org/v1\n" + new string('a', 100_000) + "\n";
+        // A header line with no newline must be bounded before authentication. As in go-age, the
+        // bound is the header's own 2 MiB, not a separate per-line limit.
+        var text = "age-encryption.org/v1\n" + new string('a', AgeLimits.MaxHeaderBytes + 1000);
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var ex = Assert.Throws<AgeHeaderException>(() => AgeHeader.Parse(stream));
         Assert.Contains("exceeds", ex.Message);
