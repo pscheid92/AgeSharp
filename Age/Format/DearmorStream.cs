@@ -109,9 +109,13 @@ internal sealed class DearmorStream : Stream
         return true;
     }
 
+    /// <summary>
+    /// After the footer only whitespace may follow, and less than go-age's allowance of it
+    /// (armor.go reads at most that much and rejects a full read).
+    /// </summary>
     private void ValidateTrailing()
     {
-        while (true)
+        for (var trailing = 0; ; trailing++)
         {
             var ch = _reader.Read();
 
@@ -120,6 +124,10 @@ internal sealed class DearmorStream : Stream
 
             if (ch is not (' ' or '\t' or '\r' or '\n'))
                 throw new AgeArmorException("trailing data after end marker");
+
+            if (trailing + 1 >= AgeLimits.MaxArmorWhitespaceBytes)
+                throw new AgeArmorException(
+                    $"{AgeLimits.MaxArmorWhitespaceBytes} or more bytes of whitespace after the armor footer");
         }
     }
 

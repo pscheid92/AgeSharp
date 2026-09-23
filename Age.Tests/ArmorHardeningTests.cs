@@ -86,4 +86,44 @@ public class ArmorHardeningTests
         var ex = Assert.Throws<AgeArmorException>(() => Decrypt(flood, identity));
         Assert.Contains("whitespace", ex.Message, StringComparison.Ordinal);
     }
+
+    // go-age (armor.go) allows 1024 bytes of whitespace-only lines before the header and counts
+    // nothing else; the header line used to count against the allowance too, so 990 blank lines
+    // were already "more than 1024 bytes of whitespace".
+    [Theory]
+    [InlineData(1024, true)]
+    [InlineData(1025, false)]
+    public void LeadingWhitespace_IsAllowedUpToTheLimit(int newlines, bool accepted)
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = "hello armor"u8.ToArray();
+        var padded = (byte[]) [.. Encoding.ASCII.GetBytes(new string('\n', newlines)), .. Armored(identity.Recipient, plaintext)];
+
+        if (accepted)
+            Assert.Equal(plaintext, Decrypt(padded, identity));
+        else
+            Assert.Throws<AgeArmorException>(() => Decrypt(padded, identity));
+    }
+
+    // Bounded after the footer as well, as go-age bounds it: otherwise a file followed by
+    // nothing but newlines is read to its end before it is accepted.
+    [Theory]
+    [InlineData(100, true)]
+    [InlineData(64 * 1024, false)]
+    public void TrailingWhitespace_IsAllowedUpToTheLimit(int newlines, bool accepted)
+    {
+        using var identity = X25519Identity.Generate();
+        var plaintext = "hello armor"u8.ToArray();
+        var padded = (byte[]) [.. Armored(identity.Recipient, plaintext), .. Encoding.ASCII.GetBytes(new string('\n', newlines))];
+
+        if (accepted)
+        {
+            Assert.Equal(plaintext, Decrypt(padded, identity));
+        }
+        else
+        {
+            var ex = Assert.Throws<AgeArmorException>(() => Decrypt(padded, identity));
+            Assert.Contains("whitespace", ex.Message, StringComparison.Ordinal);
+        }
+    }
 }
