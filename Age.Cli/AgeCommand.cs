@@ -339,7 +339,12 @@ internal static class AgeCommand
         {
             try
             {
-                return File.Create(path);
+                // Write-only, as rage opens it (OpenOptions with write only). File.Create opens
+                // read-write, and a FIFO opened read-write does not wait for a reader: the output
+                // went into a pipe nobody was reading yet and was lost when the command closed it.
+                // go-age's os.Create opens read-write too and loses it the same way; here the two
+                // references disagree, and this follows the one that does not lose data.
+                return new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
             }
             catch (IOException ex) when (IsSharingViolation(ex))
             {

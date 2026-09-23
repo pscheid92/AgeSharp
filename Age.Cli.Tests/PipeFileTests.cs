@@ -62,15 +62,26 @@ public sealed class PipeFileTests : IDisposable
         var output = Fifo("out.pipe");
         var received = Path.Combine(_dir, "received.txt");
 
-        // The reader is cat, as in a shell pipeline. A .NET reader would take .NET's shared
-        // advisory lock, which on Linux applies to a FIFO too, and collide with the output's
-        // exclusive create — a clash no real reader causes.
-        using var cat = Process.Start("/bin/sh", ["-c", "cat \"$0\" > \"$1\"", output, received])!;
+        // The reader is cat, as in a shell pipeline, and it arrives late. A .NET reader would take
+        // .NET's shared advisory lock, which on Linux applies to a FIFO too, and collide with the
+        // output's exclusive create — a clash no real reader causes. Arriving late is the point:
+        // an output opened read-write does not wait for a reader, so the plaintext went into a
+        // pipe nobody was reading and was lost when the command closed it. go-age v1.3.2 loses it
+        // this way too; rage, which opens write-only, delivers it, and so does this.
+        using var cat = Process.Start("/bin/sh", ["-c", "sleep 1; cat \"$0\" > \"$1\"", output, received])!;
 
-        Finish(() => Execute(decrypt: true, identityFiles: [KeyFile()], output: output, input: EncryptedFile("plaintext")));
+        try
+        {
+            Finish(() => Execute(decrypt: true, identityFiles: [KeyFile()], output: output, input: EncryptedFile("plaintext")));
 
-        Assert.True(cat.WaitForExit(Patience));
-        Assert.Equal("plaintext", File.ReadAllText(received));
+            Assert.True(cat.WaitForExit(Patience), "cat never saw the end of the output");
+            Assert.Equal("plaintext", File.ReadAllText(received));
+        }
+        finally
+        {
+            if (!cat.HasExited)
+                cat.Kill(entireProcessTree: true);
+        }
     }
 
     // Run on another thread, so a hang fails the test instead of stalling the run.
