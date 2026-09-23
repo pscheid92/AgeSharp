@@ -2,10 +2,11 @@ namespace Age.Format;
 
 /// <summary>
 /// A read-only pass-through stream that caps the number of bytes that may pass
-/// without a line terminator (CR or LF). This lets the armor reader keep using
-/// the fast <see cref="StreamReader.ReadLine"/> path while still bounding memory:
-/// a hostile stream with a multi-gigabyte line cannot be buffered, because the
-/// limit trips during the underlying read instead.
+/// without an LF. This lets the armor reader split lines freely while still bounding
+/// memory: a hostile stream with a multi-gigabyte line cannot be buffered, because the
+/// limit trips during the underlying read instead. LF only, because that is the only
+/// place <see cref="ArmorLineReader"/> ends a line: resetting at a CR too would let a
+/// CR every few kilobytes grow one line without bound.
 /// </summary>
 /// <remarks>
 /// When <paramref name="leaveOpen"/> is true, disposing this stream does not dispose
@@ -14,7 +15,7 @@ namespace Age.Format;
 /// </remarks>
 internal sealed class NewlineBoundedStream(Stream inner, int maxLineBytes, bool leaveOpen = false) : Stream
 {
-    private int _run; // bytes seen since the last CR/LF
+    private int _run; // bytes seen since the last LF
 
     public override int Read(byte[] buffer, int offset, int count)
     {
@@ -37,7 +38,7 @@ internal sealed class NewlineBoundedStream(Stream inner, int maxLineBytes, bool 
         // updates the carried run, so the bound costs ~one SIMD pass per read.
         if (_run + bytes.Length <= maxLineBytes)
         {
-            var lastNl = bytes.LastIndexOfAny((byte)'\n', (byte)'\r');
+            var lastNl = bytes.LastIndexOf((byte)'\n');
             _run = lastNl < 0 ? _run + bytes.Length : bytes.Length - 1 - lastNl;
             return;
         }
@@ -46,7 +47,7 @@ internal sealed class NewlineBoundedStream(Stream inner, int maxLineBytes, bool 
         // walk newline-to-newline to find where the run is broken or exceeded.
         while (!bytes.IsEmpty)
         {
-            var nl = bytes.IndexOfAny((byte)'\n', (byte)'\r');
+            var nl = bytes.IndexOf((byte)'\n');
             var lineLen = nl < 0 ? bytes.Length : nl;
 
             if (_run + lineLen > maxLineBytes)

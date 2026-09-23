@@ -17,14 +17,14 @@ internal sealed class DearmorStream : Stream
     private static readonly SearchValues<char> Base64Chars =
         SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=");
 
-    private readonly StreamReader _reader;
+    private readonly ArmorLineReader _reader;
     private readonly byte[] _decodeBuffer = new byte[MaxDecodedPerLine];
     private int _decodeOffset;
     private int _decodeCount;
     private bool _finished;
     private bool _bodyEnded;
 
-    public DearmorStream(StreamReader reader)
+    public DearmorStream(ArmorLineReader reader)
     {
         _reader = reader;
     }

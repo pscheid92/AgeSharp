@@ -44,12 +44,12 @@ internal static class AsciiArmor
     public static Stream Dearmor(Stream input)
     {
         // Bound the line length at the byte level so the reader below can keep
-        // using the fast ReadLine path without risking an unbounded allocation.
+        // splitting lines without risking an unbounded allocation.
         // leaveOpen: true stops the dispose chain at the wrapper — `input` belongs to the caller.
         // The StreamReader keeps leaveOpen: false so it still disposes the wrapper we created.
         var bounded = new NewlineBoundedStream(input, AgeLimits.MaxArmorLineBytes, leaveOpen: true);
-        var reader = new StreamReader(bounded, Encoding.ASCII, detectEncodingFromByteOrderMarks: false,
-            bufferSize: 4096, leaveOpen: false);
+        var reader = new ArmorLineReader(new StreamReader(bounded, Encoding.ASCII,
+            detectEncodingFromByteOrderMarks: false, bufferSize: 4096, leaveOpen: false));
 
         // Leading whitespace is allowed: skip blank lines, then TrimStart the marker line. Only
         // the blank lines count against the allowance, as in go-age — not the marker line.

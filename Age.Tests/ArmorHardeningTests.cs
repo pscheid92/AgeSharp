@@ -25,10 +25,8 @@ public class ArmorHardeningTests
         return output.ToArray();
     }
 
-    // H9. There is no explicit CR guard and deliberately so — StreamReader.ReadLine splits on a
-    // lone CR, so a returned line can never contain one and any check would be dead code. The CR
-    // is still rejected, because the fragments it creates fail the line-width rules. This test
-    // pins that outcome rather than proving a fix.
+    // H9. Lines end only at LF (with one trailing CR trimmed), so a bare CR inside a body line
+    // stays in the line and fails the base64 character check.
     [Fact]
     public void BareCarriageReturnInArmorBody_IsRejected()
     {
@@ -45,8 +43,36 @@ public class ArmorHardeningTests
         Assert.Throws<AgeArmorException>(() => Decrypt(tampered, identity));
     }
 
-    // CRLF is legitimate and must keep working — StreamReader consumes it as one terminator, so
-    // no CR survives into the line.
+    // Lines end at LF, with one trailing CR allowed — go-age's rule. A lone CR is not a line
+    // ending: the same file with every LF replaced by CR used to decrypt, because StreamReader
+    // ends lines at a lone CR too.
+    [Fact]
+    public void LoneCarriageReturnLineEndings_AreRejected()
+    {
+        using var identity = X25519Identity.Generate();
+        var armored = Encoding.ASCII.GetString(Armored(identity.Recipient, "hello armor"u8.ToArray()));
+
+        var crOnly = Encoding.ASCII.GetBytes(armored.Replace('\n', '\r'));
+
+        Assert.Throws<AgeArmorException>(() => Decrypt(crOnly, identity));
+    }
+
+    // The per-line memory bound must count lines the way the reader splits them. If it reset at a
+    // CR while the reader waited for LF, a CR every few kilobytes would let one line grow unbounded.
+    [Fact]
+    public void LineBrokenOnlyByCarriageReturns_HitsTheLineLimit()
+    {
+        var chunk = new string('A', 1000) + "\r";
+        var text = "-----BEGIN AGE ENCRYPTED FILE-----\n"
+                   + string.Concat(Enumerable.Repeat(chunk, AgeLimits.MaxArmorLineBytes / 1000 + 10)) + "\n";
+
+        var ex = Assert.Throws<AgeArmorException>(() => AgeHeader.Parse(new MemoryStream(Encoding.ASCII.GetBytes(text))));
+
+        Assert.Contains($"exceeds {AgeLimits.MaxArmorLineBytes} bytes", ex.Message);
+    }
+
+    // CRLF is legitimate and must keep working — the CR before each LF is trimmed, so none
+    // survives into the line.
     [Fact]
     public void CrlfLineEndings_StillDecrypt()
     {
