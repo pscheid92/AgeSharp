@@ -6,8 +6,9 @@ namespace Age.Tests;
 /// </summary>
 internal static class RageCli
 {
-    // rage 0.11.1 panics at startup in its locale detection on a macOS region override such as
-    // "en_US@rg=dezzzz"; an explicit LANG avoids that and changes nothing else.
+    // rage before 0.12 panics at startup in its locale detection on a macOS region override such
+    // as "en_US@rg=dezzzz". An explicit LANG avoids that on an older local install, so it fails
+    // no test that would otherwise run, and changes nothing else.
     private static readonly ReferenceCli Rage = new("rage", new Dictionary<string, string> { ["LANG"] = "en_US.UTF-8" });
 
     public static bool Available => Rage.Available;

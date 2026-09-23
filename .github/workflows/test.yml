@@ -16,8 +16,8 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     env:
-      AGE_VERSION: "1.3.1"
-      RAGE_VERSION: "0.11.1"
+      AGE_VERSION: "1.3.2"
+      RAGE_VERSION: "0.12.1"
 
     steps:
       - uses: actions/checkout@v4
@@ -112,8 +112,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      AGE_VERSION: "1.3.1"
-      RAGE_VERSION: "0.11.1"
+      AGE_VERSION: "1.3.2"
+      RAGE_VERSION: "0.12.1"
 
     steps:
       - uses: actions/checkout@v4
