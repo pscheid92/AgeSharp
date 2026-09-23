@@ -10,16 +10,19 @@ internal static class AgeCommand
 {
     /// <param name="encrypt">Whether to encrypt, which is the default; false when -d was given.</param>
     /// <param name="encryptFlag">Whether -e was given explicitly.</param>
-    public static int Execute(bool encrypt, bool armor, bool passphrase, string[] recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath, bool encryptFlag = false)
+    /// <param name="streams">The standard streams; the console's when null.</param>
+    public static int Execute(bool encrypt, bool armor, bool passphrase, string[] recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath, bool encryptFlag = false, StandardStreams? streams = null)
     {
+        streams ??= StandardStreams.FromConsole();
+
         if (!encrypt)
             RefuseEncryptionOnlyFlags(encryptFlag, armor, recipients, recipientFiles);
 
         var parsedRecipients = recipients.Select(ParseRecipient).ToList();
 
         return encrypt
-            ? Encrypt(armor, passphrase, parsedRecipients, recipientFiles, identityFiles, outputPath, inputPath)
-            : Decrypt(passphrase, identityFiles, outputPath, inputPath);
+            ? Encrypt(armor, passphrase, parsedRecipients, recipientFiles, identityFiles, outputPath, inputPath, streams)
+            : Decrypt(passphrase, identityFiles, outputPath, inputPath, streams);
     }
 
     /// <summary>
@@ -45,7 +48,7 @@ internal static class AgeCommand
                                    "did you mean to use -i/--identity to specify a private key?");
     }
 
-    private static int Encrypt(bool armor, bool passphrase, List<IRecipient> recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath)
+    private static int Encrypt(bool armor, bool passphrase, List<IRecipient> recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath, StandardStreams streams)
     {
         var callbacks = new CliPluginCallbacks(Terminal.OpenDefault);
 
@@ -64,11 +67,12 @@ internal static class AgeCommand
                 throw new AgeException("missing recipients (-r, -R, or -i required for encryption)");
         }
 
-        if (outputPath is null && !armor && !Console.IsOutputRedirected)
-            throw new AgeException("refusing to output binary to a terminal. Did you mean to use -a/--armor?");
+        if (outputPath is null && !armor && streams.OutputIsTerminal)
+            throw new AgeException("refusing to output binary to a terminal. Did you mean to use -a/--armor? " +
+                                   "Force it anyway with \"-o -\".");
 
-        using var input = OpenInput(inputPath);
-        using var output = OpenOutput(outputPath);
+        using var input = OpenInput(inputPath, streams);
+        using var output = OpenOutput(outputPath, streams);
 
         AgeEncrypt.Encrypt(input, output, armor, [.. recipients]);
         return 0;
@@ -113,16 +117,44 @@ internal static class AgeCommand
         return pass == confirm ? pass : throw new AgeException("passphrases didn't match");
     }
 
-    private static int Decrypt(bool passphrase, string[] identityFiles, string? outputPath, string? inputPath)
+    private static int Decrypt(bool passphrase, string[] identityFiles, string? outputPath, string? inputPath, StandardStreams streams)
     {
         var identities = CollectDecryptIdentities(passphrase, identityFiles);
 
-        using var rawInput = OpenInput(inputPath);
+        using var rawInput = OpenInput(inputPath, streams);
         using var input = SeekableInput.From(rawInput);
 
-        using var output = OpenOutput(outputPath);
+        // Bound for a terminal, the plaintext is held back and shown only if it is text, as go-age
+        // does: whatever the file's author chose could otherwise drive the terminal. "-o -" names
+        // standard output explicitly and skips the check.
+        if (outputPath is null && streams.OutputIsTerminal)
+            return DecryptToTerminal(input, identities, streams);
+
+        using var output = OpenOutput(outputPath, streams);
         AgeEncrypt.Decrypt(input, output, [.. identities]);
         return 0;
+    }
+
+    private static int DecryptToTerminal(Stream input, List<IIdentity> identities, StandardStreams streams)
+    {
+        using var plaintext = new MemoryStream();
+
+        try
+        {
+            AgeEncrypt.Decrypt(input, plaintext, [.. identities]);
+            var shown = plaintext.GetBuffer().AsSpan(0, (int)plaintext.Length);
+
+            if (!Terminal.IsPrintable(shown))
+                throw new AgeException("refusing to output binary to the terminal; force it anyway with \"-o -\"");
+
+            using var terminal = streams.OpenOutput();
+            terminal.Write(shown);
+            return 0;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintext.GetBuffer());
+        }
     }
 
     private static List<IIdentity> CollectDecryptIdentities(bool passphrase, string[] identityFiles)
@@ -206,11 +238,12 @@ internal static class AgeCommand
         return string.Join("-", parts);
     }
 
-    private static Stream OpenInput(string? path) =>
-        path is not null ? File.OpenRead(path) : Console.OpenStandardInput();
+    // "-" names standard input or output, as in go-age.
+    private static Stream OpenInput(string? path, StandardStreams streams) =>
+        path is null or "-" ? streams.OpenInput() : File.OpenRead(path);
 
-    private static Stream OpenOutput(string? path) =>
-        path is not null ? new LazyFileStream(path) : Console.OpenStandardOutput();
+    private static Stream OpenOutput(string? path, StandardStreams streams) =>
+        path is null or "-" ? streams.OpenOutput() : new LazyFileStream(path);
 
     /// <summary>
     /// A passphrase identity that lazily prompts the user on first use.

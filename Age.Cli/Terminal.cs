@@ -53,6 +53,28 @@ internal static class Terminal
                 shown[i] = char.IsControl(source[i]) ? '\uFFFD' : source[i];
         });
 
+    /// <summary>
+    /// Whether <paramref name="output"/> may be shown on a terminal: valid UTF-8, and no control
+    /// characters but newline, carriage return and tab.
+    /// </summary>
+    /// <remarks>
+    /// Decrypted output is whatever the file's author chose; on a terminal it could carry escape
+    /// sequences that drive it. This is go-age v1.3.2's test (cmd/age, de96c8e).
+    /// </remarks>
+    internal static bool IsPrintable(ReadOnlySpan<byte> output)
+    {
+        if (!System.Text.Unicode.Utf8.IsValid(output))
+            return false;
+
+        foreach (var c in Encoding.UTF8.GetString(output))
+        {
+            if (char.IsControl(c) && c is not ('\n' or '\r' or '\t'))
+                return false;
+        }
+
+        return true;
+    }
+
     internal static ITerminal Open(Func<ITerminal?> openControllingTerminal, bool stdinIsTerminal) =>
         openControllingTerminal()
         ?? (stdinIsTerminal
