@@ -12,11 +12,15 @@ namespace Age.Recipients;
 /// the same instance to <c>Encrypt</c> and <c>Decrypt</c>. An scrypt recipient must
 /// be the only recipient of a file (enforced on both encrypt and decrypt).
 /// </summary>
-/// <param name="passphrase">The passphrase; used as UTF-8 bytes.</param>
-/// <param name="workFactor">
-/// The scrypt cost as log2(N), 1–20 (default 18, matching the age CLI).
-/// Decryption refuses stanzas whose work factor exceeds 20.
+/// <param name="passphrase">
+/// The passphrase; used as UTF-8 bytes. It must not be empty to encrypt, but an empty one still
+/// decrypts files made with it.
 /// </param>
+/// <param name="workFactor">
+/// The scrypt cost as log2(N), 1–22 (default 18, matching the age CLI).
+/// Decryption refuses stanzas whose work factor exceeds 22.
+/// </param>
+/// <exception cref="ArgumentNullException"><paramref name="passphrase"/> is null.</exception>
 public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IRecipient, IIdentity
 {
     private const string StanzaType = "scrypt";
@@ -30,6 +34,8 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
     private const int NonceSize = 12;
     private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
 
+    private readonly string _passphrase = passphrase ?? throw new ArgumentNullException(nameof(passphrase));
+
     // Validate eagerly so an out-of-range work factor fails at construction
     // rather than overflowing `1 << workFactor` or producing a stanza this
     // library (which caps decryption at MaxWorkFactor) could never read back.
@@ -42,12 +48,21 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
                 $"scrypt work factor must be between 1 and {MaxWorkFactor}");
 
     /// <summary>Wraps the file key under a key derived from the passphrase with a fresh salt.</summary>
+    /// <exception cref="ArgumentException">The passphrase is empty.</exception>
+    /// <remarks>
+    /// An empty passphrase is refused here rather than at construction, as go-age refuses it:
+    /// it protects nothing. It is still accepted for decryption, because earlier versions could
+    /// encrypt with one and those files must stay readable.
+    /// </remarks>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey)
     {
+        if (_passphrase.Length == 0)
+            throw new ArgumentException("passphrase can't be empty", "passphrase");
+
         var salt = new byte[SaltSize];
         RandomNumberGenerator.Fill(salt);
 
-        var wrapKey = DeriveWrapKey(passphrase, salt, _workFactor);
+        var wrapKey = DeriveWrapKey(_passphrase, salt, _workFactor);
 
         try
         {
@@ -97,7 +112,7 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
         if (stanza.Body.Length != WrappedKeySize)
             throw new AgeHeaderException($"scrypt stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
 
-        var wrapKey = DeriveWrapKey(passphrase, salt, stanzaWorkFactor);
+        var wrapKey = DeriveWrapKey(_passphrase, salt, stanzaWorkFactor);
 
         try
         {

@@ -173,7 +173,11 @@ public static class AgeKeygen
     public static IIdentity[] DecryptIdentityFile(byte[] data, string passphrase)
     {
         using var input = new MemoryStream(data);
-        using var output = new MemoryStream();
+
+        // Sized up front: the plaintext is always shorter than the file, so the buffer never
+        // grows. A growing MemoryStream abandons each outgrown buffer with a copy of the private
+        // keys in it, where the clearing below cannot reach.
+        using var output = new MemoryStream(data.Length);
 
         AgeEncrypt.Decrypt(input, output, new ScryptRecipient(passphrase));
 

@@ -29,7 +29,8 @@ rootCommand.SetAction(parseResult =>
         parseResult.GetValue(recipientsFileOption) ?? [],
         parseResult.GetValue(identityOption) ?? [],
         parseResult.GetValue(outputOption),
-        parseResult.GetValue(inputArgument)));
+        parseResult.GetValue(inputArgument),
+        encryptFlag: parseResult.GetValue(encryptOption)));
 
 // --- keygen subcommand ---
 var keygenOutputOption = new Option<string?>("--output", "-o") { Description = "Write the result to path" };

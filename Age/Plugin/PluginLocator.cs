@@ -33,7 +33,7 @@ internal static class PluginLocator
             if (entry.Length == 0 || !Path.IsPathRooted(entry))
                 continue;
 
-            foreach (var candidate in Candidates(entry, binaryName, pathExt))
+            foreach (var candidate in Candidates(entry, binaryName, pathExt, OperatingSystem.IsWindows()))
             {
                 if (IsExecutableFile(candidate))
                     return candidate;
@@ -43,13 +43,18 @@ internal static class PluginLocator
         return null;
     }
 
-    private static IEnumerable<string> Candidates(string directory, string binaryName, string? pathExt)
+    /// <summary>The paths tried in one PATH directory, in order.</summary>
+    internal static IEnumerable<string> Candidates(string directory, string binaryName, string? pathExt, bool windows)
     {
         var basePath = Path.Combine(directory, binaryName);
 
-        yield return basePath;
+        // On Windows the bare name is tried only when it already has an extension, as Go's
+        // exec.LookPath (which go-age uses) does: an extensionless file is not executable there,
+        // and trying it first let a stray one shadow the .exe beside it.
+        if (!windows || HasExtension(binaryName))
+            yield return basePath;
 
-        if (!OperatingSystem.IsWindows())
+        if (!windows)
             yield break;
 
         // On Windows an extensionless name is not executable; PATHEXT lists the suffixes
@@ -62,6 +67,9 @@ internal static class PluginLocator
                 yield return basePath + extension;
         }
     }
+
+    private static bool HasExtension(string name) =>
+        name.LastIndexOf('.') > name.LastIndexOfAny([':', '\\', '/']);
 
     private static bool IsExecutableFile(string path)
     {

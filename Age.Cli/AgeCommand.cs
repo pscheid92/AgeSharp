@@ -8,13 +8,41 @@ namespace Age.Cli;
 
 internal static class AgeCommand
 {
-    public static int Execute(bool encrypt, bool armor, bool passphrase, string[] recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath)
+    /// <param name="encrypt">Whether to encrypt, which is the default; false when -d was given.</param>
+    /// <param name="encryptFlag">Whether -e was given explicitly.</param>
+    public static int Execute(bool encrypt, bool armor, bool passphrase, string[] recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath, bool encryptFlag = false)
     {
+        if (!encrypt)
+            RefuseEncryptionOnlyFlags(encryptFlag, armor, recipients, recipientFiles);
+
         var parsedRecipients = recipients.Select(ParseRecipient).ToList();
 
         return encrypt
             ? Encrypt(armor, passphrase, parsedRecipients, recipientFiles, identityFiles, outputPath, inputPath)
             : Decrypt(passphrase, identityFiles, outputPath, inputPath);
+    }
+
+    /// <summary>
+    /// Flags that only mean something when encrypting were silently ignored with -d, and -e -d
+    /// decrypted. Refused as go-age refuses them, with its wording and hints; -d -p is this CLI's
+    /// own and stays allowed.
+    /// </summary>
+    private static void RefuseEncryptionOnlyFlags(bool encryptFlag, bool armor, string[] recipients, string[] recipientFiles)
+    {
+        if (encryptFlag)
+            throw new AgeException("-e/--encrypt can't be used with -d/--decrypt");
+
+        if (armor)
+            throw new AgeException("-a/--armor can't be used with -d/--decrypt; " +
+                                   "armored files are detected automatically, try again without -a/--armor");
+
+        if (recipients.Length > 0)
+            throw new AgeException("-r/--recipient can't be used with -d/--decrypt; " +
+                                   "did you mean to use -i/--identity to specify a private key?");
+
+        if (recipientFiles.Length > 0)
+            throw new AgeException("-R/--recipients-file can't be used with -d/--decrypt; " +
+                                   "did you mean to use -i/--identity to specify a private key?");
     }
 
     private static int Encrypt(bool armor, bool passphrase, List<IRecipient> recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath)

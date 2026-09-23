@@ -40,7 +40,7 @@ public static class AgeLimits
     /// </summary>
     public const int MaxArmorLineBytes = 64 * 1024;
 
-    // The spec allows leading whitespace before the armor BEGIN marker; unbounded, a file of
-    // nothing but newlines is read to its end before the header is looked for. Matches go-age.
-    internal const int MaxLeadingWhitespaceBytes = 1024;
+    // Whitespace is allowed around the armor, before BEGIN and after END; unbounded, a file of
+    // nothing but newlines is read to its end. The same allowance at both ends, as go-age has.
+    internal const int MaxArmorWhitespaceBytes = 1024;
 }

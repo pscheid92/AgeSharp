@@ -34,6 +34,21 @@ public sealed class ProgramTests : IDisposable
         Assert.DoesNotContain("bug", error);
     }
 
+    // Flags that only mean something when encrypting were silently ignored with -d, and -e -d
+    // decrypted. go-age refuses each of these, with the same wording.
+    [Theory]
+    [InlineData("-e", "-e/--encrypt can't be used with -d/--decrypt")]
+    [InlineData("-a", "-a/--armor can't be used with -d/--decrypt")]
+    [InlineData("-r age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p", "-r/--recipient can't be used with -d/--decrypt")]
+    [InlineData("-R recipients.txt", "-R/--recipients-file can't be used with -d/--decrypt")]
+    public void EncryptionOnlyFlag_WithDecrypt_IsRefused(string flag, string message)
+    {
+        var (exit, error) = Run(["-d", .. flag.Split(' '), "-i", Path.Combine(_dir, "key.txt"), Path.Combine(_dir, "in.age")]);
+
+        Assert.Equal(1, exit);
+        Assert.StartsWith($"age: {message}", error);
+    }
+
     private static (int Exit, string Error) Run(params string[] args)
     {
         using var console = new ConsoleCapture();

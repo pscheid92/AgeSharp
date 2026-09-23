@@ -44,27 +44,24 @@ internal static class AsciiArmor
     public static Stream Dearmor(Stream input)
     {
         // Bound the line length at the byte level so the reader below can keep
-        // using the fast ReadLine path without risking an unbounded allocation.
+        // splitting lines without risking an unbounded allocation.
         // leaveOpen: true stops the dispose chain at the wrapper — `input` belongs to the caller.
         // The StreamReader keeps leaveOpen: false so it still disposes the wrapper we created.
         var bounded = new NewlineBoundedStream(input, AgeLimits.MaxArmorLineBytes, leaveOpen: true);
-        var reader = new StreamReader(bounded, Encoding.ASCII, detectEncodingFromByteOrderMarks: false,
-            bufferSize: 4096, leaveOpen: false);
+        var reader = new ArmorLineReader(new StreamReader(bounded, Encoding.ASCII,
+            detectEncodingFromByteOrderMarks: false, bufferSize: 4096, leaveOpen: false));
 
-        // Leading whitespace is allowed: skip blank lines, then TrimStart the marker line.
+        // Leading whitespace is allowed: skip blank lines, then TrimStart the marker line. Only
+        // the blank lines count against the allowance, as in go-age — not the marker line.
         string? line;
         var skippedWhitespace = 0;
 
-        do
+        while ((line = reader.ReadLine()) is not null && line.AsSpan().Trim().Length == 0)
         {
-            line = reader.ReadLine();
-
-            // Bounded, as go-age bounds it: an unbounded skip means a file that is nothing but
-            // newlines is read to its end before the header is even looked for.
-            if (line is not null && (skippedWhitespace += line.Length + 1) > AgeLimits.MaxLeadingWhitespaceBytes)
+            if ((skippedWhitespace += line.Length + 1) > AgeLimits.MaxArmorWhitespaceBytes)
                 throw new AgeArmorException(
-                    $"more than {AgeLimits.MaxLeadingWhitespaceBytes} bytes of whitespace before the armor header");
-        } while (line != null && line.AsSpan().Trim().Length == 0);
+                    $"more than {AgeLimits.MaxArmorWhitespaceBytes} bytes of whitespace before the armor header");
+        }
 
         if (line == null)
             throw new AgeArmorException("empty armored data");
