@@ -37,6 +37,44 @@ internal static class Terminal
         return terminal.ReadLine(prompt, secret);
     }
 
+    /// <summary>
+    /// A prompt as it may be shown: every control character replaced with U+FFFD.
+    /// </summary>
+    /// <remarks>
+    /// Prompts can carry a plugin's text, and control characters in it would drive the user's
+    /// terminal — clear the screen, move the cursor, fake a prompt. go-age v1.3.2 (internal/term)
+    /// sanitizes every prompt this way; <see cref="char.IsControl(char)"/> is the same C0 and C1
+    /// set as Go's unicode.IsControl.
+    /// </remarks>
+    internal static string ForDisplay(string prompt) =>
+        string.Create(prompt.Length, prompt, static (shown, source) =>
+        {
+            for (var i = 0; i < source.Length; i++)
+                shown[i] = char.IsControl(source[i]) ? '\uFFFD' : source[i];
+        });
+
+    /// <summary>
+    /// Whether <paramref name="output"/> may be shown on a terminal: valid UTF-8, and no control
+    /// characters but newline, carriage return and tab.
+    /// </summary>
+    /// <remarks>
+    /// Decrypted output is whatever the file's author chose; on a terminal it could carry escape
+    /// sequences that drive it. This is go-age v1.3.2's test (cmd/age, de96c8e).
+    /// </remarks>
+    internal static bool IsPrintable(ReadOnlySpan<byte> output)
+    {
+        if (!System.Text.Unicode.Utf8.IsValid(output))
+            return false;
+
+        foreach (var c in Encoding.UTF8.GetString(output))
+        {
+            if (char.IsControl(c) && c is not ('\n' or '\r' or '\t'))
+                return false;
+        }
+
+        return true;
+    }
+
     internal static ITerminal Open(Func<ITerminal?> openControllingTerminal, bool stdinIsTerminal) =>
         openControllingTerminal()
         ?? (stdinIsTerminal
@@ -75,7 +113,7 @@ internal sealed class StreamTerminal(Stream input, Stream output, Func<IDisposab
 {
     public string ReadLine(string prompt, bool secret)
     {
-        output.Write(Encoding.UTF8.GetBytes(prompt));
+        output.Write(Encoding.UTF8.GetBytes(Terminal.ForDisplay(prompt)));
         output.Flush();
 
         if (!secret)
@@ -147,7 +185,7 @@ internal sealed class ConsoleTerminal : ITerminal
 {
     public string ReadLine(string prompt, bool secret)
     {
-        Console.Error.Write(prompt);
+        Console.Error.Write(Terminal.ForDisplay(prompt));
 
         if (!secret)
             return Console.ReadLine() ?? throw new AgeException("no answer: the terminal closed");

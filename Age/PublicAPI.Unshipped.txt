@@ -1,1 +1,7 @@
 #nullable enable
+const Age.AgeLimits.MaxRecipientStanzas = 1024 -> int
+const Age.AgeLimits.MaxStanzaArguments = 128 -> int
+*REMOVED*const Age.AgeLimits.MaxHeaderBytes = 16777216 -> int
+*REMOVED*const Age.AgeLimits.MaxHeaderLineBytes = 65536 -> int
+const Age.AgeLimits.MaxHeaderBytes = 2097152 -> int
+const Age.AgeLimits.MaxHeaderLineBytes = 2097152 -> int

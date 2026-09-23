@@ -113,6 +113,9 @@ public sealed class Stanza
         var stanzaType = parts[0];
         var stanzaArgs = parts.Length > 1 ? parts[1..] : [];
 
+        if (stanzaArgs.Length > AgeLimits.MaxStanzaArguments)
+            throw new AgeHeaderException($"stanza has more than {AgeLimits.MaxStanzaArguments} arguments");
+
         ThrowIfMalformed(stanzaType);
 
         foreach (var arg in stanzaArgs)

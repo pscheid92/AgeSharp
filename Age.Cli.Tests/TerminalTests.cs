@@ -74,6 +74,34 @@ public class TerminalTests
         Assert.Throws<AgeException>(() => terminal.ReadLine("Passphrase: ", secret: true));
     }
 
+    // A prompt can carry text from a plugin, which could otherwise drive the user's terminal with
+    // escape sequences — rewrite the screen, fake a prompt. go-age v1.3.2 (internal/term, 86c6cc2)
+    // replaces every control character in a prompt with U+FFFD; so does this.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReadLine_ReplacesControlCharactersInThePrompt(bool secret)
+    {
+        var output = new MemoryStream();
+        using var terminal = new StreamTerminal(Input("1234\n"), output, NoHiding);
+
+        terminal.ReadLine("PIN\u001b[2J\u0007\u009b: ", secret);
+
+        var shown = Encoding.UTF8.GetString(output.ToArray());
+        Assert.StartsWith("PIN\uFFFD[2J\uFFFD\uFFFD: ", shown);
+        Assert.False(shown.TrimEnd('\n').Any(char.IsControl), "a control character reached the terminal");
+    }
+
+    [Fact]
+    public void ConsoleTerminal_ReplacesControlCharactersInThePrompt()
+    {
+        using var console = new ConsoleCapture("yes\n");
+
+        new ConsoleTerminal().ReadLine("Continue\u001b[31m? ", secret: false);
+
+        Assert.Equal("Continue\uFFFD[31m? ", console.Error);
+    }
+
     [Fact]
     public void ReadLine_TakesAnAnswerLongerThanItsFirstBuffer()
     {

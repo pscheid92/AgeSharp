@@ -10,16 +10,24 @@ internal static class AgeCommand
 {
     /// <param name="encrypt">Whether to encrypt, which is the default; false when -d was given.</param>
     /// <param name="encryptFlag">Whether -e was given explicitly.</param>
-    public static int Execute(bool encrypt, bool armor, bool passphrase, string[] recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath, bool encryptFlag = false)
+    /// <param name="streams">The standard streams; the console's when null.</param>
+    public static int Execute(bool encrypt, bool armor, bool passphrase, string[] recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath, bool encryptFlag = false, StandardStreams? streams = null)
     {
+        streams ??= StandardStreams.FromConsole();
+
         if (!encrypt)
             RefuseEncryptionOnlyFlags(encryptFlag, armor, recipients, recipientFiles);
+
+        RefuseOutputThatIsAnInput(outputPath, [inputPath, .. identityFiles, .. recipientFiles]);
+
+        // Held open until the command ends, so the output cannot be created over one of them.
+        using var keyFiles = new KeyFiles();
 
         var parsedRecipients = recipients.Select(ParseRecipient).ToList();
 
         return encrypt
-            ? Encrypt(armor, passphrase, parsedRecipients, recipientFiles, identityFiles, outputPath, inputPath)
-            : Decrypt(passphrase, identityFiles, outputPath, inputPath);
+            ? Encrypt(armor, passphrase, parsedRecipients, recipientFiles, identityFiles, outputPath, inputPath, streams, keyFiles)
+            : Decrypt(passphrase, identityFiles, outputPath, inputPath, streams, keyFiles);
     }
 
     /// <summary>
@@ -45,7 +53,32 @@ internal static class AgeCommand
                                    "did you mean to use -i/--identity to specify a private key?");
     }
 
-    private static int Encrypt(bool armor, bool passphrase, List<IRecipient> recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath)
+    /// <summary>
+    /// The output must not be a file the command reads — the input, an identity file or a
+    /// recipients file. go-age v1.3.2 refuses it; here, -d -i key.txt -o key.txt overwrote the
+    /// private key with the plaintext.
+    /// </summary>
+    /// <remarks>
+    /// This compares paths, so the plain mistake is refused before anything is read. go-age also
+    /// compares the files themselves, catching symlinks, hard links and case variants; that half
+    /// happens when the output is created — see <see cref="KeyFiles"/> and
+    /// <see cref="LazyFileStream"/>.
+    /// </remarks>
+    private static void RefuseOutputThatIsAnInput(string? outputPath, string?[] inputPaths)
+    {
+        if (outputPath is null or "-")
+            return;
+
+        var output = Path.GetFullPath(outputPath);
+
+        if (inputPaths.OfType<string>().Any(input => input != "-" && Path.GetFullPath(input) == output))
+            throw SameFile(outputPath);
+    }
+
+    private static AgeException SameFile(string outputPath) =>
+        new($"input and output file are the same: \"{outputPath}\"");
+
+    private static int Encrypt(bool armor, bool passphrase, List<IRecipient> recipients, string[] recipientFiles, string[] identityFiles, string? outputPath, string? inputPath, StandardStreams streams, KeyFiles keyFiles)
     {
         var callbacks = new CliPluginCallbacks(Terminal.OpenDefault);
 
@@ -58,33 +91,37 @@ internal static class AgeCommand
         }
         else
         {
-            CollectRecipientsFromFiles(recipientFiles, identityFiles, recipients, callbacks);
+            CollectRecipientsFromFiles(recipientFiles, identityFiles, recipients, callbacks, keyFiles);
 
             if (recipients.Count == 0)
                 throw new AgeException("missing recipients (-r, -R, or -i required for encryption)");
         }
 
-        if (outputPath is null && !armor && !Console.IsOutputRedirected)
-            throw new AgeException("refusing to output binary to a terminal. Did you mean to use -a/--armor?");
+        if (outputPath is null && !armor && streams.OutputIsTerminal)
+            throw new AgeException("refusing to output binary to a terminal. Did you mean to use -a/--armor? " +
+                                   "Force it anyway with \"-o -\".");
 
-        using var input = OpenInput(inputPath);
-        using var output = OpenOutput(outputPath);
+        using var input = OpenInput(inputPath, streams);
+        using var output = OpenOutput(outputPath, streams);
 
         AgeEncrypt.Encrypt(input, output, armor, [.. recipients]);
         return 0;
     }
 
-    private static void CollectRecipientsFromFiles(string[] recipientFiles, string[] identityFiles, List<IRecipient> recipients, IPluginCallbacks callbacks)
+    private static void CollectRecipientsFromFiles(string[] recipientFiles, string[] identityFiles, List<IRecipient> recipients, IPluginCallbacks callbacks, KeyFiles keyFiles)
     {
         foreach (var file in recipientFiles)
         {
-            var text = File.ReadAllText(file);
-            recipients.AddRange(AgeKeygen.ParseRecipientsFile(text, callbacks));
+            var bytes = keyFiles.Read(file);
+            if (bytes.Length > KeyFiles.Limit)
+                throw new AgeException($"\"{file}\": recipients file is too long");
+
+            recipients.AddRange(AgeKeygen.ParseRecipientsFile(Encoding.UTF8.GetString(bytes), callbacks));
         }
 
         foreach (var file in identityFiles)
         {
-            var identities = LoadIdentities(file, callbacks);
+            var identities = LoadIdentities(file, callbacks, keyFiles);
             foreach (var id in identities)
             {
                 if (GetRecipientFromIdentity(id) is { } recipient)
@@ -113,19 +150,47 @@ internal static class AgeCommand
         return pass == confirm ? pass : throw new AgeException("passphrases didn't match");
     }
 
-    private static int Decrypt(bool passphrase, string[] identityFiles, string? outputPath, string? inputPath)
+    private static int Decrypt(bool passphrase, string[] identityFiles, string? outputPath, string? inputPath, StandardStreams streams, KeyFiles keyFiles)
     {
-        var identities = CollectDecryptIdentities(passphrase, identityFiles);
+        var identities = CollectDecryptIdentities(passphrase, identityFiles, keyFiles);
 
-        using var rawInput = OpenInput(inputPath);
+        using var rawInput = OpenInput(inputPath, streams);
         using var input = SeekableInput.From(rawInput);
 
-        using var output = OpenOutput(outputPath);
+        // Bound for a terminal, the plaintext is held back and shown only if it is text, as go-age
+        // does: whatever the file's author chose could otherwise drive the terminal. "-o -" names
+        // standard output explicitly and skips the check.
+        if (outputPath is null && streams.OutputIsTerminal)
+            return DecryptToTerminal(input, identities, streams);
+
+        using var output = OpenOutput(outputPath, streams);
         AgeEncrypt.Decrypt(input, output, [.. identities]);
         return 0;
     }
 
-    private static List<IIdentity> CollectDecryptIdentities(bool passphrase, string[] identityFiles)
+    private static int DecryptToTerminal(Stream input, List<IIdentity> identities, StandardStreams streams)
+    {
+        using var plaintext = new MemoryStream();
+
+        try
+        {
+            AgeEncrypt.Decrypt(input, plaintext, [.. identities]);
+            var shown = plaintext.GetBuffer().AsSpan(0, (int)plaintext.Length);
+
+            if (!Terminal.IsPrintable(shown))
+                throw new AgeException("refusing to output binary to the terminal; force it anyway with \"-o -\"");
+
+            using var terminal = streams.OpenOutput();
+            terminal.Write(shown);
+            return 0;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintext.GetBuffer());
+        }
+    }
+
+    private static List<IIdentity> CollectDecryptIdentities(bool passphrase, string[] identityFiles, KeyFiles keyFiles)
     {
         var callbacks = new CliPluginCallbacks(Terminal.OpenDefault);
         var identities = new List<IIdentity>();
@@ -147,7 +212,7 @@ internal static class AgeCommand
             identities.Add(new RejectScryptIdentity());
 
             foreach (var file in identityFiles)
-                identities.AddRange(LoadIdentities(file, callbacks));
+                identities.AddRange(LoadIdentities(file, callbacks, keyFiles));
         }
 
         return identities;
@@ -165,24 +230,36 @@ internal static class AgeCommand
     private static IRecipient ParseRecipient(string s) =>
         AgeKeygen.ParseRecipientLine(s, new CliPluginCallbacks(Terminal.OpenDefault));
 
-    private static List<IIdentity> LoadIdentities(string path, IPluginCallbacks callbacks)
+    private static List<IIdentity> LoadIdentities(string path, IPluginCallbacks callbacks, KeyFiles keyFiles)
     {
-        var bytes = File.ReadAllBytes(path);
+        var bytes = keyFiles.Read(path);
         var text = Encoding.UTF8.GetString(bytes);
         var trimmed = text.TrimStart();
 
-        // Encrypted identity file
+        // Encrypted identity file. go-age limits its decrypted contents to under 16 MiB; limiting
+        // the file itself is stricter only for an armored file holding over ~11.6 MiB of keys.
         if (trimmed.StartsWith("age-encryption.org/v1") || trimmed.StartsWith("-----BEGIN AGE ENCRYPTED FILE-----"))
         {
+            if (bytes.Length >= KeyFiles.Limit)
+                throw new AgeException($"failed to read \"{path}\": file too long");
+
             var pass = ReadPassphrase($"Enter passphrase for identity file \"{path}\": ");
             return [.. AgeKeygen.DecryptIdentityFile(bytes, pass)];
         }
 
         // SSH private key
         if (trimmed.StartsWith("-----BEGIN"))
+        {
+            if (bytes.Length >= KeyFiles.SshKeyLimit)
+                throw new AgeException($"failed to read \"{path}\": file too long");
+
             return [AgeKeygen.ParseSshIdentity(text)];
+        }
 
         // Standard age identity file (AGE-SECRET-KEY-, AGE-SECRET-KEY-PQ-, AGE-PLUGIN-)
+        if (bytes.Length > KeyFiles.Limit)
+            throw new AgeException("identities file is too long");
+
         return [.. AgeKeygen.ParseIdentityFile(text, callbacks)];
     }
 
@@ -206,11 +283,12 @@ internal static class AgeCommand
         return string.Join("-", parts);
     }
 
-    private static Stream OpenInput(string? path) =>
-        path is not null ? File.OpenRead(path) : Console.OpenStandardInput();
+    // "-" names standard input or output, as in go-age.
+    private static Stream OpenInput(string? path, StandardStreams streams) =>
+        path is null or "-" ? streams.OpenInput() : File.OpenRead(path);
 
-    private static Stream OpenOutput(string? path) =>
-        path is not null ? new LazyFileStream(path) : Console.OpenStandardOutput();
+    private static Stream OpenOutput(string? path, StandardStreams streams) =>
+        path is null or "-" ? streams.OpenOutput() : new LazyFileStream(path);
 
     /// <summary>
     /// A passphrase identity that lazily prompts the user on first use.
@@ -250,7 +328,34 @@ internal static class AgeCommand
 
         public LazyFileStream(string path) => _path = path;
 
-        private FileStream Inner => _inner ??= File.Create(_path);
+        private FileStream Inner => _inner ??= Create(_path);
+
+        /// <summary>
+        /// Creates the output exclusively. Every file the command reads is held open by then, so
+        /// the OS refuses the create — before truncating — exactly when the output is one of them,
+        /// by path, symlink, hard link or case variant: go-age's os.SameFile check.
+        /// </summary>
+        private static FileStream Create(string path)
+        {
+            try
+            {
+                // Write-only, as rage opens it (OpenOptions with write only). File.Create opens
+                // read-write, and a FIFO opened read-write does not wait for a reader: the output
+                // went into a pipe nobody was reading yet and was lost when the command closed it.
+                // go-age's os.Create opens read-write too and loses it the same way; here the two
+                // references disagree, and this follows the one that does not lose data.
+                return new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            }
+            catch (IOException ex) when (IsSharingViolation(ex))
+            {
+                throw SameFile(path);
+            }
+        }
+
+        // Windows reports ERROR_SHARING_VIOLATION; on Unix .NET's advisory lock fails with
+        // EWOULDBLOCK, which is 11 on Linux and 35 on macOS and FreeBSD.
+        private static bool IsSharingViolation(IOException ex) =>
+            ex.HResult is unchecked((int)0x80070020) or 11 or 35;
 
         public override bool CanRead => false;
         public override bool CanSeek => false;
