@@ -1,6 +1,10 @@
-# Feature Completeness: AgeSharp vs Go (age) vs Rust (rage)
+# Feature comparison: AgeSharp vs Go (age) vs Rust (rage)
 
-## Recipient/Identity Types
+Compared on 2026-11-17: AgeSharp `main`, [age](https://github.com/FiloSottile/age) v1.3.2
+and [rage](https://github.com/str4d/rage) 0.12.1, read from their source. The published
+AgeSharp package may lag `main`; check the release notes for what a given version carries.
+
+## Recipient and identity types
 
 | Feature | Go (age) | Rust (rage) | AgeSharp | Notes |
 |---|:---:|:---:|:---:|---|
@@ -8,39 +12,67 @@
 | Scrypt/passphrase | ✅ | ✅ | ✅ | |
 | SSH-Ed25519 | ✅ | ✅ | ✅ | |
 | SSH-RSA | ✅ | ✅ | ✅ | |
-| ML-KEM-768-X25519 (PQ) | ✅ | ❌ | ✅ | rage has no built-in PQ; AgeSharp is ahead of rage here |
-| Plugin recipients | ✅ | ✅ | ✅ | stdin/stdout protocol for `age-plugin-*` binaries |
+| Passphrase-protected SSH keys | ✅ | ✅ | ❌ | AgeSharp rejects them with a clear error |
+| ML-KEM-768-X25519 (`age1pq1…`) | ✅ | ❌ | ✅ | In rage this is an open draft PR |
+| Tagged P-256 (`age1tag1…`) | ✅ | ✅ | ❌ | Encryption only in Go and rage; decryption is a plugin's job |
+| Tagged P-256 + ML-KEM-768 (`age1tagpq1…`) | ✅ | ✅ | ❌ | As above |
+| Plugin recipients and identities | ✅ | ✅ | ✅ | Client side of the `age-plugin-*` protocol |
+| Writing plugins | ✅ | ✅ | ❌ | Go's `plugin` package, rage's `age-plugin` crate |
 
-## Core Encryption Features
+AgeSharp treats a tagged recipient as a plugin recipient, so encrypting to one works only
+with `age-plugin-tag` / `age-plugin-tagpq` installed.
+
+## Core format
 
 | Feature | Go | Rust | AgeSharp | Notes |
 |---|:---:|:---:|:---:|---|
 | Multi-recipient encryption | ✅ | ✅ | ✅ | |
 | ASCII armor | ✅ | ✅ | ✅ | |
-| Streaming encryption | ✅ | ✅ | ✅ | STREAM cipher, 64KB chunks |
-| Security labels (prevent mixing) | ✅ | ✅ | ✅ | PQ/scrypt label enforcement |
-| Header MAC verification | ✅ | ✅ | ✅ | |
-| Encrypted identity files | ✅ | ✅ | ✅ | Passphrase-protected age identity files |
-| Recipients file parsing | ✅ | ✅ | ✅ | `-R` file with multiple recipients + comments |
+| Streaming, bounded memory | ✅ | ✅ | ✅ | 64 KiB chunks |
+| Security labels (prevent mixing) | ✅ | ✅ | ✅ | AgeSharp: one label per recipient; Go allows several |
+| Encrypted identity files | ✅ | ✅ | ✅ | |
+| Recipients files | ✅ | ✅ | ✅ | |
+| Header limits (2 MiB, 1024 stanzas, 128 arguments) | ✅ | ❌ | ✅ | Introduced by Go v1.3.2; not in the spec |
+| Armor line length bound | ❌ | ❌ | ✅ | 64 KiB |
+| C2SP conformance vectors | ✅ | ✅ | ✅ | AgeSharp passes all 147 of the 2026-08-29 set |
 
-## Advanced Features (Go v1.3.0+)
+## Library APIs
 
 | Feature | Go | Rust | AgeSharp | Notes |
 |---|:---:|:---:|:---:|---|
-| Random-access decryption (`DecryptReaderAt`) | ✅ | ❌ | ✅ | Seek into encrypted files (e.g. ZIP in age) |
-| Detached header APIs | ✅ | ❌ | ✅ | Extract/decrypt header separately |
-| `age-inspect` | ✅ | ❌ | ✅ | Metadata inspection without decryption |
-| Pull-based encryption (`EncryptReader`) | ✅ | ✅ | ✅ | Stream-returning API, lazy payload encryption/decryption |
-| Async I/O | ❌ | ✅ | ❌ | Rust-specific feature flag |
+| Pull-based streams (`EncryptReader`) | ✅ | ✅ | ✅ | |
+| Random-access decryption | ✅ | ✅ | ✅ | Go `DecryptReaderAt`, rage `Seek` on its stream reader, `AgeRandomAccess` |
+| Detached headers | ✅ | ❌ | ✅ | |
+| File-key extraction and injection | ✅ | ❌ | ❌ | Go `DecryptHeader`, `NewInjectedFileKeyIdentity` |
+| Header inspection | ✅ | ❌ | ✅ | |
+| Standalone armor reader/writer | ✅ | ✅ | ❌ | Internal in AgeSharp |
+| Adjustable scrypt maximum work factor | ✅ | ✅ | ❌ | Fixed at 22 in AgeSharp |
+| Per-identity errors on no match | ✅ | ❌ | ❌ | |
+| Async encrypt/decrypt | ❌ | ✅ | ❌ | AgeSharp's streams support async reads; `AgeEncrypt` has no async entry points |
+| Browser / WebAssembly | ❌ | ❌ | ✅ | Managed ChaCha20-Poly1305 backend under Blazor WASM |
 
-## CLI Tools
+## CLI
 
-| Feature | Go | Rust | AgeSharp |
-|---|:---:|:---:|:---:|
-| `age`/`rage` encrypt/decrypt CLI | ✅ | ✅ | ✅ |
-| `age-keygen`/`rage-keygen` | ✅ | ✅ | ✅ |
-| `rage-mount` (FUSE) | ❌ | ✅ | ❌ |
+| Feature | Go | Rust | AgeSharp | Notes |
+|---|:---:|:---:|:---:|---|
+| Encrypt/decrypt (`age` / `rage`) | ✅ | ✅ | ✅ | |
+| Key generation, including `-y` | ✅ | ✅ | ✅ | |
+| Post-quantum key generation (`-pq`) | ✅ | ❌ | ✅ | |
+| `inspect` | ✅ | ❌ | ✅ | |
+| `-j` (data-less plugin identity) | ✅ | ✅ | ❌ | |
+| `age-plugin-batchpass` | ✅ | ❌ | ❌ | |
+| FUSE mount (`rage-mount`) | ❌ | ✅ | ❌ | |
+| Refuses binary plaintext on a terminal | ✅ | ✅ | ✅ | |
+| Plugin prompt sanitising (control characters) | ✅ | ❌ | ✅ | From Go v1.3.2 |
+| Piped input over 2 GiB on decrypt | ✅ | ✅ | ❌ | AgeSharp buffers a pipe to detect armor |
 
 ## Summary
 
-AgeSharp is the most complete non-Go implementation of the age encryption specification. It covers every recipient type (including post-quantum ML-KEM-768 and the plugin protocol), all core encryption features, and all Go v1.3.0 advanced APIs — detached headers, pull-based streams, random-access decryption, and `age inspect`. AgeSharp leads rage in both post-quantum support and advanced API coverage.
+AgeSharp covers the six standard recipient types, the plugin client protocol, and Go's
+v1.3 library additions: detached headers, pull-based streams, random-access decryption and
+`inspect`. It is the only one of the three that runs in the browser, and it has native
+post-quantum support, which rage does not.
+
+It trails both Go and rage on tagged recipients, passphrase-protected SSH keys, `-j` and
+support for writing plugins. It trails Go on file-key extraction and the finer-grained
+recipient and error APIs, and rage on async I/O.

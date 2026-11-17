@@ -227,15 +227,19 @@ exhaust memory. The limits are exposed as constants on `AgeLimits`:
 
 | Constant | Default | Bounds |
 | --- | --- | --- |
-| `AgeLimits.MaxHeaderLineBytes` | 64 KiB | A single header line |
-| `AgeLimits.MaxHeaderBytes` | 16 MiB | The whole header (all stanzas) |
+| `AgeLimits.MaxHeaderBytes` | 2 MiB | The whole header (all stanzas) |
+| `AgeLimits.MaxRecipientStanzas` | 1024 | Recipient stanzas in a header |
+| `AgeLimits.MaxStanzaArguments` | 128 | Arguments on one stanza line |
 | `AgeLimits.MaxArmorLineBytes` | 64 KiB | A single ASCII-armor line |
 
 Exceeding a limit throws `AgeHeaderException` / `AgeArmorException`. The age
 [specification](https://github.com/C2SP/C2SP/blob/main/age.md) sets no such
-bounds, so these are AgeSharp's own defense; they sit far above any real file
-(the largest built-in stanza line is ~1.5 KiB, and 16 MiB still allows well over
-100,000 recipients), so legitimate input never trips them.
+bounds. The three header limits are the ones the Go implementation applies from
+v1.3.2 on, so both accept and reject the same files; the armor line limit is
+AgeSharp's own. They sit far above any real file (the largest built-in stanza
+line is ~1.5 KiB, so 2 MiB holds well over a thousand post-quantum recipients),
+so legitimate input never trips them. `AgeLimits.MaxHeaderLineBytes` is obsolete:
+a header line is bounded only by `MaxHeaderBytes`.
 
 ## CLI
 
