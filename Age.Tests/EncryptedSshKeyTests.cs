@@ -22,6 +22,10 @@ public class EncryptedSshKeyTests
         { "ed25519_aes192ctr", "ed25519_plain" },
         { "ed25519_aes256gcm", "ed25519_plain" },
         { "ed25519_chacha20poly1305", "ed25519_plain" },
+        { "ed25519_aes128cbc", "ed25519_plain" },
+        { "ed25519_aes192cbc", "ed25519_plain" },
+        { "ed25519_aes128gcm", "ed25519_plain" },
+        { "ed25519_3descbc", "ed25519_plain" },
         { "ed25519_default_rounds", "ed25519_plain" },
         { "rsa_aes256ctr", "rsa_plain" },
         { "rsa_aes256gcm", "rsa_plain" },
@@ -343,6 +347,37 @@ public class EncryptedSshKeyTests
         Assert.Contains("no terminal", ex.Message);
     }
 
+    // A passphrase source that decrypts with the identity it is answering for would recurse, or
+    // leave a second unlocked key that nothing clears. It is refused instead.
+    [Fact]
+    public void APassphraseSourceThatDecryptsWithItsOwnIdentity_IsRefused()
+    {
+        EncryptedSshIdentity? identity = null;
+        byte[]? ciphertext = null;
+        Exception? inner = null;
+        identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () =>
+        {
+            inner = Record.Exception(() => Decrypt(ciphertext!, identity!));
+            return Passphrase;
+        });
+        ciphertext = Encrypt(identity.Recipient);
+
+        using (identity)
+            Assert.Equal(Plaintext, Decrypt(ciphertext, identity));
+
+        var refused = Assert.IsType<AgeException>(inner);
+        Assert.Contains("passphrase source", refused.Message);
+    }
+
+    // A prompt the user closes is not an error, and the caller should be able to tell.
+    [Fact]
+    public void APassphraseSourceThatIsCancelled_CancelsTheDecryption()
+    {
+        using var identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () => throw new OperationCanceledException());
+
+        Assert.ThrowsAny<OperationCanceledException>(() => Decrypt(Encrypt(identity.Recipient), identity));
+    }
+
     [Fact]
     public void OnceDisposed_ItNoLongerUnwraps()
     {
@@ -381,6 +416,7 @@ public class EncryptedSshKeyTests
     {
         { "unsupported SSH private key KDF", blob => Replace(blob, "bcrypt"u8, "scrypt"u8) },
         { "more than the maximum of 2048", blob => SetRounds(blob, 2049) },
+        { "malformed bcrypt options", blob => SetRounds(blob, 0) },
         { "unsupported SSH private key cipher: aes999-ctr", blob => Replace(blob, "aes256-ctr"u8, "aes999-ctr"u8) },
         { "unsupported SSH private key cipher: ?[2Jevil!!", blob => Replace(blob, "aes256-ctr"u8, "\u001b[2Jevil!!"u8) },
     };

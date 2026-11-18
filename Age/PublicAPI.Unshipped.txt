@@ -10,4 +10,3 @@ Age.Recipients.EncryptedSshIdentity.Dispose() -> void
 Age.Recipients.EncryptedSshIdentity.Recipient.get -> Age.Recipients.IRecipient!
 Age.Recipients.EncryptedSshIdentity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
 static Age.AgeKeygen.ParseSshIdentity(string! pemText, System.Func<string!>! passphrase) -> Age.Recipients.IIdentity!
-static Age.Recipients.EncryptedSshIdentity.Parse(string! pemText, System.Func<string!>! passphrase) -> Age.Recipients.EncryptedSshIdentity!

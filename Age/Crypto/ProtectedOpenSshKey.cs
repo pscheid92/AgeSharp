@@ -182,7 +182,8 @@ internal sealed class ProtectedOpenSshKey
         }
         catch (SshException ex) when (ex.Message.Contains("check bytes") || ex.Message.Contains("MAC error"))
         {
-            // The format's own test of the passphrase, and for AES-GCM the tag.
+            // The format's own test of the passphrase, and for AES-GCM the tag. Told apart by
+            // SSH.NET's wording: AWrongPassphrase_IsReportedAsSuch_NotAsNoMatch fails if it changes.
             throw new CryptographicException("incorrect passphrase", ex);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -213,7 +214,7 @@ internal sealed class ProtectedOpenSshKey
         try
         {
             return seed.Length == Ed25519PrivateKeyParameters.KeySize
-                ? SshKeyParser.Describe(new Ed25519PrivateKeyParameters(seed))
+                ? SshKeyParser.Describe(new Ed25519PrivateKeyParameters(seed), openSshFormat: true)
                 : throw new FormatException("invalid OpenSSH private key: malformed ssh-ed25519 key");
         }
         finally

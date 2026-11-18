@@ -82,7 +82,7 @@ internal static class SshKeyParser
             throw LegacyPassphraseProtected();
         }
 
-        return Describe(obj switch
+        return Describe(openSshFormat: false, privateKey: obj switch
         {
             AsymmetricCipherKeyPair kp => kp.Private,
             AsymmetricKeyParameter { IsPrivate: true } akp => akp,
@@ -94,10 +94,7 @@ internal static class SshKeyParser
     /// The passphrase-protected OpenSSH key in <paramref name="pemText"/>, or null when the text
     /// is anything else — which <see cref="ParsePrivateKey"/> then reads or refuses.
     /// </summary>
-    /// <exception cref="FormatException">
-    /// The key is in OpenSSH format and malformed, or protected with a cipher or KDF this
-    /// library does not read.
-    /// </exception>
+    /// <exception cref="FormatException">The key is in OpenSSH format and malformed.</exception>
     public static ProtectedOpenSshKey? ParseProtectedKey(string pemText)
     {
         // Only OpenSSH's own format is read. The PEM encryptions that predate it are not, and
@@ -111,7 +108,7 @@ internal static class SshKeyParser
 
     /// <summary>Parses an unprotected <c>openssh-key-v1</c> blob.</summary>
     public static (string keyType, byte[] publicWireBytes, AsymmetricKeyParameter privateKey) ParseOpenSshBlob(byte[] blob) =>
-        Describe(FromBouncyCastle(() => OpenSshPrivateKeyUtilities.ParsePrivateKeyBlob(blob), "invalid OpenSSH private key"));
+        Describe(FromBouncyCastle(() => OpenSshPrivateKeyUtilities.ParsePrivateKeyBlob(blob), "invalid OpenSSH private key"), openSshFormat: true);
 
     /// <summary>The key type named at the start of a public key in SSH wire format.</summary>
     public static string KeyTypeOfWireBytes(ReadOnlySpan<byte> wireBytes)
@@ -140,12 +137,15 @@ internal static class SshKeyParser
     private const int MaxRsaPrimeBits = 8192;
     private const int MaxRsaExponentBits = 24;
 
-    private static void CheckRsaPublicNumbers(BigInteger n, BigInteger e)
+    // The 24-bit exponent limit is the ssh package's, for public keys and OpenSSH key files; Go
+    // reads PKCS#1 and PKCS#8 keys through its x509 package, which has no such limit, and
+    // go-age decrypts with them. An exponent that is odd and at least 3 applies everywhere.
+    private static void CheckRsaPublicNumbers(BigInteger n, BigInteger e, bool limitExponentSize = true)
     {
         if (n.BitLength > MaxRsaModulusBits)
             throw new FormatException("invalid ssh-rsa key: modulus too large");
 
-        if (e.BitLength > MaxRsaExponentBits)
+        if (limitExponentSize && e.BitLength > MaxRsaExponentBits)
             throw new FormatException("invalid ssh-rsa key: public exponent too large");
 
         if (e.CompareTo(BigInteger.Three) < 0 || !e.TestBit(0))
@@ -156,10 +156,15 @@ internal static class SshKeyParser
     /// <exception cref="FormatException">The numbers do not make an RSA key.</exception>
     public static (string keyType, byte[] publicWireBytes, AsymmetricKeyParameter privateKey) FromRsaNumbers(
         BigInteger n, BigInteger e, BigInteger d, BigInteger p, BigInteger q) =>
-        Describe(FromBouncyCastle(() => Sound(n, e, d, p, q), "invalid ssh-rsa private key"));
+        Describe(FromBouncyCastle(() => Sound(n, e, d, p, q, openSshFormat: true), "invalid ssh-rsa private key"), openSshFormat: true);
 
     /// <summary>The key type and public key of a parsed private key.</summary>
-    public static (string keyType, byte[] publicWireBytes, AsymmetricKeyParameter privateKey) Describe(AsymmetricKeyParameter privateKey)
+    /// <param name="privateKey">The private key, as BouncyCastle parsed it.</param>
+    /// <param name="openSshFormat">
+    /// Whether the key came from an OpenSSH key file rather than a PKCS#1 or PKCS#8 one, which
+    /// decides how large an RSA public exponent may be (see <see cref="CheckRsaPublicNumbers"/>).
+    /// </param>
+    public static (string keyType, byte[] publicWireBytes, AsymmetricKeyParameter privateKey) Describe(AsymmetricKeyParameter privateKey, bool openSshFormat)
     {
         AsymmetricKeyParameter publicKey;
         string keyType;
@@ -171,7 +176,7 @@ internal static class SshKeyParser
                 keyType = "ssh-ed25519";
                 break;
             case RsaPrivateCrtKeyParameters rsaPrivate:
-                privateKey = FromBouncyCastle(() => Sound(rsaPrivate.Modulus, rsaPrivate.PublicExponent, rsaPrivate.Exponent, rsaPrivate.P, rsaPrivate.Q), "invalid ssh-rsa private key");
+                privateKey = FromBouncyCastle(() => Sound(rsaPrivate.Modulus, rsaPrivate.PublicExponent, rsaPrivate.Exponent, rsaPrivate.P, rsaPrivate.Q, openSshFormat), "invalid ssh-rsa private key");
                 publicKey = FromBouncyCastle(() => new RsaKeyParameters(false, rsaPrivate.Modulus, rsaPrivate.PublicExponent), "invalid ssh-rsa private key");
                 keyType = "ssh-rsa";
                 break;
@@ -195,11 +200,11 @@ internal static class SshKeyParser
     /// n = p·q and e·d ≡ 1 modulo p−1 and q−1; and as Go and OpenSSH do, the file's own CRT
     /// values are ignored: they are redundant, and a wrong one would only be a way to fail.
     /// </remarks>
-    private static RsaPrivateCrtKeyParameters Sound(BigInteger n, BigInteger e, BigInteger d, BigInteger p, BigInteger q)
+    private static RsaPrivateCrtKeyParameters Sound(BigInteger n, BigInteger e, BigInteger d, BigInteger p, BigInteger q, bool openSshFormat)
     {
         var one = BigInteger.One;
 
-        CheckRsaPublicNumbers(n, e);
+        CheckRsaPublicNumbers(n, e, limitExponentSize: openSshFormat);
 
         // Go bounds the primes too, so a hostile key cannot make the CRT values costly to compute.
         if (p.BitLength > MaxRsaPrimeBits || q.BitLength > MaxRsaPrimeBits)

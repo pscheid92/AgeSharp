@@ -273,12 +273,31 @@ internal static class AgeCommand
     /// AGE_PASSPHRASE answers passphrase mode (-p) only. In go-age only age-plugin-batchpass
     /// reads it, the age command itself does not.
     /// </remarks>
-    internal static IIdentity ParseSshKeyFile(string path, string text, Func<ITerminal> openTerminal) =>
-        AgeKeygen.ParseSshIdentity(text, () =>
+    internal static IIdentity ParseSshKeyFile(string path, string text, Func<ITerminal> openTerminal)
+    {
+        try
         {
-            using var terminal = openTerminal();
-            return terminal.ReadLine($"Enter passphrase for \"{path}\": ", secret: true);
-        });
+            return AgeKeygen.ParseSshIdentity(text, ReadPassphrase);
+        }
+        catch (FormatException ex)
+        {
+            // go-age's words (cmd/age/parse.go): with several -i files, say which one.
+            throw new AgeException($"malformed SSH identity in \"{path}\": {ex.Message}", ex);
+        }
+
+        string ReadPassphrase()
+        {
+            try
+            {
+                using var terminal = openTerminal();
+                return terminal.ReadLine($"Enter passphrase for \"{path}\": ", secret: true);
+            }
+            catch (AgeException ex)
+            {
+                throw new AgeException($"could not read passphrase for \"{path}\": {ex.Message}", ex);
+            }
+        }
+    }
 
     private static string ReadPassphrase(string prompt) =>
         Environment.GetEnvironmentVariable("AGE_PASSPHRASE") ?? Terminal.ReadSecret(prompt);
