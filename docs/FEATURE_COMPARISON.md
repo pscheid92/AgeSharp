@@ -44,27 +44,17 @@ with `age-plugin-tag` / `age-plugin-tagpq` installed.
 | Random-access decryption | ✅ | ✅ | ✅ | Go `DecryptReaderAt`, rage `Seek` on its stream reader, `AgeRandomAccess` |
 | Detached headers | ✅ | ❌ | ✅ | |
 | File-key extraction and injection | ✅ | ❌ | ❌ | Go `DecryptHeader`, `NewInjectedFileKeyIdentity` |
-| Header inspection | ✅ | ❌ | ✅ | |
+| Header inspection | — | ❌ | ✅ | go-age's inspection is internal to its `age-inspect` command; its library exposes the raw header through `ExtractHeader` |
 | Standalone armor reader/writer | ✅ | ✅ | ❌ | Internal in AgeSharp |
 | Adjustable scrypt maximum work factor | ✅ | ✅ | ❌ | Fixed at 22 in AgeSharp |
 | Per-identity errors on no match | ✅ | ❌ | ❌ | |
 | Async encrypt/decrypt | ❌ | ✅ | ❌ | AgeSharp's streams support async reads; `AgeEncrypt` has no async entry points |
 | Browser / WebAssembly | — | ✅ | ✅ | rage's `age` crate builds for `wasm32-unknown-unknown`; AgeSharp runs under Blazor WebAssembly with a managed ChaCha20-Poly1305 backend, but of protected SSH keys only ed25519 with AES-GCM or ChaCha20-Poly1305. Not a stated target for Go |
 
-## CLI
+## Command line
 
-| Feature | Go | Rust | AgeSharp | Notes |
-|---|:---:|:---:|:---:|---|
-| Encrypt/decrypt (`age` / `rage`) | ✅ | ✅ | ✅ | |
-| Key generation, including `-y` | ✅ | ✅ | ✅ | |
-| Post-quantum key generation (`-pq`) | ✅ | ❌ | ✅ | |
-| `inspect` | ✅ | ❌ | ✅ | |
-| `-j` (data-less plugin identity) | ✅ | ✅ | ❌ | |
-| `age-plugin-batchpass` | ✅ | ❌ | ❌ | |
-| FUSE mount (`rage-mount`) | ❌ | ✅ | ❌ | |
-| Refuses binary plaintext on a terminal | ✅ | ✅ | ✅ | |
-| Plugin prompt sanitising (control characters) | ✅ | ❌ | ✅ | From Go v1.3.2 |
-| Piped input over 2 GiB on decrypt | ✅ | ✅ | ❌ | AgeSharp buffers a pipe to detect armor |
+AgeSharp is a library only. go-age ships `age`, `age-keygen` and `age-inspect`, and rage
+ships `rage`, `rage-keygen` and `rage-mount`; use those for the command line.
 
 ## Summary
 
@@ -73,6 +63,5 @@ v1.3 library additions: detached headers, pull-based streams, random-access decr
 `inspect`. Like rage's library it runs in the browser, and it has native post-quantum
 support, which rage does not.
 
-It trails both Go and rage on tagged recipients, `-j` and
-support for writing plugins. It trails Go on file-key extraction and the finer-grained
+It trails both Go and rage on tagged recipients and support for writing plugins. It trails Go on file-key extraction and the finer-grained
 recipient and error APIs, and rage on async I/O.

@@ -36,7 +36,7 @@ Please include:
 
 ## Scope
 
-This policy covers the AgeSharp library (`Age/`), CLI (`Age.Cli/`), and any published NuGet packages. It does not cover third-party dependencies like BouncyCastle, which have their own disclosure processes.
+This policy covers the AgeSharp library (`Age/`) and the published NuGet packages. It does not cover third-party dependencies like BouncyCastle, which have their own disclosure processes.
 
 ## Security Design
 

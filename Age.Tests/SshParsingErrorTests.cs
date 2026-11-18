@@ -14,7 +14,7 @@ namespace Age.Tests;
 /// <summary>
 /// SSH key parsing reports every malformed input as <see cref="FormatException"/>, as documented.
 /// Other exception types leaked out of BouncyCastle and out of casts that trusted the
-/// authorized_keys type field, and the CLI reports anything else as "This is a bug".
+/// authorized_keys type field, past callers that handle FormatException.
 /// </summary>
 public class SshParsingErrorTests
 {

@@ -16,8 +16,8 @@ internal static class StreamExtensions
         /// Guarantees the stream has received at least one <c>Write</c> call.
         /// </summary>
         /// <remarks>
-        /// Some writers create their destination lazily on the first write — the CLI's output
-        /// file does this so a failed decrypt leaves no file behind. When the plaintext is
+        /// Some writers create their destination lazily on the first write, so that a failed
+        /// decrypt leaves no file behind. When the plaintext is
         /// empty, <c>CopyTo</c> never calls <c>Write</c> and such a destination would never
         /// come into existence, turning "decrypted an empty file" into "produced no file".
         /// An empty write forces materialization and is a no-op on ordinary streams.

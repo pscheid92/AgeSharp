@@ -87,8 +87,7 @@ jobs:
       # -p:TreatWarningsAsErrors turns compiler and analyzer warnings (CS1591 doc
       # gaps, RS0016 undeclared public API, ...) into errors. CI is the reliable
       # gate for these: local incremental builds don't re-emit warnings from
-      # unchanged files. publish.yml is deliberately not gated so AOT/trim
-      # warnings can never block a release.
+      # unchanged files.
       - name: Build
         run: dotnet build --no-restore -p:TreatWarningsAsErrors=true
 

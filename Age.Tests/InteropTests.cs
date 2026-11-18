@@ -9,7 +9,7 @@ namespace Age.Tests;
 /// <see cref="AgeCli"/> helper so each case is a data row rather than repeated process plumbing.
 /// Every test skips cleanly when age is not on PATH. The size rows deliberately straddle the
 /// 64 KiB STREAM chunk boundary — where a chunk-nonce or final-flag bug would surface — and the
-/// encrypt direction (age-sharp → age) covers ground the decrypt-only CCTV vectors do not.
+/// encrypt direction (AgeSharp → age) covers ground the decrypt-only CCTV vectors do not.
 /// </summary>
 public class InteropTests
 {
@@ -143,7 +143,7 @@ public class InteropTests
         var plaintext = MakePlaintext(64);
 
         // A file encrypted to both a classic and a post-quantum recipient is only as strong as
-        // the classic stanza, defeating the point of the PQ recipient. age-sharp and the reference
+        // the classic stanza, defeating the point of the PQ recipient. AgeSharp and the reference
         // age CLI both refuse the combination — this locks in that the two agree on that policy.
         Assert.Throws<AgeException>(() =>
             EncryptWithCSharp(plaintext, armored: false, x25519.Recipient, pq.Recipient));
