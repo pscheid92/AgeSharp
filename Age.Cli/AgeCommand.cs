@@ -224,6 +224,7 @@ internal static class AgeCommand
         MlKem768X25519Identity pq => pq.Recipient,
         SshEd25519Identity ssh => ssh.Recipient,
         SshRsaIdentity ssh => ssh.Recipient,
+        EncryptedSshIdentity ssh => ssh.Recipient,
         _ => null
     };
 
@@ -253,7 +254,8 @@ internal static class AgeCommand
             if (bytes.Length >= KeyFiles.SshKeyLimit)
                 throw new AgeException($"failed to read \"{path}\": file too long");
 
-            return [AgeKeygen.ParseSshIdentity(text)];
+            // Asked only if the key is passphrase-protected and the file is addressed to it.
+            return [AgeKeygen.ParseSshIdentity(text, () => ReadPassphrase($"Enter passphrase for \"{path}\": "))];
         }
 
         // Standard age identity file (AGE-SECRET-KEY-, AGE-SECRET-KEY-PQ-, AGE-PLUGIN-)

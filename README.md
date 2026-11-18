@@ -14,8 +14,9 @@
 with the reference [Go implementation](https://github.com/FiloSottile/age) and
 other age-compatible tools.
 
-It depends only on [BouncyCastle.Cryptography](https://www.nuget.org/packages/BouncyCastle.Cryptography)
-and targets .NET 10.
+It depends on [BouncyCastle.Cryptography](https://www.nuget.org/packages/BouncyCastle.Cryptography)
+and, to decrypt passphrase-protected SSH keys, [SSH.NET](https://www.nuget.org/packages/SSH.NET).
+It targets .NET 10.
 
 ## Features
 
@@ -111,6 +112,16 @@ AgeEncrypt.Encrypt(input, encrypted, recipient);
 
 encrypted.Position = 0;
 AgeEncrypt.Decrypt(encrypted, decrypted, identity);
+```
+
+A passphrase-protected key (OpenSSH format) needs somewhere to get its passphrase
+from. It is asked for only when a file addressed to the key is decrypted, and
+never for encrypting to the key:
+
+```csharp
+var identity = AgeKeygen.ParseSshIdentity(
+    File.ReadAllText("/path/to/id_ed25519"),
+    passphrase: () => PromptForPassphrase());
 ```
 
 ### Post-quantum (ML-KEM-768-X25519)

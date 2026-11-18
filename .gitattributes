@@ -1,2 +1,5 @@
 # Byte-exact age reference vectors — never convert line endings
 Age.TestKit/testdata/** -text
+
+# ssh-keygen output, read byte for byte
+Age.Tests/TestData/EncryptedSsh/* -text

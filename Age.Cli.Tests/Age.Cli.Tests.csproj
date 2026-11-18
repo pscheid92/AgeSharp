@@ -24,4 +24,8 @@
     <ProjectReference Include="..\Age.Cli\Age.Cli.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\Age.Tests\TestData\EncryptedSsh\*" Link="TestData\EncryptedSsh\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

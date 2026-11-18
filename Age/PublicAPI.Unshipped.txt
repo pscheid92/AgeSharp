@@ -5,3 +5,9 @@ const Age.AgeLimits.MaxStanzaArguments = 128 -> int
 *REMOVED*const Age.AgeLimits.MaxHeaderLineBytes = 65536 -> int
 const Age.AgeLimits.MaxHeaderBytes = 2097152 -> int
 const Age.AgeLimits.MaxHeaderLineBytes = 2097152 -> int
+Age.Recipients.EncryptedSshIdentity
+Age.Recipients.EncryptedSshIdentity.Dispose() -> void
+Age.Recipients.EncryptedSshIdentity.Recipient.get -> Age.Recipients.IRecipient!
+Age.Recipients.EncryptedSshIdentity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
+static Age.AgeKeygen.ParseSshIdentity(string! pemText, System.Func<string!>! passphrase) -> Age.Recipients.IIdentity!
+static Age.Recipients.EncryptedSshIdentity.Parse(string! pemText, System.Func<string!>! passphrase) -> Age.Recipients.EncryptedSshIdentity!

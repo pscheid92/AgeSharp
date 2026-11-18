@@ -36,7 +36,11 @@ public sealed class SshRsaIdentity : IIdentity, IDisposable
     public static SshRsaIdentity Parse(string pemText)
     {
         var (keyType, publicWireBytes, privateKey) = SshKeyParser.ParsePrivateKey(pemText);
+        return FromParsedKey(keyType, publicWireBytes, privateKey);
+    }
 
+    internal static SshRsaIdentity FromParsedKey(string keyType, byte[] publicWireBytes, AsymmetricKeyParameter privateKey)
+    {
         return keyType == "ssh-rsa"
             ? new SshRsaIdentity((RsaPrivateCrtKeyParameters)privateKey, publicWireBytes)
             : throw new FormatException($"expected ssh-rsa private key, got {keyType}");

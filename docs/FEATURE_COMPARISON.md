@@ -12,7 +12,7 @@ AgeSharp package may lag `main`; check the release notes for what a given versio
 | Scrypt/passphrase | ✅ | ✅ | ✅ | |
 | SSH-Ed25519 | ✅ | ✅ | ✅ | |
 | SSH-RSA | ✅ | ✅ | ✅ | |
-| Passphrase-protected SSH keys | ✅ | ✅ | ❌ | AgeSharp rejects them with a clear error |
+| Passphrase-protected SSH keys | ✅ | ✅ | ✅ | AgeSharp: OpenSSH format only, decrypted with SSH.NET; Go also reads legacy encrypted PEM |
 | ML-KEM-768-X25519 (`age1pq1…`) | ✅ | ❌ | ✅ | In rage this is an open draft PR |
 | Tagged P-256 (`age1tag1…`) | ✅ | ✅ | ❌ | Encryption only in Go and rage; decryption is a plugin's job |
 | Tagged P-256 + ML-KEM-768 (`age1tagpq1…`) | ✅ | ✅ | ❌ | As above |
@@ -73,6 +73,6 @@ v1.3 library additions: detached headers, pull-based streams, random-access decr
 `inspect`. It is the only one of the three that runs in the browser, and it has native
 post-quantum support, which rage does not.
 
-It trails both Go and rage on tagged recipients, passphrase-protected SSH keys, `-j` and
+It trails both Go and rage on tagged recipients, `-j` and
 support for writing plugins. It trails Go on file-key extraction and the finer-grained
 recipient and error APIs, and rage on async I/O.

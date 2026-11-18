@@ -81,6 +81,131 @@ public class SshParsingErrorTests
         Assert.Throws<FormatException>(() => AgeKeygen.ParseSshIdentity(pem));
     }
 
+    // The fields of an RSA private key, in the order the OpenSSH format states them.
+    private const int N = 0, E = 1, D = 2, Iqmp = 3, P = 4, Q = 5;
+
+    public static TheoryData<string, Func<System.Numerics.BigInteger[], System.Numerics.BigInteger[]>> ImpossibleRsaKeys => new()
+    {
+        { "even public exponent", key => With(key, E, key[E] + 1) },
+        { "public exponent 0", key => With(key, E, 0) },
+        { "public exponent 1", key => With(key, E, 1) },
+        { "private exponent 0", key => With(key, D, 0) },
+        { "private exponent of another key", key => With(key, D, key[D] + 2) },
+        { "even modulus", key => With(key, N, key[N] + 1) },
+        { "modulus 0", key => With(key, N, 0) },
+        { "modulus of another key", key => With(key, N, key[N] + 2) },
+        { "prime 0", key => With(key, P, 0) },
+        { "prime 1", key => With(key, P, 1) },
+        { "prime 2", key => With(key, P, 2) },
+        { "negative prime", key => With(key, P, -key[P]) },
+        { "second prime 1", key => With(key, Q, 1) },
+        { "a prime of another key", key => With(key, Q, key[Q] + 2) },
+        { "the same prime twice", key => With(key, Q, key[P]) },
+        { "nothing at all", key => [0, 0, 0, 0, 0, 0] },
+    };
+
+    /// <summary>
+    /// An RSA key file states its numbers one by one, and BouncyCastle reads whatever is there:
+    /// it fails on some of these with errors of its own (an even exponent, a division by zero)
+    /// and accepts others, to fail only when it decrypts. OpenSSH and Go refuse them all.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ImpossibleRsaKeys))]
+    public void ParseSshIdentity_RsaKeyThatCannotBeOne_ThrowsFormatException(string why, Func<System.Numerics.BigInteger[], System.Numerics.BigInteger[]> change)
+    {
+        _ = why;
+        Assert.Throws<FormatException>(() => AgeKeygen.ParseSshIdentity(RsaKey(change)));
+    }
+
+    public static TheoryData<string, Func<System.Numerics.BigInteger[], System.Numerics.BigInteger[]>> RsaKeysWithStaleCrtValues => new()
+    {
+        { "a wrong CRT coefficient", key => With(key, Iqmp, key[Iqmp] + 1) },
+        { "the primes in the other order", key => [key[N], key[E], key[D], key[Iqmp], key[Q], key[P]] },
+    };
+
+    /// <summary>
+    /// The CRT coefficient is redundant: it follows from the primes. Go and OpenSSH compute their
+    /// own and ignore the file's, so a key that states it wrongly still works for them — where
+    /// BouncyCastle, trusting it, detects a faulty decryption and throws.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(RsaKeysWithStaleCrtValues))]
+    public void ParseSshIdentity_RsaKeyWithAStaleCrtValue_StillDecrypts(string why, Func<System.Numerics.BigInteger[], System.Numerics.BigInteger[]> change)
+    {
+        _ = why;
+        var recipient = ((Age.Recipients.SshRsaIdentity)AgeKeygen.ParseSshIdentity(SshFixture("rsa_plain"))).Recipient;
+        using var encrypted = new MemoryStream();
+        AgeEncrypt.Encrypt(new MemoryStream("plaintext"u8.ToArray()), encrypted, recipient);
+        encrypted.Position = 0;
+        using var decrypted = new MemoryStream();
+
+        AgeEncrypt.Decrypt(encrypted, decrypted, AgeKeygen.ParseSshIdentity(RsaKey(change)));
+
+        Assert.Equal("plaintext"u8.ToArray(), decrypted.ToArray());
+    }
+
+    private static System.Numerics.BigInteger[] With(System.Numerics.BigInteger[] key, int field, System.Numerics.BigInteger value)
+    {
+        var changed = (System.Numerics.BigInteger[])key.Clone();
+        changed[field] = value;
+        return changed;
+    }
+
+    /// <summary>
+    /// The unprotected rsa_plain fixture, written by ssh-keygen, with the numbers of its private
+    /// key changed. The private section is: two check numbers, the key type, n, e, d, iqmp, p,
+    /// q and the comment, then padding to 8 bytes.
+    /// </summary>
+    private static string RsaKey(Func<System.Numerics.BigInteger[], System.Numerics.BigInteger[]> change)
+    {
+        var pem = SshFixture("rsa_plain");
+        var blob = Convert.FromBase64String(string.Concat(pem.Split('\n').Where(line => !line.StartsWith("-----"))));
+
+        // The magic, then the cipher, the KDF, its options and the key count, then the public key.
+        var offset = "openssh-key-v1\0".Length;
+        for (var field = 0; field < 3; field++)
+            ReadField(blob, ref offset);
+        offset += 4;
+        var beforeTheKeys = blob[..offset];
+        var publicKey = ReadField(blob, ref offset);
+        var section = ReadField(blob, ref offset);
+
+        var position = 8;
+        var keyType = ReadField(section, ref position);
+        var numbers = new System.Numerics.BigInteger[6];
+        for (var i = 0; i < numbers.Length; i++)
+            numbers[i] = new System.Numerics.BigInteger(ReadField(section, ref position), isUnsigned: false, isBigEndian: true);
+        var comment = ReadField(section, ref position);
+
+        byte[] changed = [.. section[..8], .. Field(keyType), .. change(numbers).SelectMany(number => Field(Mpint(number))), .. Field(comment)];
+        byte[] padding = [.. Enumerable.Range(1, (8 - changed.Length % 8) % 8).Select(i => (byte)i)];
+
+        return Pem("OPENSSH PRIVATE KEY", [.. beforeTheKeys, .. Field(publicKey), .. Field([.. changed, .. padding])]);
+    }
+
+    private static string SshFixture(string name) =>
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "EncryptedSsh", name));
+
+    private static byte[] ReadField(byte[] from, ref int offset)
+    {
+        var length = (int)BinaryPrimitives.ReadUInt32BigEndian(from.AsSpan(offset));
+        var field = from.AsSpan(offset + 4, length).ToArray();
+        offset += 4 + length;
+        return field;
+    }
+
+    private static byte[] Field(byte[] value)
+    {
+        var field = new byte[4 + value.Length];
+        BinaryPrimitives.WriteUInt32BigEndian(field, (uint)value.Length);
+        value.CopyTo(field, 4);
+        return field;
+    }
+
+    // An SSH mpint: big-endian two's complement in as few bytes as it takes, and none for zero.
+    private static byte[] Mpint(System.Numerics.BigInteger value) =>
+        value.IsZero ? [] : value.ToByteArray(isUnsigned: false, isBigEndian: true);
+
     private static AsymmetricCipherKeyPair GenerateRsa(int bits)
     {
         var generator = new RsaKeyPairGenerator();
