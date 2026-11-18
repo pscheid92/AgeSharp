@@ -54,7 +54,7 @@ public class SshParsingErrorTests
     {
         { "openssh", PassphraseProtectedOpenSsh() },
         { "pkcs#1 pem", EncryptedPem(new MiscPemGenerator(Rsa1024.Private, "AES-128-CBC", "pw".ToCharArray(), new SecureRandom())) },
-        { "pkcs#8 pem", EncryptedPem(new Pkcs8Generator(Rsa1024.Private, Pkcs8Generator.PbeSha1_3DES) { Password = "pw".ToCharArray() }) },
+        { "pkcs#8 pem", EncryptedPem(new Pkcs8Generator(Rsa1024.Private, Pkcs8Generator.PbeWithShaAnd3KeyTripleDesCbc) { Password = "pw".ToCharArray() }) },
     };
 
     [Theory]
