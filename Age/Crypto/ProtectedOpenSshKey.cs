@@ -32,10 +32,12 @@ internal sealed class ProtectedOpenSshKey
     private static ReadOnlySpan<byte> Magic => "openssh-key-v1\0"u8;
 
     private readonly byte[] _blob;
+    private readonly string _cipher;
 
-    private ProtectedOpenSshKey(byte[] blob, byte[] publicKey)
+    private ProtectedOpenSshKey(byte[] blob, string cipher, byte[] publicKey)
     {
         _blob = blob;
+        _cipher = cipher;
         PublicKey = publicKey;
     }
 
@@ -94,8 +96,26 @@ internal sealed class ProtectedOpenSshKey
         if (rounds > MaxRounds)
             throw new FormatException($"SSH private key asks for {rounds} bcrypt rounds, more than the maximum of {MaxRounds}");
 
-        return new ProtectedOpenSshKey(blob.ToArray(), publicKey.ToArray());
+        return new ProtectedOpenSshKey(blob.ToArray(), Printable(cipherName), publicKey.ToArray());
     }
+
+    /// <summary>
+    /// Why this key cannot be decrypted on this platform, or null if it can. Asked before the
+    /// passphrase is, so nobody types one that cannot be used.
+    /// </summary>
+    /// <remarks>
+    /// SSH.NET decrypts AES-CTR and AES-CBC with the platform's AES, which a browser does not
+    /// have; its AES-GCM and ChaCha20-Poly1305 are BouncyCastle's and run anywhere. AES-CTR is
+    /// what ssh-keygen protects keys with by default.
+    /// </remarks>
+    public string? WhyItCannotBeDecryptedHere() =>
+        OperatingSystem.IsBrowser() && UsesThePlatformsAes(_cipher)
+            ? $"SSH keys protected with {_cipher} cannot be decrypted in the browser; " +
+              "re-protect a copy with ssh-keygen -p -Z aes256-gcm@openssh.com"
+            : null;
+
+    internal static bool UsesThePlatformsAes(string cipher) =>
+        cipher.StartsWith("aes", StringComparison.Ordinal) && !cipher.Contains("gcm", StringComparison.Ordinal);
 
     /// <summary>Decrypts the private key.</summary>
     /// <exception cref="CryptographicException">

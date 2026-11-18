@@ -357,6 +357,18 @@ public class EncryptedSshKeyTests
         Assert.Contains(what, ex.Message);
     }
 
+    // In a browser SSH.NET has no AES for these, and the identity says so instead of asking for
+    // a passphrase it cannot use. Checked in Blazor WebAssembly by hand; here, only which is which.
+    [Theory]
+    [InlineData("aes128-ctr", true)]
+    [InlineData("aes192-ctr", true)]
+    [InlineData("aes256-ctr", true)]
+    [InlineData("aes256-cbc", true)]
+    [InlineData("aes256-gcm@openssh.com", false)]
+    [InlineData("chacha20-poly1305@openssh.com", false)]
+    public void WhichCiphersNeedThePlatformsAes(string cipher, bool needsIt) =>
+        Assert.Equal(needsIt, Age.Crypto.ProtectedOpenSshKey.UsesThePlatformsAes(cipher));
+
     [SkippableFact]
     public void Interop_AgeEncryptsToThePublicKey_TheProtectedKeyDecrypts()
     {

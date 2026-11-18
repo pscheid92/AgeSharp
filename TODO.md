@@ -15,7 +15,8 @@ implementations (2026-11-17). See [docs/FEATURE_COMPARISON.md](docs/FEATURE_COMP
 - [x] Passphrase-protected SSH keys (OpenSSH format) — uncommitted on `feat/encrypted-ssh-keys`
   - Decryption (bcrypt_pbkdf and the ciphers) is SSH.NET's: neither .NET nor BouncyCastle has bcrypt_pbkdf, and a hand-written one was dropped in favour of a widely used library
   - AgeSharp still reads the container itself (the public key, so the passphrase is asked for only when needed), caps bcrypt rounds at 2048 as Go does, and checks what SSH.NET returns: the public key must match, and RSA keys must satisfy n = p·q and e·d ≡ 1 (mod p−1, q−1), with their CRT values recomputed
-  - [ ] Check that protected SSH keys decrypt under Blazor WebAssembly (SSH.NET's AES may not run in the browser)
+  - Blazor WebAssembly (checked 2026-11-18, Release build): AES-GCM and ChaCha20-Poly1305 keys decrypt; AES-CTR and AES-CBC keys are refused before the passphrase prompt, because SSH.NET uses the platform's AES for them
+  - [ ] Ask SSH.NET upstream to fall back to BouncyCastle's AES (which it already depends on) where the platform has none; then drop the browser refusal
 - [ ] Passphrase-protected SSH keys in the legacy PEM format (go-age reads them, taking the public key from the `.pub` file; SSH.NET can decrypt them)
 - [ ] Unprotected OpenSSH keys that BouncyCastle's reader refuses but OpenSSH reads: 8 or more bytes of padding (PuTTYgen pads 1–16), a comment ending in a byte 0x01–0x07, and numbers with a redundant leading zero. Protected keys go through SSH.NET, which reads these; unprotected ones still go through BouncyCastle
 - [ ] Native tagged recipients: `age1tag1…` (p256tag) and `age1tagpq1…` (mlkem768p256tag), encryption only

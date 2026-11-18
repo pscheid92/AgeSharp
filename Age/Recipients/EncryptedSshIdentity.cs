@@ -111,6 +111,9 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
 
     private IIdentity Unlock()
     {
+        if (_protectedKey.WhyItCannotBeDecryptedHere() is { } reason)
+            throw new AgeException($"failed to decrypt the SSH key: {reason}");
+
         string passphrase;
 
         try
