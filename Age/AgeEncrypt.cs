@@ -257,6 +257,36 @@ public static class AgeEncrypt
         return fileKey;
     }
 
+    /// <summary>
+    /// The identities in the order they are tried: the library's own (X25519, ML-KEM-768-X25519,
+    /// scrypt) first, then the rest, each group in the order given. As in go-age (age.go,
+    /// decryptHdr): an SSH key or a plugin may ask the user for a passphrase or a touch, and
+    /// should not when one of these already opens the file. The caller's identities are copied,
+    /// not rearranged.
+    /// </summary>
+    private static IIdentity[] NativeFirst(ReadOnlySpan<IIdentity> identities)
+    {
+        var ordered = new IIdentity[identities.Length];
+        var next = 0;
+
+        foreach (var identity in identities)
+        {
+            if (IsNative(identity))
+                ordered[next++] = identity;
+        }
+
+        foreach (var identity in identities)
+        {
+            if (!IsNative(identity))
+                ordered[next++] = identity;
+        }
+
+        return ordered;
+
+        static bool IsNative(IIdentity identity) =>
+            identity is X25519Identity or MlKem768X25519Identity or ScryptRecipient;
+    }
+
     internal static (FileKey fileKey, HeaderReader reader) UnwrapHeaderFromReader(Stream binaryInput, ReadOnlySpan<IIdentity> identities)
     {
         var reader = new HeaderReader(binaryInput);
@@ -267,7 +297,7 @@ public static class AgeEncrypt
             throw new AgeHeaderException("scrypt stanza must be the only stanza in the header");
 
         byte[]? fileKey = null;
-        foreach (var identity in identities)
+        foreach (var identity in NativeFirst(identities))
         {
             fileKey = identity.Unwrap(header.Stanzas);
             if (fileKey is not null)

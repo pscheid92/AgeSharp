@@ -233,6 +233,11 @@ public class MyIdentity : IIdentity
 }
 ```
 
+When decrypting, AgeSharp's own identities (X25519, ML-KEM-768-X25519, scrypt) are
+tried before any other, whatever order they are passed in, as in the Go
+implementation. A custom, SSH or plugin identity, which may ask the user for a
+passphrase or a touch, is asked only if none of those opens the file.
+
 ### Parsing limits
 
 An age header must be buffered in full before its MAC can be verified, so
