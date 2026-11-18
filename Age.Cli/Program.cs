@@ -85,7 +85,7 @@ catch (Exception ex) when (UserError.Describe(ex) is { } message)
 }
 catch (Exception ex)
 {
-    Console.Error.WriteLine($"{CommandPrefix(parsed)}: internal error: {ex.Message}");
+    Console.Error.WriteLine($"{CommandPrefix(parsed)}: internal error: {Terminal.ForDisplay(ex.Message)}");
     Console.Error.WriteLine("This is a bug. Please report it at https://github.com/pscheid92/AgeSharp/issues");
     return 1;
 }

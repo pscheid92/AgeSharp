@@ -7,7 +7,11 @@ namespace Age.Cli;
 internal static class UserError
 {
     /// <summary>The message to show the user, or null when the failure is a bug.</summary>
-    public static string? Describe(Exception ex) => ex switch
+    // Messages can carry text from a key file or a header; shown as prompts are, without
+    // control characters, so none of it can drive the user's terminal.
+    public static string? Describe(Exception ex) => MessageFor(ex) is { } message ? Terminal.ForDisplay(message) : null;
+
+    private static string? MessageFor(Exception ex) => ex switch
     {
         AgeException or FormatException => ex.Message,
 

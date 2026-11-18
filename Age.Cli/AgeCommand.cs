@@ -270,7 +270,8 @@ internal static class AgeCommand
     /// </summary>
     /// <remarks>
     /// As in go-age (cmd/age/parse.go), the passphrase comes from the terminal and nowhere else.
-    /// AGE_PASSPHRASE answers passphrase mode (-p) only; go-age has no such variable at all.
+    /// AGE_PASSPHRASE answers passphrase mode (-p) only. In go-age only age-plugin-batchpass
+    /// reads it, the age command itself does not.
     /// </remarks>
     internal static IIdentity ParseSshKeyFile(string path, string text, Func<ITerminal> openTerminal) =>
         AgeKeygen.ParseSshIdentity(text, () =>
