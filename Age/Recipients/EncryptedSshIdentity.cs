@@ -18,6 +18,7 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
     private readonly string _keyType;
     private readonly string _tag;
     private IIdentity? _unlocked;
+    private bool _unlocking;
     private bool _disposed;
 
     internal EncryptedSshIdentity(ProtectedOpenSshKey protectedKey, Func<string> passphrase)
@@ -44,7 +45,7 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
     /// refused by <see cref="Unwrap"/> once a file is addressed to it, before the passphrase
     /// is asked for.
     /// </exception>
-    public static EncryptedSshIdentity Parse(string pemText, Func<string> passphrase)
+    internal static EncryptedSshIdentity Parse(string pemText, Func<string> passphrase)
     {
         ArgumentNullException.ThrowIfNull(pemText);
         ArgumentNullException.ThrowIfNull(passphrase);
@@ -68,7 +69,12 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
     /// limitation; said before the passphrase is asked for), the passphrase is wrong or could
     /// not be obtained, or the key file's public and private keys do not belong together.
     /// </exception>
+    /// <exception cref="OperationCanceledException">The passphrase source was cancelled.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
+    /// <remarks>
+    /// The identity stays locked while the passphrase source runs: other threads using it wait,
+    /// and the source must not itself decrypt with this identity.
+    /// </remarks>
     public byte[]? Unwrap(Stanza stanza)
     {
         ArgumentNullException.ThrowIfNull(stanza);
@@ -82,7 +88,22 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
 
             if (_unlocked is null)
             {
-                var unlocked = Unlock();
+                // The lock is reentrant: a passphrase source that decrypts with this identity
+                // would get here again, ask itself again, and so on.
+                if (_unlocking)
+                    throw new AgeException("the passphrase source must not decrypt with the SSH key it is answering for");
+
+                IIdentity unlocked;
+                _unlocking = true;
+
+                try
+                {
+                    unlocked = Unlock();
+                }
+                finally
+                {
+                    _unlocking = false;
+                }
 
                 // The passphrase source ran in between, and nothing stops it from disposing the
                 // identity it is answering for.
@@ -123,7 +144,7 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
         {
             passphrase = _passphrase();
         }
-        catch (Exception ex) when (ex is not AgeException)
+        catch (Exception ex) when (ex is not AgeException and not OperationCanceledException)
         {
             throw new AgeException($"failed to obtain the passphrase for the SSH key: {ex.Message}", ex);
         }

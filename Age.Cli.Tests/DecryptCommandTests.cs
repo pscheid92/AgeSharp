@@ -75,6 +75,31 @@ public sealed class DecryptCommandTests : IDisposable
         Assert.StartsWith($"Enter passphrase for \"{keyFile}\": ", System.Text.Encoding.UTF8.GetString(terminalOutput.ToArray()));
     }
 
+    // With several -i files, the error has to say which one; go-age names it (cmd/age/parse.go).
+    [Fact]
+    public void WhenThePassphraseCannotBeRead_TheErrorNamesTheKeyFile()
+    {
+        var keyFile = SshKey("ed25519_aes256ctr");
+        var ciphertext = Encrypt("plaintext"u8.ToArray(), AgeKeygen.ParseSshRecipient(File.ReadAllText(SshKey("ed25519_plain.pub"))));
+        var identity = AgeCommand.ParseSshKeyFile(keyFile, File.ReadAllText(keyFile),
+            () => throw new AgeException("cannot ask for input: no terminal"));
+
+        var ex = Assert.Throws<AgeException>(() => AgeEncrypt.Decrypt(new MemoryStream(ciphertext), new MemoryStream(), identity));
+
+        Assert.Contains($"could not read passphrase for \"{keyFile}\"", ex.Message);
+        Assert.Contains("no terminal", ex.Message);
+    }
+
+    [Fact]
+    public void AMalformedSshKeyFile_IsNamedInTheError()
+    {
+        var keyFile = SshKey("ecdsa_aes256ctr");
+
+        var ex = Assert.Throws<AgeException>(() => AgeCommand.ParseSshKeyFile(keyFile, File.ReadAllText(keyFile), () => throw new InvalidOperationException()));
+
+        Assert.StartsWith($"malformed SSH identity in \"{keyFile}\": ", ex.Message);
+    }
+
     [Fact]
     public void APassphraseProtectedSshKey_IsNotAskedFor_WhenTheFileIsForSomeoneElse()
     {

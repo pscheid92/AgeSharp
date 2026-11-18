@@ -160,6 +160,23 @@ public class SshParsingErrorTests
         return [key[N], e, System.Numerics.BigInteger.Parse(d.ToString()), key[Iqmp], key[P], key[Q]];
     }
 
+    // Go limits the public exponent to 24 bits for public keys and OpenSSH-format private keys
+    // only; PKCS#1 and PKCS#8 keys go through its x509 package, which does not. openssl made
+    // this one with an exponent of 2^25 + 1, and go-age decrypts with it.
+    [Fact]
+    public void ParseSshIdentity_Pkcs8RsaKeyWithAnExponentOver24Bits_Works()
+    {
+        var identity = (Age.Recipients.SshRsaIdentity)AgeKeygen.ParseSshIdentity(SshFixture("rsa_pkcs8_large_exponent"));
+        using var encrypted = new MemoryStream();
+        AgeEncrypt.Encrypt(new MemoryStream("plaintext"u8.ToArray()), encrypted, identity.Recipient);
+        encrypted.Position = 0;
+        using var decrypted = new MemoryStream();
+
+        AgeEncrypt.Decrypt(encrypted, decrypted, identity);
+
+        Assert.Equal("plaintext"u8.ToArray(), decrypted.ToArray());
+    }
+
     public static TheoryData<string, uint> ForbiddenRsaPublicExponents => new()
     {
         { "exponent 1", 1 },

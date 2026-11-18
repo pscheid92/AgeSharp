@@ -12,7 +12,7 @@ AgeSharp package may lag `main`; check the release notes for what a given versio
 | Scrypt/passphrase | ✅ | ✅ | ✅ | |
 | SSH-Ed25519 | ✅ | ✅ | ✅ | |
 | SSH-RSA | ✅ | ✅ | ✅ | |
-| Passphrase-protected SSH keys | ✅ | ✅ | ✅ | Go reads OpenSSH keys protected with aes256-ctr or aes256-cbc, and legacy encrypted PEM (with the `.pub` file); AgeSharp reads OpenSSH keys with AES-CTR, AES-CBC, AES-GCM, ChaCha20-Poly1305 or 3DES, not legacy PEM |
+| Passphrase-protected SSH keys | ✅ | ✅ | ✅ | Go reads OpenSSH keys protected with aes256-ctr or aes256-cbc, and legacy encrypted PEM (with the `.pub` file). rage reads more ciphers, refuses legacy PEM, and has no bcrypt round limit. AgeSharp reads OpenSSH keys with AES-CTR, AES-CBC, AES-GCM, ChaCha20-Poly1305 or 3DES, not legacy PEM, and like Go refuses more than 2048 bcrypt rounds |
 | ML-KEM-768-X25519 (`age1pq1…`) | ✅ | ❌ | ✅ | In rage this is an open draft PR |
 | Tagged P-256 (`age1tag1…`) | ✅ | ✅ | ❌ | Encryption only in Go and rage; decryption is a plugin's job |
 | Tagged P-256 + ML-KEM-768 (`age1tagpq1…`) | ✅ | ✅ | ❌ | As above |

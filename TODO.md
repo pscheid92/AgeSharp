@@ -5,14 +5,14 @@ implementations (2026-11-17). See [docs/FEATURE_COMPARISON.md](docs/FEATURE_COMP
 
 ## Shipping
 
-- [ ] Release `main` as `0.2.0-preview.5` — the published package lacks #91–#99
+- [ ] Release `main` as `0.2.0-preview.5` — the published package lacks #91–#101. Release notes must cover: BouncyCastle ≥ 2.7.0 (NU1605 for projects pinning 2.6.2), SSH.NET as a new dependency, RSA keys now refused with an exponent below 3, an even one, over 24 bits (public keys and OpenSSH files) or a modulus over 16384 bits, and the library's own identities now tried first
 - [ ] Multi-target `net8.0` alongside `net10.0` (first check which .NET 10 APIs the code needs)
 - [ ] Clear NU1903 on the AOT publish (`Microsoft.DotNet.ILCompiler` 10.0.0, GHSA-p3jp-9v83-76w…): move to a patched .NET 10 SDK
 - [ ] Refresh `docs/BENCHMARKS.md` (last run 2026-07-23)
 
 ## Features (additive)
 
-- [x] Passphrase-protected SSH keys (OpenSSH format) — PR #100
+- [x] Passphrase-protected SSH keys (OpenSSH format) — PR #100; review follow-ups in their own PR
   - Decryption (bcrypt_pbkdf and the ciphers) is SSH.NET's: neither .NET nor BouncyCastle has bcrypt_pbkdf, and a hand-written one was dropped in favour of a widely used library
   - AgeSharp still reads the container itself (the public key, so the passphrase is asked for only when needed). Once a file matches, and before asking, it refuses what it cannot decrypt: an unknown cipher or KDF, or more than 2048 bcrypt rounds (Go's cap, which Go also applies only at decryption). It checks what SSH.NET returns: the public key must match, and RSA keys get Go's checks (n = p·q, e·d ≡ 1 mod p−1 and q−1, an odd exponent of 3 to 24 bits, size limits), with their CRT values recomputed
   - Blazor WebAssembly (checked 2026-11-18, Release build): ssh-ed25519 keys with aes256-gcm or ChaCha20-Poly1305 decrypt. Every other protected key is refused before the passphrase prompt: SSH.NET uses the platform's AES, 3DES and RSA, and the browser has none of them
