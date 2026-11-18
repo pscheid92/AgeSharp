@@ -47,26 +47,44 @@ public sealed class DecryptCommandTests : IDisposable
     }
 
     [Fact]
-    public void APassphraseProtectedSshKey_Decrypts_OnceGivenItsPassphrase()
+    public void APassphraseProtectedSshKey_IsUnlockedWithWhatIsTypedOnTheTerminal()
     {
         var keyFile = SshKey("ed25519_aes256ctr");
-        var input = Write("secret.age", Encrypt("plaintext"u8.ToArray(),
-            AgeKeygen.ParseSshRecipient(File.ReadAllText(SshKey("ed25519_plain.pub")))));
-        var output = Path.Combine(_dir, "out");
+        var ciphertext = Encrypt("plaintext"u8.ToArray(), AgeKeygen.ParseSshRecipient(File.ReadAllText(SshKey("ed25519_plain.pub"))));
+        var terminalInput = new MemoryStream("hunter2\n"u8.ToArray());
+        var terminalOutput = new MemoryStream();
         var before = Environment.GetEnvironmentVariable("AGE_PASSPHRASE");
 
         try
         {
-            Environment.SetEnvironmentVariable("AGE_PASSPHRASE", "hunter2");
+            // Passphrase mode's variable, set to something wrong: the SSH key must not use it.
+            Environment.SetEnvironmentVariable("AGE_PASSPHRASE", "not the key's passphrase");
 
-            Assert.Equal(0, Decrypt(keyFile, input, output));
+            var identity = AgeCommand.ParseSshKeyFile(keyFile, File.ReadAllText(keyFile),
+                () => new StreamTerminal(terminalInput, terminalOutput, () => new Released()));
+
+            using var decrypted = new MemoryStream();
+            AgeEncrypt.Decrypt(new MemoryStream(ciphertext), decrypted, identity);
+            Assert.Equal("plaintext"u8.ToArray(), decrypted.ToArray());
         }
         finally
         {
             Environment.SetEnvironmentVariable("AGE_PASSPHRASE", before);
         }
 
-        Assert.Equal("plaintext"u8.ToArray(), File.ReadAllBytes(output));
+        Assert.StartsWith($"Enter passphrase for \"{keyFile}\": ", System.Text.Encoding.UTF8.GetString(terminalOutput.ToArray()));
+    }
+
+    [Fact]
+    public void APassphraseProtectedSshKey_IsNotAskedFor_WhenTheFileIsForSomeoneElse()
+    {
+        var keyFile = SshKey("ed25519_aes256ctr");
+        using var someoneElse = X25519Identity.Generate();
+        var ciphertext = Encrypt("plaintext"u8.ToArray(), someoneElse.Recipient);
+        var identity = AgeCommand.ParseSshKeyFile(keyFile, File.ReadAllText(keyFile),
+            () => throw new InvalidOperationException("the terminal was opened"));
+
+        Assert.Throws<NoIdentityMatchException>(() => AgeEncrypt.Decrypt(new MemoryStream(ciphertext), new MemoryStream(), identity));
     }
 
     [Fact]
@@ -78,7 +96,7 @@ public sealed class DecryptCommandTests : IDisposable
 
         try
         {
-            // Nothing to answer a prompt with: were the passphrase asked for, this would fail.
+            // Nothing that could answer a prompt: encrypting to the key needs only its public half.
             Environment.SetEnvironmentVariable("AGE_PASSPHRASE", null);
 
             Assert.Equal(0, AgeCommand.Execute(encrypt: true, armor: false, passphrase: false,
@@ -92,6 +110,11 @@ public sealed class DecryptCommandTests : IDisposable
 
         Assert.Equal(0, Decrypt(SshKey("ed25519_plain"), encrypted, Path.Combine(_dir, "out")));
         Assert.Equal("plaintext"u8.ToArray(), File.ReadAllBytes(Path.Combine(_dir, "out")));
+    }
+
+    private sealed class Released : IDisposable
+    {
+        public void Dispose() { }
     }
 
     private static string SshKey(string name) =>
