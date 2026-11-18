@@ -103,19 +103,31 @@ internal sealed class ProtectedOpenSshKey
     /// Why this key cannot be decrypted on this platform, or null if it can. Asked before the
     /// passphrase is, so nobody types one that cannot be used.
     /// </summary>
-    /// <remarks>
-    /// SSH.NET decrypts AES-CTR and AES-CBC with the platform's AES, which a browser does not
-    /// have; its AES-GCM and ChaCha20-Poly1305 are BouncyCastle's and run anywhere. AES-CTR is
-    /// what ssh-keygen protects keys with by default.
-    /// </remarks>
     public string? WhyItCannotBeDecryptedHere() =>
-        OperatingSystem.IsBrowser() && UsesThePlatformsAes(_cipher)
-            ? $"SSH keys protected with {_cipher} cannot be decrypted in the browser; " +
-              "re-protect a copy with ssh-keygen -p -Z aes256-gcm@openssh.com"
-            : null;
+        OperatingSystem.IsBrowser() ? WhyItCannotBeDecryptedInTheBrowser(SshKeyParser.KeyTypeOfWireBytes(PublicKey), _cipher) : null;
 
-    internal static bool UsesThePlatformsAes(string cipher) =>
-        cipher.StartsWith("aes", StringComparison.Ordinal) && !cipher.Contains("gcm", StringComparison.Ordinal);
+    /// <summary>
+    /// Why a protected key of this type and cipher cannot be decrypted in the browser, or null
+    /// if it can.
+    /// </summary>
+    /// <remarks>
+    /// SSH.NET builds every RSA key it decrypts as a platform RSA object, which a browser does
+    /// not have, whatever the cipher. It decrypts AES-CTR and AES-CBC with the platform's AES,
+    /// which a browser does not have either; its AES-GCM and ChaCha20-Poly1305 are
+    /// BouncyCastle's and run anywhere. AES-CTR is what ssh-keygen protects keys with by default.
+    /// </remarks>
+    internal static string? WhyItCannotBeDecryptedInTheBrowser(string keyType, string cipher)
+    {
+        if (keyType == "ssh-rsa")
+            return "passphrase-protected ssh-rsa keys cannot be decrypted in the browser; " +
+                   "use an ssh-ed25519 key protected with aes256-gcm@openssh.com";
+
+        if (cipher.StartsWith("aes", StringComparison.Ordinal) && !cipher.Contains("gcm", StringComparison.Ordinal))
+            return $"SSH keys protected with {cipher} cannot be decrypted in the browser; " +
+                   "re-protect a copy with ssh-keygen -p -Z aes256-gcm@openssh.com";
+
+        return null;
+    }
 
     /// <summary>Decrypts the private key.</summary>
     /// <exception cref="CryptographicException">

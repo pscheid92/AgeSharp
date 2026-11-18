@@ -38,9 +38,9 @@ It targets .NET 10.
 - Fully interoperable — files produced by AgeSharp decrypt with `age`, `rage`, and vice versa
 - **Runs in Blazor WebAssembly** — automatically uses a managed
   ChaCha20-Poly1305 backend in the browser, where the platform cipher is
-  unavailable. One exception: passphrase-protected SSH keys decrypt there only
-  if protected with `aes256-gcm@openssh.com` or `chacha20-poly1305@openssh.com`,
-  not with `ssh-keygen`'s default AES-CTR
+  unavailable. One exception: of passphrase-protected SSH keys, only ssh-ed25519
+  keys protected with `aes256-gcm@openssh.com` or `chacha20-poly1305@openssh.com`
+  decrypt there — not `ssh-keygen`'s default AES-CTR, and no ssh-rsa key
 
 ## Installation
 

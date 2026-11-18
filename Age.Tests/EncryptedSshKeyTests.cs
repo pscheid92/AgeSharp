@@ -24,6 +24,7 @@ public class EncryptedSshKeyTests
         { "ed25519_chacha20poly1305", "ed25519_plain" },
         { "ed25519_default_rounds", "ed25519_plain" },
         { "rsa_aes256ctr", "rsa_plain" },
+        { "rsa_aes256gcm", "rsa_plain" },
     };
 
     [Theory]
@@ -377,17 +378,20 @@ public class EncryptedSshKeyTests
         Assert.Contains(what, ex.Message);
     }
 
-    // In a browser SSH.NET has no AES for these, and the identity says so instead of asking for
+    // In a browser SSH.NET cannot decrypt these, and the identity says so instead of asking for
     // a passphrase it cannot use. Checked in Blazor WebAssembly by hand; here, only which is which.
     [Theory]
-    [InlineData("aes128-ctr", true)]
-    [InlineData("aes192-ctr", true)]
-    [InlineData("aes256-ctr", true)]
-    [InlineData("aes256-cbc", true)]
-    [InlineData("aes256-gcm@openssh.com", false)]
-    [InlineData("chacha20-poly1305@openssh.com", false)]
-    public void WhichCiphersNeedThePlatformsAes(string cipher, bool needsIt) =>
-        Assert.Equal(needsIt, Age.Crypto.ProtectedOpenSshKey.UsesThePlatformsAes(cipher));
+    [InlineData("ssh-ed25519", "aes128-ctr", true)]
+    [InlineData("ssh-ed25519", "aes192-ctr", true)]
+    [InlineData("ssh-ed25519", "aes256-ctr", true)]
+    [InlineData("ssh-ed25519", "aes256-cbc", true)]
+    [InlineData("ssh-ed25519", "aes256-gcm@openssh.com", false)]
+    [InlineData("ssh-ed25519", "chacha20-poly1305@openssh.com", false)]
+    [InlineData("ssh-rsa", "aes256-ctr", true)]
+    [InlineData("ssh-rsa", "aes256-gcm@openssh.com", true)]
+    [InlineData("ssh-rsa", "chacha20-poly1305@openssh.com", true)]
+    public void WhichKeysTheBrowserCannotDecrypt(string keyType, string cipher, bool refused) =>
+        Assert.Equal(refused, Age.Crypto.ProtectedOpenSshKey.WhyItCannotBeDecryptedInTheBrowser(keyType, cipher) is not null);
 
     [SkippableFact]
     public void Interop_AgeEncryptsToThePublicKey_TheProtectedKeyDecrypts()
