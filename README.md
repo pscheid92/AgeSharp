@@ -14,8 +14,11 @@
 with the reference [Go implementation](https://github.com/FiloSottile/age) and
 other age-compatible tools.
 
-It depends only on [BouncyCastle.Cryptography](https://www.nuget.org/packages/BouncyCastle.Cryptography)
-and targets .NET 10.
+It depends on [BouncyCastle.Cryptography](https://www.nuget.org/packages/BouncyCastle.Cryptography)
+(2.7.0 or later) and, to decrypt passphrase-protected SSH keys,
+[SSH.NET](https://www.nuget.org/packages/SSH.NET). It targets .NET 10. A project
+that pins an older BouncyCastle gets a NU1605 (package downgrade) error on restore
+and needs to raise its pin to 2.7.0.
 
 ## Features
 
@@ -37,7 +40,9 @@ and targets .NET 10.
 - Fully interoperable — files produced by AgeSharp decrypt with `age`, `rage`, and vice versa
 - **Runs in Blazor WebAssembly** — automatically uses a managed
   ChaCha20-Poly1305 backend in the browser, where the platform cipher is
-  unavailable
+  unavailable. One exception: of passphrase-protected SSH keys, only ssh-ed25519
+  keys protected with `aes256-gcm@openssh.com` or `chacha20-poly1305@openssh.com`
+  decrypt there — not `ssh-keygen`'s default AES-CTR, and no ssh-rsa key
 
 ## Installation
 
@@ -111,6 +116,16 @@ AgeEncrypt.Encrypt(input, encrypted, recipient);
 
 encrypted.Position = 0;
 AgeEncrypt.Decrypt(encrypted, decrypted, identity);
+```
+
+A passphrase-protected key (OpenSSH format) needs somewhere to get its passphrase
+from. It is asked for only when a file addressed to the key is decrypted, and
+never for encrypting to the key:
+
+```csharp
+var identity = AgeKeygen.ParseSshIdentity(
+    File.ReadAllText("/path/to/id_ed25519"),
+    passphrase: () => PromptForPassphrase());
 ```
 
 ### Post-quantum (ML-KEM-768-X25519)
@@ -227,15 +242,19 @@ exhaust memory. The limits are exposed as constants on `AgeLimits`:
 
 | Constant | Default | Bounds |
 | --- | --- | --- |
-| `AgeLimits.MaxHeaderLineBytes` | 64 KiB | A single header line |
-| `AgeLimits.MaxHeaderBytes` | 16 MiB | The whole header (all stanzas) |
+| `AgeLimits.MaxHeaderBytes` | 2 MiB | The whole header (all stanzas) |
+| `AgeLimits.MaxRecipientStanzas` | 1024 | Recipient stanzas in a header |
+| `AgeLimits.MaxStanzaArguments` | 128 | Arguments on one stanza line |
 | `AgeLimits.MaxArmorLineBytes` | 64 KiB | A single ASCII-armor line |
 
 Exceeding a limit throws `AgeHeaderException` / `AgeArmorException`. The age
 [specification](https://github.com/C2SP/C2SP/blob/main/age.md) sets no such
-bounds, so these are AgeSharp's own defense; they sit far above any real file
-(the largest built-in stanza line is ~1.5 KiB, and 16 MiB still allows well over
-100,000 recipients), so legitimate input never trips them.
+bounds. The three header limits are the ones the Go implementation applies from
+v1.3.2 on, so both accept and reject the same files; the armor line limit is
+AgeSharp's own. They sit far above any real file (the largest built-in stanza
+line is ~1.5 KiB, so 2 MiB holds well over a thousand post-quantum recipients),
+so legitimate input never trips them. `AgeLimits.MaxHeaderLineBytes` is obsolete:
+a header line is bounded only by `MaxHeaderBytes`.
 
 ## CLI
 

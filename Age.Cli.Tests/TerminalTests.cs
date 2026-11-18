@@ -55,6 +55,22 @@ public class TerminalTests
         Assert.Equal("Passphrase: \n", Encoding.UTF8.GetString(output.ToArray()));
     }
 
+    // Echo goes off before the prompt is shown: a user who types as soon as the prompt appears
+    // would otherwise see the start of their passphrase echoed.
+    [Fact]
+    public void ReadLine_Secret_HidesInputBeforeShowingThePrompt()
+    {
+        var hiding = new HidingProbe();
+        var shownWhileHidden = new List<bool>();
+        var output = new WriteProbe(() => shownWhileHidden.Add(hiding.Hidden));
+        using var terminal = new StreamTerminal(Input("correct horse\n"), output, hiding.Hide);
+
+        terminal.ReadLine("Passphrase: ", secret: true);
+
+        Assert.NotEmpty(shownWhileHidden);
+        Assert.All(shownWhileHidden, Assert.True);
+    }
+
     [Fact]
     public void ReadLine_Public_DoesNotHideInput()
     {
@@ -203,6 +219,21 @@ public class TerminalTests
     }
 
     private static MemoryStream Input(string text) => new(Encoding.UTF8.GetBytes(text));
+
+    private sealed class WriteProbe(Action onWrite) : MemoryStream
+    {
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            onWrite();
+            base.Write(buffer, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            onWrite();
+            base.Write(buffer);
+        }
+    }
 
     private static IDisposable NoHiding() => new HidingProbe.Restore(() => { });
 

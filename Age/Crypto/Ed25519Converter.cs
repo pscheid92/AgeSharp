@@ -21,7 +21,7 @@ internal static class Ed25519Converter
         yBytes[31] &= 0x7F;
 
         var y = new int[X25519Field.Size];
-        X25519Field.Decode(yBytes, 0, y);
+        X25519Field.Decode255(yBytes, y);
 
         // u = (1 + y) / (1 - y) mod p
         var one = new int[X25519Field.Size];

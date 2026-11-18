@@ -113,14 +113,18 @@ internal sealed class StreamTerminal(Stream input, Stream output, Func<IDisposab
 {
     public string ReadLine(string prompt, bool secret)
     {
-        output.Write(Encoding.UTF8.GetBytes(Terminal.ForDisplay(prompt)));
-        output.Flush();
-
         if (!secret)
+        {
+            ShowPrompt(prompt);
             return ReadAnswer();
+        }
 
+        // Echo off first: turning it off takes an stty process, and whatever the user types as
+        // soon as the prompt appears would otherwise be echoed in the meantime.
         using (hideInput())
         {
+            ShowPrompt(prompt);
+
             try
             {
                 return ReadAnswer();
@@ -132,6 +136,12 @@ internal sealed class StreamTerminal(Stream input, Stream output, Func<IDisposab
                 output.Flush();
             }
         }
+    }
+
+    private void ShowPrompt(string prompt)
+    {
+        output.Write(Encoding.UTF8.GetBytes(Terminal.ForDisplay(prompt)));
+        output.Flush();
     }
 
     /// <summary>

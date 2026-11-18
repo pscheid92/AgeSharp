@@ -61,16 +61,41 @@ public static class AgeKeygen
     /// Parses an SSH private key from PEM text and returns the appropriate identity.
     /// Supports ssh-ed25519 and ssh-rsa key types in OpenSSH, PKCS#1, or PKCS#8 format.
     /// </summary>
+    /// <exception cref="FormatException">
+    /// The key is malformed or of another type, or it is passphrase-protected: use
+    /// <see cref="ParseSshIdentity(string, Func{string})"/> for a key that may be.
+    /// </exception>
     public static IIdentity ParseSshIdentity(string pemText)
     {
-        var (keyType, _, _) = SshKeyParser.ParsePrivateKey(pemText);
+        var (keyType, publicWireBytes, privateKey) = SshKeyParser.ParsePrivateKey(pemText);
 
         return keyType switch
         {
-            "ssh-ed25519" => SshEd25519Identity.Parse(pemText),
-            "ssh-rsa" => SshRsaIdentity.Parse(pemText),
+            "ssh-ed25519" => SshEd25519Identity.FromParsedKey(keyType, publicWireBytes, privateKey),
+            "ssh-rsa" => SshRsaIdentity.FromParsedKey(keyType, publicWireBytes, privateKey),
             _ => throw new FormatException($"unsupported SSH key type: {keyType}")
         };
+    }
+
+    /// <summary>
+    /// Parses an SSH private key that may be passphrase-protected. A protected key (OpenSSH
+    /// format) becomes an <see cref="EncryptedSshIdentity"/>, which asks
+    /// <paramref name="passphrase"/> only once a file addressed to the key is decrypted; an
+    /// unprotected key is parsed as by <see cref="ParseSshIdentity(string)"/> and never asks.
+    /// </summary>
+    /// <exception cref="FormatException">
+    /// The key is malformed, of another type, or protected in the legacy PEM way. A key
+    /// protected with a cipher or KDF this library does not read is accepted, and refused once
+    /// a file is addressed to it, before the passphrase is asked for.
+    /// </exception>
+    public static IIdentity ParseSshIdentity(string pemText, Func<string> passphrase)
+    {
+        ArgumentNullException.ThrowIfNull(pemText);
+        ArgumentNullException.ThrowIfNull(passphrase);
+
+        return SshKeyParser.ParseProtectedKey(pemText) is { } protectedKey
+            ? new EncryptedSshIdentity(protectedKey, passphrase)
+            : ParseSshIdentity(pemText);
     }
 
     /// <summary>

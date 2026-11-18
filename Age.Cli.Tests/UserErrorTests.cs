@@ -24,6 +24,12 @@ public class UserErrorTests
     public void UserError_IsDescribedWithItsMessage(Exception ex) =>
         Assert.Equal(ex.Message, UserError.Describe(ex));
 
+    // Messages can carry text from a key file or a header, which could otherwise drive the
+    // user's terminal with escape sequences; they are shown as prompts are.
+    [Fact]
+    public void UserError_IsShownWithoutControlCharacters() =>
+        Assert.Equal("unsupported cipher: \uFFFD[2Jevil", UserError.Describe(new AgeException("unsupported cipher: \u001b[2Jevil")));
+
     [Fact]
     public void MissingFile_IsNamed() =>
         Assert.Equal("no such file: /tmp/nope.age",

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Age.Crypto;
 using Age.Format;
+using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.Parameters;
 
@@ -38,7 +39,11 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
     public static SshEd25519Identity Parse(string pemText)
     {
         var (keyType, publicWireBytes, privateKey) = SshKeyParser.ParsePrivateKey(pemText);
+        return FromParsedKey(keyType, publicWireBytes, privateKey);
+    }
 
+    internal static SshEd25519Identity FromParsedKey(string keyType, byte[] publicWireBytes, AsymmetricKeyParameter privateKey)
+    {
         if (keyType != "ssh-ed25519")
             throw new FormatException($"expected ssh-ed25519 private key, got {keyType}");
 

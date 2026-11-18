@@ -224,6 +224,7 @@ internal static class AgeCommand
         MlKem768X25519Identity pq => pq.Recipient,
         SshEd25519Identity ssh => ssh.Recipient,
         SshRsaIdentity ssh => ssh.Recipient,
+        EncryptedSshIdentity ssh => ssh.Recipient,
         _ => null
     };
 
@@ -253,7 +254,7 @@ internal static class AgeCommand
             if (bytes.Length >= KeyFiles.SshKeyLimit)
                 throw new AgeException($"failed to read \"{path}\": file too long");
 
-            return [AgeKeygen.ParseSshIdentity(text)];
+            return [ParseSshKeyFile(path, text, Terminal.OpenDefault)];
         }
 
         // Standard age identity file (AGE-SECRET-KEY-, AGE-SECRET-KEY-PQ-, AGE-PLUGIN-)
@@ -262,6 +263,22 @@ internal static class AgeCommand
 
         return [.. AgeKeygen.ParseIdentityFile(text, callbacks)];
     }
+
+    /// <summary>
+    /// An SSH private key file as an identity. If the key is passphrase-protected, the
+    /// passphrase is asked for only once a file addressed to the key is decrypted.
+    /// </summary>
+    /// <remarks>
+    /// As in go-age (cmd/age/parse.go), the passphrase comes from the terminal and nowhere else.
+    /// AGE_PASSPHRASE answers passphrase mode (-p) only. In go-age only age-plugin-batchpass
+    /// reads it, the age command itself does not.
+    /// </remarks>
+    internal static IIdentity ParseSshKeyFile(string path, string text, Func<ITerminal> openTerminal) =>
+        AgeKeygen.ParseSshIdentity(text, () =>
+        {
+            using var terminal = openTerminal();
+            return terminal.ReadLine($"Enter passphrase for \"{path}\": ", secret: true);
+        });
 
     private static string ReadPassphrase(string prompt) =>
         Environment.GetEnvironmentVariable("AGE_PASSPHRASE") ?? Terminal.ReadSecret(prompt);
