@@ -7,10 +7,12 @@ implementations (2026-11-17). See [docs/FEATURE_COMPARISON.md](docs/FEATURE_COMP
 
 - [x] Release `main` as `0.2.0-preview.5` — tagged 2026-11-18 on e3db35d, with #91–#102 and upgrade notes in the GitHub release
 - [ ] Multi-target `net8.0` alongside `net10.0` (first check which .NET 10 APIs the code needs)
-- [x] Clear NU1903 on the AOT publish (`Microsoft.DotNet.ILCompiler` 10.0.0, GHSA-p3jp-9v83-76w…) — release builds use the latest .NET 10 SDK (`global.json` rolls forward) and the preview.5 build logged no NU1903; only an older local SDK still shows it
+- [x] Clear NU1903 on the AOT publish (`Microsoft.DotNet.ILCompiler` 10.0.0) — moot: releases no longer build AOT binaries, and the preview.5 build, the last that did, logged no NU1903
 - [ ] Refresh `docs/BENCHMARKS.md` (last run 2026-07-23)
 
 ## Features (additive)
+
+AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 
 - [x] Passphrase-protected SSH keys (OpenSSH format) — PR #100; review follow-ups in their own PR
   - Decryption (bcrypt_pbkdf and the ciphers) is SSH.NET's: neither .NET nor BouncyCastle has bcrypt_pbkdf, and a hand-written one was dropped in favour of a widely used library
@@ -21,16 +23,13 @@ implementations (2026-11-17). See [docs/FEATURE_COMPARISON.md](docs/FEATURE_COMP
 - [ ] Passphrase-protected SSH keys in the legacy PEM format (go-age reads them, taking the public key from the `.pub` file; SSH.NET can decrypt them)
 - [ ] Unprotected OpenSSH keys that BouncyCastle's reader refuses but OpenSSH reads: 8 or more bytes of padding (PuTTYgen pads 1–16), a comment ending in a byte 0x01–0x07, and numbers with a redundant leading zero. Protected keys go through SSH.NET, which reads these; unprotected ones still go through BouncyCastle
 - [ ] Native tagged recipients: `age1tag1…` (p256tag) and `age1tagpq1…` (mlkem768p256tag), encryption only
-- [ ] CLI: `-j` (data-less plugin identity)
-- [ ] CLI: Windows console prompting when stdin is redirected (`CONIN$` / `CONOUT$`)
 - [ ] Plugin authoring: the server side of the plugin protocol
-- [ ] `age-plugin-batchpass` equivalent
-- [ ] Cosmetic differences from go-age (low priority): it erases the passphrase prompt line after input; its error wording for an empty passphrase; BouncyCastle's own message for an even RSA exponent; a matching stanza without arguments is an error in go-age and skipped here
+- [ ] Small differences from go-age (low priority): a matching stanza without arguments is an error in go-age and skipped here; an even RSA exponent is refused with BouncyCastle's own message
 
 ## API (breaking — fold into the rebuild)
 
 - [ ] Async entry points for encrypt and decrypt (design exists on `next-version`)
-- [ ] Peeking armor detection, so the CLI stops buffering pipes (lifts the 2 GiB limit)
+- [ ] Peeking armor detection, so armored input is recognised on non-seekable streams too (pipes, network streams); today it needs a seekable stream
 - [ ] `Passphrase` type instead of `string`, so it can be zeroed
 - [ ] `IRecipient.Wrap` returning several stanzas and labels; make the multi-stanza interface public
 - [ ] Split `ScryptRecipient` into recipient and identity; adjustable maximum work factor
@@ -44,4 +43,3 @@ implementations (2026-11-17). See [docs/FEATURE_COMPARISON.md](docs/FEATURE_COMP
 - [ ] `PayloadKey` type
 - [ ] Shared plugin prompt handler
 - [ ] Remove test-only code from the production assembly
-- [ ] Make the `cli` Codecov status a real gate once CLI coverage allows

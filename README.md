@@ -261,38 +261,23 @@ line is ~1.5 KiB, so 2 MiB holds well over a thousand post-quantum recipients),
 so legitimate input never trips them. `AgeLimits.MaxHeaderLineBytes` is obsolete:
 a header line is bounded only by `MaxHeaderBytes`.
 
-## CLI
+## Command line
 
-`AgeSharp` ships a CLI compatible with the `age` command.
-
-```sh
-# Encrypt
-age -r age1... -o encrypted.age plaintext.txt
-
-# Decrypt
-age -d -i key.txt -o plaintext.txt encrypted.age
-
-# Generate a key pair
-age-keygen -o key.txt
-
-# Inspect an encrypted file (no decryption needed)
-age inspect encrypted.age
-```
+AgeSharp is a library. For a command-line tool, use the reference
+[age](https://github.com/FiloSottile/age) or [rage](https://github.com/str4d/rage);
+AgeSharp reads and writes the same files.
 
 ## Development
 
 ```sh
-make            # Build universal macOS binary (AOT)
-make build      # Framework-dependent build
-make test       # Run all tests
+make build      # Build
+make test       # Run all tests (interop tests run when age and rage are on PATH)
 make bench      # Run BenchmarkDotNet benchmarks
-make interop    # Interoperability tests vs Go age CLI
 ```
 
 ## Benchmarks
 
-See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for detailed benchmark results
-comparing AgeSharp with the Go and Rust implementations.
+See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for BenchmarkDotNet results.
 
 ## Feature comparison
 

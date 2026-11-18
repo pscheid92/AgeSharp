@@ -13,7 +13,7 @@ namespace Age.Tests;
 /// BouncyCastle already refuses low-order points, so no zero shared secret was ever used. What
 /// was broken is the exception contract — five sites let a raw <c>InvalidOperationException</c>
 /// escape, so a caller catching <see cref="AgeException"/> to handle hostile files crashed, and
-/// the CLI reported a merely malformed input file as "This is a bug".
+/// a merely malformed input file looked like a bug in the library.
 /// </summary>
 public class AgreementGuardTests
 {

@@ -25,7 +25,6 @@ BenchmarkDotNet.Artifacts/
 ## OS files
 .DS_Store
 Thumbs.db
-dist/
 
 ## Reference implementations, cloned locally to read while working.
 ## Nested git repos — tracking them would create broken gitlinks.

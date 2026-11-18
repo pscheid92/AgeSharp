@@ -20,7 +20,7 @@ internal static class CryptoHelper
     ///     all-zero shared secret, and BouncyCastle already refuses low-order and identity points
     ///     — but it does so with a raw <see cref="InvalidOperationException" />, which escaped
     ///     five of the eight call sites and surfaced from public Encrypt/Decrypt as an unhandled
-    ///     BCL exception. main's own CLI reported a merely-malformed input file as a library bug.
+    ///     BCL exception, so a merely malformed input file looked like a bug in the library.
     /// </summary>
     /// <remarks>
     ///     This is defence in depth plus a consistent exception type, not the closing of an

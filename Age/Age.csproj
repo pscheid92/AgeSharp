@@ -35,7 +35,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Age.Tests" />
-    <InternalsVisibleTo Include="Age.Cli" />
   </ItemGroup>
 
   <ItemGroup>

@@ -4,71 +4,13 @@ Measured on Apple M2 (8 cores, 16 GB), macOS 26, .NET 10, on 2026-07-23.
 Numbers are refreshed against `main` at the current release (includes the
 `IAeadCipher` backend seam and the pre-authentication parser bounds).
 
-## CLI Comparison: age (Go) vs rage (Rust) vs age-sharp (C#/.NET)
+Memory is bounded: the push APIs (`Encrypt`, `Decrypt`, `EncryptDetached`,
+`DecryptDetached`) stream chunk by chunk with pooled, fixed-size buffers, so a 1 GiB
+file uses the same working set as a 1 MB one. The managed ChaCha20-Poly1305 backend used
+in the browser is about 2× slower than the native one.
 
-Wall-clock time for encrypt and decrypt at various file sizes, averaged
-over 5 iterations. AOT-compiled binary. Includes process startup, key
-parsing, header processing, and I/O.
-
-All times in milliseconds (lower is better).
-
-### Binary
-
-| Size | Op | age (Go) | rage (Rust) | age-sharp (C#) |
-|---|---|---:|---:|---:|
-| 1 KB | enc | 21 ms | 21 ms | 22 ms |
-| 1 KB | dec | 20 ms | 22 ms | 22 ms |
-| 64 KB | enc | 21 ms | 21 ms | 22 ms |
-| 64 KB | dec | 20 ms | 21 ms | 22 ms |
-| 1 MB | enc | 23 ms | 24 ms | 25 ms |
-| 1 MB | dec | 22 ms | 24 ms | 25 ms |
-| 10 MB | enc | 37 ms | 49 ms | 44 ms |
-| 10 MB | dec | 35 ms | 52 ms | 47 ms |
-| 100 MB | enc | 173 ms | 298 ms | 222 ms |
-| 100 MB | dec | 147 ms | 323 ms | 244 ms |
-
-### ASCII Armor (-a)
-
-| Size | Op | age (Go) | rage (Rust) | age-sharp (C#) |
-|---|---|---:|---:|---:|
-| 1 KB | enc | 21 ms | 20 ms | 22 ms |
-| 1 KB | dec | 20 ms | 20 ms | 22 ms |
-| 64 KB | enc | 21 ms | 21 ms | 22 ms |
-| 64 KB | dec | 21 ms | 21 ms | 22 ms |
-| 1 MB | enc | 27 ms | 24 ms | 25 ms |
-| 1 MB | dec | 24 ms | 25 ms | 26 ms |
-| 10 MB | enc | 72 ms | 56 ms | 46 ms |
-| 10 MB | dec | 53 ms | 64 ms | 60 ms |
-| 100 MB | enc | 456 ms | 366 ms | 275 ms |
-| 100 MB | dec | 325 ms | 449 ms | 409 ms |
-
-### Key Takeaways
-
-- **Up to 1 MB**: All three implementations are within noise of each other
-  (~20-27 ms), dominated by process startup overhead.
-- **Binary 100 MB**: Go still leads at 147-173 ms thanks to assembly-optimized
-  ChaCha20-Poly1305. AgeSharp (222-244 ms) beats rage (298-323 ms) using
-  .NET's hardware-accelerated `ChaCha20Poly1305`.
-- **Armored 100 MB encrypt**: AgeSharp (275 ms) beats both rage (366 ms)
-  and Go (456 ms) — the push-encrypt path runs through `EncryptStream`
-  + `ArmorStream` without any intermediate buffer.
-- **Bounded memory**: all public push APIs (`Encrypt`, `Decrypt`,
-  `EncryptDetached`, `DecryptDetached`) stream chunk-by-chunk with pooled,
-  fixed-size scratch buffers — no per-chunk heap allocations. Memory stays
-  O(1) regardless of input size; a 1 GiB file uses the same working set
-  as a 1 MB file. This applies to the native ChaCha20-Poly1305 backend; the
-  managed BouncyCastle backend used automatically in the browser is ~2×
-  slower and allocates a small, constant amount per chunk.
-- **Startup**: The AOT-compiled AgeSharp binary starts in ~21 ms,
-  comparable to native Go and Rust binaries.
-
-### Versions
-
-| Tool | Version |
-|---|---|
-| age (Go) | v1.3.1 |
-| rage (Rust) | v0.11.1 |
-| age-sharp (C#) | main (AOT, .NET 10) |
+An earlier comparison of AgeSharp's command-line tool against `age` and `rage` was
+removed with the tool; it is in the git history.
 
 ## BenchmarkDotNet Microbenchmarks
 
@@ -148,9 +90,5 @@ chunk-based design.
 ## Reproducing
 
 ```sh
-# CLI comparison (requires age and rage installed)
-./scripts/bench_compare.sh
-
-# BenchmarkDotNet microbenchmarks
 make bench
 ```
