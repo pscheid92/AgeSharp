@@ -297,6 +297,22 @@ public class EncryptedSshKeyTests
         }
     }
 
+    // The public key is the only part read before the passphrase, and nothing ties it to the
+    // encrypted part: here an ECDSA key file presents an ed25519 public key. It is accepted as an
+    // ed25519 identity until it is unlocked, and refused then.
+    [Fact]
+    public void AnEd25519PublicKeyInFrontOfAnotherKindOfKey_IsRefusedOnceUnlocked()
+    {
+        var ecdsa = BlobOf(Key("ecdsa_aes256ctr"));
+        var ed25519 = BlobOf(Key("ed25519_aes256ctr"));
+        var spliced = ReplacePublicKey(ecdsa, PublicKeyField(ed25519));
+        using var identity = EncryptedSshIdentity.Parse(Pem(spliced), () => Passphrase);
+
+        var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(identity.Recipient), identity));
+
+        Assert.Contains("unsupported SSH key type", ex.Message);
+    }
+
     [Fact]
     public void APublicKeyThatIsNotThePrivateKeys_IsRefused()
     {
@@ -469,6 +485,21 @@ public class EncryptedSshKeyTests
         {
             return uint.MaxValue;
         }
+    }
+
+    // The public key field, length prefix included.
+    private static byte[] PublicKeyField(byte[] blob)
+    {
+        var offset = PublicKeyOffset(blob);
+        var length = (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(blob.AsSpan(offset));
+        return blob.AsSpan(offset, 4 + length).ToArray();
+    }
+
+    private static byte[] ReplacePublicKey(byte[] blob, byte[] field)
+    {
+        var offset = PublicKeyOffset(blob);
+        var oldLength = 4 + (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(blob.AsSpan(offset));
+        return [.. blob.AsSpan(0, offset), .. field, .. blob.AsSpan(offset + oldLength)];
     }
 
     private static int PublicKeyOffset(byte[] blob)
