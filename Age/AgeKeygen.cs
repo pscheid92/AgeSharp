@@ -84,7 +84,9 @@ public static class AgeKeygen
     /// unprotected key is parsed as by <see cref="ParseSshIdentity(string)"/> and never asks.
     /// </summary>
     /// <exception cref="FormatException">
-    /// The key is malformed, of another type, or protected in a way this library does not read.
+    /// The key is malformed, of another type, or protected in the legacy PEM way. A key
+    /// protected with a cipher or KDF this library does not read is accepted, and refused once
+    /// a file is addressed to it, before the passphrase is asked for.
     /// </exception>
     public static IIdentity ParseSshIdentity(string pemText, Func<string> passphrase)
     {

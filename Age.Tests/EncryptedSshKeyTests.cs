@@ -168,9 +168,11 @@ public class EncryptedSshKeyTests
     }
 
     [Fact]
-    public void ATruncatedKeyFile_IsAFormatException_WhereverItIsCut()
+    public void ATruncatedKeyFile_IsRefused_WhereverItIsCut()
     {
         var blob = BlobOf(Key("ed25519_aes256ctr"));
+        using var intact = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), NeverAsked);
+        var ciphertext = Encrypt(intact.Recipient);
 
         for (var length = 0; length < blob.Length; length++)
         {
@@ -181,8 +183,10 @@ public class EncryptedSshKeyTests
                 // Cut inside the encrypted section, the container still parses: the damage shows
                 // only once the passphrase is used, and then as a failed decryption.
                 using var identity = EncryptedSshIdentity.Parse(pem, () => Passphrase);
+                Decrypt(ciphertext, identity);
+                Assert.Fail($"a key file cut at {length} of {blob.Length} bytes decrypted");
             }
-            catch (FormatException)
+            catch (Exception ex) when (ex is FormatException or AgeException)
             {
             }
         }
@@ -247,7 +251,7 @@ public class EncryptedSshKeyTests
 
         var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(damaged.Recipient), damaged));
 
-        Assert.Matches(RefusedAsAnImpossibleRsaKey, ex.Message);
+        Assert.Matches("incorrect public exponent|unreadable SSH private key", ex.Message);
     }
 
     [Fact]
@@ -360,31 +364,63 @@ public class EncryptedSshKeyTests
         Assert.Contains("unsupported SSH key type", ex.Message);
     }
 
-    public static TheoryData<string, Func<byte[], byte[]>> MalformedContainers => new()
+    [Fact]
+    public void AKeyFileHoldingMoreThanOneKey_IsRefusedWhenRead()
     {
-        { "KDF", blob => Replace(blob, "bcrypt"u8, "scrypt"u8) },
-        { "exactly one key", blob => SetKeyCount(blob, 2) },
-        { "more than the maximum of 2048", blob => SetRounds(blob, 2049) },
-    };
-
-    [Theory]
-    [MemberData(nameof(MalformedContainers))]
-    public void AContainerItCannotRead_IsRefusedForWhatIsWrong(string what, Func<byte[], byte[]> damage)
-    {
-        var blob = damage(BlobOf(Key("ed25519_aes256ctr")));
+        var blob = SetKeyCount(BlobOf(Key("ed25519_aes256ctr")), 2);
 
         var ex = Assert.Throws<FormatException>(() => EncryptedSshIdentity.Parse(Pem(blob), NeverAsked));
 
-        Assert.Contains(what, ex.Message);
+        Assert.Contains("exactly one key", ex.Message);
+    }
+
+    // What this library cannot decrypt is said once a file is addressed to the key, before the
+    // passphrase is asked for, and not when the key file is read: as in go-age, a key that is
+    // never needed does not stop anything. "aes256-ctr" is ten bytes, as are its replacements.
+    public static TheoryData<string, Func<byte[], byte[]>> KeysThatCannotBeDecrypted => new()
+    {
+        { "unsupported SSH private key KDF", blob => Replace(blob, "bcrypt"u8, "scrypt"u8) },
+        { "more than the maximum of 2048", blob => SetRounds(blob, 2049) },
+        { "unsupported SSH private key cipher: aes999-ctr", blob => Replace(blob, "aes256-ctr"u8, "aes999-ctr"u8) },
+        { "unsupported SSH private key cipher: ?[2Jevil!!", blob => Replace(blob, "aes256-ctr"u8, "\u001b[2Jevil!!"u8) },
+    };
+
+    [Theory]
+    [MemberData(nameof(KeysThatCannotBeDecrypted))]
+    public void AKeyThatCannotBeDecrypted_IsReadButRefusedWhenAFileMatches_WithoutAsking(string because, Func<byte[], byte[]> change)
+    {
+        var blob = change(BlobOf(Key("ed25519_aes256ctr")));
+        using var identity = EncryptedSshIdentity.Parse(Pem(blob), NeverAsked);
+
+        var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(identity.Recipient), identity));
+
+        Assert.Contains(because, ex.Message);
+        Assert.DoesNotContain('\u001b', ex.Message);
+    }
+
+    [Fact]
+    public void AKeyThatCannotBeDecrypted_DoesNotStopAnotherIdentityFromDecrypting()
+    {
+        var overTheCap = SetRounds(BlobOf(Key("ed25519_aes256ctr")), 4096);
+        using var cannot = EncryptedSshIdentity.Parse(Pem(overTheCap), NeverAsked);
+        using var can = X25519Identity.Generate();
+        var ciphertext = Encrypt(can.Recipient);
+
+        using var output = new MemoryStream();
+        AgeEncrypt.Decrypt(new MemoryStream(ciphertext), output, cannot, can);
+
+        Assert.Equal(Plaintext, output.ToArray());
     }
 
     // In a browser SSH.NET cannot decrypt these, and the identity says so instead of asking for
-    // a passphrase it cannot use. Checked in Blazor WebAssembly by hand; here, only which is which.
+    // a passphrase it cannot use. Only what was checked there by hand is let through: ed25519
+    // keys with aes256-gcm or chacha20-poly1305. Here, only which is which.
     [Theory]
     [InlineData("ssh-ed25519", "aes128-ctr", true)]
-    [InlineData("ssh-ed25519", "aes192-ctr", true)]
     [InlineData("ssh-ed25519", "aes256-ctr", true)]
     [InlineData("ssh-ed25519", "aes256-cbc", true)]
+    [InlineData("ssh-ed25519", "3des-cbc", true)]
+    [InlineData("ssh-ed25519", "aes128-gcm@openssh.com", true)]
     [InlineData("ssh-ed25519", "aes256-gcm@openssh.com", false)]
     [InlineData("ssh-ed25519", "chacha20-poly1305@openssh.com", false)]
     [InlineData("ssh-rsa", "aes256-ctr", true)]

@@ -46,6 +46,9 @@ internal static class SshKeyParser
         if (dataType != keyType)
             throw new FormatException($"authorized_keys line says {keyType}, but its key data is {dataType ?? "another key type"}");
 
+        if (publicKey is RsaKeyParameters rsa)
+            CheckRsaPublicNumbers(rsa.Modulus, rsa.Exponent);
+
         return (keyType, wireBytes, publicKey);
     }
 
@@ -130,6 +133,25 @@ internal static class SshKeyParser
         return pemObject.Content;
     }
 
+    // Go's limits for RSA keys (x/crypto ssh/keys.go, parseRSA and the private-key parser): the
+    // modulus OpenSSH generates at most, and a public exponent that is small, odd and at least 3.
+    // With an exponent of 1, RSA-OAEP leaves the padded file key as it is, for anyone to unpad.
+    private const int MaxRsaModulusBits = 16384;
+    private const int MaxRsaPrimeBits = 8192;
+    private const int MaxRsaExponentBits = 24;
+
+    private static void CheckRsaPublicNumbers(BigInteger n, BigInteger e)
+    {
+        if (n.BitLength > MaxRsaModulusBits)
+            throw new FormatException("invalid ssh-rsa key: modulus too large");
+
+        if (e.BitLength > MaxRsaExponentBits)
+            throw new FormatException("invalid ssh-rsa key: public exponent too large");
+
+        if (e.CompareTo(BigInteger.Three) < 0 || !e.TestBit(0))
+            throw new FormatException("invalid ssh-rsa key: incorrect public exponent");
+    }
+
     /// <summary>An RSA key from its numbers, held to the same checks as one read from a file.</summary>
     /// <exception cref="FormatException">The numbers do not make an RSA key.</exception>
     public static (string keyType, byte[] publicWireBytes, AsymmetricKeyParameter privateKey) FromRsaNumbers(
@@ -176,6 +198,12 @@ internal static class SshKeyParser
     private static RsaPrivateCrtKeyParameters Sound(BigInteger n, BigInteger e, BigInteger d, BigInteger p, BigInteger q)
     {
         var one = BigInteger.One;
+
+        CheckRsaPublicNumbers(n, e);
+
+        // Go bounds the primes too, so a hostile key cannot make the CRT values costly to compute.
+        if (p.BitLength > MaxRsaPrimeBits || q.BitLength > MaxRsaPrimeBits)
+            throw new FormatException("invalid ssh-rsa private key: prime too large");
 
         if (p.CompareTo(one) <= 0 || q.CompareTo(one) <= 0 || d.SignValue <= 0 || !p.Multiply(q).Equals(n))
             throw new FormatException("invalid ssh-rsa private key: its parts do not belong together");

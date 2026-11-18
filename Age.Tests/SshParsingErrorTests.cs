@@ -101,6 +101,10 @@ public class SshParsingErrorTests
         { "second prime 1", key => With(key, Q, 1) },
         { "a prime of another key", key => With(key, Q, key[Q] + 2) },
         { "the same prime twice", key => With(key, Q, key[P]) },
+        // Consistent keys Go's ssh package still refuses (x/crypto ssh/keys.go): with a public
+        // exponent of 1, RSA leaves the padded file key as it is, readable without the key.
+        { "public exponent 1, private exponent 1", key => [key[N], 1, 1, key[Iqmp], key[P], key[Q]] },
+        { "public exponent over 24 bits", key => WithPublicExponentOver24Bits(key) },
         { "nothing at all", key => [0, 0, 0, 0, 0, 0] },
     };
 
@@ -142,6 +146,42 @@ public class SshParsingErrorTests
         AgeEncrypt.Decrypt(encrypted, decrypted, AgeKeygen.ParseSshIdentity(RsaKey(change)));
 
         Assert.Equal("plaintext"u8.ToArray(), decrypted.ToArray());
+    }
+
+    // The smallest odd exponent of 25 bits that has an inverse, with its private exponent.
+    private static System.Numerics.BigInteger[] WithPublicExponentOver24Bits(System.Numerics.BigInteger[] key)
+    {
+        var phi = (key[P] - 1) * (key[Q] - 1);
+        var e = (System.Numerics.BigInteger.One << 24) + 1;
+        while (System.Numerics.BigInteger.GreatestCommonDivisor(e, phi) != 1)
+            e += 2;
+
+        var d = new Org.BouncyCastle.Math.BigInteger(e.ToString()).ModInverse(new Org.BouncyCastle.Math.BigInteger(phi.ToString()));
+        return [key[N], e, System.Numerics.BigInteger.Parse(d.ToString()), key[Iqmp], key[P], key[Q]];
+    }
+
+    public static TheoryData<string, uint> ForbiddenRsaPublicExponents => new()
+    {
+        { "exponent 1", 1 },
+        { "exponent even", 65538 },
+        { "exponent over 24 bits", (1u << 24) + 1 },
+    };
+
+    /// <summary>
+    /// The public exponents Go's ssh package refuses in a public key, refused in a recipient too.
+    /// The line is built by hand: BouncyCastle would not encode some of these.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ForbiddenRsaPublicExponents))]
+    public void ParseSshRecipient_RsaWithAForbiddenExponent_ThrowsFormatException(string why, uint exponent)
+    {
+        _ = why;
+        var modulus = ((RsaKeyParameters)Rsa2048.Public).Modulus.ToByteArray();
+        byte[] wire = [.. Field("ssh-rsa"u8.ToArray()), .. Field(Mpint(exponent)), .. Field(modulus)];
+
+        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseSshRecipient($"ssh-rsa {Convert.ToBase64String(wire)}"));
+
+        Assert.Contains("exponent", ex.Message);
     }
 
     private static System.Numerics.BigInteger[] With(System.Numerics.BigInteger[] key, int field, System.Numerics.BigInteger value)

@@ -31,14 +31,25 @@ internal sealed class ProtectedOpenSshKey
 
     private static ReadOnlySpan<byte> Magic => "openssh-key-v1\0"u8;
 
+    // The ciphers SSH.NET decrypts OpenSSH keys with.
+    private static readonly HashSet<string> Ciphers =
+    [
+        "aes128-ctr", "aes192-ctr", "aes256-ctr",
+        "aes128-cbc", "aes192-cbc", "aes256-cbc",
+        "aes128-gcm@openssh.com", "aes256-gcm@openssh.com",
+        "chacha20-poly1305@openssh.com", "3des-cbc",
+    ];
+
     private readonly byte[] _blob;
     private readonly string _cipher;
+    private readonly string? _whyItCannotBeDecrypted;
 
-    private ProtectedOpenSshKey(byte[] blob, string cipher, byte[] publicKey)
+    private ProtectedOpenSshKey(byte[] blob, string cipher, byte[] publicKey, string? whyItCannotBeDecrypted)
     {
         _blob = blob;
         _cipher = cipher;
         PublicKey = publicKey;
+        _whyItCannotBeDecrypted = whyItCannotBeDecrypted;
     }
 
     /// <summary>The public key in SSH wire format, readable without the passphrase.</summary>
@@ -61,10 +72,7 @@ internal sealed class ProtectedOpenSshKey
     }
 
     /// <summary>Reads the container, without decrypting anything.</summary>
-    /// <exception cref="FormatException">
-    /// The blob is malformed, is not passphrase-protected, or uses a KDF this library does not
-    /// read or more bcrypt rounds than it will spend.
-    /// </exception>
+    /// <exception cref="FormatException">The blob is malformed or not passphrase-protected.</exception>
     public static ProtectedOpenSshKey Parse(ReadOnlySpan<byte> blob)
     {
         if (!blob.StartsWith(Magic))
@@ -81,40 +89,63 @@ internal sealed class ProtectedOpenSshKey
         if (cipherName.SequenceEqual("none"u8))
             throw new FormatException("the SSH private key is not passphrase-protected");
 
-        if (!kdfName.SequenceEqual("bcrypt"u8))
-            throw new FormatException($"unsupported SSH private key KDF: {Printable(kdfName)}");
-
         if (keyCount != 1)
             throw new FormatException($"an OpenSSH private key file must hold exactly one key, got {keyCount}");
 
-        var salt = ReadString(ref kdfOptions);
-        var rounds = ReadUInt32(ref kdfOptions);
-
-        if (salt.IsEmpty || rounds == 0 || !kdfOptions.IsEmpty)
-            throw new FormatException("invalid OpenSSH private key: malformed bcrypt options");
-
-        if (rounds > MaxRounds)
-            throw new FormatException($"SSH private key asks for {rounds} bcrypt rounds, more than the maximum of {MaxRounds}");
-
-        return new ProtectedOpenSshKey(blob.ToArray(), Printable(cipherName), publicKey.ToArray());
+        var cipher = Printable(cipherName);
+        return new ProtectedOpenSshKey(blob.ToArray(), cipher, publicKey.ToArray(), WhyItCannotBeDecrypted(cipher, kdfName, kdfOptions));
     }
 
     /// <summary>
-    /// Why this key cannot be decrypted on this platform, or null if it can. Asked before the
-    /// passphrase is, so nobody types one that cannot be used.
+    /// Why this library cannot decrypt a key protected like this, or null if it can: the
+    /// cipher, the KDF and its round count, all readable without the passphrase.
+    /// </summary>
+    /// <remarks>
+    /// Kept for when a file is addressed to the key rather than thrown when the key file is
+    /// read: as in go-age, a key that is never needed does not stop anything.
+    /// </remarks>
+    private static string? WhyItCannotBeDecrypted(string cipher, ReadOnlySpan<byte> kdfName, ReadOnlySpan<byte> kdfOptions)
+    {
+        if (!kdfName.SequenceEqual("bcrypt"u8))
+            return $"unsupported SSH private key KDF: {Printable(kdfName)}";
+
+        if (!Ciphers.Contains(cipher))
+            return $"unsupported SSH private key cipher: {cipher}";
+
+        try
+        {
+            var salt = ReadString(ref kdfOptions);
+            var rounds = ReadUInt32(ref kdfOptions);
+
+            if (salt.IsEmpty || rounds == 0 || !kdfOptions.IsEmpty)
+                return "invalid OpenSSH private key: malformed bcrypt options";
+
+            return rounds > MaxRounds
+                ? $"SSH private key asks for {rounds} bcrypt rounds, more than the maximum of {MaxRounds}"
+                : null;
+        }
+        catch (FormatException)
+        {
+            return "invalid OpenSSH private key: malformed bcrypt options";
+        }
+    }
+
+    /// <summary>
+    /// Why this key cannot be decrypted here, or null if it can. Asked before the passphrase is,
+    /// so nobody types one that cannot be used.
     /// </summary>
     public string? WhyItCannotBeDecryptedHere() =>
-        OperatingSystem.IsBrowser() ? WhyItCannotBeDecryptedInTheBrowser(SshKeyParser.KeyTypeOfWireBytes(PublicKey), _cipher) : null;
+        _whyItCannotBeDecrypted
+        ?? (OperatingSystem.IsBrowser() ? WhyItCannotBeDecryptedInTheBrowser(SshKeyParser.KeyTypeOfWireBytes(PublicKey), _cipher) : null);
 
     /// <summary>
     /// Why a protected key of this type and cipher cannot be decrypted in the browser, or null
     /// if it can.
     /// </summary>
     /// <remarks>
-    /// SSH.NET builds every RSA key it decrypts as a platform RSA object, which a browser does
-    /// not have, whatever the cipher. It decrypts AES-CTR and AES-CBC with the platform's AES,
-    /// which a browser does not have either; its AES-GCM and ChaCha20-Poly1305 are
-    /// BouncyCastle's and run anywhere. AES-CTR is what ssh-keygen protects keys with by default.
+    /// A browser has no platform AES, 3DES or RSA, and SSH.NET uses them: for AES-CTR and
+    /// AES-CBC, for 3DES, and for every RSA key it decrypts. Its AES-GCM and ChaCha20-Poly1305
+    /// are BouncyCastle's. Only what was checked in Blazor WebAssembly is let through.
     /// </remarks>
     internal static string? WhyItCannotBeDecryptedInTheBrowser(string keyType, string cipher)
     {
@@ -122,11 +153,10 @@ internal sealed class ProtectedOpenSshKey
             return "passphrase-protected ssh-rsa keys cannot be decrypted in the browser; " +
                    "use an ssh-ed25519 key protected with aes256-gcm@openssh.com";
 
-        if (cipher.StartsWith("aes", StringComparison.Ordinal) && !cipher.Contains("gcm", StringComparison.Ordinal))
-            return $"SSH keys protected with {cipher} cannot be decrypted in the browser; " +
-                   "re-protect a copy with ssh-keygen -p -Z aes256-gcm@openssh.com";
-
-        return null;
+        return cipher is "aes256-gcm@openssh.com" or "chacha20-poly1305@openssh.com"
+            ? null
+            : $"SSH keys protected with {cipher} cannot be decrypted in the browser; " +
+              "re-protect a copy with ssh-keygen -p -Z aes256-gcm@openssh.com";
     }
 
     /// <summary>Decrypts the private key.</summary>
@@ -138,6 +168,9 @@ internal sealed class ProtectedOpenSshKey
     /// </exception>
     public (string keyType, byte[] publicWireBytes, AsymmetricKeyParameter privateKey) Unprotect(string passphrase)
     {
+        if (WhyItCannotBeDecryptedHere() is { } reason)
+            throw new FormatException(reason);
+
         if (passphrase.Length == 0)
             throw new CryptographicException("incorrect passphrase");
 
@@ -156,7 +189,8 @@ internal sealed class ProtectedOpenSshKey
         {
             // The key file is untrusted input, and SSH.NET reports what it cannot read with
             // whatever it hit — arithmetic errors among them.
-            throw new FormatException($"unreadable SSH private key: {ex.Message}", ex);
+            // Its messages can carry text from the key file, which could reach a terminal.
+            throw new FormatException($"unreadable SSH private key: {Printable(ex.Message, int.MaxValue)}", ex);
         }
 
         using (file)
@@ -185,6 +219,9 @@ internal sealed class ProtectedOpenSshKey
         finally
         {
             CryptographicOperations.ZeroMemory(seed);
+
+            // SSH.NET hands out the array it holds the seed in, and does not clear it itself.
+            CryptographicOperations.ZeroMemory(key.PrivateKey);
         }
     }
 
@@ -220,6 +257,8 @@ internal sealed class ProtectedOpenSshKey
     }
 
     // The name comes from the file and ends up in an error message, possibly on a terminal.
-    private static string Printable(ReadOnlySpan<byte> name) =>
-        string.Concat(Encoding.ASCII.GetString(name).Take(64).Select(c => c is >= ' ' and <= '~' ? c : '?'));
+    private static string Printable(ReadOnlySpan<byte> name) => Printable(Encoding.ASCII.GetString(name), 64);
+
+    private static string Printable(string text, int maxLength) =>
+        string.Concat(text.Take(maxLength).Select(c => c is >= ' ' and <= '~' ? c : '?'));
 }

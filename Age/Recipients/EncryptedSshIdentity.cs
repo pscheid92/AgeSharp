@@ -39,8 +39,10 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
     /// <paramref name="passphrase"/> is not called here, but later, by <see cref="Unwrap"/>.
     /// </summary>
     /// <exception cref="FormatException">
-    /// The text is not a passphrase-protected ssh-ed25519 or ssh-rsa key in OpenSSH format, or
-    /// it uses a cipher or KDF this library does not read.
+    /// The text is not a passphrase-protected ssh-ed25519 or ssh-rsa key in OpenSSH format. A
+    /// key protected with a cipher or KDF this library does not read is accepted here, and
+    /// refused by <see cref="Unwrap"/> once a file is addressed to it, before the passphrase
+    /// is asked for.
     /// </exception>
     public static EncryptedSshIdentity Parse(string pemText, Func<string> passphrase)
     {
@@ -62,8 +64,9 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
     /// </summary>
     /// <exception cref="AgeHeaderException">The stanza is addressed to this key but is malformed.</exception>
     /// <exception cref="AgeException">
-    /// The passphrase is wrong, could not be obtained, or the key file's public and private
-    /// keys do not belong together.
+    /// The key cannot be decrypted here (its cipher, KDF or round count, or a browser
+    /// limitation; said before the passphrase is asked for), the passphrase is wrong or could
+    /// not be obtained, or the key file's public and private keys do not belong together.
     /// </exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public byte[]? Unwrap(Stanza stanza)
