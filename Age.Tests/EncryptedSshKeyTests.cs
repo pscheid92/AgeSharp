@@ -219,12 +219,16 @@ public class EncryptedSshKeyTests
         var whenProtected = Assert.Throws<AgeException>(() => Decrypt(Encrypt(damaged.Recipient), damaged));
 
         Assert.Contains("do not belong together", whenPlain.Message);
-        Assert.Contains("do not belong together", whenProtected.Message);
+        Assert.Matches(RefusedAsAnImpossibleRsaKey, whenProtected.Message);
     }
+
+    // Which check refuses a protected RSA key whose numbers cannot be a key depends on the
+    // platform: on Linux and Windows (seen in CI) SSH.NET refuses it first; on macOS it does
+    // not, and AgeSharp's own check does.
+    private const string RefusedAsAnImpossibleRsaKey = "do not belong together|unreadable SSH private key";
 
     // Under CTR anyone can flip a chosen bit of the key without the passphrase. This one is the
     // lowest bit of the public exponent, which the private section repeats after the modulus.
-    // SSH.NET takes the even exponent as it comes.
     [Fact]
     public void AnRsaKeyWithItsPublicExponentMadeEven_IsRefusedAsAnAgeError()
     {
@@ -242,7 +246,7 @@ public class EncryptedSshKeyTests
 
         var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(damaged.Recipient), damaged));
 
-        Assert.Contains("do not belong together", ex.Message);
+        Assert.Matches(RefusedAsAnImpossibleRsaKey, ex.Message);
     }
 
     [Fact]
