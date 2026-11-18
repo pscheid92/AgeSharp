@@ -15,8 +15,10 @@ with the reference [Go implementation](https://github.com/FiloSottile/age) and
 other age-compatible tools.
 
 It depends on [BouncyCastle.Cryptography](https://www.nuget.org/packages/BouncyCastle.Cryptography)
-and, to decrypt passphrase-protected SSH keys, [SSH.NET](https://www.nuget.org/packages/SSH.NET).
-It targets .NET 10.
+(2.7.0 or later) and, to decrypt passphrase-protected SSH keys,
+[SSH.NET](https://www.nuget.org/packages/SSH.NET). It targets .NET 10. A project
+that pins an older BouncyCastle gets a NU1605 (package downgrade) error on restore
+and needs to raise its pin to 2.7.0.
 
 ## Features
 

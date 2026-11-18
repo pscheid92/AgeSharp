@@ -12,7 +12,7 @@ AgeSharp package may lag `main`; check the release notes for what a given versio
 | Scrypt/passphrase | ✅ | ✅ | ✅ | |
 | SSH-Ed25519 | ✅ | ✅ | ✅ | |
 | SSH-RSA | ✅ | ✅ | ✅ | |
-| Passphrase-protected SSH keys | ✅ | ✅ | ✅ | AgeSharp: OpenSSH format only, decrypted with SSH.NET; Go also reads legacy encrypted PEM |
+| Passphrase-protected SSH keys | ✅ | ✅ | ✅ | Go reads OpenSSH keys protected with aes256-ctr or aes256-cbc, and legacy encrypted PEM (with the `.pub` file); AgeSharp reads OpenSSH keys with AES-CTR, AES-CBC, AES-GCM, ChaCha20-Poly1305 or 3DES, not legacy PEM |
 | ML-KEM-768-X25519 (`age1pq1…`) | ✅ | ❌ | ✅ | In rage this is an open draft PR |
 | Tagged P-256 (`age1tag1…`) | ✅ | ✅ | ❌ | Encryption only in Go and rage; decryption is a plugin's job |
 | Tagged P-256 + ML-KEM-768 (`age1tagpq1…`) | ✅ | ✅ | ❌ | As above |
@@ -49,7 +49,7 @@ with `age-plugin-tag` / `age-plugin-tagpq` installed.
 | Adjustable scrypt maximum work factor | ✅ | ✅ | ❌ | Fixed at 22 in AgeSharp |
 | Per-identity errors on no match | ✅ | ❌ | ❌ | |
 | Async encrypt/decrypt | ❌ | ✅ | ❌ | AgeSharp's streams support async reads; `AgeEncrypt` has no async entry points |
-| Browser / WebAssembly | ❌ | ❌ | ✅ | Managed ChaCha20-Poly1305 backend under Blazor WASM |
+| Browser / WebAssembly | — | ✅ | ✅ | rage's `age` crate builds for `wasm32-unknown-unknown`; AgeSharp runs under Blazor WebAssembly with a managed ChaCha20-Poly1305 backend, but of protected SSH keys only ed25519 with AES-GCM or ChaCha20-Poly1305. Not a stated target for Go |
 
 ## CLI
 
@@ -70,8 +70,8 @@ with `age-plugin-tag` / `age-plugin-tagpq` installed.
 
 AgeSharp covers the six standard recipient types, the plugin client protocol, and Go's
 v1.3 library additions: detached headers, pull-based streams, random-access decryption and
-`inspect`. It is the only one of the three that runs in the browser, and it has native
-post-quantum support, which rage does not.
+`inspect`. Like rage's library it runs in the browser, and it has native post-quantum
+support, which rage does not.
 
 It trails both Go and rage on tagged recipients, `-j` and
 support for writing plugins. It trails Go on file-key extraction and the finer-grained
