@@ -89,9 +89,11 @@ X25519 is the fastest at ~85 us. ML-KEM hybrid adds ~50-100% overhead
 slow (~1.8 ms) due to the password-hashing work factor.
 
 The tagged recipients are encryption-only, so only Wrap is measured. They cost about
-3× an X25519 Wrap and allocate 35–40× as much: the P-256 arithmetic is BouncyCastle's
-managed implementation, and the recipient key is decoded again on every Wrap. Where the
-time goes has not been profiled; caching the decoded key is on the TODO list. It is paid once
+3× an X25519 Wrap and allocate 35–40× as much. Nearly all of it (~97%) is the two P-256
+scalar multiplications in BouncyCastle's managed code: the ephemeral key (~90 us) and the
+exchange with the recipient's point (~160 us). Decoding the recipient key again on every
+Wrap costs about 2 us for the point and 3 us for the ML-KEM key, so caching it would save
+~3%. .NET's own P-256 is no faster on macOS (~465 us per exchange measured here). The cost is paid once
 per recipient per file: it dominates a small file (an X25519 encrypt of 1 KB takes
 ~100 us in all) and disappears behind the payload from a few megabytes on.
 

@@ -33,8 +33,9 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 - [ ] One injectable random source for the KEMs, instead of the encapsulation overloads that exist for the known-answer vectors
 - [ ] One ML-KEM-768 encapsulation-key type shared by X-Wing and MLKEM768-P256 (decoding is repeated four times), and one hybrid combiner taking its label
 - [ ] Naming: `XWing.KemId` / `DhKemP256.Id`, `Encaps` / `Encapsulate`, `PointSize` / `CompressedPointSize`; `HpkeHelper.SealBase` no longer has RFC 9180's shape
-- [ ] Cache decoded keys per recipient instead of re-decoding on every `Wrap`
+- [x] ~~Cache decoded keys per recipient instead of re-decoding on every `Wrap`~~ — dropped: measured 2026-11-19, decoding is ~3% of a Wrap; the two P-256 multiplications in BouncyCastle are ~97%. A cached BouncyCastle `ECPoint` would also carry its precomputation tables, shared mutable state behind a class documented as safe to share
 - [ ] Constant-time P-256 for the recipient-point multiplication (BouncyCastle 2.7.0 has no ladder multiplier)
+  - The platform's `ECDiffieHellman`, with BouncyCastle kept for the browser, would give constant time and is the only real speed lever; but on macOS it measured ~465 us per exchange, about twice BouncyCastle's. Measure Linux and Windows before deciding
 - [x] Release notes: `age1tag1…`/`age1tagpq1…` lines in a recipients file are now native recipients, no longer plugin recipients, and malformed ones fail when the file is parsed — in the preview.6 notes
 
 ## API (breaking — fold into the rebuild)
