@@ -15,7 +15,7 @@ namespace Age.Recipients;
 /// computed over the P-256 point only, so the hardware can recognise it without its ML-KEM key. That
 /// tag makes files encrypted to the same key linkable by anyone who knows that key.
 /// </remarks>
-public sealed class MlKem768P256TagRecipient : IRecipient
+public sealed class MlKem768P256TagRecipient : IRecipientWithLabels
 {
     private const string Hrp = "age1tagpq";
 
@@ -24,11 +24,7 @@ public sealed class MlKem768P256TagRecipient : IRecipient
     private MlKem768P256TagRecipient(byte[] publicKey) =>
         _publicKey = publicKey;
 
-    /// <summary>
-    /// The <c>postquantum</c> security label: prevents mixing this recipient with classical
-    /// recipients, which would silently void the post-quantum guarantee.
-    /// </summary>
-    public string Label => "postquantum";
+    private static readonly IReadOnlyCollection<string> PostQuantumLabels = Array.AsReadOnly(["postquantum"]);
 
     /// <summary>Parses a Bech32-encoded recipient (<c>age1tagpq1…</c>, lowercase).</summary>
     /// <exception cref="FormatException">The string is not a valid tagged post-quantum recipient.</exception>
@@ -50,8 +46,19 @@ public sealed class MlKem768P256TagRecipient : IRecipient
     public override string ToString() =>
         Bech32.Encode(Hrp, _publicKey);
 
+    /// <summary>
+    /// Wraps the file key, with the <c>postquantum</c> label: a file encrypted to this
+    /// recipient cannot also be encrypted to a classical one, which would void the
+    /// post-quantum guarantee.
+    /// </summary>
+    public LabelledStanzas WrapWithLabels(ReadOnlySpan<byte> fileKey) =>
+        new([WrapOne(fileKey)], PostQuantumLabels);
+
     /// <summary>Wraps the file key in an <c>mlkem768p256tag</c> stanza.</summary>
-    public Stanza Wrap(ReadOnlySpan<byte> fileKey) =>
+    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey) =>
+        WrapWithLabels(fileKey).Stanzas;
+
+    private Stanza WrapOne(ReadOnlySpan<byte> fileKey) =>
         TaggedStanza.Wrap(AgeProtocol.MlKem768P256TagStanzaType, MlKem768P256.KemId, AgeProtocol.MlKem768P256TagHpkeInfo,
             MlKem768P256.Encapsulate(_publicKey, new SecureRandom()), _publicKey.AsSpan(MlKem768P256.PointOffset), fileKey);
 }

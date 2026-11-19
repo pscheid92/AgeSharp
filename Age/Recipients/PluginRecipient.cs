@@ -17,52 +17,20 @@ namespace Age.Recipients;
 /// requests are answered with failure per the plugin protocol.
 /// </param>
 public sealed class PluginRecipient(string recipient, IPluginCallbacks? callbacks = null)
-    : IRecipient, IMultiStanzaRecipient
+    : IRecipient
 {
     internal string PluginName { get; } =
         ExtractPluginName(recipient);
 
-    /// <summary>Plugin recipients declare no security label.</summary>
-    public string? Label =>
-        null;
-
-
     /// <summary>
-    /// Wraps the file key by running the plugin binary (recipient-v1 protocol).
+    /// Wraps the file key by running the plugin binary (recipient-v1 protocol). A plugin may
+    /// answer with several stanzas; every one is returned.
     /// </summary>
-    /// <remarks>
-    ///     A plugin is permitted to answer with several stanzas. This returns a single one and so
-    ///     cannot represent that, and silently dropping the rest would destroy the file key beyond
-    ///     recovery — so it throws instead. The library itself does not go through here: it uses
-    ///     the multi-stanza path and keeps every stanza.
-    /// </remarks>
-    /// <exception cref="AgePluginException">The plugin failed, or produced more than one stanza.</exception>
-    public Stanza Wrap(ReadOnlySpan<byte> fileKey)
-    {
-        using var conn = new PluginConnection(PluginName, "recipient-v1");
-        var stanzas = WrapAllWithConnection(conn, fileKey);
-
-        return stanzas.Count == 1
-            ? stanzas[0]
-            : throw new AgePluginException(
-                $"plugin '{PluginName}' produced {stanzas.Count} recipient stanzas, which a single " +
-                "Stanza cannot carry; encrypt through Age instead of calling Wrap directly");
-    }
-
-    IReadOnlyList<Stanza> IMultiStanzaRecipient.WrapAll(ReadOnlySpan<byte> fileKey)
+    /// <exception cref="AgePluginException">The plugin failed.</exception>
+    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
     {
         using var conn = new PluginConnection(PluginName, "recipient-v1");
         return WrapAllWithConnection(conn, fileKey);
-    }
-
-    internal Stanza WrapWithConnection(PluginConnection conn, ReadOnlySpan<byte> fileKey)
-    {
-        var stanzas = WrapAllWithConnection(conn, fileKey);
-
-        return stanzas.Count == 1
-            ? stanzas[0]
-            : throw new AgePluginException(
-                $"plugin '{PluginName}' produced {stanzas.Count} recipient stanzas");
     }
 
     internal IReadOnlyList<Stanza> WrapAllWithConnection(PluginConnection conn, ReadOnlySpan<byte> fileKey)
@@ -87,9 +55,10 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
             CryptographicOperations.ZeroMemory(fileKeyCopy);
         }
 
-        // No "extension-labels": advertising it promises we act on the plugin's "labels" reply, and
-        // IRecipient.Label cannot hold a label set. Staying silent stops a conforming plugin from
-        // sending one, rather than having us discard a constraint it relies on.
+        // No "extension-labels": advertising it promises we act on the plugin's "labels" reply,
+        // and this recipient does not pass labels on yet (IRecipientWithLabels could). Staying
+        // silent stops a conforming plugin from sending them, rather than having us discard a
+        // constraint it relies on.
         conn.WriteStanza("done", [], []);
     }
 

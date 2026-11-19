@@ -85,10 +85,10 @@ public class PluginTests
     }
 
     [Fact]
-    public void PluginRecipient_Label_IsNull()
+    public void PluginRecipient_CarriesNoLabels()
     {
         var recipient = new PluginRecipient(MakePluginRecipient("yubikey"));
-        Assert.Null(recipient.Label);
+        Assert.IsNotAssignableFrom<IRecipientWithLabels>(recipient);
     }
 
     [Fact]
@@ -300,7 +300,7 @@ public class PluginTests
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
 
-        var result = recipient.WrapWithConnection(conn, fileKey);
+        var result = Assert.Single(recipient.WrapAllWithConnection(conn, fileKey));
 
         Assert.Equal("X25519", result.Type);
         Assert.Equal(["ephemeral-key-b64"], result.Args);
@@ -331,7 +331,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginOutput.ToString()), capturedOutput);
-        recipient.WrapWithConnection(conn, new byte[16]);
+        recipient.WrapAllWithConnection(conn, new byte[16]);
 
         var sent = capturedOutput.ToString();
         Assert.DoesNotContain("extension-labels", sent);
@@ -353,7 +353,7 @@ public class PluginTests
 
         var clientOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), clientOutput);
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
         Assert.Contains("something went wrong", ex.Message);
 
         // Acknowledged before failing, as the spec requires and go-age does.
@@ -376,7 +376,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        var result = recipient.WrapWithConnection(conn, new byte[16]);
+        var result = Assert.Single(recipient.WrapAllWithConnection(conn, new byte[16]));
 
         Assert.Equal("X25519", result.Type);
         // Should have sent "unsupported" for the grease stanza
@@ -398,7 +398,7 @@ public class PluginTests
         var pluginResponse = pluginOutput.ToString();
 
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        recipient.WrapWithConnection(conn, new byte[16]);
+        recipient.WrapAllWithConnection(conn, new byte[16]);
 
         Assert.Single(callbacks.Messages);
         Assert.Equal("Touch your YubiKey", callbacks.Messages[0]);
@@ -420,7 +420,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapWithConnection(conn, new byte[16]);
+        recipient.WrapAllWithConnection(conn, new byte[16]);
 
         Assert.Single(callbacks.SecretRequests);
         Assert.Equal("Enter PIN:", callbacks.SecretRequests[0].Prompt);
@@ -444,7 +444,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapWithConnection(conn, new byte[16]);
+        recipient.WrapAllWithConnection(conn, new byte[16]);
 
         Assert.Contains("-> fail", capturedOutput.ToString());
     }
@@ -465,7 +465,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapWithConnection(conn, new byte[16]);
+        recipient.WrapAllWithConnection(conn, new byte[16]);
 
         Assert.Single(callbacks.SecretRequests);
         Assert.Equal("Enter your name:", callbacks.SecretRequests[0].Prompt);
@@ -488,7 +488,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapWithConnection(conn, new byte[16]);
+        recipient.WrapAllWithConnection(conn, new byte[16]);
 
         Assert.Contains("-> fail", capturedOutput.ToString());
     }
@@ -505,7 +505,7 @@ public class PluginTests
         var pluginResponse = pluginOutput.ToString();
 
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
         Assert.Contains("without producing a recipient stanza", ex.Message);
     }
 
@@ -860,15 +860,15 @@ public class PluginTests
         for (int i = 0; i < 16; i++) fileKey[i] = (byte)i;
 
         // Create a stanza that matches this identity
-        var stanza = identity.Recipient.Wrap(fileKey);
+        var stanza = identity.Recipient.WrapSingle(fileKey);
 
         // Create a non-matching stanza
         using var other = X25519Identity.Generate();
-        var otherStanza = other.Recipient.Wrap(fileKey);
+        var otherStanza = other.Recipient.WrapSingle(fileKey);
 
         // Batch unwrap with the matching stanza second (cast to IIdentity for default method)
         var stanzas = new List<Stanza> { otherStanza, stanza };
-        var result = ((IIdentity)identity).Unwrap(stanzas);
+        var result = ((IIdentity)identity).UnwrapOrNull(stanzas);
         Assert.NotNull(result);
         Assert.Equal(fileKey, result);
     }
@@ -878,9 +878,9 @@ public class PluginTests
     {
         using var identity = X25519Identity.Generate();
         using var other = X25519Identity.Generate();
-        var stanza = other.Recipient.Wrap(new byte[16]);
+        var stanza = other.Recipient.WrapSingle(new byte[16]);
 
-        var result = ((IIdentity)identity).Unwrap(new List<Stanza> { stanza });
+        var result = ((IIdentity)identity).UnwrapOrNull(new List<Stanza> { stanza });
         Assert.Null(result);
     }
 
@@ -936,7 +936,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapWithConnection(conn, new byte[16]);
+        recipient.WrapAllWithConnection(conn, new byte[16]);
 
         Assert.Single(callbacks.Confirmations);
         Assert.Equal("Allow access?", callbacks.Confirmations[0].Message);
@@ -961,7 +961,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapWithConnection(conn, new byte[16]);
+        recipient.WrapAllWithConnection(conn, new byte[16]);
 
         Assert.Contains("-> ok no", capturedOutput.ToString());
         Assert.DoesNotContain("-> fail", capturedOutput.ToString());
@@ -988,7 +988,7 @@ public class PluginTests
 
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
 
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
         Assert.Contains("malformed confirm stanza", ex.Message);
         Assert.Empty(callbacks.Confirmations);
     }
@@ -1006,7 +1006,7 @@ public class PluginTests
         var pluginResponse = pluginOutput.ToString();
 
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
         Assert.Contains("not valid unpadded base64", ex.Message);
     }
 
@@ -1025,7 +1025,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapWithConnection(conn, new byte[16]);
+        recipient.WrapAllWithConnection(conn, new byte[16]);
 
         Assert.Contains("-> fail", capturedOutput.ToString());
     }
@@ -1100,7 +1100,7 @@ public class PluginTests
         var pluginResponse = pluginOutput.ToString();
 
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
         Assert.Contains("missing file index or type", ex.Message);
     }
 
@@ -1112,7 +1112,7 @@ public class PluginTests
 
         // Empty plugin output — EOF immediately
         var conn = new PluginConnection(new StringReader(""), new StringWriter());
-        Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
+        Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
     }
 
     [Fact]
@@ -1130,7 +1130,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        var result = recipient.WrapWithConnection(conn, new byte[16]);
+        var result = Assert.Single(recipient.WrapAllWithConnection(conn, new byte[16]));
 
         Assert.Equal("X25519", result.Type);
         Assert.Contains("-> fail", capturedOutput.ToString());

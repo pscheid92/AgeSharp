@@ -46,7 +46,10 @@ public sealed class X25519Recipient : IRecipient
         Bech32.Encode(Hrp, _publicKey.GetEncoded());
 
     /// <summary>Wraps the file key for this recipient using ephemeral X25519 + ChaCha20-Poly1305.</summary>
-    public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey) =>
+        [WrapOne(fileKey)];
+
+    private Stanza WrapOne(ReadOnlySpan<byte> fileKey)
     {
         var ephemeral = new X25519PrivateKeyParameters(new SecureRandom());
         var ephPubBytes = ephemeral.GeneratePublicKey().GetEncoded();

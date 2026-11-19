@@ -12,22 +12,26 @@ namespace Age.Tests;
 /// </summary>
 public class BackportEdgeCaseTests
 {
-    // A custom or plugin identity is caller-supplied code and can hand back anything. Accepting a
-    // wrong-sized key would derive garbage rather than fail, so the guard runs before the header
-    // MAC is verified and must clear the key on the way out (S9).
-    private sealed class WrongSizedKeyIdentity : IIdentity
+    // An identity writes into a 16-byte buffer the library supplies, so it can no longer hand
+    // back a key of the wrong size. What it can still do is fill the buffer only partly and claim
+    // success: that key derives the wrong header key, and the MAC refuses it.
+    private sealed class PartialKeyIdentity : IIdentity
     {
-        public byte[]? Unwrap(Stanza stanza) => new byte[15];
+        public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
+        {
+            fileKey[..15].Fill(0xAB);
+            return true;
+        }
     }
 
     // age-plugin.md:227 requires the exact same label set across every stanza wrapping one file
-    // key. Wrap throws, so these also prove the check runs before any wrapping happens.
-    private sealed class LabelledRecipient(string? label) : IRecipient
+    // key. Labels come out of the wrap, as in go-age, so each of these wraps first.
+    private sealed class LabelledRecipient(string? label) : IRecipientWithLabels
     {
-        public string? Label => label;
+        public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey) => WrapWithLabels(fileKey).Stanzas;
 
-        public Stanza Wrap(ReadOnlySpan<byte> fileKey) =>
-            throw new NotSupportedException("label check should have rejected this first");
+        public LabelledStanzas WrapWithLabels(ReadOnlySpan<byte> fileKey) =>
+            new([new Stanza("test", [], [])], label is null ? [] : [label]);
     }
 
     [Theory]
@@ -76,21 +80,33 @@ public class BackportEdgeCaseTests
         key.Dispose(); // idempotent
     }
 
-    [Fact]
-    public void FileKey_AdoptZeroesWhatItRejects()
+    // AgeSharp's own identities recover the key into an array first and hand it over. A key of
+    // the wrong size (a plugin's file-key reply, say) is refused, and refusing it must not mean
+    // abandoning it: the array is zeroed either way (S9).
+    [Theory]
+    [InlineData(15, 16)]
+    [InlineData(16, 15)]
+    public void FileKey_DeliverZeroesWhatItRefuses(int recoveredSize, int bufferSize)
     {
-        var wrongSized = new byte[15];
-        Array.Fill(wrongSized, (byte)0xAB);
+        var recovered = Enumerable.Repeat((byte)0xAB, recoveredSize).ToArray();
 
-        Assert.Throws<AgeHeaderException>(() => FileKey.Adopt(wrongSized));
-
-        // The rejected array came from caller-supplied identity code and still held key
-        // material; refusing it must not mean abandoning it.
-        Assert.DoesNotContain(wrongSized, b => b != 0);
+        Assert.ThrowsAny<Exception>(() => FileKey.Deliver(recovered, new byte[bufferSize]));
+        Assert.DoesNotContain(recovered, b => b != 0);
     }
 
     [Fact]
-    public void IdentityReturningAWrongSizedFileKey_IsRejected()
+    public void FileKey_DeliverZeroesWhatItHandsOver()
+    {
+        var recovered = Enumerable.Range(1, 16).Select(i => (byte)i).ToArray();
+        var buffer = new byte[16];
+
+        Assert.True(FileKey.Deliver(recovered, buffer));
+        Assert.Equal(Enumerable.Range(1, 16).Select(i => (byte)i), buffer);
+        Assert.DoesNotContain(recovered, b => b != 0);
+    }
+
+    [Fact]
+    public void AnIdentityThatFillsOnlyPartOfTheKey_FailsTheMac()
     {
         using var real = X25519Identity.Generate();
 
@@ -101,10 +117,9 @@ public class BackportEdgeCaseTests
         using var source = new MemoryStream(encrypted.ToArray());
         using var output = new MemoryStream();
 
-        var ex = Assert.Throws<AgeHeaderException>(
-            () => AgeEncrypt.Decrypt(source, output, new WrongSizedKeyIdentity()));
-
-        Assert.Contains("file key must be", ex.Message, StringComparison.Ordinal);
+        Assert.Throws<AgeHmacException>(
+            () => AgeEncrypt.Decrypt(source, output, new PartialKeyIdentity()));
+        Assert.Equal(0, output.Length);
     }
 
     // S9 — a recipient that throws mid-wrap is routine: a plugin binary missing, a user declining
@@ -115,9 +130,7 @@ public class BackportEdgeCaseTests
     {
         public byte[]? SeenFileKey { get; private set; }
 
-        public string? Label => null;
-
-        public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+        public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
         {
             SeenFileKey = fileKey.ToArray();
             throw new AgePluginException("recipient declined");

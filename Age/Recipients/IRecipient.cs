@@ -3,27 +3,19 @@ using Age.Format;
 namespace Age.Recipients;
 
 /// <summary>
-/// Wraps an age file key into a stanza that a matching <see cref="IIdentity"/>
-/// can later unwrap. Implement this interface to add a custom recipient type;
-/// the stanza produced here becomes part of the age header's recipient list.
+/// Wraps an age file key into one or more stanzas that a matching <see cref="IIdentity"/> can
+/// later unwrap. Implement this to add a custom recipient type; the stanzas produced here become
+/// part of the age header's recipient list.
 /// </summary>
 public interface IRecipient
 {
-    /// <summary>
-    /// Wraps the file key into a stanza. Called once per encryption.
-    /// </summary>
-    /// <param name="fileKey">The 16-byte symmetric file key that protects the payload.</param>
+    /// <summary>Wraps the file key. Called once per encryption.</summary>
+    /// <param name="fileKey">The 16-byte file key that protects the payload.</param>
     /// <returns>
-    /// A <see cref="Stanza"/> whose <c>Type</c> identifies the recipient kind
-    /// (e.g. "X25519", "scrypt", a custom type) and whose <c>Args</c> and
-    /// <c>Body</c> carry any recipient-specific data needed to unwrap.
+    /// One or more stanzas, each with a <c>Type</c> naming the recipient kind and the <c>Args</c>
+    /// and <c>Body</c> needed to unwrap it. Returning several is how one recipient stands for a
+    /// group or proxies for something else; an age plugin may produce several. Most
+    /// implementations return exactly one: <c>[stanza]</c>. An empty list is refused.
     /// </returns>
-    Stanza Wrap(ReadOnlySpan<byte> fileKey);
-
-    /// <summary>
-    /// Optional security label. Recipients with different labels cannot be
-    /// mixed in a single encryption (e.g. to prevent mixing post-quantum and
-    /// classical recipients). <c>null</c> means "no label."
-    /// </summary>
-    string? Label => null;
+    IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey);
 }

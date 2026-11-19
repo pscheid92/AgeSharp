@@ -48,7 +48,10 @@ public sealed class P256TagRecipient : IRecipient
         Bech32.Encode(Hrp, _compressedPoint);
 
     /// <summary>Wraps the file key in a <c>p256tag</c> stanza.</summary>
-    public Stanza Wrap(ReadOnlySpan<byte> fileKey) =>
+    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey) =>
+        [WrapOne(fileKey)];
+
+    private Stanza WrapOne(ReadOnlySpan<byte> fileKey) =>
         TaggedStanza.Wrap(AgeProtocol.P256TagStanzaType, DhKemP256.KemId, AgeProtocol.P256TagHpkeInfo,
             DhKemP256.Encapsulate(_point, new SecureRandom()), _compressedPoint, fileKey);
 }

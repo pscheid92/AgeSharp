@@ -8,14 +8,14 @@ namespace Age;
 /// </summary>
 /// <remarks>
 /// A bare <c>byte[]</c> cannot carry that guarantee — every site had to remember a
-/// <c>try/finally</c>, and the ones that forgot were the S9 defects. Internal on purpose:
-/// <see cref="Recipients.IRecipient.Wrap"/> and <c>IIdentity.Unwrap</c> are
-/// shipped public API taking and returning spans and arrays, so this wraps the key inside the
-/// library without changing what a consumer sees.
+/// <c>try/finally</c>, and the ones that forgot were the S9 defects. Recipients and identities
+/// see the key only as a span: <see cref="Recipients.IRecipient.Wrap"/> reads it, and
+/// <see cref="Recipients.IIdentity.TryUnwrap(Format.Stanza, Span{byte})"/> writes it into the
+/// buffer this owns.
 /// </remarks>
 internal sealed class FileKey : IDisposable
 {
-    private const int Size = 16;
+    internal const int Size = 16;
 
     private readonly byte[] _bytes;
     private bool _disposed;
@@ -42,22 +42,58 @@ internal sealed class FileKey : IDisposable
     }
 
     /// <summary>
-    /// Takes ownership of a key recovered by an identity, which hands back a <c>byte[]</c>
-    /// because <c>IIdentity.Unwrap</c> is shipped public API. The array is
-    /// zeroed on <see cref="Dispose"/>; the caller must not keep a reference to it.
+    /// Asks each identity, in order, for the file key the stanzas wrap, and returns it from the
+    /// first that has it, or null if none does.
     /// </summary>
-    /// <exception cref="AgeHeaderException">
-    /// The identity returned something other than <see cref="Size"/> bytes. Custom and plugin
-    /// identities are caller-supplied code and can return anything; a wrong-sized key would
-    /// derive garbage rather than fail.
-    /// </exception>
-    public static FileKey Adopt(byte[] bytes)
+    public static FileKey? UnwrapFrom(IReadOnlyList<Format.Stanza> stanzas, IEnumerable<Recipients.IIdentity> identities)
     {
-        if (bytes.Length == Size)
-            return new FileKey(bytes);
+        var key = new FileKey(new byte[Size]);
 
-        CryptographicOperations.ZeroMemory(bytes);
-        throw new AgeHeaderException($"file key must be {Size} bytes, got {bytes.Length}");
+        try
+        {
+            foreach (var identity in identities)
+            {
+                if (identity.TryUnwrap(stanzas, key._bytes))
+                    return key;
+            }
+        }
+        catch
+        {
+            key.Dispose();
+            throw;
+        }
+
+        key.Dispose();
+        return null;
+    }
+
+    /// <summary>
+    /// Hands a key an identity recovered into its own array over to the caller's buffer, and
+    /// zeroes the array. Returns false, writing nothing, when there is no key.
+    /// </summary>
+    /// <exception cref="ArgumentException">The buffer is not <see cref="Size"/> bytes.</exception>
+    /// <exception cref="AgeHeaderException">The recovered key is not <see cref="Size"/> bytes.</exception>
+    public static bool Deliver(byte[]? recovered, Span<byte> into)
+    {
+        try
+        {
+            if (into.Length != Size)
+                throw new ArgumentException($"the file key buffer must be {Size} bytes, got {into.Length}", nameof(into));
+
+            if (recovered is null)
+                return false;
+
+            if (recovered.Length != Size)
+                throw new AgeHeaderException($"file key must be {Size} bytes, got {recovered.Length}");
+
+            recovered.CopyTo(into);
+            return true;
+        }
+        finally
+        {
+            if (recovered is not null)
+                CryptographicOperations.ZeroMemory(recovered);
+        }
     }
 
     /// <summary>Zeroes the key material. Safe to call more than once.</summary>

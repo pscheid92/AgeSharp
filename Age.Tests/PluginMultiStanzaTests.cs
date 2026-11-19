@@ -37,6 +37,9 @@ public class PluginMultiStanzaTests
         c.WriteStanza("done", [], []);
     });
 
+    // When IRecipient.Wrap returned a single Stanza, a plugin's second stanza could only be
+    // refused or dropped. Wrap returns them all now, so this, and the header test in
+    // RecipientIdentityContractTests, are what keep C4 fixed.
     [Fact]
     public void WrapAll_KeepsEveryStanzaThePluginProduced()
     {
@@ -52,18 +55,6 @@ public class PluginMultiStanzaTests
         Assert.Equal(0xBB, stanzas[1].Body.Span[0]);
     }
 
-    // A single Stanza cannot represent two, and dropping one destroys the file key beyond
-    // recovery — so this must fail loudly rather than succeed silently.
-    [Fact]
-    public void Wrap_RefusesRatherThanSilentlyDiscarding()
-    {
-        var recipient = new PluginRecipient(MakePluginRecipient("multi"));
-        var conn = new PluginConnection(new StringReader(TwoStanzaResponse()), new StringWriter());
-
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
-        Assert.Contains("2 recipient stanzas", ex.Message, StringComparison.Ordinal);
-    }
-
     [Fact]
     public void Wrap_StillReturnsTheStanzaForASingleStanzaPlugin()
     {
@@ -75,7 +66,7 @@ public class PluginMultiStanzaTests
         });
 
         var conn = new PluginConnection(new StringReader(response), new StringWriter());
-        var stanza = recipient.WrapWithConnection(conn, new byte[16]);
+        var stanza = Assert.Single(recipient.WrapAllWithConnection(conn, new byte[16]));
 
         Assert.Equal("solo-type", stanza.Type);
         Assert.Equal("arg1", stanza.Args[0]);

@@ -10,9 +10,9 @@ namespace Age.Recipients;
 /// <summary>
 /// A native age X25519 identity — the secret half of an age key pair
 /// (<c>AGE-SECRET-KEY-1…</c>). Disposing zeroes the key material; instances are
-/// safe for concurrent <see cref="Unwrap"/> calls.
+/// safe for concurrent <see cref="TryUnwrap"/> calls.
 /// </summary>
-public sealed class X25519Identity : IIdentity, IDisposable
+public sealed class X25519Identity : IIdentityWithRecipient, IDisposable
 {
     private const string Hrp = "AGE-SECRET-KEY-";
     private const int KeySize = 32;
@@ -107,13 +107,19 @@ public sealed class X25519Identity : IIdentity, IDisposable
     public override string ToString() =>
         _disposed ? "X25519Identity(disposed)" : $"X25519Identity({Recipient})";
 
+    IRecipient IIdentityWithRecipient.Recipient =>
+        Recipient;
+
     /// <summary>
     /// Attempts to unwrap the file key from an X25519 stanza. Returns null for
     /// stanzas of other types or wrapped for a different recipient.
     /// </summary>
     /// <exception cref="AgeHeaderException">The stanza claims to be X25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
-    public byte[]? Unwrap(Stanza stanza)
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey) =>
+        FileKey.Deliver(UnwrapToArray(stanza), fileKey);
+
+    private byte[]? UnwrapToArray(Stanza stanza)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 

@@ -1,4 +1,5 @@
 using Age.Crypto;
+using Age.Format;
 using Age.Plugin;
 using Age.Recipients;
 using Xunit;
@@ -209,9 +210,8 @@ public class PluginProcessTests
     // The tests above prove a planted binary is *not* run. This proves the fix did not simply
     // break plugin support, and it is the only test that drives PluginConnection's real process
     // path: launching, the stanza framing over stdio, the stderr drain (C6) and Dispose (H7).
-    // C4's dispatch, end to end. AgeEncrypt prefers IMultiStanzaRecipient when a recipient
-    // implements it, and nothing exercised that seam through the public API — the scripted tests
-    // all call WrapWithConnection directly.
+    // C4 end to end: every stanza a plugin recipient produces reaches the header through the
+    // public API; the scripted tests drive the connection directly.
     [Fact]
     public void EncryptingToAPluginRecipient_GoesThroughTheMultiStanzaPath()
     {
@@ -279,7 +279,7 @@ public class PluginProcessTests
             var recipient = new PluginRecipient(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
 
             var started = DateTime.UtcNow;
-            var stanza = recipient.Wrap(new byte[16]);
+            var stanza = recipient.WrapSingle(new byte[16]);
             var elapsed = DateTime.UtcNow - started;
 
             Assert.Equal("stubborn-type", stanza.Type);
@@ -323,7 +323,7 @@ public class PluginProcessTests
             // Which side notices the death is a timing accident — the client writes its whole
             // request before reading, so a fast exit breaks the write and a slow one breaks the
             // read. Both must report as AgePluginException, with the stderr attached.
-            var ex = Assert.Throws<AgePluginException>(() => recipient.Wrap(new byte[16]));
+            var ex = Assert.Throws<AgePluginException>(() => recipient.WrapSingle(new byte[16]));
 
             Assert.Contains("catastrophic plugin failure", ex.Message, StringComparison.Ordinal);
         }
@@ -352,10 +352,60 @@ public class PluginProcessTests
             Environment.SetEnvironmentVariable("PATH", $"{dir}{Path.PathSeparator}{originalPath}");
 
             var recipient = new PluginRecipient(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
-            var stanza = recipient.Wrap(new byte[16]);
+            var stanza = recipient.WrapSingle(new byte[16]);
 
             Assert.Equal("onpath-type", stanza.Type);
             Assert.True(File.Exists(evidence), "the plugin on PATH did not run");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", originalPath);
+            TryDeleteTempDir(dir);
+        }
+    }
+
+    // The identity side over a real pipe: a plugin answering identity-v1 with a file key, through
+    // both of PluginIdentity's public TryUnwrap overloads.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PluginIdentityOnPath_WritesThePluginsFileKey(bool asList)
+    {
+        var dir = NewTempDir();
+        var originalPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+        var name = "ident" + Guid.NewGuid().ToString("N")[..8];
+        var fileKey = Enumerable.Range(1, 16).Select(i => (byte)i).ToArray();
+        var encodedKey = Convert.ToBase64String(fileKey).TrimEnd('=');
+
+        if (OperatingSystem.IsWindows())
+        {
+            File.WriteAllText(Path.Combine(dir, $"age-plugin-{name}.CMD"),
+                "@echo off\r\n" +
+                "echo -^> file-key 0\r\n" +
+                $"echo {encodedKey}\r\n" +
+                "echo -^> done\r\n" +
+                "echo.\r\n" +
+                "more >nul\r\n");
+        }
+        else
+        {
+            PlantScript(dir, $"age-plugin-{name}",
+                $"printf '\\055> file-key 0\\n{encodedKey}\\n\\055> done\\n\\n'\n" +
+                "cat >/dev/null\n");
+        }
+
+        try
+        {
+            Environment.SetEnvironmentVariable("PATH", $"{dir}{Path.PathSeparator}{originalPath}");
+
+            var identity = new PluginIdentity(Bech32.Encode($"age-plugin-{name}-", [0x01, 0x02, 0x03]).ToUpperInvariant());
+            var stanza = new Stanza(name, [], [0x01]);
+            var buffer = new byte[16];
+
+            var unwrapped = asList ? identity.TryUnwrap(new[] { stanza }, buffer) : identity.TryUnwrap(stanza, buffer);
+
+            Assert.True(unwrapped);
+            Assert.Equal(fileKey, buffer);
         }
         finally
         {

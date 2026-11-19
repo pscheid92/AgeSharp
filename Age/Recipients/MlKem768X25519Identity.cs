@@ -7,9 +7,9 @@ namespace Age.Recipients;
 /// <summary>
 /// A post-quantum ML-KEM-768-X25519 hybrid identity (<c>AGE-SECRET-KEY-PQ-1…</c>),
 /// stored as its 32-byte generation seed. Disposing zeroes the seed; instances
-/// are safe for concurrent <see cref="Unwrap"/> calls.
+/// are safe for concurrent <see cref="TryUnwrap"/> calls.
 /// </summary>
-public sealed class MlKem768X25519Identity : IIdentity, IDisposable
+public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable
 {
     private const string Hrp = "AGE-SECRET-KEY-PQ-";
     private const int SeedSize = 32;
@@ -101,13 +101,19 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable
             ? "MlKem768X25519Identity(disposed)"
             : $"MlKem768X25519Identity({Recipient.ToString()[..24]}…)";
 
+    IRecipient IIdentityWithRecipient.Recipient =>
+        Recipient;
+
     /// <summary>
     /// Attempts to unwrap the file key from an <c>mlkem768x25519</c> stanza.
     /// Returns null for stanzas of other types or wrapped for a different recipient.
     /// </summary>
     /// <exception cref="AgeHeaderException">The stanza claims to be mlkem768x25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
-    public byte[]? Unwrap(Stanza stanza)
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey) =>
+        FileKey.Deliver(UnwrapToArray(stanza), fileKey);
+
+    private byte[]? UnwrapToArray(Stanza stanza)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 

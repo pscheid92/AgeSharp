@@ -21,7 +21,7 @@ public static class AgeEncrypt
     /// </summary>
     /// <param name="input">The plaintext source. Read once, start to end.</param>
     /// <param name="output">The ciphertext destination.</param>
-    /// <param name="recipients">One or more recipients. Must all share the same <see cref="IRecipient.Label"/>.</param>
+    /// <param name="recipients">One or more recipients. Must all carry the same security labels (see <see cref="IRecipientWithLabels"/>).</param>
     /// <exception cref="ArgumentException">No recipients were supplied.</exception>
     /// <exception cref="AgeException">
     /// Recipients have mismatched security labels, or a passphrase (scrypt)
@@ -37,7 +37,7 @@ public static class AgeEncrypt
     /// <param name="input">The plaintext source.</param>
     /// <param name="output">The ciphertext destination.</param>
     /// <param name="armor">If <c>true</c>, output is a PEM-like armored text block; otherwise raw binary.</param>
-    /// <param name="recipients">One or more recipients. Must all share the same <see cref="IRecipient.Label"/>.</param>
+    /// <param name="recipients">One or more recipients. Must all carry the same security labels (see <see cref="IRecipientWithLabels"/>).</param>
     public static void Encrypt(Stream input, Stream output, bool armor, params ReadOnlySpan<IRecipient> recipients)
     {
         ArgumentException.ThrowIfEmpty(recipients, "recipient");
@@ -201,28 +201,32 @@ public static class AgeEncrypt
     /// </remarks>
     private static Header BuildHeader(ReadOnlySpan<IRecipient> recipients, ReadOnlySpan<byte> fileKey)
     {
-        // age-plugin.md:227 — every stanza wrapping one file key must carry the exact same label
-        // set, with no partial overlap. Comparing each against the first is that check: string
-        // equality is transitive, so agreeing with the first implies agreeing pairwise.
-        var firstLabel = recipients[0].Label;
-
-        for (var i = 1; i < recipients.Length; i++)
-        {
-            if (recipients[i].Label != firstLabel)
-                throw new AgeException(IncompatibleLabels(firstLabel, recipients[i].Label));
-        }
-
         var header = new Header();
+        HashSet<string>? firstLabels = null;
 
-        // A plugin may legitimately answer one wrap-file-key with several stanzas, so ask for
-        // all of them where the recipient can produce more than one. IRecipient.Wrap is
-        // public, shipped API returning a single Stanza and cannot be widened.
         foreach (var recipient in recipients)
         {
-            if (recipient is IMultiStanzaRecipient multi)
-                header.Stanzas.AddRange(multi.WrapAll(fileKey));
-            else
-                header.Stanzas.Add(recipient.Wrap(fileKey));
+            var (stanzas, labels) = recipient is IRecipientWithLabels labelled
+                ? labelled.WrapWithLabels(fileKey)
+                : new LabelledStanzas(recipient.Wrap(fileKey), []);
+
+            // A header without this recipient's stanza would leave out a recipient the caller
+            // named, which is not something to do silently. Null (a default LabelledStanzas, or
+            // a custom Wrap returning null) is the same mistake.
+            if (stanzas is null || stanzas.Count == 0)
+                throw new AgeException($"recipient {recipient.GetType().Name} produced no stanzas");
+
+            // age-plugin.md:227: every stanza wrapping one file key must carry exactly the same
+            // label set. Agreeing with the first recipient's set implies agreeing pairwise. The
+            // comparison is ordinal whatever set type the recipient handed over.
+            var labelSet = new HashSet<string>(labels ?? [], StringComparer.Ordinal);
+
+            if (firstLabels is null)
+                firstLabels = labelSet;
+            else if (!firstLabels.SetEquals(labelSet))
+                throw new AgeException(IncompatibleLabels(firstLabels, labelSet));
+
+            header.Stanzas.AddRange(stanzas);
         }
 
         // A scrypt stanza must be the only stanza in the header — the same rule decryption
@@ -238,17 +242,18 @@ public static class AgeEncrypt
     /// Explains a label mismatch, naming the consequence when post-quantum security is what was
     /// lost. "Different security labels" is accurate but leaves the user to work out the cost.
     /// </summary>
-    private static string IncompatibleLabels(string? a, string? b)
+    private static string IncompatibleLabels(HashSet<string> a, HashSet<string> b)
     {
         const string postQuantum = "postquantum";
 
-        if (a == postQuantum || b == postQuantum)
+        if (a.Contains(postQuantum) != b.Contains(postQuantum))
             return "cannot mix post-quantum and classical recipients: the file would be "
                  + "readable by a quantum computer, so the post-quantum recipient buys nothing";
 
         return $"cannot mix recipients with different security labels: {Describe(a)} and {Describe(b)}";
 
-        static string Describe(string? label) => label is null ? "none" : $"\"{label}\"";
+        static string Describe(HashSet<string> labels) =>
+            labels.Count == 0 ? "none" : string.Join(", ", labels.Order(StringComparer.Ordinal).Select(l => $"\"{l}\""));
     }
 
     private static FileKey UnwrapFileKey(Stream headerInput, ReadOnlySpan<IIdentity> identities)
@@ -296,20 +301,11 @@ public static class AgeEncrypt
         if (hasScrypt && header.Stanzas.Count > 1)
             throw new AgeHeaderException("scrypt stanza must be the only stanza in the header");
 
-        byte[]? fileKey = null;
-        foreach (var identity in NativeFirst(identities))
-        {
-            fileKey = identity.Unwrap(header.Stanzas);
-            if (fileKey is not null)
-                break;
-        }
+        var owned = FileKey.UnwrapFrom(header.Stanzas, NativeFirst(identities))
+                    ?? throw new NoIdentityMatchException();
 
-        if (fileKey is null)
-            throw new NoIdentityMatchException();
-
-        // Adopt validates the length and takes ownership, so from here a throw disposes rather
-        // than abandons. VerifyMac failing is routine — a tampered or corrupted header.
-        var owned = FileKey.Adopt(fileKey);
+        // From here a throw disposes the key rather than abandons it. VerifyMac failing is
+        // routine: a tampered or corrupted header.
 
         try
         {

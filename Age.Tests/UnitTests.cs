@@ -978,7 +978,7 @@ public class ScryptRecipientTests
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "23"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => recipient.UnwrapOrNull(stanza));
     }
 
     [Theory]
@@ -1010,7 +1010,7 @@ public class ScryptRecipientTests
         var wrongSalt = new byte[10];
         var saltB64 = Base64Unpadded.Encode(wrongSalt);
         var stanza = new Stanza("scrypt", [saltB64, "10"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => recipient.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1020,7 +1020,7 @@ public class ScryptRecipientTests
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "10"], new byte[16]);
-        Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => recipient.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1028,7 +1028,7 @@ public class ScryptRecipientTests
     {
         var recipient = new ScryptRecipient("password");
         var stanza = new Stanza("scrypt", ["onlyone"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => recipient.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1036,7 +1036,7 @@ public class ScryptRecipientTests
     {
         var recipient = new ScryptRecipient("password");
         var stanza = new Stanza("scrypt", ["@@invalid@@", "10"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => recipient.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1046,7 +1046,7 @@ public class ScryptRecipientTests
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "abc"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => recipient.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => recipient.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1056,13 +1056,13 @@ public class ScryptRecipientTests
         var correct = new ScryptRecipient("correct", workFactor: 10);
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
-        var stanza = correct.Wrap(fileKey);
+        var stanza = correct.WrapSingle(fileKey);
 
         var wrong = new ScryptRecipient("wrong", workFactor: 10);
         // Wrong passphrase causes AEAD failure — either throws AgeException or returns null
         try
         {
-            var result = wrong.Unwrap(stanza);
+            var result = wrong.UnwrapOrNull(stanza);
             // If it didn't throw, result should be null (AEAD auth failure)
             Assert.Null(result);
         }
@@ -1077,7 +1077,7 @@ public class ScryptRecipientTests
     {
         var recipient = new ScryptRecipient("password");
         var stanza = new Stanza("X25519", ["arg"], new byte[32]);
-        Assert.Null(recipient.Unwrap(stanza));
+        Assert.Null(recipient.UnwrapOrNull(stanza));
     }
 }
 
@@ -1146,7 +1146,7 @@ public class X25519RecipientIdentityTests
     {
         using var identity = X25519Identity.Generate();
         var stanza = new Stanza("scrypt", ["arg"], new byte[32]);
-        Assert.Null(identity.Unwrap(stanza));
+        Assert.Null(identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1169,7 +1169,7 @@ public class X25519RecipientIdentityTests
     {
         using var identity = X25519Identity.Generate();
         var stanza = new Stanza("X25519", ["a", "b"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1177,7 +1177,7 @@ public class X25519RecipientIdentityTests
     {
         using var identity = X25519Identity.Generate();
         var stanza = new Stanza("X25519", ["@@invalid"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1186,7 +1186,7 @@ public class X25519RecipientIdentityTests
         using var identity = X25519Identity.Generate();
         var shortKey = Base64Unpadded.Encode(new byte[16]);
         var stanza = new Stanza("X25519", [shortKey], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1195,7 +1195,7 @@ public class X25519RecipientIdentityTests
         using var identity = X25519Identity.Generate();
         var ephKey = Base64Unpadded.Encode(new byte[32]);
         var stanza = new Stanza("X25519", [ephKey], new byte[16]);
-        Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1207,10 +1207,10 @@ public class X25519RecipientIdentityTests
 
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
-        var stanza = id1.Recipient.Wrap(fileKey);
+        var stanza = id1.Recipient.WrapSingle(fileKey);
 
         // id2 should fail AEAD and return null
-        Assert.Null(id2.Unwrap(stanza));
+        Assert.Null(id2.UnwrapOrNull(stanza));
     }
 }
 
@@ -1270,8 +1270,8 @@ public class AgeEncryptTests
         new Random(42).NextBytes(fileKey);
 
         var scryptRecipient = new ScryptRecipient("pass", workFactor: 10);
-        var scryptStanza = scryptRecipient.Wrap(fileKey);
-        var x25519Stanza = id.Recipient.Wrap(fileKey);
+        var scryptStanza = scryptRecipient.WrapSingle(fileKey);
+        var x25519Stanza = id.Recipient.WrapSingle(fileKey);
 
         var header = new Header();
         header.Stanzas.Add(scryptStanza);
@@ -1350,7 +1350,7 @@ public class AgeEncryptTests
         new Random(42).NextBytes(fileKey);
 
         using var id = X25519Identity.Generate();
-        var stanza = id.Recipient.Wrap(fileKey);
+        var stanza = id.Recipient.WrapSingle(fileKey);
         var header = new Header();
         header.Stanzas.Add(stanza);
 

@@ -20,20 +20,20 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
     internal string PluginName { get; } =
         ExtractPluginName(identity);
 
-    /// <summary>Attempts to unwrap a single stanza by running the plugin binary.</summary>
+    /// <summary>Tries to unwrap a single stanza by running the plugin binary.</summary>
     /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an internal error.</exception>
-    public byte[]? Unwrap(Stanza stanza) =>
-        Unwrap([stanza]);
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey) =>
+        TryUnwrap([stanza], fileKey);
 
     /// <summary>
-    /// Attempts to unwrap any of the stanzas in a single plugin session — one
+    /// Tries to unwrap any of the stanzas in a single plugin session — one
     /// process launch for the whole header, as the plugin protocol intends.
     /// </summary>
     /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an internal error.</exception>
-    public byte[]? Unwrap(IReadOnlyList<Stanza> stanzas)
+    public bool TryUnwrap(IReadOnlyList<Stanza> stanzas, Span<byte> fileKey)
     {
         using var conn = new PluginConnection(PluginName, "identity-v1");
-        return UnwrapWithConnection(conn, stanzas);
+        return FileKey.Deliver(UnwrapWithConnection(conn, stanzas), fileKey);
     }
 
     internal byte[]? UnwrapWithConnection(PluginConnection conn, IReadOnlyList<Stanza> stanzas)

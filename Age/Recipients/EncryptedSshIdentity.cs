@@ -12,7 +12,7 @@ namespace Age.Recipients;
 /// the passphrase only when a file is actually for this key, and then only until it has been
 /// given the right one.
 /// </summary>
-public sealed class EncryptedSshIdentity : IIdentity, IDisposable
+public sealed class EncryptedSshIdentity : IIdentityWithRecipient, IDisposable
 {
     private readonly Lock _lock = new();
     private readonly IProtectedSshKey _protectedKey;
@@ -39,12 +39,12 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
 
     /// <summary>
     /// Parses a passphrase-protected SSH private key from PEM text (OpenSSH format).
-    /// <paramref name="passphrase"/> is not called here, but later, by <see cref="Unwrap"/>.
+    /// <paramref name="passphrase"/> is not called here, but later, by <see cref="TryUnwrap"/>.
     /// </summary>
     /// <exception cref="FormatException">
     /// The text is not a passphrase-protected ssh-ed25519 or ssh-rsa key in OpenSSH format. A
     /// key protected with a cipher or KDF this library does not read is accepted here, and
-    /// refused by <see cref="Unwrap"/> once a file is addressed to it, before the passphrase
+    /// refused by <see cref="TryUnwrap"/> once a file is addressed to it, before the passphrase
     /// is asked for.
     /// </exception>
     internal static EncryptedSshIdentity Parse(string pemText, Func<string> passphrase)
@@ -62,7 +62,7 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
     }
 
     /// <summary>
-    /// Attempts to unwrap the file key from an SSH stanza. Returns null, without asking for the
+    /// Tries to unwrap the file key from an SSH stanza. Returns false, without asking for the
     /// passphrase, for stanzas of other types or addressed to a different SSH key.
     /// </summary>
     /// <exception cref="AgeHeaderException">The stanza is addressed to this key but is malformed.</exception>
@@ -77,7 +77,7 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
     /// The identity stays locked while the passphrase source runs: other threads using it wait,
     /// and the source must not itself decrypt with this identity.
     /// </remarks>
-    public byte[]? Unwrap(Stanza stanza)
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
     {
         ArgumentNullException.ThrowIfNull(stanza);
 
@@ -86,7 +86,7 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
 
             if (stanza.Type != _keyType || stanza.Args.Count < 1 || stanza.Args[0] != _tag)
-                return null;
+                return false;
 
             if (_unlocked is null)
             {
@@ -118,7 +118,7 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
                 _unlocked = unlocked;
             }
 
-            return _unlocked.Unwrap(stanza);
+            return _unlocked.TryUnwrap(stanza, fileKey);
         }
     }
 

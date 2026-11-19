@@ -260,24 +260,29 @@ remote secrets managers, or age plugins.
 ```csharp
 public class MyRecipient : IRecipient
 {
-    public string? Label => null; // or a security label to prevent mixing
-
-    public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
     {
-        // Wrap the file key using your custom scheme
-        return new Stanza("MyType", ["arg1"], wrappedKey);
+        // Wrap the file key using your custom scheme. One recipient may
+        // produce several stanzas; most produce one.
+        return [new Stanza("MyType", ["arg1"], wrappedKey)];
     }
 }
 
 public class MyIdentity : IIdentity
 {
-    public byte[]? Unwrap(Stanza stanza)
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
     {
-        // Called once per stanza in the file's header. Return the file
-        // key if this identity matches the stanza, null if not.
+        // Called for each stanza in the file's header. If the stanza is
+        // yours, write the 16-byte file key into fileKey and return true;
+        // otherwise return false.
     }
 }
 ```
+
+A recipient whose files must not be mixed with others (as post-quantum ones must
+not be mixed with classical ones) implements `IRecipientWithLabels` and returns
+its labels with its stanzas; every recipient of a file must carry the same set.
+An identity that knows its recipient implements `IIdentityWithRecipient`.
 
 When decrypting, AgeSharp's own identities (X25519, ML-KEM-768-X25519, scrypt) are
 tried before any other, whatever order they are passed in, as in the Go

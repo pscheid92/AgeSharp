@@ -188,12 +188,12 @@ public class MlKem768X25519IdentityTests
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
 
-        var stanza = recipient.Wrap(fileKey);
+        var stanza = recipient.WrapSingle(fileKey);
         Assert.Equal("mlkem768x25519", stanza.Type);
         Assert.Single(stanza.Args);
         Assert.Equal(32, stanza.Body.Length); // 16 key + 16 tag
 
-        var unwrapped = identity.Unwrap(stanza);
+        var unwrapped = identity.UnwrapOrNull(stanza);
         Assert.NotNull(unwrapped);
         Assert.Equal(fileKey, unwrapped);
     }
@@ -207,8 +207,8 @@ public class MlKem768X25519IdentityTests
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
 
-        var stanza = id1.Recipient.Wrap(fileKey);
-        var unwrapped = id2.Unwrap(stanza);
+        var stanza = id1.Recipient.WrapSingle(fileKey);
+        var unwrapped = id2.UnwrapOrNull(stanza);
         Assert.Null(unwrapped);
     }
 
@@ -221,8 +221,8 @@ public class MlKem768X25519IdentityTests
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
 
-        var x25519Stanza = x25519Identity.Recipient.Wrap(fileKey);
-        var unwrapped = pqIdentity.Unwrap(x25519Stanza);
+        var x25519Stanza = x25519Identity.Recipient.WrapSingle(fileKey);
+        var unwrapped = pqIdentity.UnwrapOrNull(x25519Stanza);
         Assert.Null(unwrapped);
     }
 
@@ -236,10 +236,10 @@ public class MlKem768X25519IdentityTests
     }
 
     [Fact]
-    public void Label_ReturnsPostquantum()
+    public void ItsWrap_CarriesThePostquantumLabel()
     {
         using var identity = MlKem768X25519Identity.Generate();
-        Assert.Equal("postquantum", identity.Recipient.Label);
+        Assert.Equal(["postquantum"], identity.Recipient.WrapWithLabels(new byte[16]).Labels);
     }
 }
 
