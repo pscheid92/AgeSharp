@@ -27,6 +27,11 @@ public class ChaChaImplBenchmarks
     private byte[] _output = null!;
     private byte[] _nonce = null!;
 
+    // Each invocation gets its own nonce prefix. A 64 KiB payload is a single chunk, and
+    // BouncyCastle refuses an Init that repeats the previous nonce, so without it every
+    // invocation after the first throws.
+    private uint _invocation;
+
     private BclChaCha _bcl = null!;
     private BcChaCha _bc = null!;
     private KeyParameter _bcKey = null!;
@@ -53,11 +58,12 @@ public class ChaChaImplBenchmarks
     [Benchmark(Baseline = true)]
     public void Bcl()
     {
+        _invocation++;
         long counter = 0;
         for (var offset = 0; offset < _plaintext.Length; offset += ChunkSize, counter++)
         {
             var len = Math.Min(ChunkSize, _plaintext.Length - offset);
-            WriteNonce(_nonce, counter);
+            WriteNonce(_nonce, _invocation, counter);
             _bcl.Encrypt(_nonce, _plaintext.AsSpan(offset, len),
                 _output.AsSpan(0, len), _output.AsSpan(len, TagSize));
         }
@@ -67,20 +73,21 @@ public class ChaChaImplBenchmarks
     [Benchmark]
     public void BouncyCastle()
     {
+        _invocation++;
         long counter = 0;
         for (var offset = 0; offset < _plaintext.Length; offset += ChunkSize, counter++)
         {
             var len = Math.Min(ChunkSize, _plaintext.Length - offset);
-            WriteNonce(_nonce, counter);
+            WriteNonce(_nonce, _invocation, counter);
             _bc.Init(true, new AeadParameters(_bcKey, TagSize * 8, _nonce));
             var written = _bc.ProcessBytes(_plaintext, offset, len, _output, 0);
             _bc.DoFinal(_output, written);
         }
     }
 
-    private static void WriteNonce(byte[] nonce, long counter)
+    private static void WriteNonce(byte[] nonce, uint invocation, long counter)
     {
-        Array.Clear(nonce);
+        BinaryPrimitives.WriteUInt32BigEndian(nonce, invocation);
         BinaryPrimitives.WriteInt64BigEndian(nonce.AsSpan(NonceSize - 8), counter);
     }
 }
