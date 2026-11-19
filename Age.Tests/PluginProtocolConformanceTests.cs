@@ -134,7 +134,9 @@ public class PluginProtocolConformanceTests
 
         public void DisplayMessage(string message) { }
 
-        public string RequestValue(string prompt, bool secret) => "";
+        public string RequestValue(string prompt) => "";
+
+        public char[] RequestSecret(string prompt) => [];
 
         public bool Confirm(string message, string yes, string? no)
         {

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Age.Crypto;
 
@@ -31,11 +32,12 @@ internal static class PluginPrompts
                 conn.WriteStanza("ok", [], []);
                 break;
 
-            // request-secret masks the input; request-public does not. Same flow otherwise.
-            case "request-secret":
             case "request-public":
-                var value = callbacks!.RequestValue(Encoding.UTF8.GetString(body), secret: type == "request-secret");
-                conn.WriteStanza("ok", [], Encoding.UTF8.GetBytes(value));
+                conn.WriteStanza("ok", [], Encoding.UTF8.GetBytes(callbacks!.RequestValue(Encoding.UTF8.GetString(body))));
+                break;
+
+            case "request-secret":
+                SendSecret(conn, callbacks!.RequestSecret(Encoding.UTF8.GetString(body)));
                 break;
 
             case "confirm":
@@ -45,6 +47,30 @@ internal static class PluginPrompts
             default:
                 conn.WriteStanza("unsupported", [], []);
                 break;
+        }
+    }
+
+    // The secret goes to the plugin as UTF-8, and neither the host's array nor the bytes made
+    // from it outlive the write.
+    private static void SendSecret(PluginConnection conn, char[]? secret)
+    {
+        if (secret is null)
+        {
+            conn.WriteStanza("fail", [], []);
+            return;
+        }
+
+        var utf8 = new byte[Encoding.UTF8.GetByteCount(secret)];
+
+        try
+        {
+            Encoding.UTF8.GetBytes(secret, utf8);
+            conn.WriteStanza("ok", [], utf8);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(utf8);
+            Array.Clear(secret);
         }
     }
 
