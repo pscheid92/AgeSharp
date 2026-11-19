@@ -71,6 +71,21 @@ public class HeaderLineFramerTests
         Assert.Contains("no trailing newline", ex.Message);
     }
 
+    // A header that ends at a line boundary, before its MAC line: the prefill stops at the end,
+    // and the parse runs out of lines, as a sync read does.
+    [Fact]
+    public async Task APrefillThatEndsBeforeTheMacLine_LeavesTheParseToRefuseIt()
+    {
+        var bytes = "age-encryption.org/v1\n-> X25519 ab\nAAAA\n"u8.ToArray();
+        var reader = new HeaderReader(new MemoryStream(bytes));
+
+        await reader.PrefillAsync(CancellationToken.None);
+
+        var ex = Assert.Throws<AgeHeaderException>(() => Header.Parse(reader));
+        Assert.Contains("unexpected end of header", ex.Message);
+        Assert.Equal(bytes, reader.RawBytes.ToArray());
+    }
+
     // --- Sync and async reads agree ------------------------------------------------------------
 
     public static TheoryData<string> BinaryVectors()
