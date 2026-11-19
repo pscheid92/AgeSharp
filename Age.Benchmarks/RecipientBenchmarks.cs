@@ -9,6 +9,7 @@ namespace Age.Benchmarks;
 public class RecipientBenchmarks
 {
     private readonly byte[] _fileKey = new byte[16];
+    private readonly byte[] _unwrapped = new byte[16];
 
     private X25519Identity _x25519Identity = null!;
     private X25519Recipient _x25519Recipient = null!;
@@ -38,12 +39,12 @@ public class RecipientBenchmarks
         // X25519
         _x25519Identity = X25519Identity.Generate();
         _x25519Recipient = _x25519Identity.Recipient;
-        _x25519Stanza = _x25519Recipient.Wrap(_fileKey);
+        _x25519Stanza = _x25519Recipient.Wrap(_fileKey)[0];
 
         // ML-KEM-768-X25519
         _mlKemIdentity = MlKem768X25519Identity.Generate();
         _mlKemRecipient = _mlKemIdentity.Recipient;
-        _mlKemStanza = _mlKemRecipient.Wrap(_fileKey);
+        _mlKemStanza = _mlKemRecipient.Wrap(_fileKey)[0];
 
         // Tagged
         _p256TagRecipient = P256TagRecipient.Parse(P256Tag);
@@ -51,7 +52,7 @@ public class RecipientBenchmarks
 
         // scrypt (workFactor: 10 to keep benchmarks fast)
         _scryptRecipient = new ScryptRecipient("benchmark-passphrase", workFactor: 10);
-        _scryptStanza = _scryptRecipient.Wrap(_fileKey);
+        _scryptStanza = _scryptRecipient.Wrap(_fileKey)[0];
     }
 
     [GlobalCleanup]
@@ -62,26 +63,26 @@ public class RecipientBenchmarks
     }
 
     [Benchmark]
-    public Stanza X25519Wrap() => _x25519Recipient.Wrap(_fileKey);
+    public IReadOnlyList<Stanza> X25519Wrap() => _x25519Recipient.Wrap(_fileKey);
 
     [Benchmark]
-    public byte[]? X25519Unwrap() => _x25519Identity.Unwrap(_x25519Stanza);
+    public bool X25519Unwrap() => _x25519Identity.TryUnwrap(_x25519Stanza, _unwrapped);
 
     [Benchmark]
-    public Stanza MlKem768X25519Wrap() => _mlKemRecipient.Wrap(_fileKey);
+    public IReadOnlyList<Stanza> MlKem768X25519Wrap() => _mlKemRecipient.Wrap(_fileKey);
 
     [Benchmark]
-    public byte[]? MlKem768X25519Unwrap() => _mlKemIdentity.Unwrap(_mlKemStanza);
+    public bool MlKem768X25519Unwrap() => _mlKemIdentity.TryUnwrap(_mlKemStanza, _unwrapped);
 
     [Benchmark]
-    public Stanza P256TagWrap() => _p256TagRecipient.Wrap(_fileKey);
+    public IReadOnlyList<Stanza> P256TagWrap() => _p256TagRecipient.Wrap(_fileKey);
 
     [Benchmark]
-    public Stanza MlKem768P256TagWrap() => _mlKemP256TagRecipient.Wrap(_fileKey);
+    public IReadOnlyList<Stanza> MlKem768P256TagWrap() => _mlKemP256TagRecipient.Wrap(_fileKey);
 
     [Benchmark]
-    public Stanza ScryptWrap() => _scryptRecipient.Wrap(_fileKey);
+    public IReadOnlyList<Stanza> ScryptWrap() => _scryptRecipient.Wrap(_fileKey);
 
     [Benchmark]
-    public byte[]? ScryptUnwrap() => ((IIdentity)_scryptRecipient).Unwrap(_scryptStanza);
+    public bool ScryptUnwrap() => ((IIdentity)_scryptRecipient).TryUnwrap(_scryptStanza, _unwrapped);
 }

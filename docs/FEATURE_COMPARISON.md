@@ -28,7 +28,7 @@ AgeSharp builds the HPKE for both on BouncyCastle, so they also work in the brow
 | Multi-recipient encryption | ✅ | ✅ | ✅ | |
 | ASCII armor | ✅ | ✅ | ✅ | |
 | Streaming, bounded memory | ✅ | ✅ | ✅ | 64 KiB chunks |
-| Security labels (prevent mixing) | ✅ | ✅ | ✅ | AgeSharp: one label per recipient; Go allows several |
+| Security labels (prevent mixing) | ✅ | ✅ | ✅ | A set of labels per recipient, compared unordered, as in Go |
 | Encrypted identity files | ✅ | ✅ | ✅ | |
 | Recipients files | ✅ | ✅ | ✅ | |
 | Header limits (2 MiB, 1024 stanzas, 128 arguments) | ✅ | ❌ | ✅ | Introduced by Go v1.3.2; not in the spec |

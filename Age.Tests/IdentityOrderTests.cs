@@ -126,12 +126,12 @@ public class IdentityOrderTests
     {
         public List<string> Calls { get; } = log ?? [];
 
-        public byte[]? Unwrap(Stanza stanza)
+        public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
         {
             if (Calls.LastOrDefault() != name)
                 Calls.Add(name);
 
-            return null;
+            return false;
         }
     }
 }

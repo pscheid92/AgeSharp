@@ -244,8 +244,8 @@ public class SshKeyParserTests
 
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);
-        var stanza = recipient.Wrap(fileKey);
-        var unwrapped = identity.Unwrap(stanza);
+        var stanza = recipient.WrapSingle(fileKey);
+        var unwrapped = identity.UnwrapOrNull(stanza);
 
         Assert.NotNull(unwrapped);
         Assert.Equal(fileKey, unwrapped);
@@ -295,8 +295,8 @@ public class SshEd25519RecipientIdentityTests
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);
 
-        var stanza = recipient.Wrap(fileKey);
-        var unwrapped = identity.Unwrap(stanza);
+        var stanza = recipient.WrapSingle(fileKey);
+        var unwrapped = identity.UnwrapOrNull(stanza);
 
         Assert.NotNull(unwrapped);
         Assert.Equal(fileKey, unwrapped);
@@ -314,8 +314,8 @@ public class SshEd25519RecipientIdentityTests
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);
 
-        var stanza = recipient.Wrap(fileKey);
-        var unwrapped = identity.Unwrap(stanza);
+        var stanza = recipient.WrapSingle(fileKey);
+        var unwrapped = identity.UnwrapOrNull(stanza);
 
         // Tag mismatch → null
         Assert.Null(unwrapped);
@@ -328,7 +328,7 @@ public class SshEd25519RecipientIdentityTests
         using var identity = SshEd25519Identity.Parse(pemText);
 
         var stanza = new Age.Format.Stanza("X25519", ["arg"], new byte[32]);
-        Assert.Null(identity.Unwrap(stanza));
+        Assert.Null(identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -338,7 +338,7 @@ public class SshEd25519RecipientIdentityTests
         using var identity = SshEd25519Identity.Parse(pemText);
 
         var stanza = new Age.Format.Stanza("ssh-ed25519", ["onlyone"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -349,7 +349,7 @@ public class SshEd25519RecipientIdentityTests
 
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);
-        var stanza = recipient.Wrap(fileKey);
+        var stanza = recipient.WrapSingle(fileKey);
 
         Assert.Equal("ssh-ed25519", stanza.Type);
         Assert.Equal(2, stanza.Args.Count);
@@ -366,19 +366,19 @@ public class SshEd25519RecipientIdentityTests
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);
 
-        var stanza = recipient.Wrap(fileKey);
-        var unwrapped = identity.Unwrap(stanza);
+        var stanza = recipient.WrapSingle(fileKey);
+        var unwrapped = identity.UnwrapOrNull(stanza);
 
         Assert.NotNull(unwrapped);
         Assert.Equal(fileKey, unwrapped);
     }
 
     [Fact]
-    public void Label_IsNull()
+    public void ItCarriesNoLabels()
     {
         var (authorizedKeys, _) = GenerateEd25519KeyPair();
         var recipient = SshEd25519Recipient.Parse(authorizedKeys);
-        Assert.Null(((IRecipient)recipient).Label);
+        Assert.IsNotAssignableFrom<IRecipientWithLabels>(recipient);
     }
 
     [Fact]
@@ -415,11 +415,11 @@ public class SshEd25519RecipientIdentityTests
         var recipient = identity.Recipient;
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);
-        var goodStanza = recipient.Wrap(fileKey);
+        var goodStanza = recipient.WrapSingle(fileKey);
 
         // Replace the ephemeral key arg with invalid base64
         var stanza = new Age.Format.Stanza("ssh-ed25519", [goodStanza.Args[0], "@@invalid@@"], goodStanza.Body.ToArray());
-        Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -431,12 +431,12 @@ public class SshEd25519RecipientIdentityTests
         var recipient = identity.Recipient;
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);
-        var goodStanza = recipient.Wrap(fileKey);
+        var goodStanza = recipient.WrapSingle(fileKey);
 
         // Replace ephemeral key with wrong length (16 bytes instead of 32)
         var shortKeyB64 = Age.Crypto.Base64Unpadded.Encode(new byte[16]);
         var stanza = new Age.Format.Stanza("ssh-ed25519", [goodStanza.Args[0], shortKeyB64], goodStanza.Body.ToArray());
-        Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -448,11 +448,11 @@ public class SshEd25519RecipientIdentityTests
         var recipient = identity.Recipient;
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);
-        var goodStanza = recipient.Wrap(fileKey);
+        var goodStanza = recipient.WrapSingle(fileKey);
 
         // Replace body with wrong length
         var stanza = new Age.Format.Stanza("ssh-ed25519", [.. goodStanza.Args], new byte[16]);
-        Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
     }
 }
 
@@ -496,8 +496,8 @@ public class SshRsaRecipientIdentityTests
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);
 
-        var stanza = recipient.Wrap(fileKey);
-        var unwrapped = identity.Unwrap(stanza);
+        var stanza = recipient.WrapSingle(fileKey);
+        var unwrapped = identity.UnwrapOrNull(stanza);
 
         Assert.NotNull(unwrapped);
         Assert.Equal(fileKey, unwrapped);
@@ -515,8 +515,8 @@ public class SshRsaRecipientIdentityTests
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);
 
-        var stanza = recipient.Wrap(fileKey);
-        var unwrapped = identity.Unwrap(stanza);
+        var stanza = recipient.WrapSingle(fileKey);
+        var unwrapped = identity.UnwrapOrNull(stanza);
 
         // Tag mismatch → null
         Assert.Null(unwrapped);
@@ -529,7 +529,7 @@ public class SshRsaRecipientIdentityTests
         using var identity = SshRsaIdentity.Parse(pemText);
 
         var stanza = new Age.Format.Stanza("X25519", ["arg"], new byte[32]);
-        Assert.Null(identity.Unwrap(stanza));
+        Assert.Null(identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -539,7 +539,7 @@ public class SshRsaRecipientIdentityTests
         using var identity = SshRsaIdentity.Parse(pemText);
 
         var stanza = new Age.Format.Stanza("ssh-rsa", ["tag", "extra"], new byte[256]);
-        Assert.Throws<AgeHeaderException>(() => identity.Unwrap(stanza));
+        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -550,7 +550,7 @@ public class SshRsaRecipientIdentityTests
 
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);
-        var stanza = recipient.Wrap(fileKey);
+        var stanza = recipient.WrapSingle(fileKey);
 
         Assert.Equal("ssh-rsa", stanza.Type);
         Assert.Single(stanza.Args);
@@ -567,8 +567,8 @@ public class SshRsaRecipientIdentityTests
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);
 
-        var stanza = recipient.Wrap(fileKey);
-        var unwrapped = identity.Unwrap(stanza);
+        var stanza = recipient.WrapSingle(fileKey);
+        var unwrapped = identity.UnwrapOrNull(stanza);
 
         Assert.NotNull(unwrapped);
         Assert.Equal(fileKey, unwrapped);
@@ -588,11 +588,11 @@ public class SshRsaRecipientIdentityTests
     }
 
     [Fact]
-    public void Label_IsNull()
+    public void ItCarriesNoLabels()
     {
         var (authorizedKeys, _) = GenerateRsaKeyPair();
         var recipient = SshRsaRecipient.Parse(authorizedKeys);
-        Assert.Null(((IRecipient)recipient).Label);
+        Assert.IsNotAssignableFrom<IRecipientWithLabels>(recipient);
     }
 
     [Fact]
@@ -630,7 +630,7 @@ public class SshRsaRecipientIdentityTests
 
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);
-        var stanza = recipient.Wrap(fileKey);
+        var stanza = recipient.WrapSingle(fileKey);
 
         // Create a body that's valid RSA size but with zeroed content — will fail OAEP decoding
         var corruptBody = new byte[stanza.Body.Length];
@@ -638,7 +638,7 @@ public class SshRsaRecipientIdentityTests
         corruptBody[1] = 0x02; // Ensure it's < modulus
         var corruptStanza = new Age.Format.Stanza("ssh-rsa", [.. stanza.Args], corruptBody);
 
-        Assert.Null(identity.Unwrap(corruptStanza));
+        Assert.Null(identity.UnwrapOrNull(corruptStanza));
     }
 
     [Fact]
@@ -651,14 +651,14 @@ public class SshRsaRecipientIdentityTests
 
         var fileKey = new byte[16];
         RandomNumberGenerator.Fill(fileKey);
-        var stanza = recipient.Wrap(fileKey);
+        var stanza = recipient.WrapSingle(fileKey);
 
         // Body larger than 256 bytes (2048-bit key) triggers "input too large for RSA cipher"
         var oversizedBody = new byte[512];
         RandomNumberGenerator.Fill(oversizedBody);
         var oversizedStanza = new Age.Format.Stanza("ssh-rsa", [.. stanza.Args], oversizedBody);
 
-        Assert.Null(identity.Unwrap(oversizedStanza));
+        Assert.Null(identity.UnwrapOrNull(oversizedStanza));
     }
 }
 

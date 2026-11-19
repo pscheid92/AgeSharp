@@ -174,7 +174,7 @@ public class TaggedRecipientTests
     {
         var recipient = P256TagRecipient.Parse(GoAgeRecipients().Classic);
 
-        var stanza = recipient.Wrap(new byte[16]);
+        var stanza = recipient.WrapSingle(new byte[16]);
 
         // p256tag, a 4-byte tag, a 65-byte enc, and a 32-byte body (file key and Poly1305 tag).
         Assert.Equal("p256tag", stanza.Type);
@@ -182,7 +182,7 @@ public class TaggedRecipientTests
         Assert.Equal(4, Base64Unpadded.Decode(stanza.Args[0]).Length);
         Assert.Equal(65, Base64Unpadded.Decode(stanza.Args[1]).Length);
         Assert.Equal(32, stanza.Body.Length);
-        Assert.Null(((IRecipient)recipient).Label);
+        Assert.IsNotAssignableFrom<IRecipientWithLabels>(recipient);
     }
 
     [Fact]
@@ -190,14 +190,14 @@ public class TaggedRecipientTests
     {
         var recipient = MlKem768P256TagRecipient.Parse(GoAgeRecipients().Hybrid);
 
-        var stanza = recipient.Wrap(new byte[16]);
+        var stanza = recipient.WrapSingle(new byte[16]);
 
         Assert.Equal("mlkem768p256tag", stanza.Type);
         Assert.Equal(2, stanza.Args.Count);
         Assert.Equal(4, Base64Unpadded.Decode(stanza.Args[0]).Length);
         Assert.Equal(1153, Base64Unpadded.Decode(stanza.Args[1]).Length);
         Assert.Equal(32, stanza.Body.Length);
-        Assert.Equal("postquantum", recipient.Label);
+        Assert.Equal(["postquantum"], recipient.WrapWithLabels(new byte[16]).Labels);
     }
 
     [Fact]
@@ -208,8 +208,8 @@ public class TaggedRecipientTests
         var classic = P256TagRecipient.Parse(GoAgeRecipients().Classic);
         var hybrid = MlKem768P256TagRecipient.Parse(GoAgeRecipients().Hybrid);
 
-        AssertTag(classic.Wrap(new byte[16]), "age-encryption.org/p256tag", Bech32.Decode(GoAgeRecipients().Classic).Data);
-        AssertTag(hybrid.Wrap(new byte[16]), "age-encryption.org/mlkem768p256tag", Bech32.Decode(GoAgeRecipients().Hybrid).Data[1184..]);
+        AssertTag(classic.WrapSingle(new byte[16]), "age-encryption.org/p256tag", Bech32.Decode(GoAgeRecipients().Classic).Data);
+        AssertTag(hybrid.WrapSingle(new byte[16]), "age-encryption.org/mlkem768p256tag", Bech32.Decode(GoAgeRecipients().Hybrid).Data[1184..]);
 
         static void AssertTag(Stanza stanza, string label, byte[] hashed)
         {
@@ -253,7 +253,7 @@ public class TaggedRecipientTests
         var recipient = P256TagRecipient.Parse(Bech32.Encode("age1tag", Compress(point)));
         var fileKey = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
 
-        var stanza = recipient.Wrap(fileKey);
+        var stanza = recipient.WrapSingle(fileKey);
 
         var enc = Base64Unpadded.Decode(stanza.Args[1]);
         var dh = EcdhX(privateKey, enc);
@@ -278,7 +278,7 @@ public class TaggedRecipientTests
         var recipient = MlKem768P256TagRecipient.Parse(Bech32.Encode("age1tagpq", [.. encapsulationKey, .. point]));
         var fileKey = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
 
-        var stanza = recipient.Wrap(fileKey);
+        var stanza = recipient.WrapSingle(fileKey);
 
         var enc = Base64Unpadded.Decode(stanza.Args[1]);
         var (ctPq, ctT) = (enc[..1088], enc[1088..]);

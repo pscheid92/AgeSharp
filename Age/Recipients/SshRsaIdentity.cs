@@ -13,7 +13,7 @@ namespace Age.Recipients;
 /// An identity backed by an ssh-rsa private key, decrypting the age
 /// <c>ssh-rsa</c> recipient type (RSA-OAEP).
 /// </summary>
-public sealed class SshRsaIdentity : IIdentity, IDisposable
+public sealed class SshRsaIdentity : IIdentityWithRecipient, IDisposable
 {
     private readonly RsaPrivateCrtKeyParameters _privateKey;
     private readonly byte[] _sshWireBytes;
@@ -46,13 +46,19 @@ public sealed class SshRsaIdentity : IIdentity, IDisposable
             : throw new FormatException($"expected ssh-rsa private key, got {keyType}");
     }
 
+    IRecipient IIdentityWithRecipient.Recipient =>
+        Recipient;
+
     /// <summary>
     /// Attempts to unwrap the file key from an <c>ssh-rsa</c> stanza. Returns null
     /// for stanzas of other types or addressed to a different SSH key (tag mismatch).
     /// </summary>
     /// <exception cref="AgeHeaderException">The stanza claims to be ssh-rsa but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
-    public byte[]? Unwrap(Stanza stanza)
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey) =>
+        FileKey.Deliver(UnwrapToArray(stanza), fileKey);
+
+    private byte[]? UnwrapToArray(Stanza stanza)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 

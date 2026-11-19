@@ -54,7 +54,10 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
     /// it protects nothing. It is still accepted for decryption, because earlier versions could
     /// encrypt with one and those files must stay readable.
     /// </remarks>
-    public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey) =>
+        [WrapOne(fileKey)];
+
+    private Stanza WrapOne(ReadOnlySpan<byte> fileKey)
     {
         if (_passphrase.Length == 0)
             throw new ArgumentException("passphrase can't be empty", "passphrase");
@@ -82,7 +85,10 @@ public sealed class ScryptRecipient(string passphrase, int workFactor = 18) : IR
     /// stanzas of other types or when the passphrase is wrong.
     /// </summary>
     /// <exception cref="AgeHeaderException">The stanza claims to be scrypt but is malformed, or its work factor exceeds the maximum.</exception>
-    public byte[]? Unwrap(Stanza stanza)
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey) =>
+        FileKey.Deliver(UnwrapToArray(stanza), fileKey);
+
+    private byte[]? UnwrapToArray(Stanza stanza)
     {
         if (stanza.Type != StanzaType) return null;
 

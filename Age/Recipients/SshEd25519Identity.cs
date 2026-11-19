@@ -11,7 +11,7 @@ namespace Age.Recipients;
 /// An identity backed by an ssh-ed25519 private key, converted to X25519 for the
 /// age <c>ssh-ed25519</c> recipient type. Disposing zeroes the converted key.
 /// </summary>
-public sealed class SshEd25519Identity : IIdentity, IDisposable
+public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
 {
     private const int KeySize = 32;
     private const int WrappedKeySize = 32; // 16-byte file key + 16-byte Poly1305 tag
@@ -71,13 +71,19 @@ public sealed class SshEd25519Identity : IIdentity, IDisposable
         return new SshEd25519Identity(x25519Private, x25519Pub, publicWireBytes);
     }
 
+    IRecipient IIdentityWithRecipient.Recipient =>
+        Recipient;
+
     /// <summary>
     /// Attempts to unwrap the file key from an <c>ssh-ed25519</c> stanza. Returns
     /// null for stanzas of other types or addressed to a different SSH key (tag mismatch).
     /// </summary>
     /// <exception cref="AgeHeaderException">The stanza claims to be ssh-ed25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
-    public byte[]? Unwrap(Stanza stanza)
+    public bool TryUnwrap(Stanza stanza, Span<byte> fileKey) =>
+        FileKey.Deliver(UnwrapToArray(stanza), fileKey);
+
+    private byte[]? UnwrapToArray(Stanza stanza)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 

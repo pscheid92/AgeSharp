@@ -49,7 +49,7 @@ public class ScryptPassphraseTests
     /// </summary>
     private sealed class EmptyPassphraseScrypt : IRecipient
     {
-        public Stanza Wrap(ReadOnlySpan<byte> fileKey)
+        public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
         {
             const int workFactor = 10;
             var salt = RandomNumberGenerator.GetBytes(16);
@@ -61,7 +61,7 @@ public class ScryptPassphraseTests
                 aead.Encrypt(new byte[12], fileKey, body.AsSpan(0, fileKey.Length), body.AsSpan(fileKey.Length));
 
             var saltArg = Convert.ToBase64String(salt).TrimEnd('=');
-            return new Stanza("scrypt", [saltArg, workFactor.ToString(System.Globalization.CultureInfo.InvariantCulture)], body);
+            return [new Stanza("scrypt", [saltArg, workFactor.ToString(System.Globalization.CultureInfo.InvariantCulture)], body)];
         }
     }
 }

@@ -1,22 +1,68 @@
 #nullable enable
-const Age.AgeLimits.MaxRecipientStanzas = 1024 -> int
-const Age.AgeLimits.MaxStanzaArguments = 128 -> int
+*REMOVED*Age.Recipients.IIdentity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
+*REMOVED*Age.Recipients.IIdentity.Unwrap(System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>! stanzas) -> byte[]?
+*REMOVED*Age.Recipients.IRecipient.Label.get -> string?
+*REMOVED*Age.Recipients.IRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
+*REMOVED*Age.Recipients.MlKem768X25519Identity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
+*REMOVED*Age.Recipients.MlKem768X25519Recipient.Label.get -> string!
+*REMOVED*Age.Recipients.MlKem768X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
+*REMOVED*Age.Recipients.PluginIdentity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
+*REMOVED*Age.Recipients.PluginIdentity.Unwrap(System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>! stanzas) -> byte[]?
+*REMOVED*Age.Recipients.PluginRecipient.Label.get -> string?
+*REMOVED*Age.Recipients.PluginRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
+*REMOVED*Age.Recipients.ScryptRecipient.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
+*REMOVED*Age.Recipients.ScryptRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
+*REMOVED*Age.Recipients.SshEd25519Identity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
+*REMOVED*Age.Recipients.SshEd25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
+*REMOVED*Age.Recipients.SshRsaIdentity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
+*REMOVED*Age.Recipients.SshRsaRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
+*REMOVED*Age.Recipients.X25519Identity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
+*REMOVED*Age.Recipients.X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
 *REMOVED*const Age.AgeLimits.MaxHeaderBytes = 16777216 -> int
 *REMOVED*const Age.AgeLimits.MaxHeaderLineBytes = 65536 -> int
-const Age.AgeLimits.MaxHeaderBytes = 2097152 -> int
-const Age.AgeLimits.MaxHeaderLineBytes = 2097152 -> int
 Age.Recipients.EncryptedSshIdentity
 Age.Recipients.EncryptedSshIdentity.Dispose() -> void
 Age.Recipients.EncryptedSshIdentity.Recipient.get -> Age.Recipients.IRecipient!
-Age.Recipients.EncryptedSshIdentity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
-static Age.AgeKeygen.ParseSshIdentity(string! pemText, System.Func<string!>! passphrase) -> Age.Recipients.IIdentity!
-static Age.AgeKeygen.ParseSshIdentity(string! pemText, string! publicKey, System.Func<string!>! passphrase) -> Age.Recipients.IIdentity!
+Age.Recipients.EncryptedSshIdentity.TryUnwrap(Age.Format.Stanza! stanza, System.Span<byte> fileKey) -> bool
+Age.Recipients.IIdentity.TryUnwrap(Age.Format.Stanza! stanza, System.Span<byte> fileKey) -> bool
+Age.Recipients.IIdentity.TryUnwrap(System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>! stanzas, System.Span<byte> fileKey) -> bool
+Age.Recipients.IIdentityWithRecipient
+Age.Recipients.IIdentityWithRecipient.Recipient.get -> Age.Recipients.IRecipient!
+Age.Recipients.IRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>!
+Age.Recipients.IRecipientWithLabels
+Age.Recipients.IRecipientWithLabels.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> Age.Recipients.LabelledStanzas
+Age.Recipients.LabelledStanzas
+Age.Recipients.LabelledStanzas.Deconstruct(out System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>! stanzas, out System.Collections.Generic.IReadOnlyCollection<string!>! labels) -> void
+Age.Recipients.LabelledStanzas.LabelledStanzas() -> void
+Age.Recipients.LabelledStanzas.LabelledStanzas(System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>! stanzas, System.Collections.Generic.IReadOnlyCollection<string!>! labels) -> void
+Age.Recipients.LabelledStanzas.Labels.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+Age.Recipients.LabelledStanzas.Stanzas.get -> System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>!
 Age.Recipients.MlKem768P256TagRecipient
-Age.Recipients.MlKem768P256TagRecipient.Label.get -> string!
-Age.Recipients.MlKem768P256TagRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
+Age.Recipients.MlKem768P256TagRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>!
+Age.Recipients.MlKem768P256TagRecipient.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> Age.Recipients.LabelledStanzas
+Age.Recipients.MlKem768X25519Identity.TryUnwrap(Age.Format.Stanza! stanza, System.Span<byte> fileKey) -> bool
+Age.Recipients.MlKem768X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>!
+Age.Recipients.MlKem768X25519Recipient.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> Age.Recipients.LabelledStanzas
 Age.Recipients.P256TagRecipient
-Age.Recipients.P256TagRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
+Age.Recipients.P256TagRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>!
+Age.Recipients.PluginIdentity.TryUnwrap(Age.Format.Stanza! stanza, System.Span<byte> fileKey) -> bool
+Age.Recipients.PluginIdentity.TryUnwrap(System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>! stanzas, System.Span<byte> fileKey) -> bool
+Age.Recipients.PluginRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>!
+Age.Recipients.ScryptRecipient.TryUnwrap(Age.Format.Stanza! stanza, System.Span<byte> fileKey) -> bool
+Age.Recipients.ScryptRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>!
+Age.Recipients.SshEd25519Identity.TryUnwrap(Age.Format.Stanza! stanza, System.Span<byte> fileKey) -> bool
+Age.Recipients.SshEd25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>!
+Age.Recipients.SshRsaIdentity.TryUnwrap(Age.Format.Stanza! stanza, System.Span<byte> fileKey) -> bool
+Age.Recipients.SshRsaRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>!
+Age.Recipients.X25519Identity.TryUnwrap(Age.Format.Stanza! stanza, System.Span<byte> fileKey) -> bool
+Age.Recipients.X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>!
+const Age.AgeLimits.MaxHeaderBytes = 2097152 -> int
+const Age.AgeLimits.MaxHeaderLineBytes = 2097152 -> int
+const Age.AgeLimits.MaxRecipientStanzas = 1024 -> int
+const Age.AgeLimits.MaxStanzaArguments = 128 -> int
 override Age.Recipients.MlKem768P256TagRecipient.ToString() -> string!
 override Age.Recipients.P256TagRecipient.ToString() -> string!
+static Age.AgeKeygen.ParseSshIdentity(string! pemText, System.Func<string!>! passphrase) -> Age.Recipients.IIdentity!
+static Age.AgeKeygen.ParseSshIdentity(string! pemText, string! publicKey, System.Func<string!>! passphrase) -> Age.Recipients.IIdentity!
 static Age.Recipients.MlKem768P256TagRecipient.Parse(string! s) -> Age.Recipients.MlKem768P256TagRecipient!
 static Age.Recipients.P256TagRecipient.Parse(string! s) -> Age.Recipients.P256TagRecipient!

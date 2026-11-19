@@ -40,7 +40,7 @@ public class PluginProtocolConformanceTests
 
         var conn = new PluginConnection(new StringReader(response), new StringWriter());
 
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
         Assert.Contains("unexpected file index", ex.Message, StringComparison.Ordinal);
     }
 
@@ -91,7 +91,7 @@ public class PluginProtocolConformanceTests
 
         var recipient = new PluginRecipient(MakePluginRecipient("conf"), new RecordingCallbacks());
         var recipientConn = new PluginConnection(new StringReader(recipientResponse), new StringWriter());
-        Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(recipientConn, new byte[16]));
+        Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(recipientConn, new byte[16]));
 
         var identityResponse = Transcript(c =>
         {
@@ -121,7 +121,7 @@ public class PluginProtocolConformanceTests
         });
 
         var conn = new PluginConnection(new StringReader(response), new StringWriter());
-        recipient.WrapWithConnection(conn, new byte[16]);
+        recipient.WrapAllWithConnection(conn, new byte[16]);
 
         Assert.Single(callbacks.Confirmations);
         Assert.Equal("Touch", callbacks.Confirmations[0].Yes);
