@@ -37,6 +37,8 @@
 
   <ItemGroup>
     <None Include="TestData\**" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The conformance vectors, for tests that read headers the way the runner decrypts them. -->
+    <None Include="..\Age.TestKit\testdata\**" LinkBase="ConformanceVectors" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
