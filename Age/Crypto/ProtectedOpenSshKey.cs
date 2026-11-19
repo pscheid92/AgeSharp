@@ -21,7 +21,7 @@ namespace Age.Crypto;
 /// ciphers OpenSSH protects keys with; neither .NET nor BouncyCastle has bcrypt_pbkdf. What
 /// SSH.NET returns is then held to the same standard as an unprotected key.
 /// </remarks>
-internal sealed class ProtectedOpenSshKey
+internal sealed class ProtectedOpenSshKey : IProtectedSshKey
 {
     // bcrypt_pbkdf costs time linear in the round count, and the count comes from the file:
     // OpenSSH sets no upper bound, and neither does SSH.NET. 2048 is the bound Go's ssh
@@ -199,7 +199,7 @@ internal sealed class ProtectedOpenSshKey
             return file.Key switch
             {
                 ED25519Key ed25519 => FromEd25519(ed25519),
-                RsaKey rsa => SshKeyParser.FromRsaNumbers(Bc(rsa.Modulus), Bc(rsa.Exponent), Bc(rsa.D), Bc(rsa.P), Bc(rsa.Q)),
+                RsaKey rsa => SshKeyParser.FromRsaNumbers(Bc(rsa.Modulus), Bc(rsa.Exponent), Bc(rsa.D), Bc(rsa.P), Bc(rsa.Q), openSshFormat: true),
                 _ => throw new FormatException("unsupported SSH key type: only ssh-ed25519 and ssh-rsa keys work with age"),
             };
         }

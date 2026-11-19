@@ -5,15 +5,17 @@ using Age.Format;
 namespace Age.Recipients;
 
 /// <summary>
-/// An identity backed by a passphrase-protected SSH private key (OpenSSH format, ssh-ed25519
-/// or ssh-rsa). The public key is stored unprotected, so the identity knows its recipient and
-/// which stanzas are addressed to it without the passphrase; it asks for the passphrase only
-/// when a file is actually for this key, and then only until it has been given the right one.
+/// An identity backed by a passphrase-protected SSH private key: ssh-ed25519 or ssh-rsa in
+/// OpenSSH format, or ssh-rsa in the legacy PEM format. The public key is known without the
+/// passphrase (stored unprotected in an OpenSSH key, given as the <c>.pub</c> file for a legacy
+/// one), so the identity knows its recipient and which stanzas are addressed to it; it asks for
+/// the passphrase only when a file is actually for this key, and then only until it has been
+/// given the right one.
 /// </summary>
 public sealed class EncryptedSshIdentity : IIdentity, IDisposable
 {
     private readonly Lock _lock = new();
-    private readonly ProtectedOpenSshKey _protectedKey;
+    private readonly IProtectedSshKey _protectedKey;
     private readonly Func<string> _passphrase;
     private readonly string _keyType;
     private readonly string _tag;
@@ -21,7 +23,7 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
     private bool _unlocking;
     private bool _disposed;
 
-    internal EncryptedSshIdentity(ProtectedOpenSshKey protectedKey, Func<string> passphrase)
+    internal EncryptedSshIdentity(IProtectedSshKey protectedKey, Func<string> passphrase)
     {
         _protectedKey = protectedKey;
         _passphrase = passphrase;
@@ -32,7 +34,7 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
         Recipient = AgeKeygen.ParseSshRecipient(authorizedKeysLine);
     }
 
-    /// <summary>The matching recipient, from the key file's public key. Needs no passphrase.</summary>
+    /// <summary>The matching recipient, from the key's public key. Needs no passphrase.</summary>
     public IRecipient Recipient { get; }
 
     /// <summary>
@@ -164,8 +166,9 @@ public sealed class EncryptedSshIdentity : IIdentity, IDisposable
             throw new AgeException($"failed to decrypt the SSH key: {ex.Message}", ex);
         }
 
-        // The recipient and the stanza match came from the unprotected public key; a file
-        // whose private key is another's would otherwise answer for a key it does not hold.
+        // The recipient and the stanza match came from the public key read without the
+        // passphrase; a file whose private key is another's would otherwise answer for a key
+        // it does not hold.
         if (!key.publicWireBytes.AsSpan().SequenceEqual(_protectedKey.PublicKey))
             throw new AgeException("mismatched private and public SSH key");
 

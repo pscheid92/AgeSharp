@@ -75,10 +75,15 @@ internal static class SshKeyParser
         {
             obj = FromBouncyCastle(() => new PemReader(new StringReader(pemText)).ReadObject(), "invalid PEM private key");
         }
-        catch (FormatException ex) when (ex.InnerException is Org.BouncyCastle.OpenSsl.PasswordException || pemText.Contains("BEGIN ENCRYPTED PRIVATE KEY"))
+        catch (FormatException) when (pemText.Contains("BEGIN ENCRYPTED PRIVATE KEY"))
         {
-            // PKCS#1 with Proc-Type: 4,ENCRYPTED raises PasswordException; encrypted PKCS#8
-            // fails inside BouncyCastle's decoder with a message that never says why.
+            // Encrypted PKCS#8 fails inside BouncyCastle's decoder with a message that never
+            // says why.
+            throw EncryptedPkcs8();
+        }
+        catch (FormatException ex) when (ex.InnerException is Org.BouncyCastle.OpenSsl.PasswordException)
+        {
+            // PKCS#1 with Proc-Type: 4,ENCRYPTED.
             throw LegacyPassphraseProtected();
         }
 
@@ -97,8 +102,9 @@ internal static class SshKeyParser
     /// <exception cref="FormatException">The key is in OpenSSH format and malformed.</exception>
     public static ProtectedOpenSshKey? ParseProtectedKey(string pemText)
     {
-        // Only OpenSSH's own format is read. The PEM encryptions that predate it are not, and
-        // ParsePrivateKey says so.
+        // Only OpenSSH's own format stores its public key in the clear. The legacy PEM
+        // encryption does not, and is read with the public key from the caller
+        // (LegacyPemSshKey); ParsePrivateKey says so.
         if (!pemText.Contains("BEGIN OPENSSH PRIVATE KEY"))
             return null;
 
@@ -152,11 +158,14 @@ internal static class SshKeyParser
             throw new FormatException("invalid ssh-rsa key: incorrect public exponent");
     }
 
-    /// <summary>An RSA key from its numbers, held to the same checks as one read from a file.</summary>
+    /// <summary>
+    /// An RSA key from its numbers, held to the same checks as one read from a file — an
+    /// OpenSSH key file or not, as <c>openSshFormat</c> says (see <see cref="Describe"/>).
+    /// </summary>
     /// <exception cref="FormatException">The numbers do not make an RSA key.</exception>
     public static (string keyType, byte[] publicWireBytes, AsymmetricKeyParameter privateKey) FromRsaNumbers(
-        BigInteger n, BigInteger e, BigInteger d, BigInteger p, BigInteger q) =>
-        Describe(FromBouncyCastle(() => Sound(n, e, d, p, q, openSshFormat: true), "invalid ssh-rsa private key"), openSshFormat: true);
+        BigInteger n, BigInteger e, BigInteger d, BigInteger p, BigInteger q, bool openSshFormat) =>
+        Describe(FromBouncyCastle(() => Sound(n, e, d, p, q, openSshFormat), "invalid ssh-rsa private key"), openSshFormat);
 
     /// <summary>The key type and public key of a parsed private key.</summary>
     /// <param name="privateKey">The private key, as BouncyCastle parsed it.</param>
@@ -234,9 +243,15 @@ internal static class SshKeyParser
         new("the SSH key is passphrase-protected; " +
             "parse it with a passphrase source (AgeKeygen.ParseSshIdentity(pemText, passphrase))");
 
-    // go-age reads these too, given the .pub file next to the key; here, convert the key instead.
+    // As in go-age, which reads these given the .pub file next to the key.
     private static FormatException LegacyPassphraseProtected() =>
-        new("passphrase-protected SSH keys in the legacy PEM format are not supported; " +
+        new("the SSH key is passphrase-protected in the legacy PEM format, which does not store its public key; " +
+            "parse it with its .pub file (AgeKeygen.ParseSshIdentity(pemText, publicKey, passphrase)), " +
+            "or convert it to the OpenSSH format with ssh-keygen -p");
+
+    // go-age does not read these either.
+    private static FormatException EncryptedPkcs8() =>
+        new("passphrase-protected SSH keys in encrypted PKCS#8 are not supported; " +
             "convert the key to the OpenSSH format with ssh-keygen -p");
 
     /// <summary>
