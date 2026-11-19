@@ -64,14 +64,16 @@ public class OpenSshKeyQuirksTests
         Assert.Contains(because, ex.Message);
     }
 
-    // A key only SSH.NET reads gets the checks a key BouncyCastle reads gets, and their own
-    // error: here n is not p·q (q changed in a key with redundant leading zeros).
+    // A key only SSH.NET reads gets the checks a key BouncyCastle reads gets: here n is not p·q
+    // (q changed in a key with redundant leading zeros). Where SSH.NET hands RSA keys to the
+    // platform at once (Linux, Windows), the platform refuses it and SSH.NET reads nothing, so
+    // BouncyCastle's error is reported; on macOS SSH.NET reads it, and the RSA checks refuse it.
     [Fact]
     public void AKeyOnlySshNetReads_StillGetsTheRsaChecks()
     {
         var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseSshIdentity(Key("rsa_plain_leading_zeros_unsound")));
 
-        Assert.Contains("do not belong together", ex.Message);
+        Assert.True(ex.Message.Contains("do not belong together") || ex.Message.Contains("Unnecessary leading bytes"), ex.Message);
     }
 
     [Fact]
