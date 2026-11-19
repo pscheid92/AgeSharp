@@ -27,10 +27,16 @@ public class PluginTests
 
         public void DisplayMessage(string message) => Messages.Add(message);
 
-        public string RequestValue(string prompt, bool secret)
+        public string RequestValue(string prompt)
         {
-            SecretRequests.Add((prompt, secret));
+            SecretRequests.Add((prompt, false));
             return SecretResponse ?? "";
+        }
+
+        public char[] RequestSecret(string prompt)
+        {
+            SecretRequests.Add((prompt, true));
+            return (SecretResponse ?? "").ToCharArray();
         }
 
         public bool Confirm(string message, string yes, string? no)

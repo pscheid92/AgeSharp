@@ -1,4 +1,5 @@
 #nullable enable
+*REMOVED*Age.Plugin.IPluginCallbacks.RequestValue(string! prompt, bool secret) -> string!
 *REMOVED*Age.Recipients.IIdentity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
 *REMOVED*Age.Recipients.IIdentity.Unwrap(System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>! stanzas) -> byte[]?
 *REMOVED*Age.Recipients.IRecipient.Label.get -> string?
@@ -20,6 +21,8 @@
 *REMOVED*Age.Recipients.X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
 *REMOVED*const Age.AgeLimits.MaxHeaderBytes = 16777216 -> int
 *REMOVED*const Age.AgeLimits.MaxHeaderLineBytes = 65536 -> int
+Age.Plugin.IPluginCallbacks.RequestSecret(string! prompt) -> char[]?
+Age.Plugin.IPluginCallbacks.RequestValue(string! prompt) -> string!
 Age.Recipients.EncryptedSshIdentity
 Age.Recipients.EncryptedSshIdentity.Dispose() -> void
 Age.Recipients.EncryptedSshIdentity.Recipient.get -> Age.Recipients.IRecipient!

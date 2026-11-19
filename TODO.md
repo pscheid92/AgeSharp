@@ -28,6 +28,7 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 - [x] Native tagged recipients: `age1tag1…` (p256tag) and `age1tagpq1…` (mlkem768p256tag), encryption only — HPKE on BouncyCastle, checked against RFC 9180 and draft-ietf-hpke-pq vectors and go-age's tag test identities
 - [ ] `PluginIdentity` as `IIdentityWithRecipient`: its recipient speaks recipient-v1 with `add-identity`, so a file can be encrypted to the identities in a key file, plugins included (recorded on `next-version`; deferred from rebuild step 1)
 - [ ] AgeSharp's own identities derive the file key straight into the caller's buffer, instead of recovering it into an array and handing that over zeroed (`FileKey.Deliver`)
+- [ ] Plugin connection: write stanzas to the plugin's stdin as bytes, not through a `StreamWriter`, whose internal buffer keeps a copy of the last body written (a file key, or a secret since rebuild step 2) until it is overwritten
 - [ ] Plugin recipients: advertise `extension-labels` and pass a plugin's labels on through `IRecipientWithLabels` (possible since rebuild step 1; today a plugin is told nothing and sends none)
 - [ ] Plugin authoring: the server side of the plugin protocol
 - [ ] Small differences from go-age (low priority): a matching stanza without arguments is an error in go-age and skipped here; an even RSA exponent is refused with BouncyCastle's own message
