@@ -169,6 +169,12 @@ internal sealed class PluginConnection : IDisposable
         }
     }
 
+    /// <summary>The plugin's next command; the plugin ending here instead is a failure.</summary>
+    /// <exception cref="AgePluginException">The plugin ended, or wrote something that is not a stanza.</exception>
+    public (string Type, string[] Args, byte[] Body) ReadNextStanza() =>
+        // stderr is the only account of why the plugin died, so Failure() quotes it.
+        ReadStanza() ?? throw Failure("unexpected end of plugin output");
+
     public (string Type, string[] Args, byte[] Body)? ReadStanza()
     {
         var line = _reader.ReadLine();

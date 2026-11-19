@@ -242,6 +242,16 @@ using var identity = AgeKeygen.ParseIdentity("AGE-SECRET-KEY-1...");
 var recipient = AgeKeygen.ParseRecipient("age1...");
 ```
 
+`ParseIdentity` and `ParseRecipient` read X25519 keys only. For a recipient string of
+any type (`age1pq1…`, `age1tag1…`, an SSH public key, a plugin's `age1name1…`), parse
+it as a one-line recipients file, or use the type's own `Parse`:
+
+```csharp
+var recipient = AgeKeygen.ParseRecipientsFile(line)[0];        // any type
+var tagged = P256TagRecipient.Parse("age1tag1...");            // a specific type
+var ssh = AgeKeygen.ParseSshRecipient("ssh-ed25519 AAAA...");
+```
+
 ### Custom recipients and identities
 
 Implement `IRecipient` and `IIdentity` to integrate custom key types,

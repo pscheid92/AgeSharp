@@ -49,10 +49,10 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 - [ ] File-key extraction and injection (`ExtractHeader`, `DecryptHeader`, injected-file-key identity)
 - [ ] Public armor reader and writer
 - [ ] Replace the `AgeEncrypt` / `AgeKeygen` static catch-alls with domain types
-  - `AgeKeygen.ParseRecipient(string)` parses X25519 only (it returns `X25519Recipient`); the only public way to parse a single tagged, post-quantum, plugin or SSH recipient string is `ParseRecipientsFile(line)[0]`. Until the rebuild, say so in the README
+  - `AgeKeygen.ParseRecipient(string)` parses X25519 only (it returns `X25519Recipient`); a recipient string of unknown type takes `ParseRecipientsFile(line)[0]` (or the type's own `Parse` when the type is known). Until the rebuild, the README and the method's docs say so
 
 ## Internal (from the 2026-09-22 review)
 
 - [ ] `PayloadKey` type
-- [ ] Shared plugin prompt handler
+- [x] Shared plugin prompt handler — `Age.Plugin.PluginPrompts`, used by `PluginRecipient` and `PluginIdentity`
 - [ ] Remove test-only code from the production assembly
