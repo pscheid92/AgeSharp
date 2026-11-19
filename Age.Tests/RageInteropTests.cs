@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
-using Age.Recipients;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Utilities;
+using OuterLoop;
 using Xunit;
 
 namespace Age.Tests;
@@ -23,21 +23,6 @@ public class RageInteropTests
         return data;
     }
 
-    private static byte[] EncryptWithCSharp(byte[] plaintext, bool armored, params IRecipient[] recipients)
-    {
-        using var input = new MemoryStream(plaintext);
-        using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, armored, recipients);
-        return output.ToArray();
-    }
-
-    private static byte[] DecryptWithCSharp(byte[] ciphertext, params IIdentity[] identities)
-    {
-        using var input = new MemoryStream(ciphertext);
-        using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(input, output, identities);
-        return output.ToArray();
-    }
 
     // --- X25519: sizes straddling the 64 KiB chunk boundary × armor, both directions ---
 
@@ -58,12 +43,12 @@ public class RageInteropTests
     {
         Skip.IfNot(RageCli.Available, "rage CLI not found on PATH");
 
-        using var identity = X25519Identity.Generate();
+        var identity = AgeUnderTest.GenerateX25519();
         var plaintext = MakePlaintext(size);
 
-        var ciphertext = EncryptWithCSharp(plaintext, armored, identity.Recipient);
+        var ciphertext = AgeUnderTest.Encrypt(plaintext, armored, identity.Recipient);
 
-        Assert.Equal(plaintext, RageCli.Decrypt(identity.ToSecretString() + "\n", ciphertext));
+        Assert.Equal(plaintext, RageCli.Decrypt(identity.Identity + "\n", ciphertext));
     }
 
     [SkippableTheory]
@@ -83,12 +68,12 @@ public class RageInteropTests
     {
         Skip.IfNot(RageCli.Available, "rage CLI not found on PATH");
 
-        using var identity = X25519Identity.Generate();
+        var identity = AgeUnderTest.GenerateX25519();
         var plaintext = MakePlaintext(size);
 
-        var ciphertext = RageCli.Encrypt(plaintext, armored, identity.Recipient.ToString());
+        var ciphertext = RageCli.Encrypt(plaintext, armored, identity.Recipient);
 
-        Assert.Equal(plaintext, DecryptWithCSharp(ciphertext, identity));
+        Assert.Equal(plaintext, AgeUnderTest.Decrypt(ciphertext, identity.Identity));
     }
 
     // --- Several recipients: every identity must decrypt what the other side produced ---
@@ -98,14 +83,14 @@ public class RageInteropTests
     {
         Skip.IfNot(RageCli.Available, "rage CLI not found on PATH");
 
-        using var first = X25519Identity.Generate();
-        using var second = X25519Identity.Generate();
+        var first = AgeUnderTest.GenerateX25519();
+        var second = AgeUnderTest.GenerateX25519();
         var plaintext = MakePlaintext(1000);
 
-        var ciphertext = EncryptWithCSharp(plaintext, false, first.Recipient, second.Recipient);
+        var ciphertext = AgeUnderTest.Encrypt(plaintext, false, first.Recipient, second.Recipient);
 
-        Assert.Equal(plaintext, RageCli.Decrypt(first.ToSecretString() + "\n", ciphertext));
-        Assert.Equal(plaintext, RageCli.Decrypt(second.ToSecretString() + "\n", ciphertext));
+        Assert.Equal(plaintext, RageCli.Decrypt(first.Identity + "\n", ciphertext));
+        Assert.Equal(plaintext, RageCli.Decrypt(second.Identity + "\n", ciphertext));
     }
 
     [SkippableFact]
@@ -113,14 +98,14 @@ public class RageInteropTests
     {
         Skip.IfNot(RageCli.Available, "rage CLI not found on PATH");
 
-        using var first = X25519Identity.Generate();
-        using var second = X25519Identity.Generate();
+        var first = AgeUnderTest.GenerateX25519();
+        var second = AgeUnderTest.GenerateX25519();
         var plaintext = MakePlaintext(1000);
 
-        var ciphertext = RageCli.Encrypt(plaintext, false, first.Recipient.ToString(), second.Recipient.ToString());
+        var ciphertext = RageCli.Encrypt(plaintext, false, first.Recipient, second.Recipient);
 
-        Assert.Equal(plaintext, DecryptWithCSharp(ciphertext, first));
-        Assert.Equal(plaintext, DecryptWithCSharp(ciphertext, second));
+        Assert.Equal(plaintext, AgeUnderTest.Decrypt(ciphertext, first.Identity));
+        Assert.Equal(plaintext, AgeUnderTest.Decrypt(ciphertext, second.Identity));
     }
 
     // --- SSH Ed25519, both directions ---
@@ -133,7 +118,7 @@ public class RageInteropTests
         var (authorizedKey, privateKeyPem) = GenerateSshEd25519();
         var plaintext = MakePlaintext(1000);
 
-        var ciphertext = EncryptWithCSharp(plaintext, false, AgeKeygen.ParseSshRecipient(authorizedKey));
+        var ciphertext = AgeUnderTest.Encrypt(plaintext, false, authorizedKey);
 
         Assert.Equal(plaintext, RageCli.Decrypt(privateKeyPem, ciphertext));
     }
@@ -148,7 +133,7 @@ public class RageInteropTests
 
         var ciphertext = RageCli.Encrypt(plaintext, false, authorizedKey);
 
-        Assert.Equal(plaintext, DecryptWithCSharp(ciphertext, AgeKeygen.ParseSshIdentity(privateKeyPem)));
+        Assert.Equal(plaintext, AgeUnderTest.Decrypt(ciphertext, privateKeyPem));
     }
 
     private static (string AuthorizedKey, string PrivateKeyPem) GenerateSshEd25519()

@@ -30,6 +30,11 @@
     <ProjectReference Include="..\Age\Age.csproj" />
   </ItemGroup>
 
+  <!-- The outer loop's adapter to the public API, shared with the conformance runner. -->
+  <ItemGroup>
+    <Compile Include="..\Age.TestKit\AgeUnderTest.cs" Link="TestSupport\AgeUnderTest.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <None Include="TestData\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

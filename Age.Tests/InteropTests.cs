@@ -1,5 +1,5 @@
 using System.Linq;
-using Age.Recipients;
+using OuterLoop;
 using Xunit;
 
 namespace Age.Tests;
@@ -21,21 +21,6 @@ public class InteropTests
         return data;
     }
 
-    private static byte[] EncryptWithCSharp(byte[] plaintext, bool armored, params IRecipient[] recipients)
-    {
-        using var input = new MemoryStream(plaintext);
-        using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, armored, recipients);
-        return output.ToArray();
-    }
-
-    private static byte[] DecryptWithCSharp(byte[] ciphertext, params IIdentity[] identities)
-    {
-        using var input = new MemoryStream(ciphertext);
-        using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(input, output, identities);
-        return output.ToArray();
-    }
 
     // --- X25519: full size × armor matrix, both directions ---
 
@@ -58,11 +43,11 @@ public class InteropTests
     {
         Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
-        using var identity = X25519Identity.Generate();
+        var identity = AgeUnderTest.GenerateX25519();
         var plaintext = MakePlaintext(size);
 
-        var ciphertext = EncryptWithCSharp(plaintext, armored, identity.Recipient);
-        var result = AgeCli.Decrypt(identity.ToSecretString(), ciphertext);
+        var ciphertext = AgeUnderTest.Encrypt(plaintext, armored, identity.Recipient);
+        var result = AgeCli.Decrypt(identity.Identity, ciphertext);
 
         Assert.Equal(plaintext, result);
     }
@@ -86,11 +71,11 @@ public class InteropTests
     {
         Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
-        using var identity = X25519Identity.Generate();
+        var identity = AgeUnderTest.GenerateX25519();
         var plaintext = MakePlaintext(size);
 
-        var ciphertext = AgeCli.Encrypt(plaintext, armored, identity.Recipient.ToString());
-        var result = DecryptWithCSharp(ciphertext, identity);
+        var ciphertext = AgeCli.Encrypt(plaintext, armored, identity.Recipient);
+        var result = AgeUnderTest.Decrypt(ciphertext, identity.Identity);
 
         Assert.Equal(plaintext, result);
     }
@@ -102,15 +87,15 @@ public class InteropTests
     {
         Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
-        using var a = X25519Identity.Generate();
-        using var b = X25519Identity.Generate();
-        using var c = X25519Identity.Generate();
+        var a = AgeUnderTest.GenerateX25519();
+        var b = AgeUnderTest.GenerateX25519();
+        var c = AgeUnderTest.GenerateX25519();
         var plaintext = MakePlaintext(4096);
 
-        var ciphertext = EncryptWithCSharp(plaintext, armored: false, a.Recipient, b.Recipient, c.Recipient);
+        var ciphertext = AgeUnderTest.Encrypt(plaintext, armored: false, a.Recipient, b.Recipient, c.Recipient);
 
         foreach (var identity in new[] { a, b, c })
-            Assert.Equal(plaintext, AgeCli.Decrypt(identity.ToSecretString(), ciphertext));
+            Assert.Equal(plaintext, AgeCli.Decrypt(identity.Identity, ciphertext));
     }
 
     [SkippableFact]
@@ -118,17 +103,17 @@ public class InteropTests
     {
         Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
-        using var a = X25519Identity.Generate();
-        using var b = X25519Identity.Generate();
-        using var c = X25519Identity.Generate();
+        var a = AgeUnderTest.GenerateX25519();
+        var b = AgeUnderTest.GenerateX25519();
+        var c = AgeUnderTest.GenerateX25519();
         var plaintext = MakePlaintext(4096);
 
         var ciphertext = AgeCli.Encrypt(plaintext, armored: false,
-            a.Recipient.ToString(), b.Recipient.ToString(), c.Recipient.ToString());
+            a.Recipient, b.Recipient, c.Recipient);
 
-        Assert.Equal(plaintext, DecryptWithCSharp(ciphertext, a));
-        Assert.Equal(plaintext, DecryptWithCSharp(ciphertext, b));
-        Assert.Equal(plaintext, DecryptWithCSharp(ciphertext, c));
+        Assert.Equal(plaintext, AgeUnderTest.Decrypt(ciphertext, a.Identity));
+        Assert.Equal(plaintext, AgeUnderTest.Decrypt(ciphertext, b.Identity));
+        Assert.Equal(plaintext, AgeUnderTest.Decrypt(ciphertext, c.Identity));
     }
 
     // --- Shared security policy: mixing post-quantum and classic recipients is refused ---
@@ -138,17 +123,17 @@ public class InteropTests
     {
         Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
-        using var x25519 = X25519Identity.Generate();
-        using var pq = MlKem768X25519Identity.Generate();
+        var x25519 = AgeUnderTest.GenerateX25519();
+        var pq = AgeUnderTest.GeneratePostQuantum();
         var plaintext = MakePlaintext(64);
 
         // A file encrypted to both a classic and a post-quantum recipient is only as strong as
         // the classic stanza, defeating the point of the PQ recipient. AgeSharp and the reference
         // age CLI both refuse the combination — this locks in that the two agree on that policy.
-        Assert.Throws<AgeException>(() =>
-            EncryptWithCSharp(plaintext, armored: false, x25519.Recipient, pq.Recipient));
+        Assert.Throws<AgeUnderTest.Refused>(() =>
+            AgeUnderTest.Encrypt(plaintext, armored: false, x25519.Recipient, pq.Recipient));
         Assert.Throws<InvalidOperationException>(() =>
-            AgeCli.Encrypt(plaintext, armored: false, x25519.Recipient.ToString(), pq.Recipient.ToString()));
+            AgeCli.Encrypt(plaintext, armored: false, x25519.Recipient, pq.Recipient));
     }
 
     // --- ML-KEM-768-X25519: both directions, binary + armored ---
@@ -160,11 +145,11 @@ public class InteropTests
     {
         Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
-        using var identity = MlKem768X25519Identity.Generate();
+        var identity = AgeUnderTest.GeneratePostQuantum();
         var plaintext = MakePlaintext(131072);
 
-        var ciphertext = EncryptWithCSharp(plaintext, armored, identity.Recipient);
-        var result = AgeCli.Decrypt(identity.ToSecretString(), ciphertext);
+        var ciphertext = AgeUnderTest.Encrypt(plaintext, armored, identity.Recipient);
+        var result = AgeCli.Decrypt(identity.Identity, ciphertext);
 
         Assert.Equal(plaintext, result);
     }
@@ -176,11 +161,11 @@ public class InteropTests
     {
         Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
-        using var identity = MlKem768X25519Identity.Generate();
+        var identity = AgeUnderTest.GeneratePostQuantum();
         var plaintext = MakePlaintext(131072);
 
-        var ciphertext = AgeCli.Encrypt(plaintext, armored, identity.Recipient.ToString());
-        var result = DecryptWithCSharp(ciphertext, identity);
+        var ciphertext = AgeCli.Encrypt(plaintext, armored, identity.Recipient);
+        var result = AgeUnderTest.Decrypt(ciphertext, identity.Identity);
 
         Assert.Equal(plaintext, result);
     }
@@ -192,18 +177,15 @@ public class InteropTests
     {
         Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
-        using var identity = X25519Identity.Generate();
+        var identity = AgeUnderTest.GenerateX25519();
         var plaintext = MakePlaintext(4096);
 
-        using var input = new MemoryStream(plaintext);
-        using var header = new MemoryStream();
-        using var payload = new MemoryStream();
-        AgeEncrypt.EncryptDetached(input, header, payload, identity.Recipient);
+        var (header, payload) = AgeUnderTest.EncryptDetached(plaintext, identity.Recipient);
 
         // The detached streams are a standard age file split at the payload boundary;
         // concatenating them must yield bytes age accepts unchanged.
-        var recombined = header.ToArray().Concat(payload.ToArray()).ToArray();
-        var result = AgeCli.Decrypt(identity.ToSecretString(), recombined);
+        var recombined = header.Concat(payload).ToArray();
+        var result = AgeCli.Decrypt(identity.Identity, recombined);
 
         Assert.Equal(plaintext, result);
     }
@@ -221,8 +203,8 @@ public class InteropTests
         // 182, 183 for a single X25519 recipient).
         Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
 
-        using var identity = X25519Identity.Generate();
-        var recipient = identity.Recipient.ToString();
+        var identity = AgeUnderTest.GenerateX25519();
+        var recipient = identity.Recipient;
         var failures = new List<int>();
 
         for (var size = 0; size <= 220; size++)
@@ -230,15 +212,10 @@ public class InteropTests
             var plaintext = MakePlaintext(size);
             var ciphertext = AgeCli.Encrypt(plaintext, armored: true, recipient);
 
-            try
-            {
-                if (!DecryptWithCSharp(ciphertext, identity).SequenceEqual(plaintext))
-                    failures.Add(size);
-            }
-            catch (AgeException)
-            {
+            var decryption = AgeUnderTest.TryDecrypt(ciphertext, [identity.Identity]);
+
+            if (decryption.Outcome != AgeUnderTest.Outcome.Success || !decryption.Plaintext!.SequenceEqual(plaintext))
                 failures.Add(size);
-            }
         }
 
         Assert.Empty(failures);
