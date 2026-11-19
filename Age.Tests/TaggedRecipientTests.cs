@@ -129,6 +129,21 @@ public class TaggedRecipientTests
         Assert.Throws<FormatException>(() => MlKem768P256TagRecipient.Parse(recipient()));
     }
 
+    // An uncompressed point is 65 bytes starting 0x04; a compressed one of the right length, or
+    // an uncompressed one cut short, is not.
+    [Theory]
+    [InlineData(0x02, DhKemP256.UncompressedPointSize)]
+    [InlineData(0x04, DhKemP256.UncompressedPointSize - 1)]
+    public void AnUncompressedPointThatIsNot_IsRefused(byte prefix, int length)
+    {
+        var point = new byte[length];
+        point[0] = prefix;
+
+        var ex = Assert.Throws<FormatException>(() => DhKemP256.ValidateUncompressed(point));
+
+        Assert.Contains("uncompressed point", ex.Message);
+    }
+
     [Fact]
     public void TheHybridKem_RefusesAPublicKeyOfTheWrongLength()
     {

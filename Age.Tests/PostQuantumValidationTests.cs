@@ -54,6 +54,16 @@ public class PostQuantumValidationTests
             Assert.Null(ex);
     }
 
+    [Theory]
+    [InlineData(MlKem768EncapsulationKey.Size - 1)]
+    [InlineData(MlKem768EncapsulationKey.Size + 1)]
+    public void AnEncapsulationKeyOfTheWrongLength_IsRefusedWhenDecoded(int length)
+    {
+        var ex = Assert.Throws<FormatException>(() => MlKem768EncapsulationKey.Decode(new byte[length]));
+
+        Assert.Contains($"must be {MlKem768EncapsulationKey.Size} bytes", ex.Message);
+    }
+
     [Fact]
     public void Parse_StillAcceptsAGenuineRecipient()
     {

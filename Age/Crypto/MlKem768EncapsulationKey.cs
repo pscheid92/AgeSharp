@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using Org.BouncyCastle.Crypto.Kems;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
@@ -40,13 +39,10 @@ internal sealed class MlKem768EncapsulationKey
         {
             return new MlKem768EncapsulationKey(MLKemPublicKeyParameters.FromEncoding(MLKemParameters.ml_kem_768, encoded.ToArray()));
         }
-        catch (ArgumentException ex) when (ex.Message.StartsWith("Modulus check failed", StringComparison.Ordinal))
+        catch (ArgumentException ex)
         {
+            // FromEncoding checks the length and the coefficients; the length was checked above.
             throw new FormatException("invalid ML-KEM-768 encapsulation key: a coefficient is not less than the modulus", ex);
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-        {
-            throw new FormatException($"invalid ML-KEM-768 encapsulation key: {ex.Message}", ex);
         }
     }
 
@@ -59,15 +55,7 @@ internal sealed class MlKem768EncapsulationKey
         var ciphertext = new byte[CiphertextSize];
         var sharedSecret = new byte[SharedSecretSize];
 
-        try
-        {
-            encapsulator.Encapsulate(ciphertext, 0, CiphertextSize, sharedSecret, 0, SharedSecretSize);
-            return (ciphertext, sharedSecret);
-        }
-        catch
-        {
-            CryptographicOperations.ZeroMemory(sharedSecret);
-            throw;
-        }
+        encapsulator.Encapsulate(ciphertext, 0, CiphertextSize, sharedSecret, 0, SharedSecretSize);
+        return (ciphertext, sharedSecret);
     }
 }
