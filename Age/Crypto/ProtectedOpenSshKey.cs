@@ -2,11 +2,8 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Parameters;
 using Renci.SshNet;
 using Renci.SshNet.Common;
-using Renci.SshNet.Security;
-using BcBigInteger = Org.BouncyCastle.Math.BigInteger;
 
 namespace Age.Crypto;
 
@@ -178,7 +175,7 @@ internal sealed class ProtectedOpenSshKey : IProtectedSshKey
 
         try
         {
-            file = new PrivateKeyFile(new MemoryStream(Encoding.ASCII.GetBytes(Pem())), passphrase);
+            file = new PrivateKeyFile(new MemoryStream(Encoding.ASCII.GetBytes(SshNetKeys.OpenSshPem(_blob))), passphrase);
         }
         catch (SshException ex) when (ex.Message.Contains("check bytes") || ex.Message.Contains("MAC error"))
         {
@@ -195,45 +192,8 @@ internal sealed class ProtectedOpenSshKey : IProtectedSshKey
         }
 
         using (file)
-        {
-            return file.Key switch
-            {
-                ED25519Key ed25519 => FromEd25519(ed25519),
-                RsaKey rsa => SshKeyParser.FromRsaNumbers(Bc(rsa.Modulus), Bc(rsa.Exponent), Bc(rsa.D), Bc(rsa.P), Bc(rsa.Q), openSshFormat: true),
-                _ => throw new FormatException("unsupported SSH key type: only ssh-ed25519 and ssh-rsa keys work with age"),
-            };
-        }
+            return SshNetKeys.From(file.Key, openSshFormat: true);
     }
-
-    // The public key is derived from the seed, not taken from the file, so a seed that is not
-    // the public key's shows up as a mismatch.
-    private static (string, byte[], AsymmetricKeyParameter) FromEd25519(ED25519Key key)
-    {
-        var seed = key.PrivateKey.ToArray();
-
-        try
-        {
-            return seed.Length == Ed25519PrivateKeyParameters.KeySize
-                ? SshKeyParser.Describe(new Ed25519PrivateKeyParameters(seed), openSshFormat: true)
-                : throw new FormatException("invalid OpenSSH private key: malformed ssh-ed25519 key");
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(seed);
-
-            // SSH.NET hands out the array it holds the seed in, and does not clear it itself.
-            CryptographicOperations.ZeroMemory(key.PrivateKey);
-        }
-    }
-
-    // Two's complement both ways, so a negative number in the file stays negative and is refused.
-    private static BcBigInteger Bc(System.Numerics.BigInteger value) =>
-        new(value.ToByteArray(isUnsigned: false, isBigEndian: true));
-
-    private string Pem() =>
-        "-----BEGIN OPENSSH PRIVATE KEY-----\n"
-        + Convert.ToBase64String(_blob, Base64FormattingOptions.InsertLineBreaks).Replace("\r\n", "\n")
-        + "\n-----END OPENSSH PRIVATE KEY-----\n";
 
     private static ReadOnlySpan<byte> ReadString(ref ReadOnlySpan<byte> rest)
     {

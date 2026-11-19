@@ -8,6 +8,7 @@ implementations (2026-11-17; still the latest go-age and rage releases on
 
 - [x] Release `main` as `0.2.0-preview.5` — tagged 2026-11-18 on e3db35d, with #91–#102 and upgrade notes in the GitHub release
 - [x] Release `main` as `0.2.0-preview.6` — tagged 2026-11-19 on b9920e8, with #103 (CLI removed) and #104 (tagged recipients); the package from nuget.org passed the smoke test against go-age and its `age-plugin-tagtest`
+- [x] Release `main` as `0.2.0-preview.7` — tagged 2026-11-19 on 1f52f1d, with #105–#107 (legacy PEM SSH keys); the package from nuget.org passed the smoke test, legacy PEM included
 - [x] ~~Multi-target `net8.0` alongside `net10.0`~~ — dropped: .NET 8 and 9 reached end of support on 2026-11-10
 - [x] Clear NU1903 on the AOT publish (`Microsoft.DotNet.ILCompiler` 10.0.0) — moot: releases no longer build AOT binaries, and the preview.5 build, the last that did, logged no NU1903
 - [x] Refresh `docs/BENCHMARKS.md` — rerun 2026-11-19 at preview.6, with the tagged recipients added; the BouncyCastle ChaCha20 benchmark no longer reuses a nonce at 64 KiB, which had made it fail
@@ -23,7 +24,7 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
   - [x] Ask SSH.NET upstream to fall back to BouncyCastle (which it already depends on) where the platform has no AES, 3DES or RSA — sshnet/SSH.NET#1870
   - [ ] Once an SSH.NET release has those fallbacks, widen the browser allowlist (`ProtectedOpenSshKey.WhyItCannotBeDecryptedInTheBrowser`) to match, keeping 3des-cbc refused unless it is fixed too, and re-check in Blazor WebAssembly
 - [x] Passphrase-protected SSH keys in the legacy PEM format: `AgeKeygen.ParseSshIdentity(pemText, publicKey, passphrase)` with the `.pub` file, as go-age reads them; AES-128/192/256-CBC and 3DES, decrypted by SSH.NET. Single DES is refused before the passphrase is asked for (go-age reads it; SSH.NET does not), and encrypted PKCS#8 is refused as in go-age
-- [ ] Unprotected OpenSSH keys that BouncyCastle's reader refuses but OpenSSH reads: 8 or more bytes of padding (PuTTYgen pads 1–16), a comment ending in a byte 0x01–0x07, and numbers with a redundant leading zero. Protected keys go through SSH.NET, which reads these; unprotected ones still go through BouncyCastle
+- [x] Unprotected OpenSSH keys that BouncyCastle's reader refuses but OpenSSH and go-age read (8 or more bytes of padding, a comment ending in a byte 0x01–0x07, numbers with a redundant leading zero): SSH.NET now reads what BouncyCastle refuses, with the same checks after. In the browser the ed25519 ones work; an RSA one stays refused there, as before (SSH.NET needs the platform's RSA)
 - [x] Native tagged recipients: `age1tag1…` (p256tag) and `age1tagpq1…` (mlkem768p256tag), encryption only — HPKE on BouncyCastle, checked against RFC 9180 and draft-ietf-hpke-pq vectors and go-age's tag test identities
 - [ ] Plugin authoring: the server side of the plugin protocol
 - [ ] Small differences from go-age (low priority): a matching stanza without arguments is an error in go-age and skipped here; an even RSA exponent is refused with BouncyCastle's own message

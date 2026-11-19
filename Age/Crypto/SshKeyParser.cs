@@ -113,8 +113,32 @@ internal static class SshKeyParser
     }
 
     /// <summary>Parses an unprotected <c>openssh-key-v1</c> blob.</summary>
-    public static (string keyType, byte[] publicWireBytes, AsymmetricKeyParameter privateKey) ParseOpenSshBlob(byte[] blob) =>
-        Describe(FromBouncyCastle(() => OpenSshPrivateKeyUtilities.ParsePrivateKeyBlob(blob), "invalid OpenSSH private key"), openSshFormat: true);
+    /// <remarks>
+    /// BouncyCastle reads it, or else SSH.NET, which also reads what OpenSSH and go-age accept
+    /// but BouncyCastle refuses: padding longer than a block, a comment ending in a byte that
+    /// looks like padding, numbers with a redundant leading zero. SSH.NET is no laxer than
+    /// OpenSSH about the rest (the check values, the padding bytes, the key count), and what it
+    /// reads gets the same checks, whose failure is reported as such. When SSH.NET cannot read
+    /// the blob either, BouncyCastle's error is the one reported.
+    /// </remarks>
+    public static (string keyType, byte[] publicWireBytes, AsymmetricKeyParameter privateKey) ParseOpenSshBlob(byte[] blob)
+    {
+        AsymmetricKeyParameter privateKey;
+
+        try
+        {
+            privateKey = FromBouncyCastle(() => OpenSshPrivateKeyUtilities.ParsePrivateKeyBlob(blob), "invalid OpenSSH private key");
+        }
+        catch (FormatException)
+        {
+            if (SshNetKeys.ReadUnprotectedOpenSsh(blob) is { } readBySshNet)
+                return readBySshNet;
+
+            throw;
+        }
+
+        return Describe(privateKey, openSshFormat: true);
+    }
 
     /// <summary>The key type named at the start of a public key in SSH wire format.</summary>
     public static string KeyTypeOfWireBytes(ReadOnlySpan<byte> wireBytes)
