@@ -1,14 +1,16 @@
 # TODO
 
 From the comparison against go-age v1.3.2, rage 0.12.1 and the other age
-implementations (2026-11-17). See [docs/FEATURE_COMPARISON.md](docs/FEATURE_COMPARISON.md).
+implementations (2026-11-17; still the latest go-age and rage releases on
+2026-11-19). See [docs/FEATURE_COMPARISON.md](docs/FEATURE_COMPARISON.md).
 
 ## Shipping
 
 - [x] Release `main` as `0.2.0-preview.5` — tagged 2026-11-18 on e3db35d, with #91–#102 and upgrade notes in the GitHub release
-- [ ] Multi-target `net8.0` alongside `net10.0` (first check which .NET 10 APIs the code needs)
+- [x] Release `main` as `0.2.0-preview.6` — tagged 2026-11-19 on b9920e8, with #103 (CLI removed) and #104 (tagged recipients); the package from nuget.org passed the smoke test against go-age and its `age-plugin-tagtest`
+- [x] ~~Multi-target `net8.0` alongside `net10.0`~~ — dropped: .NET 8 and 9 reached end of support on 2026-11-10
 - [x] Clear NU1903 on the AOT publish (`Microsoft.DotNet.ILCompiler` 10.0.0) — moot: releases no longer build AOT binaries, and the preview.5 build, the last that did, logged no NU1903
-- [ ] Refresh `docs/BENCHMARKS.md` (last run 2026-07-23)
+- [x] Refresh `docs/BENCHMARKS.md` — rerun 2026-11-19 at preview.6, with the tagged recipients added; the BouncyCastle ChaCha20 benchmark no longer reuses a nonce at 64 KiB, which had made it fail
 
 ## Features (additive)
 
@@ -31,9 +33,10 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 - [ ] One injectable random source for the KEMs, instead of the encapsulation overloads that exist for the known-answer vectors
 - [ ] One ML-KEM-768 encapsulation-key type shared by X-Wing and MLKEM768-P256 (decoding is repeated four times), and one hybrid combiner taking its label
 - [ ] Naming: `XWing.KemId` / `DhKemP256.Id`, `Encaps` / `Encapsulate`, `PointSize` / `CompressedPointSize`; `HpkeHelper.SealBase` no longer has RFC 9180's shape
-- [ ] Cache decoded keys per recipient instead of re-decoding on every `Wrap`
+- [x] ~~Cache decoded keys per recipient instead of re-decoding on every `Wrap`~~ — dropped: measured 2026-11-19, decoding is ~3% of a Wrap; the two P-256 multiplications in BouncyCastle are ~97%. A cached BouncyCastle `ECPoint` would also carry its precomputation tables, shared mutable state behind a class documented as safe to share
 - [ ] Constant-time P-256 for the recipient-point multiplication (BouncyCastle 2.7.0 has no ladder multiplier)
-- [ ] Release notes: `age1tag1…`/`age1tagpq1…` lines in a recipients file are now native recipients, no longer plugin recipients, and malformed ones fail when the file is parsed
+  - The platform's `ECDiffieHellman`, with BouncyCastle kept for the browser, would give constant time and is the only real speed lever; but on macOS it measured ~465 us per exchange, about twice BouncyCastle's. Measure Linux and Windows before deciding
+- [x] Release notes: `age1tag1…`/`age1tagpq1…` lines in a recipients file are now native recipients, no longer plugin recipients, and malformed ones fail when the file is parsed — in the preview.6 notes
 
 ## API (breaking — fold into the rebuild)
 
@@ -46,6 +49,7 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 - [ ] File-key extraction and injection (`ExtractHeader`, `DecryptHeader`, injected-file-key identity)
 - [ ] Public armor reader and writer
 - [ ] Replace the `AgeEncrypt` / `AgeKeygen` static catch-alls with domain types
+  - `AgeKeygen.ParseRecipient(string)` parses X25519 only (it returns `X25519Recipient`); the only public way to parse a single tagged, post-quantum, plugin or SSH recipient string is `ParseRecipientsFile(line)[0]`. Until the rebuild, say so in the README
 
 ## Internal (from the 2026-09-22 review)
 

@@ -1,13 +1,22 @@
 # Benchmarks
 
-Measured on Apple M2 (8 cores, 16 GB), macOS 26, .NET 10, on 2026-07-23.
-Numbers are refreshed against `main` at the current release (includes the
-`IAeadCipher` backend seam and the pre-authentication parser bounds).
+Measured on Apple M2 (8 cores, 16 GB), macOS 27.2, .NET 10.0.0 (built with the .NET 11
+SDK), BenchmarkDotNet 0.14.0, on 2026-11-19, against `main` at `0.2.0-preview.6`. The
+previous run, on 2026-07-23 on the same machine, is within a few percent everywhere except
+where noted below.
 
 Memory is bounded: the push APIs (`Encrypt`, `Decrypt`, `EncryptDetached`,
 `DecryptDetached`) stream chunk by chunk with pooled, fixed-size buffers, so a 1 GiB
 file uses the same working set as a 1 MB one. The managed ChaCha20-Poly1305 backend used
-in the browser is about 2× slower than the native one.
+in the browser (BouncyCastle) is 1.5–2× slower than the native one:
+
+| Payload | Native | BouncyCastle | Ratio |
+|---|---:|---:|---:|
+| 64 KiB | 101 us | 202 us | 2.0× |
+| 1 MiB | 1,672 us | 2,576 us | 1.5× |
+| 16 MiB | 25.6 ms | 41.9 ms | 1.6× |
+
+These come from a short run (three iterations), so expect a few percent of noise.
 
 An earlier comparison of AgeSharp's command-line tool against `age` and `rage` was
 removed with the tool; it is in the git history.
@@ -21,13 +30,13 @@ process startup overhead.
 
 | Operation | 1 KB | 64 KB | 1 MB |
 |---|---:|---:|---:|
-| Encrypt | 102 us | 204 us | 2,092 us |
-| Decrypt | 101 us | 215 us | 2,118 us |
-| Encrypt (armored) | 102 us | 235 us | 2,485 us |
-| Decrypt (armored) | 108 us | 294 us | 3,382 us |
+| Encrypt | 100 us | 209 us | 2,081 us |
+| Decrypt | 97 us | 209 us | 2,043 us |
+| Encrypt (armored) | 101 us | 236 us | 2,488 us |
+| Decrypt (armored) | 103 us | 279 us | 3,196 us |
 
-Throughput at 1 MB: ~500 MB/s encrypt, ~495 MB/s decrypt.
-Armored adds ~15-60% overhead due to Base64 encoding/decoding. The
+Throughput at 1 MB: ~505 MB/s encrypt, ~515 MB/s decrypt.
+Armored adds ~15-55% overhead due to Base64 encoding/decoding. The
 pre-auth parser bounds add one vectorized newline scan per buffered read
 on the armored-decrypt path; the cost is within measurement noise.
 
@@ -48,10 +57,10 @@ times *faster* than X25519, which is backwards — it simply has not happened ye
 
 | Operation | Time | Allocated |
 |---|---:|---:|
-| X25519 | 28.6 us | 2.1 KB |
-| ML-KEM-768-X25519 | 91.3 us | 28.5 KB |
+| X25519 | 26.3 us | 2.0 KB |
+| ML-KEM-768-X25519 | 86.8 us | 22.4 KB |
 
-Post-quantum costs ~3.2x the time and ~14x the memory, which is the expected shape
+Post-quantum costs ~3.3x the time and ~11x the memory, which is the expected shape
 for ML-KEM-768 against a curve operation.
 
 **`Generate()` alone**, for reference — useful only when you are generating a secret
@@ -59,30 +68,41 @@ that will be stored and not immediately turned into a recipient:
 
 | Operation | Time | Allocated |
 |---|---:|---:|
-| X25519 | 2,150 ns | 880 B |
-| ML-KEM-768-X25519 | 275 ns | 96 B |
+| X25519 | 1,936 ns | 856 B |
+| ML-KEM-768-X25519 | 258 ns | 96 B |
 
 ### Recipient Wrap / Unwrap
 
 | Operation | Time | Allocated |
 |---|---:|---:|
-| X25519 Wrap | 89 us | 6.6 KB |
-| X25519 Unwrap | 88 us | 5.8 KB |
-| ML-KEM-768-X25519 Wrap | 137 us | 46.6 KB |
-| ML-KEM-768-X25519 Unwrap | 182 us | 70.0 KB |
-| Scrypt Wrap | 1,858 us | 1,035 KB |
-| Scrypt Unwrap | 1,857 us | 1,035 KB |
+| X25519 Wrap | 86 us | 6.6 KB |
+| X25519 Unwrap | 85 us | 5.9 KB |
+| ML-KEM-768-X25519 Wrap | 131 us | 38.3 KB |
+| ML-KEM-768-X25519 Unwrap | 171 us | 58.1 KB |
+| Tagged P-256 Wrap (`age1tag1…`) | 254 us | 232 KB |
+| Tagged P-256 + ML-KEM-768 Wrap (`age1tagpq1…`) | 294 us | 261 KB |
+| Scrypt Wrap | 1,799 us | 1,035 KB |
+| Scrypt Unwrap | 1,793 us | 1,035 KB |
 
-X25519 is the fastest at ~88 us. ML-KEM hybrid adds ~55-105% overhead
-(still sub-200 us). Scrypt is intentionally slow (~1.9 ms) due to the
-password-hashing work factor.
+X25519 is the fastest at ~85 us. ML-KEM hybrid adds ~50-100% overhead
+(still under 200 us); it allocates ~17% less than in July. Scrypt is intentionally
+slow (~1.8 ms) due to the password-hashing work factor.
+
+The tagged recipients are encryption-only, so only Wrap is measured. They cost about
+3× an X25519 Wrap and allocate 35–40× as much. Nearly all of it (~97%) is the two P-256
+scalar multiplications in BouncyCastle's managed code: the ephemeral key (~90 us) and the
+exchange with the recipient's point (~160 us). Decoding the recipient key again on every
+Wrap costs about 2 us for the point and 3 us for the ML-KEM key, so caching it would save
+~3%. .NET's own P-256 is no faster on macOS (~465 us per exchange measured here). The cost is paid once
+per recipient per file: it dominates a small file (an X25519 encrypt of 1 KB takes
+~100 us in all) and disappears behind the payload from a few megabytes on.
 
 ### Random Access
 
 | Operation | Time | Allocated |
 |---|---:|---:|
-| Sequential Read | 30.2 ms | 32.0 MB |
-| Random Read | 32.1 ms | 34.2 MB |
+| Sequential Read | 28.8 ms | 32.0 MB |
+| Random Read | 30.6 ms | 34.2 MB |
 
 Random reads are only ~6% slower than sequential thanks to the
 chunk-based design.
