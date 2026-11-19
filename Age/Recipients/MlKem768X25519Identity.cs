@@ -133,11 +133,11 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable
         if (stanza.Body.Length != WrappedKeySize)
             throw new AgeHeaderException($"mlkem768x25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
 
-        var sharedSecret = XWing.Decaps(enc, _seed);
+        var sharedSecret = XWing.Decapsulate(enc, _seed);
 
         try
         {
-            return HpkeHelper.OpenBase(XWing.KemId, sharedSecret, AgeProtocol.MlKemHpkeInfo, stanza.Body.ToArray());
+            return HpkeHelper.Open(XWing.KemId, sharedSecret, AgeProtocol.MlKemHpkeInfo, stanza.Body.ToArray());
         }
         finally
         {

@@ -26,10 +26,11 @@ internal static class HpkeHelper
     private static readonly byte[] HpkeV1 = "HPKE-v1"u8.ToArray();
 
     /// <summary>
-    /// Seals <paramref name="plaintext"/> as the first message of a sender context set up from
-    /// the KEM's shared secret.
+    /// Seals <paramref name="plaintext"/> as the first message of a base-mode sender context set
+    /// up from the KEM's shared secret: RFC 9180's SealBase after its Encap step, which the
+    /// caller has done.
     /// </summary>
-    public static byte[] SealBase(ushort kemId, byte[] sharedSecret, byte[] info, byte[] plaintext)
+    public static byte[] Seal(ushort kemId, byte[] sharedSecret, byte[] info, byte[] plaintext)
     {
         var (key, nonce) = KeyScheduleBase(kemId, sharedSecret, info);
 
@@ -44,8 +45,12 @@ internal static class HpkeHelper
         }
     }
 
-    /// <summary>Opens the first message of a recipient context, or returns null if it does not authenticate.</summary>
-    public static byte[]? OpenBase(ushort kemId, byte[] sharedSecret, byte[] info, byte[] ciphertext)
+    /// <summary>
+    /// Opens the first message of a base-mode recipient context set up from the KEM's shared
+    /// secret, or returns null if it does not authenticate: RFC 9180's OpenBase after its Decap
+    /// step, which the caller has done.
+    /// </summary>
+    public static byte[]? Open(ushort kemId, byte[] sharedSecret, byte[] info, byte[] ciphertext)
     {
         var (key, nonce) = KeyScheduleBase(kemId, sharedSecret, info);
 

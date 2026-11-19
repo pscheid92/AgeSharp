@@ -1,3 +1,4 @@
+using Org.BouncyCastle.Security;
 using Age.Crypto;
 using Age.Recipients;
 using Xunit;
@@ -32,6 +33,37 @@ public class PostQuantumValidationTests
         Assert.Contains("ML-KEM-768", ex.Message, StringComparison.Ordinal);
     }
 
+    // FIPS 203 requires every coefficient of an encapsulation key below q = 3329. BouncyCastle
+    // checks that when decoding since 2.7.0; this pins it, at the boundary, for every hybrid.
+    [Theory]
+    [InlineData(3328, false)]
+    [InlineData(3329, true)]
+    [InlineData(4095, true)]
+    public void ACoefficientOfQOrMore_IsRefusedWhenDecoded(int coefficient, bool refused)
+    {
+        using var identity = MlKem768X25519Identity.Generate();
+        var (_, key) = Bech32.Decode(identity.Recipient.ToString());
+        key[0] = (byte)coefficient;
+        key[1] = (byte)((key[1] & 0xF0) | (coefficient >> 8));
+
+        var ex = Record.Exception(() => MlKem768EncapsulationKey.Decode(key.AsSpan(0, MlKem768EncapsulationKey.Size)));
+
+        if (refused)
+            Assert.Contains("a coefficient is not less than the modulus", Assert.IsType<FormatException>(ex).Message);
+        else
+            Assert.Null(ex);
+    }
+
+    [Theory]
+    [InlineData(MlKem768EncapsulationKey.Size - 1)]
+    [InlineData(MlKem768EncapsulationKey.Size + 1)]
+    public void AnEncapsulationKeyOfTheWrongLength_IsRefusedWhenDecoded(int length)
+    {
+        var ex = Assert.Throws<FormatException>(() => MlKem768EncapsulationKey.Decode(new byte[length]));
+
+        Assert.Contains($"must be {MlKem768EncapsulationKey.Size} bytes", ex.Message);
+    }
+
     [Fact]
     public void Parse_StillAcceptsAGenuineRecipient()
     {
@@ -58,12 +90,12 @@ public class PostQuantumValidationTests
         XWing.ValidatePublicKey(data); // must not throw
     }
 
-    // Encaps is internal and reachable without going through Parse, so it keeps its own guard —
-    // C9's point was that Decaps guarded its inputs and Encaps did not.
+    // Encapsulate is internal and reachable without going through Parse, so it keeps its own guard —
+    // C9's point was that Decapsulate guarded its inputs and Encapsulate did not.
     [Fact]
-    public void Encaps_OnAMalformedKey_IsAnAgeExceptionNotABclOne()
+    public void Encapsulate_OnAMalformedKey_IsAnAgeExceptionNotABclOne()
     {
-        var ex = Record.Exception(() => XWing.Encaps(MalformedPublicKey()));
+        var ex = Record.Exception(() => XWing.Encapsulate(MalformedPublicKey(), new SecureRandom()));
 
         Assert.NotNull(ex);
         Assert.IsAssignableFrom<AgeException>(ex);

@@ -31,9 +31,9 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 
 ## Tagged recipients, later (from the #104 review)
 
-- [ ] One injectable random source for the KEMs, instead of the encapsulation overloads that exist for the known-answer vectors
-- [ ] One ML-KEM-768 encapsulation-key type shared by X-Wing and MLKEM768-P256 (decoding is repeated four times), and one hybrid combiner taking its label
-- [ ] Naming: `XWing.KemId` / `DhKemP256.Id`, `Encaps` / `Encapsulate`, `PointSize` / `CompressedPointSize`; `HpkeHelper.SealBase` no longer has RFC 9180's shape
+- [x] One injectable random source for the KEMs, instead of the encapsulation overloads that exist for the known-answer vectors — every `Encapsulate` takes a `SecureRandom`; the vectors pass theirs as a fixed one
+- [x] One ML-KEM-768 encapsulation-key type shared by X-Wing and MLKEM768-P256 (decoding is repeated four times), and one hybrid combiner taking its label — `MlKem768EncapsulationKey` and `HybridKem.CombineSharedSecrets`. BouncyCastle 2.7.0 checks the coefficients itself now, so AgeSharp's own check is gone; tests at the boundary pin BouncyCastle's
+- [x] Naming: `XWing.KemId` / `DhKemP256.Id`, `Encaps` / `Encapsulate`, `PointSize` / `CompressedPointSize`; `HpkeHelper.SealBase` no longer has RFC 9180's shape — `KemId`, `Encapsulate`/`Decapsulate`, `UncompressedPointSize`, `HpkeHelper.Seal`/`Open`
 - [x] ~~Cache decoded keys per recipient instead of re-decoding on every `Wrap`~~ — dropped: measured 2026-11-19, decoding is ~3% of a Wrap; the two P-256 multiplications in BouncyCastle are ~97%. A cached BouncyCastle `ECPoint` would also carry its precomputation tables, shared mutable state behind a class documented as safe to share
 - [ ] Constant-time P-256 for the recipient-point multiplication (BouncyCastle 2.7.0 has no ladder multiplier)
   - The platform's `ECDiffieHellman`, with BouncyCastle kept for the browser, would give constant time and is the only real speed lever; but on macOS it measured ~465 us per exchange, about twice BouncyCastle's. Measure Linux and Windows before deciding
@@ -56,4 +56,4 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 
 - [ ] `PayloadKey` type
 - [x] Shared plugin prompt handler — `Age.Plugin.PluginPrompts`, used by `PluginRecipient` and `PluginIdentity`
-- [ ] Remove test-only code from the production assembly
+- [ ] Remove test-only code from the production assembly (the KEMs' scalar overloads are gone; `PluginRecipient.WrapWithConnection` and others remain)
