@@ -1,102 +1,82 @@
-using System.Text;
-
 namespace Age.Format;
 
 /// <summary>
-/// Reads header lines from a stream byte-by-byte (UTF-8/ASCII),
-/// tracking all raw bytes read for MAC computation.
-/// This avoids StreamReader buffering that would consume payload bytes.
+/// Reads header lines from a stream for <see cref="Header.Parse"/>, through a
+/// <see cref="HeaderLineFramer"/>, one byte at a time so that no payload byte is consumed.
 /// </summary>
+/// <remarks>
+/// <see cref="PrefillAsync"/> reads the whole header asynchronously up front, after which
+/// parsing reads only buffered lines and does no I/O. It stops after the MAC line: the first line
+/// that starts with <c>---</c>, since stanza lines start with <c>-&gt; </c> and body lines are
+/// base64. The stream is then left at the payload nonce, as a synchronous read leaves it.
+/// </remarks>
 internal sealed class HeaderReader(Stream stream)
 {
-    private readonly MemoryStream _rawBytes = new();
+    private readonly HeaderLineFramer _framer = new();
+    private Queue<string>? _prefilled;
     private string? _pushedBack;
 
-    /// <summary>
-    /// All raw bytes read so far (for MAC computation).
-    /// </summary>
+    /// <summary>All raw header bytes read so far: what the MAC is computed over.</summary>
     public ReadOnlySpan<byte> RawBytes =>
-        _rawBytes.GetBuffer().AsSpan(0, (int)_rawBytes.Length);
+        _framer.RawBytes;
 
-    /// <summary>
-    /// Push a line back so the next ReadLine returns it.
-    /// The raw bytes have already been recorded for this line.
-    /// </summary>
-    public void PushBack(string line)
-    {
+    /// <summary>Pushes a line back, so the next <see cref="ReadLine"/> returns it.</summary>
+    public void PushBack(string line) =>
         _pushedBack = line;
-    }
 
-    /// <summary>
-    /// Reads a line terminated by LF (\n). Returns the line without the LF.
-    /// Returns null at EOF.
-    /// </summary>
+    /// <summary>The next header line without its LF, or null at the end.</summary>
+    /// <exception cref="AgeHeaderException">The line breaks the header's rules.</exception>
     public string? ReadLine()
     {
-        if (_pushedBack == null)
-            return ReadRawLine();
+        if (_pushedBack is { } pushed)
+        {
+            _pushedBack = null;
+            return pushed;
+        }
 
-        var line = _pushedBack;
-        _pushedBack = null;
-        return line;
-    }
-
-    private string? ReadRawLine()
-    {
-        var lineBytes = new List<byte>();
+        if (_prefilled is not null)
+            return _prefilled.TryDequeue(out var line) ? line : null;
 
         while (true)
         {
-            var b = ReadAndTrackByte();
+            var b = stream.ReadByte();
 
             if (b < 0)
-                return lineBytes.Count == 0
-                    ? null
-                    : throw new AgeHeaderException("unexpected end of stream (no trailing newline)");
+                return _framer.FinishAtEnd();
 
-            if (b == '\n')
+            if (_framer.Feed((byte)b) is { } line)
+                return line;
+        }
+    }
+
+    /// <summary>Reads the header asynchronously, up to and including the MAC line.</summary>
+    /// <exception cref="AgeHeaderException">A line breaks the header's rules.</exception>
+    public async ValueTask PrefillAsync(CancellationToken cancellationToken)
+    {
+        var lines = new Queue<string>();
+        var one = new byte[1];
+
+        while (true)
+        {
+            if (await stream.ReadAsync(one, cancellationToken).ConfigureAwait(false) == 0)
+            {
+                _framer.FinishAtEnd();
                 break;
+            }
 
-            ValidateByte(b);
+            if (_framer.Feed(one[0]) is not { } line)
+                continue;
 
-            // No separate line limit: as in go-age, a line may use whatever the header allows,
-            // which ReadAndTrackByte bounds.
-            lineBytes.Add((byte)b);
+            lines.Enqueue(line);
+
+            if (line.StartsWith("---", StringComparison.Ordinal))
+                break;
         }
 
-        return Encoding.ASCII.GetString(lineBytes.ToArray());
+        _prefilled = lines;
     }
 
-    private int ReadAndTrackByte()
-    {
-        var b = stream.ReadByte();
-
-        if (b >= 0)
-        {
-            if (_rawBytes.Length >= AgeLimits.MaxHeaderBytes)
-                throw new AgeHeaderException($"header exceeds {AgeLimits.MaxHeaderBytes} bytes");
-
-            _rawBytes.WriteByte((byte)b);
-        }
-
-        return b;
-    }
-
-    private static void ValidateByte(int b)
-    {
-        switch (b)
-        {
-            case '\r':
-                throw new AgeHeaderException("CR characters are not allowed in age headers");
-            case > 127:
-                throw new AgeHeaderException($"non-ASCII byte 0x{b:X2} in header");
-        }
-    }
-
-    /// <summary>
-    /// Read raw bytes directly (for reading the payload nonce after header).
-    /// These bytes are NOT tracked in RawBytes.
-    /// </summary>
-    public int ReadPayloadBytes(Span<byte> buffer)
-        => stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
+    /// <summary>Reads payload bytes, which are not part of the header and not recorded.</summary>
+    public int ReadPayloadBytes(Span<byte> buffer) =>
+        stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
 }
