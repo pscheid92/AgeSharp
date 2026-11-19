@@ -18,6 +18,9 @@ internal static class XWing
     private const int SharedSecretSize = 32;
     private const int MlKemSeedSize = 64;
 
+    /// <summary>The HPKE KEM ID of X-Wing (MLKEM768-X25519).</summary>
+    internal const ushort KemId = 0x647a;
+
     internal const int PublicKeySize = MlKemPublicKeySize + X25519KeySize;
     internal const int EncSize = MlKemCiphertextSize + X25519KeySize;
 
@@ -70,10 +73,10 @@ internal static class XWing
 
     // The encapsulation key is k polynomials of 256 coefficients packed at 12 bits each, followed
     // by a 32-byte seed. Three bytes carry two coefficients.
-    private const int CoefficientBytes = 1152;
+    internal const int CoefficientBytes = 1152;
     private const int Modulus = 3329;
 
-    private static bool CoefficientsAreInRange(ReadOnlySpan<byte> packed)
+    internal static bool CoefficientsAreInRange(ReadOnlySpan<byte> packed)
     {
         for (var i = 0; i + 2 < packed.Length; i += 3)
         {

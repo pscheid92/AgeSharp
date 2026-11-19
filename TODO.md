@@ -22,9 +22,18 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
   - [ ] Once an SSH.NET release has those fallbacks, widen the browser allowlist (`ProtectedOpenSshKey.WhyItCannotBeDecryptedInTheBrowser`) to match, keeping 3des-cbc refused unless it is fixed too, and re-check in Blazor WebAssembly
 - [ ] Passphrase-protected SSH keys in the legacy PEM format (go-age reads them, taking the public key from the `.pub` file; SSH.NET can decrypt them)
 - [ ] Unprotected OpenSSH keys that BouncyCastle's reader refuses but OpenSSH reads: 8 or more bytes of padding (PuTTYgen pads 1–16), a comment ending in a byte 0x01–0x07, and numbers with a redundant leading zero. Protected keys go through SSH.NET, which reads these; unprotected ones still go through BouncyCastle
-- [ ] Native tagged recipients: `age1tag1…` (p256tag) and `age1tagpq1…` (mlkem768p256tag), encryption only
+- [x] Native tagged recipients: `age1tag1…` (p256tag) and `age1tagpq1…` (mlkem768p256tag), encryption only — HPKE on BouncyCastle, checked against RFC 9180 and draft-ietf-hpke-pq vectors and go-age's tag test identities
 - [ ] Plugin authoring: the server side of the plugin protocol
 - [ ] Small differences from go-age (low priority): a matching stanza without arguments is an error in go-age and skipped here; an even RSA exponent is refused with BouncyCastle's own message
+
+## Tagged recipients, later (from the #104 review)
+
+- [ ] One injectable random source for the KEMs, instead of the encapsulation overloads that exist for the known-answer vectors
+- [ ] One ML-KEM-768 encapsulation-key type shared by X-Wing and MLKEM768-P256 (decoding is repeated four times), and one hybrid combiner taking its label
+- [ ] Naming: `XWing.KemId` / `DhKemP256.Id`, `Encaps` / `Encapsulate`, `PointSize` / `CompressedPointSize`; `HpkeHelper.SealBase` no longer has RFC 9180's shape
+- [ ] Cache decoded keys per recipient instead of re-decoding on every `Wrap`
+- [ ] Constant-time P-256 for the recipient-point multiplication (BouncyCastle 2.7.0 has no ladder multiplier)
+- [ ] Release notes: `age1tag1…`/`age1tagpq1…` lines in a recipients file are now native recipients, no longer plugin recipients, and malformed ones fail when the file is parsed
 
 ## API (breaking — fold into the rebuild)
 

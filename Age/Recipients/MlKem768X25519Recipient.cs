@@ -64,8 +64,17 @@ public sealed class MlKem768X25519Recipient : IRecipient
 
         try
         {
-            var (enc, ct) = HpkeHelper.SealBase(_publicKey, AgeProtocol.MlKemHpkeInfo, fileKeyCopy);
-            return new Stanza(AgeProtocol.MlKemStanzaType, [Base64Unpadded.Encode(enc)], ct);
+            var (sharedSecret, enc) = XWing.Encaps(_publicKey);
+
+            try
+            {
+                var ct = HpkeHelper.SealBase(XWing.KemId, sharedSecret, AgeProtocol.MlKemHpkeInfo, fileKeyCopy);
+                return new Stanza(AgeProtocol.MlKemStanzaType, [Base64Unpadded.Encode(enc)], ct);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(sharedSecret);
+            }
         }
         finally
         {

@@ -24,6 +24,7 @@ and needs to raise its pin to 2.7.0.
 
 - All standard recipient types: X25519, scrypt/passphrase, SSH-Ed25519, SSH-RSA
 - **Post-quantum** ML-KEM-768-X25519 hybrid encryption
+- **Hardware keys**: tagged P-256 and P-256 + ML-KEM-768 recipients (`age1tag1…`, `age1tagpq1…`), encryption only
 - **Plugin protocol** — interoperates with `age-plugin-*` binaries
 - Encrypt to multiple recipients
 - ASCII armor support
@@ -135,6 +136,26 @@ using var identity = MlKem768X25519Identity.Generate();
 var recipient = identity.Recipient;
 
 AgeEncrypt.Encrypt(input, encrypted, recipient);
+```
+
+### Hardware keys (tagged recipients)
+
+age's tagged recipient types are for keys held on hardware, by plugins that use
+this format: `age1tag1…` (P-256) and `age1tagpq1…` (P-256 hybridised with
+ML-KEM-768, post-quantum). AgeSharp encrypts to them natively; decrypting is done
+by the plugin, through `PluginIdentity`.
+
+- Each stanza carries a tag that lets the hardware recognise it, so anyone who knows
+  the public key can tell which files were encrypted to it.
+- Like `age1pq1…`, an `age1tagpq1…` recipient can't be mixed with classical
+  recipients in one file: that would void its post-quantum protection.
+
+```csharp
+var recipient = P256TagRecipient.Parse("age1tag1...");
+AgeEncrypt.Encrypt(input, encrypted, recipient);
+
+// Recipients files read them too
+var recipients = AgeKeygen.ParseRecipientsFile(File.ReadAllText("recipients.txt"));
 ```
 
 ### Pull-based streaming
