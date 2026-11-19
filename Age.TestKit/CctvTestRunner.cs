@@ -1,9 +1,9 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
-using Age;
-using Age.Recipients;
+using OuterLoop;
 using Xunit;
+using static OuterLoop.AgeUnderTest;
 
 namespace Age.TestKit;
 
@@ -39,115 +39,31 @@ public class CctvTestRunner
         string? passphrase = metadata.GetValueOrDefault("passphrase");
         string? payloadHash = metadata.GetValueOrDefault("payload");
 
-        // Build identities
-        var identities = new List<IIdentity>();
-        foreach (var identityStr in identityStrings)
-        {
-            if (identityStr.StartsWith("AGE-SECRET-KEY-PQ-", StringComparison.OrdinalIgnoreCase))
-                identities.Add(MlKem768X25519Identity.Parse(identityStr));
-            else if (identityStr.StartsWith("AGE-SECRET-KEY-1", StringComparison.OrdinalIgnoreCase))
-                identities.Add(X25519Identity.Parse(identityStr));
-            else if (identityStr.StartsWith("-----BEGIN"))
-                identities.Add(AgeKeygen.ParseSshIdentity(identityStr));
-        }
-        if (passphrase != null)
-            identities.Add(new ScryptRecipient(passphrase));
+        var decryption = AgeUnderTest.TryDecrypt(ageFileBytes, identityStrings, passphrase);
 
-        // Some failure vectors ship no identities at all: the file must be rejected
-        // while parsing the header, before identity matching. Decrypt requires at
-        // least one identity (as the Go reference does), so supply a throwaway one —
-        // it can never match, and the expected failure must occur first.
-        if (identities.Count == 0)
-            identities.Add(X25519Identity.Generate());
+        Assert.True(Accepted(expect).Contains(decryption.Outcome),
+            $"expected {expect}, got {decryption.Outcome}: {decryption.Error}");
 
-        switch (expect)
+        if (decryption.Outcome == Outcome.Success)
         {
-            case "success":
-                Assert.NotNull(payloadHash);
-                RunSuccessTest(ageFileBytes, identities, payloadHash!);
-                break;
-            case "no match":
-                RunNoMatchTest(ageFileBytes, identities);
-                break;
-            case "HMAC failure":
-                RunHmacFailureTest(ageFileBytes, identities);
-                break;
-            case "header failure":
-                RunHeaderFailureTest(ageFileBytes, identities);
-                break;
-            case "payload failure":
-                RunPayloadFailureTest(ageFileBytes, identities);
-                break;
-            case "armor failure":
-                RunArmorFailureTest(ageFileBytes, identities);
-                break;
-            default:
-                Assert.Fail($"unknown expect value: {expect}");
-                break;
+            Assert.NotNull(payloadHash);
+            Assert.Equal(payloadHash, Convert.ToHexStringLower(SHA256.HashData(decryption.Plaintext!)));
         }
     }
 
-    private static void RunSuccessTest(byte[] ageFileBytes, List<IIdentity> identities, string expectedPayloadHash)
+    // What each expectation accepts. A header failure may also surface as a MAC failure, and an
+    // armor failure as a header failure: the vectors say which stage breaks, and AgeSharp's
+    // parsers sometimes notice one stage later.
+    private static Outcome[] Accepted(string expect) => expect switch
     {
-        using var input = new MemoryStream(ageFileBytes);
-        using var output = new MemoryStream();
-
-        AgeEncrypt.Decrypt(input, output, identities.ToArray());
-
-        var plaintext = output.ToArray();
-        var hash = SHA256.HashData(plaintext);
-        var hashHex = Convert.ToHexStringLower(hash);
-        Assert.Equal(expectedPayloadHash, hashHex);
-    }
-
-    private static void RunNoMatchTest(byte[] ageFileBytes, List<IIdentity> identities)
-    {
-        using var input = new MemoryStream(ageFileBytes);
-        using var output = new MemoryStream();
-
-        Assert.Throws<NoIdentityMatchException>(() =>
-            AgeEncrypt.Decrypt(input, output, identities.ToArray()));
-    }
-
-    private static void RunHmacFailureTest(byte[] ageFileBytes, List<IIdentity> identities)
-    {
-        using var input = new MemoryStream(ageFileBytes);
-        using var output = new MemoryStream();
-
-        Assert.Throws<AgeHmacException>(() =>
-            AgeEncrypt.Decrypt(input, output, identities.ToArray()));
-    }
-
-    private static void RunHeaderFailureTest(byte[] ageFileBytes, List<IIdentity> identities)
-    {
-        using var input = new MemoryStream(ageFileBytes);
-        using var output = new MemoryStream();
-
-        var ex = Assert.ThrowsAny<AgeException>(() =>
-            AgeEncrypt.Decrypt(input, output, identities.ToArray()));
-        Assert.True(ex is AgeHeaderException or AgeHmacException,
-            $"Expected AgeHeaderException or AgeHmacException, got {ex.GetType().Name}: {ex.Message}");
-    }
-
-    private static void RunPayloadFailureTest(byte[] ageFileBytes, List<IIdentity> identities)
-    {
-        using var input = new MemoryStream(ageFileBytes);
-        using var output = new MemoryStream();
-
-        Assert.Throws<AgePayloadException>(() =>
-            AgeEncrypt.Decrypt(input, output, identities.ToArray()));
-    }
-
-    private static void RunArmorFailureTest(byte[] ageFileBytes, List<IIdentity> identities)
-    {
-        using var input = new MemoryStream(ageFileBytes);
-        using var output = new MemoryStream();
-
-        var ex = Assert.ThrowsAny<AgeException>(() =>
-            AgeEncrypt.Decrypt(input, output, identities.ToArray()));
-        Assert.True(ex is AgeArmorException or AgeHeaderException,
-            $"Expected AgeArmorException or AgeHeaderException, got {ex.GetType().Name}: {ex.Message}");
-    }
+        "success" => [Outcome.Success],
+        "no match" => [Outcome.NoMatch],
+        "HMAC failure" => [Outcome.MacFailure],
+        "header failure" => [Outcome.HeaderFailure, Outcome.MacFailure],
+        "payload failure" => [Outcome.PayloadFailure],
+        "armor failure" => [Outcome.ArmorFailure, Outcome.HeaderFailure],
+        _ => throw new InvalidOperationException($"unknown expect value: {expect}"),
+    };
 
     private static (Dictionary<string, string> metadata, List<string> identityStrings, byte[] ageFileBytes) ParseTestFile(string path)
     {
