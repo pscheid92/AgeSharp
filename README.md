@@ -129,6 +129,21 @@ var identity = AgeKeygen.ParseSshIdentity(
     passphrase: () => PromptForPassphrase());
 ```
 
+An ssh-rsa key protected in the older PEM format (`BEGIN RSA PRIVATE KEY` with
+`Proc-Type: 4,ENCRYPTED`, as `ssh-keygen` wrote before OpenSSH 7.8 and still writes with
+`-m PEM`) does not store its public key, so, as with `age`, it needs its `.pub` file
+too. The decrypted key must match it:
+
+```csharp
+var identity = AgeKeygen.ParseSshIdentity(
+    File.ReadAllText("/path/to/id_rsa"),
+    File.ReadAllText("/path/to/id_rsa.pub"),
+    passphrase: () => PromptForPassphrase());
+```
+
+Keys encrypted as PKCS#8 (`BEGIN ENCRYPTED PRIVATE KEY`) are not read, as in `age`;
+convert them with `ssh-keygen -p`.
+
 ### Post-quantum (ML-KEM-768-X25519)
 
 ```csharp

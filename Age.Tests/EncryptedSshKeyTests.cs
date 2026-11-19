@@ -164,14 +164,6 @@ public class EncryptedSshKeyTests
     }
 
     [Fact]
-    public void TheLegacyPemEncryption_IsStillRefused()
-    {
-        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseSshIdentity(Key("rsa_legacy_pem"), NeverAsked));
-
-        Assert.Contains("ssh-keygen -p", ex.Message);
-    }
-
-    [Fact]
     public void ATruncatedKeyFile_IsRefused_WhereverItIsCut()
     {
         var blob = BlobOf(Key("ed25519_aes256ctr"));
