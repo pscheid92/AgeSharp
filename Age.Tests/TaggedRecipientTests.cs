@@ -91,32 +91,57 @@ public class TaggedRecipientTests
         Assert.IsType<MlKem768P256TagRecipient>(recipients[1]);
     }
 
-    public static TheoryData<string, Func<string>> MalformedRecipients => new()
+    public static TheoryData<string, Func<string>> MalformedClassicRecipients => new()
     {
-        { "classic, 32 bytes", () => Bech32.Encode("age1tag", new byte[32]) },
-        { "classic, not a point encoding", () => Bech32.Encode("age1tag", [0x05, .. new byte[32]]) },
-        { "classic, uncompressed", () => Bech32.Encode("age1tag", Uncompressed(GoAgeRecipients().Classic)) },
-        { "classic, wrong prefix", () => Bech32.Encode("age1tagpq", Bech32.Decode(GoAgeRecipients().Classic).Data) },
-        { "hybrid, 1248 bytes", () => Bech32.Encode("age1tagpq", Bech32.Decode(GoAgeRecipients().Hybrid).Data[..^1]) },
-        { "hybrid, compressed point", () => Bech32.Encode("age1tagpq", [.. Bech32.Decode(GoAgeRecipients().Hybrid).Data[..1184], .. Bech32.Decode(GoAgeRecipients().Classic).Data]) },
-        { "hybrid, ML-KEM coefficient out of range", () => Bech32.Encode("age1tagpq", WithFirstCoefficient(Bech32.Decode(GoAgeRecipients().Hybrid).Data, 0xFFF)) },
-        { "hybrid, wrong prefix", () => Bech32.Encode("age1tag", Bech32.Decode(GoAgeRecipients().Hybrid).Data) },
+        { "32 bytes", () => Bech32.Encode("age1tag", new byte[32]) },
+        { "not a point encoding", () => Bech32.Encode("age1tag", [0x05, .. new byte[32]]) },
+        { "uncompressed", () => Bech32.Encode("age1tag", Uncompressed(GoAgeRecipients().Classic)) },
+        { "an x with no point on the curve", () => Bech32.Encode("age1tag", NotOnTheCurve()) },
+        { "the hybrid's prefix", () => Bech32.Encode("age1tagpq", Bech32.Decode(GoAgeRecipients().Classic).Data) },
+        { "uppercase", () => GoAgeRecipients().Classic.ToUpperInvariant() },
     };
 
     [Theory]
-    [MemberData(nameof(MalformedRecipients))]
-    public void AMalformedRecipient_IsAFormatException(string why, Func<string> recipient)
+    [MemberData(nameof(MalformedClassicRecipients))]
+    public void AMalformedClassicRecipient_IsAFormatException(string why, Func<string> recipient)
     {
         _ = why;
-        var text = recipient();
+        Assert.Throws<FormatException>(() => P256TagRecipient.Parse(recipient()));
+    }
 
-        Assert.Throws<FormatException>(() =>
-        {
-            if (text.StartsWith("age1tagpq1", StringComparison.Ordinal))
-                MlKem768P256TagRecipient.Parse(text);
-            else
-                P256TagRecipient.Parse(text);
-        });
+    public static TheoryData<string, Func<string>> MalformedHybridRecipients => new()
+    {
+        { "1248 bytes", () => Bech32.Encode("age1tagpq", HybridKey()[..^1]) },
+        { "a compressed point", () => Bech32.Encode("age1tagpq", [.. HybridKey()[..1184], .. Bech32.Decode(GoAgeRecipients().Classic).Data]) },
+        { "a point not on the curve", () => Bech32.Encode("age1tagpq", [.. HybridKey()[..1184], 0x04, .. new byte[64]]) },
+        { "a point with a wrong prefix", () => Bech32.Encode("age1tagpq", [.. HybridKey()[..1184], 0x05, .. HybridKey()[1185..]]) },
+        { "an ML-KEM coefficient out of range", () => Bech32.Encode("age1tagpq", WithFirstCoefficient(HybridKey(), 0xFFF)) },
+        { "the classic prefix", () => Bech32.Encode("age1tag", HybridKey()) },
+        { "uppercase", () => GoAgeRecipients().Hybrid.ToUpperInvariant() },
+    };
+
+    [Theory]
+    [MemberData(nameof(MalformedHybridRecipients))]
+    public void AMalformedHybridRecipient_IsAFormatException(string why, Func<string> recipient)
+    {
+        _ = why;
+        Assert.Throws<FormatException>(() => MlKem768P256TagRecipient.Parse(recipient()));
+    }
+
+    // An ephemeral scalar must lie in [1, n-1]; zero would make the ephemeral point infinity.
+    [Fact]
+    public void TheHybridKem_RefusesAPublicKeyOfTheWrongLength()
+    {
+        Assert.Throws<ArgumentException>(() => MlKem768P256.Encapsulate(HybridKey()[..^1]));
+    }
+
+    [Fact]
+    public void AnEphemeralScalarOutOfRange_IsRefused()
+    {
+        var point = Uncompressed(GoAgeRecipients().Classic);
+
+        Assert.Throws<ArgumentException>(() => DhKemP256.Encapsulate(point, ephemeralScalar: new byte[32]));
+        Assert.Throws<ArgumentException>(() => DhKemP256.Encapsulate(point, ephemeralScalar: new byte[31]));
     }
 
     // --- Stanzas ------------------------------------------------------------------------------
@@ -244,6 +269,29 @@ public class TaggedRecipientTests
         var lines = File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "TestData", "Hpke", "goage-tagtest-recipients.txt"))
             .Select(line => line.Split(' ')).ToDictionary(f => f[0], f => f[1]);
         return (lines["p256tag"], lines["mlkem768p256tag"]);
+    }
+
+    private static byte[] HybridKey() => Bech32.Decode(GoAgeRecipients().Hybrid).Data;
+
+    // A compressed encoding whose x has no y on P-256: about half of all x do. The first such x
+    // counting up from 1 keeps the case fixed.
+    private static byte[] NotOnTheCurve()
+    {
+        var curve = Org.BouncyCastle.Asn1.X9.ECNamedCurveTable.GetByName("secp256r1").Curve;
+
+        for (byte x = 1; ; x++)
+        {
+            byte[] encoded = [0x02, .. new byte[31], x];
+
+            try
+            {
+                curve.DecodePoint(encoded);
+            }
+            catch (ArgumentException)
+            {
+                return encoded;
+            }
+        }
     }
 
     private static byte[] Uncompressed(string classic) =>
