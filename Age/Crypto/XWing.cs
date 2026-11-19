@@ -1,4 +1,3 @@
-using Org.BouncyCastle.Crypto.Agreement;
 using System.Security.Cryptography;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Kems;
@@ -7,13 +6,17 @@ using Org.BouncyCastle.Security;
 
 namespace Age.Crypto;
 
+/// <summary>
+/// X-Wing (MLKEM768-X25519, draft-connolly-cfrg-xwing-kem): what the mlkem768x25519 recipient
+/// type seals to.
+/// </summary>
 internal static class XWing
 {
     // X-Wing combiner label: ASCII `\.//^\` (the X-Wing spec domain separator)
     private static readonly byte[] XWingLabel = @"\.//^\"u8.ToArray();
 
-    private const int MlKemPublicKeySize = 1184;
-    private const int MlKemCiphertextSize = 1088;
+    private const int MlKemPublicKeySize = MlKem768EncapsulationKey.Size;
+    private const int MlKemCiphertextSize = MlKem768EncapsulationKey.CiphertextSize;
     private const int X25519KeySize = 32;
     private const int SharedSecretSize = 32;
     private const int MlKemSeedSize = 64;
@@ -55,89 +58,42 @@ internal static class XWing
         if (publicKey.Length != PublicKeySize)
             throw new FormatException($"public key must be {PublicKeySize} bytes, got {publicKey.Length}");
 
-        try
-        {
-            MLKemPublicKeyParameters.FromEncoding(MLKemParameters.ml_kem_768, publicKey[..MlKemPublicKeySize]);
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-        {
-            throw new FormatException($"invalid ML-KEM-768 encapsulation key: {ex.Message}", ex);
-        }
-
-        // FromEncoding does not check the coefficients — BouncyCastle defers that to Encapsulate,
-        // far too late for a parse. FIPS 203's ByteDecode_12 requires every coefficient below q.
-        if (!CoefficientsAreInRange(publicKey.AsSpan(0, CoefficientBytes)))
-            throw new FormatException(
-                "invalid ML-KEM-768 encapsulation key: a coefficient is not less than the modulus");
+        MlKem768EncapsulationKey.Decode(publicKey.AsSpan(0, MlKemPublicKeySize));
     }
 
-    // The encapsulation key is k polynomials of 256 coefficients packed at 12 bits each, followed
-    // by a 32-byte seed. Three bytes carry two coefficients.
-    internal const int CoefficientBytes = 1152;
-    private const int Modulus = 3329;
-
-    internal static bool CoefficientsAreInRange(ReadOnlySpan<byte> packed)
-    {
-        for (var i = 0; i + 2 < packed.Length; i += 3)
-        {
-            var low = packed[i] | ((packed[i + 1] & 0x0F) << 8);
-            var high = (packed[i + 1] >> 4) | (packed[i + 2] << 4);
-
-            if (low >= Modulus || high >= Modulus)
-                return false;
-        }
-
-        return true;
-    }
-
-    public static (byte[] SharedSecret, byte[] Enc) Encaps(byte[] publicKey)
+    /// <summary>Encapsulates to a public key, with randomness from <paramref name="random"/>.</summary>
+    /// <exception cref="AgeHeaderException">
+    /// The ML-KEM-768 half is malformed. This is reachable without going through
+    /// <see cref="ValidatePublicKey"/>, so it checks again rather than trusting the caller.
+    /// </exception>
+    public static (byte[] SharedSecret, byte[] Enc) Encapsulate(byte[] publicKey, SecureRandom random)
     {
         if (publicKey.Length != PublicKeySize)
             throw new ArgumentException($"public key must be {PublicKeySize} bytes, got {publicKey.Length}");
 
-        var pkM = publicKey[..MlKemPublicKeySize];
         var pkX = publicKey[MlKemPublicKeySize..];
-
-        MLKemPublicKeyParameters mlKemPub;
+        MlKem768EncapsulationKey mlKemKey;
 
         try
         {
-            mlKemPub = MLKemPublicKeyParameters.FromEncoding(MLKemParameters.ml_kem_768, pkM);
+            mlKemKey = MlKem768EncapsulationKey.Decode(publicKey.AsSpan(0, MlKemPublicKeySize));
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch (FormatException ex)
         {
-            throw new AgeHeaderException($"invalid ML-KEM-768 public key: {ex.Message}", ex);
+            throw new AgeHeaderException(ex.Message, ex);
         }
 
-        var encapsulator = new MLKemEncapsulator(MLKemParameters.ml_kem_768);
-        encapsulator.Init(mlKemPub);
-        var ctM = new byte[MlKemCiphertextSize];
+        var (ctM, ssM) = mlKemKey.Encapsulate(random);
 
-        // Encaps is internal and callable without going through Parse, so it repeats the
-        // coefficient check rather than trusting the caller.
-        if (!CoefficientsAreInRange(pkM.AsSpan(0, CoefficientBytes)))
-            throw new AgeHeaderException(
-                "invalid ML-KEM-768 public key: a coefficient is not less than the modulus");
-
-        // ssM and ssX are the two halves the combiner hashes; both are key material.
-        var ssM = new byte[SharedSecretSize];
-        encapsulator.Encapsulate(ctM, 0, MlKemCiphertextSize, ssM, 0, SharedSecretSize);
-
-        // X25519 ephemeral DH, through the same guarded helper Decaps uses.
-        var ekX = new X25519PrivateKeyParameters(new SecureRandom());
+        // X25519 ephemeral DH, through the same guarded helper Decapsulate uses.
+        var ekX = new X25519PrivateKeyParameters(random);
         var ctX = ekX.GeneratePublicKey().GetEncoded();
         var ssX = new byte[SharedSecretSize];
 
         try
         {
             CryptoHelper.X25519Agree(ekX, new X25519PublicKeyParameters(pkX), ssX);
-
-            var enc = new byte[EncSize];
-            ctM.CopyTo(enc, 0);
-            ctX.CopyTo(enc, MlKemCiphertextSize);
-
-            // ss = SHA3-256(ss_M || ss_X || ct_X || pk_X || XWingLabel)
-            return (CombineSharedSecret(ssM, ssX, ctX, pkX), enc);
+            return (HybridKem.CombineSharedSecrets(XWingLabel, ssM, ssX, ctX, pkX), [.. ctM, .. ctX]);
         }
         finally
         {
@@ -146,7 +102,7 @@ internal static class XWing
         }
     }
 
-    public static byte[] Decaps(byte[] enc, byte[] seed)
+    public static byte[] Decapsulate(byte[] enc, byte[] seed)
     {
         if (enc.Length != EncSize)
             throw new ArgumentException($"enc must be {EncSize} bytes, got {enc.Length}");
@@ -168,8 +124,7 @@ internal static class XWing
             // X25519 DH — the low-order guard and all-zero check live in the helper.
             CryptoHelper.X25519Agree(x25519Private, new X25519PublicKeyParameters(ctX), ssX);
 
-            // ss = SHA3-256(ss_M || ss_X || ct_X || pk_X || XWingLabel)
-            return CombineSharedSecret(ssM, ssX, ctX, pkX);
+            return HybridKem.CombineSharedSecrets(XWingLabel, ssM, ssX, ctX, pkX);
         }
         finally
         {
@@ -177,20 +132,6 @@ internal static class XWing
             CryptographicOperations.ZeroMemory(ssX);
             CryptographicOperations.ZeroMemory(seedPq);
         }
-    }
-
-    private static byte[] CombineSharedSecret(byte[] ssM, byte[] ssX, byte[] ctX, byte[] pkX)
-    {
-        var sha3 = new Sha3Digest(256);
-        sha3.BlockUpdate(ssM, 0, ssM.Length);
-        sha3.BlockUpdate(ssX, 0, ssX.Length);
-        sha3.BlockUpdate(ctX, 0, ctX.Length);
-        sha3.BlockUpdate(pkX, 0, pkX.Length);
-        sha3.BlockUpdate(XWingLabel, 0, XWingLabel.Length);
-
-        var result = new byte[SharedSecretSize];
-        sha3.DoFinal(result, 0);
-        return result;
     }
 
     private static (MLKemPrivateKeyParameters mlKemPrivate, byte[] seedPQ, X25519PrivateKeyParameters x25519Private, byte[] pkX) ExpandSeed(byte[] seed)

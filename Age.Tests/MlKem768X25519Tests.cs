@@ -1,3 +1,4 @@
+using Org.BouncyCastle.Security;
 using Age;
 using Age.Crypto;
 using Age.Recipients;
@@ -36,12 +37,12 @@ public class XWingTests
         new Random(42).NextBytes(seed);
 
         var pk = XWing.GeneratePublicKey(seed);
-        var (ss, enc) = XWing.Encaps(pk);
+        var (ss, enc) = XWing.Encapsulate(pk, new SecureRandom());
 
         Assert.Equal(32, ss.Length);
         Assert.Equal(XWing.EncSize, enc.Length);  // 1120
 
-        var ss2 = XWing.Decaps(enc, seed);
+        var ss2 = XWing.Decapsulate(enc, seed);
         Assert.Equal(ss, ss2);
     }
 
@@ -52,8 +53,8 @@ public class XWingTests
         new Random(42).NextBytes(seed);
 
         var pk = XWing.GeneratePublicKey(seed);
-        var (ss1, _) = XWing.Encaps(pk);
-        var (ss2, _) = XWing.Encaps(pk);
+        var (ss1, _) = XWing.Encapsulate(pk, new SecureRandom());
+        var (ss2, _) = XWing.Encapsulate(pk, new SecureRandom());
 
         // Each encapsulation should produce a different shared secret
         Assert.NotEqual(ss1, ss2);
@@ -68,10 +69,10 @@ public class XWingTests
         new Random(99).NextBytes(seed2);
 
         var pk = XWing.GeneratePublicKey(seed1);
-        var (ss, enc) = XWing.Encaps(pk);
+        var (ss, enc) = XWing.Encapsulate(pk, new SecureRandom());
 
-        // Decaps with wrong seed should produce different shared secret (implicit rejection)
-        var ss2 = XWing.Decaps(enc, seed2);
+        // Decapsulate with a wrong seed should produce different shared secret (implicit rejection)
+        var ss2 = XWing.Decapsulate(enc, seed2);
         Assert.NotEqual(ss, ss2);
     }
 }

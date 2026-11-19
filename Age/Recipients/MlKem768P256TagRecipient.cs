@@ -1,5 +1,6 @@
 using Age.Crypto;
 using Age.Format;
+using Org.BouncyCastle.Security;
 
 namespace Age.Recipients;
 
@@ -51,6 +52,6 @@ public sealed class MlKem768P256TagRecipient : IRecipient
 
     /// <summary>Wraps the file key in an <c>mlkem768p256tag</c> stanza.</summary>
     public Stanza Wrap(ReadOnlySpan<byte> fileKey) =>
-        TaggedStanza.Wrap(AgeProtocol.MlKem768P256TagStanzaType, MlKem768P256.Id, AgeProtocol.MlKem768P256TagHpkeInfo,
-            MlKem768P256.Encapsulate(_publicKey), _publicKey.AsSpan(MlKem768P256.PointOffset), fileKey);
+        TaggedStanza.Wrap(AgeProtocol.MlKem768P256TagStanzaType, MlKem768P256.KemId, AgeProtocol.MlKem768P256TagHpkeInfo,
+            MlKem768P256.Encapsulate(_publicKey, new SecureRandom()), _publicKey.AsSpan(MlKem768P256.PointOffset), fileKey);
 }

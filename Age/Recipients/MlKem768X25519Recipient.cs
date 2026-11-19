@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Age.Crypto;
 using Age.Format;
+using Org.BouncyCastle.Security;
 
 namespace Age.Recipients;
 
@@ -64,11 +65,11 @@ public sealed class MlKem768X25519Recipient : IRecipient
 
         try
         {
-            var (sharedSecret, enc) = XWing.Encaps(_publicKey);
+            var (sharedSecret, enc) = XWing.Encapsulate(_publicKey, new SecureRandom());
 
             try
             {
-                var ct = HpkeHelper.SealBase(XWing.KemId, sharedSecret, AgeProtocol.MlKemHpkeInfo, fileKeyCopy);
+                var ct = HpkeHelper.Seal(XWing.KemId, sharedSecret, AgeProtocol.MlKemHpkeInfo, fileKeyCopy);
                 return new Stanza(AgeProtocol.MlKemStanzaType, [Base64Unpadded.Encode(enc)], ct);
             }
             finally

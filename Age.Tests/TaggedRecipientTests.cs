@@ -27,8 +27,8 @@ public class TaggedRecipientTests
     {
         var v = Vector("p256-hkdfsha256-chacha20poly1305.json");
 
-        var (sharedSecret, enc) = DhKemP256.Encapsulate(Hex(v, "pkRm"), ephemeralScalar: Hex(v, "skEm"));
-        var (key, baseNonce) = HpkeHelper.KeyScheduleBase(DhKemP256.Id, sharedSecret, Hex(v, "info"));
+        var (sharedSecret, enc) = DhKemP256.Encapsulate(Hex(v, "pkRm"), new FixedRandom(Hex(v, "skEm")));
+        var (key, baseNonce) = HpkeHelper.KeyScheduleBase(DhKemP256.KemId, sharedSecret, Hex(v, "info"));
 
         Assert.Equal(Hex(v, "enc"), enc);
         Assert.Equal(Hex(v, "shared_secret"), sharedSecret);
@@ -47,7 +47,7 @@ public class TaggedRecipientTests
         var v = Vector("p256-hkdfsha256-chacha20poly1305.json");
         var plaintext = "file key bytes!!"u8.ToArray();
 
-        var ciphertext = HpkeHelper.SealBase(DhKemP256.Id, Hex(v, "shared_secret"), Hex(v, "info"), plaintext);
+        var ciphertext = HpkeHelper.Seal(DhKemP256.KemId, Hex(v, "shared_secret"), Hex(v, "info"), plaintext);
 
         var expected = new byte[plaintext.Length + 16];
         using var chacha = new System.Security.Cryptography.ChaCha20Poly1305(Hex(v, "key"));
@@ -62,9 +62,9 @@ public class TaggedRecipientTests
         var v = Vector("mlkem768p256.json");
         var ikmE = Hex(v, "ikmE");
 
-        // ikmE[0:32] is the ML-KEM-768 encapsulation randomness, ikmE[32:64] the P-256 scalar.
-        var (sharedSecret, enc) = MlKem768P256.Encapsulate(Hex(v, "pkRm"),
-            mlKemRandom: new FixedRandom(ikmE[..32]), ephemeralScalar: ikmE[32..64]);
+        // ikmE[0:32] is the ML-KEM-768 encapsulation randomness, ikmE[32:64] the P-256 scalar,
+        // which is the order the KEM draws them in.
+        var (sharedSecret, enc) = MlKem768P256.Encapsulate(Hex(v, "pkRm"), new FixedRandom(ikmE[..64]));
 
         Assert.Equal(Hex(v, "enc"), enc);
         Assert.Equal(Hex(v, "shared_secret"), sharedSecret);
@@ -129,20 +129,27 @@ public class TaggedRecipientTests
         Assert.Throws<FormatException>(() => MlKem768P256TagRecipient.Parse(recipient()));
     }
 
-    // An ephemeral scalar must lie in [1, n-1]; zero would make the ephemeral point infinity.
     [Fact]
     public void TheHybridKem_RefusesAPublicKeyOfTheWrongLength()
     {
-        Assert.Throws<ArgumentException>(() => MlKem768P256.Encapsulate(HybridKey()[..^1]));
+        Assert.Throws<ArgumentException>(() => MlKem768P256.Encapsulate(HybridKey()[..^1], new SecureRandom()));
     }
 
-    [Fact]
-    public void AnEphemeralScalarOutOfRange_IsRefused()
+    // An ephemeral scalar must lie in [1, n-1]: zero would make the ephemeral point infinity, and
+    // n or more is not a scalar. Random bytes that are neither are drawn again, so these, followed
+    // by the vector's scalar, give the vector's result.
+    [Theory]
+    [InlineData(0x00)]
+    [InlineData(0xff)]
+    public void AnEphemeralScalarOutOfRange_IsDrawnAgain(byte filler)
     {
-        var point = Uncompressed(GoAgeRecipients().Classic);
+        var v = Vector("p256-hkdfsha256-chacha20poly1305.json");
+        byte[] random = [.. Enumerable.Repeat(filler, 32), .. Hex(v, "skEm")];
 
-        Assert.Throws<ArgumentException>(() => DhKemP256.Encapsulate(point, ephemeralScalar: new byte[32]));
-        Assert.Throws<ArgumentException>(() => DhKemP256.Encapsulate(point, ephemeralScalar: new byte[31]));
+        var (sharedSecret, enc) = DhKemP256.Encapsulate(Hex(v, "pkRm"), new FixedRandom(random));
+
+        Assert.Equal(Hex(v, "enc"), enc);
+        Assert.Equal(Hex(v, "shared_secret"), sharedSecret);
     }
 
     // --- Stanzas ------------------------------------------------------------------------------

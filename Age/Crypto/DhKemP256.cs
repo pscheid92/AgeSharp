@@ -19,10 +19,10 @@ namespace Age.Crypto;
 internal static class DhKemP256
 {
     /// <summary>The HPKE KEM ID of DHKEM(P-256, HKDF-SHA256).</summary>
-    internal const ushort Id = 0x0010;
+    internal const ushort KemId = 0x0010;
 
     /// <summary>An uncompressed P-256 point, as public keys and enc are serialised.</summary>
-    internal const int PointSize = 65;
+    internal const int UncompressedPointSize = 65;
 
     /// <summary>A compressed P-256 point.</summary>
     internal const int CompressedPointSize = 33;
@@ -37,19 +37,15 @@ internal static class DhKemP256
     private static readonly FixedPointCombMultiplier GeneratorMultiplier = new();
 
     // suite_id = "KEM" || I2OSP(kem_id, 2), as DHKEM's ExtractAndExpand uses.
-    private static readonly byte[] KemSuiteId = [(byte)'K', (byte)'E', (byte)'M', Id >> 8, Id & 0xff];
-
-    /// <summary>Encapsulates to <paramref name="recipientPoint"/>, an uncompressed P-256 point.</summary>
-    public static (byte[] SharedSecret, byte[] Enc) Encapsulate(byte[] recipientPoint) =>
-        Encapsulate(recipientPoint, ephemeralScalar: null);
+    private static readonly byte[] KemSuiteId = [(byte)'K', (byte)'E', (byte)'M', KemId >> 8, KemId & 0xff];
 
     /// <summary>
-    /// Encapsulates with a given ephemeral scalar, or a random one when it is null — which is
-    /// how the known-answer vectors are reproduced.
+    /// Encapsulates to <paramref name="recipientPoint"/>, an uncompressed P-256 point, with the
+    /// ephemeral key drawn from <paramref name="random"/>.
     /// </summary>
-    internal static (byte[] SharedSecret, byte[] Enc) Encapsulate(byte[] recipientPoint, byte[]? ephemeralScalar)
+    public static (byte[] SharedSecret, byte[] Enc) Encapsulate(byte[] recipientPoint, SecureRandom random)
     {
-        var (dh, enc) = DiffieHellman(recipientPoint, ephemeralScalar);
+        var (dh, enc) = DiffieHellman(recipientPoint, random);
 
         try
         {
@@ -77,10 +73,10 @@ internal static class DhKemP256
     /// coordinate (32 bytes) and the ephemeral public point, uncompressed. Shared with the
     /// MLKEM768-P256 hybrid, whose P-256 half is the same exchange.
     /// </summary>
-    internal static (byte[] SharedX, byte[] EphemeralPoint) DiffieHellman(byte[] recipientPoint, byte[]? ephemeralScalar)
+    internal static (byte[] SharedX, byte[] EphemeralPoint) DiffieHellman(byte[] recipientPoint, SecureRandom random)
     {
         var recipient = DecodeUncompressed(recipientPoint);
-        var scalar = ephemeralScalar is null ? RandomScalar() : ScalarFrom(ephemeralScalar);
+        var scalar = RandomScalar(random);
 
         var shared = recipient.Multiply(scalar).Normalize();
         if (shared.IsInfinity)
@@ -111,8 +107,8 @@ internal static class DhKemP256
 
     private static ECPoint DecodeUncompressed(ReadOnlySpan<byte> point)
     {
-        if (point.Length != PointSize || point[0] != 0x04)
-            throw new FormatException($"a P-256 public key must be a {PointSize}-byte uncompressed point");
+        if (point.Length != UncompressedPointSize || point[0] != 0x04)
+            throw new FormatException($"a P-256 public key must be a {UncompressedPointSize}-byte uncompressed point");
 
         return Decode(point);
     }
@@ -136,8 +132,9 @@ internal static class DhKemP256
         return point;
     }
 
-    // A scalar uniform in [1, n-1], by rejection sampling as Go's crypto/ecdh does.
-    private static BigInteger RandomScalar()
+    // A scalar uniform in [1, n-1], by rejection sampling as Go's crypto/ecdh does. A test that
+    // reproduces a known-answer vector supplies the vector's scalar as the random bytes.
+    private static BigInteger RandomScalar(SecureRandom random)
     {
         var bytes = new byte[ScalarSize];
 
@@ -145,7 +142,7 @@ internal static class DhKemP256
         {
             while (true)
             {
-                RandomNumberGenerator.Fill(bytes);
+                random.NextBytes(bytes);
                 var scalar = new BigInteger(1, bytes);
 
                 if (scalar.SignValue > 0 && scalar.CompareTo(Curve.N) < 0)
@@ -156,14 +153,5 @@ internal static class DhKemP256
         {
             CryptographicOperations.ZeroMemory(bytes);
         }
-    }
-
-    private static BigInteger ScalarFrom(byte[] bytes)
-    {
-        var scalar = new BigInteger(1, bytes);
-
-        return bytes.Length == ScalarSize && scalar.SignValue > 0 && scalar.CompareTo(Curve.N) < 0
-            ? scalar
-            : throw new ArgumentException("not a P-256 private scalar", "ephemeralScalar");
     }
 }

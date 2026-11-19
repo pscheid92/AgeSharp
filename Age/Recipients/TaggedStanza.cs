@@ -30,7 +30,7 @@ internal static class TaggedStanza
 
         try
         {
-            var body = HpkeHelper.SealBase(kemId, sharedSecret, info, fileKeyCopy);
+            var body = HpkeHelper.Seal(kemId, sharedSecret, info, fileKeyCopy);
             return new Stanza(stanzaType, [Base64Unpadded.Encode(Tag(enc, taggedKey, info)), Base64Unpadded.Encode(enc)], body);
         }
         finally
