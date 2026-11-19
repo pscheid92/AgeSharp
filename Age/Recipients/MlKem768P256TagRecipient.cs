@@ -11,7 +11,8 @@ namespace Age.Recipients;
 /// Encryption only, as in go-age and rage: decrypting is the job of the plugin that talks to
 /// the hardware (through <see cref="PluginIdentity"/>). The file key is sealed with HPKE, the
 /// MLKEM768-P256 KEM of draft-ietf-hpke-pq with ChaCha20-Poly1305, and the stanza carries a tag
-/// computed over the P-256 point only, so the hardware can recognise it without its ML-KEM key.
+/// computed over the P-256 point only, so the hardware can recognise it without its ML-KEM key. That
+/// tag makes files encrypted to the same key linkable by anyone who knows that key.
 /// </remarks>
 public sealed class MlKem768P256TagRecipient : IRecipient
 {

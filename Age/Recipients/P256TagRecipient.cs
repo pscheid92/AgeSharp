@@ -27,9 +27,6 @@ public sealed class P256TagRecipient : IRecipient
         _point = point;
     }
 
-    /// <summary>None: this recipient may be mixed with any other classical recipient.</summary>
-    public string? Label => null;
-
     /// <summary>Parses a Bech32-encoded recipient (<c>age1tag1…</c>, lowercase).</summary>
     /// <exception cref="FormatException">The string is not a valid tagged P-256 recipient.</exception>
     public static P256TagRecipient Parse(string s)

@@ -59,8 +59,8 @@ ships `rage`, `rage-keygen` and `rage-mount`; use those for the command line.
 
 AgeSharp covers the six standard recipient types and the two tagged ones (encryption only), the plugin client protocol, and Go's
 v1.3 library additions: detached headers, pull-based streams, random-access decryption and
-`inspect`. Like rage's library it runs in the browser, and it has native post-quantum
-support, which rage does not.
+`inspect`. Like rage's library it runs in the browser, and it has the native ML-KEM-768-X25519
+recipient (`age1pq1…`), which rage does not.
 
 It trails both Go and rage on support for writing plugins. It trails Go on file-key extraction and the finer-grained
 recipient and error APIs, and rage on async I/O.

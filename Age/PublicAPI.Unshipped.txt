@@ -14,7 +14,6 @@ Age.Recipients.MlKem768P256TagRecipient
 Age.Recipients.MlKem768P256TagRecipient.Label.get -> string!
 Age.Recipients.MlKem768P256TagRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
 Age.Recipients.P256TagRecipient
-Age.Recipients.P256TagRecipient.Label.get -> string?
 Age.Recipients.P256TagRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
 override Age.Recipients.MlKem768P256TagRecipient.ToString() -> string!
 override Age.Recipients.P256TagRecipient.ToString() -> string!

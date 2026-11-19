@@ -26,6 +26,15 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 - [ ] Plugin authoring: the server side of the plugin protocol
 - [ ] Small differences from go-age (low priority): a matching stanza without arguments is an error in go-age and skipped here; an even RSA exponent is refused with BouncyCastle's own message
 
+## Tagged recipients, later (from the #104 review)
+
+- [ ] One injectable random source for the KEMs, instead of the encapsulation overloads that exist for the known-answer vectors
+- [ ] One ML-KEM-768 encapsulation-key type shared by X-Wing and MLKEM768-P256 (decoding is repeated four times), and one hybrid combiner taking its label
+- [ ] Naming: `XWing.KemId` / `DhKemP256.Id`, `Encaps` / `Encapsulate`, `PointSize` / `CompressedPointSize`; `HpkeHelper.SealBase` no longer has RFC 9180's shape
+- [ ] Cache decoded keys per recipient instead of re-decoding on every `Wrap`
+- [ ] Constant-time P-256 for the recipient-point multiplication (BouncyCastle 2.7.0 has no ladder multiplier)
+- [ ] Release notes: `age1tag1…`/`age1tagpq1…` lines in a recipients file are now native recipients, no longer plugin recipients, and malformed ones fail when the file is parsed
+
 ## API (breaking — fold into the rebuild)
 
 - [ ] Async entry points for encrypt and decrypt (design exists on `next-version`)

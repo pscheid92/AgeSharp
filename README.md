@@ -140,10 +140,15 @@ AgeEncrypt.Encrypt(input, encrypted, recipient);
 
 ### Hardware keys (tagged recipients)
 
-Recipients for keys held on hardware, such as a YubiKey or a Secure Enclave, are
-encoded as `age1tag1…` (P-256) or `age1tagpq1…` (P-256 hybridised with ML-KEM-768,
-post-quantum). AgeSharp encrypts to them natively; decrypting is done by the
-hardware's plugin, through `PluginIdentity`.
+age's tagged recipient types are for keys held on hardware, by plugins that use
+this format: `age1tag1…` (P-256) and `age1tagpq1…` (P-256 hybridised with
+ML-KEM-768, post-quantum). AgeSharp encrypts to them natively; decrypting is done
+by the plugin, through `PluginIdentity`.
+
+- Each stanza carries a tag that lets the hardware recognise it, so anyone who knows
+  the public key can tell which files were encrypted to it.
+- Like `age1pq1…`, an `age1tagpq1…` recipient can't be mixed with classical
+  recipients in one file: that would void its post-quantum protection.
 
 ```csharp
 var recipient = P256TagRecipient.Parse("age1tag1...");

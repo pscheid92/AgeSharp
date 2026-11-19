@@ -14,8 +14,9 @@ namespace Age.Tests;
 /// </summary>
 /// <remarks>
 /// The HPKE parts are checked against published known-answer vectors (RFC 9180 for P-256, the
-/// filippo.io/hpke vectors for MLKEM768-P256). That go-age's own tag identities decrypt what these
-/// recipients produce was checked outside the suite, with go-age's tag/internal/tagtest.
+/// filippo.io/hpke vectors for MLKEM768-P256), and what Wrap produces is opened here with code of the
+/// test's own. The recipients are go-age's age-plugin-tagtest ones; that this plugin decrypts what
+/// AgeSharp encrypts to them was checked outside the suite (go-age's tag/internal/age-plugin-tagtest).
 /// </remarks>
 public class TaggedRecipientTests
 {
@@ -159,7 +160,7 @@ public class TaggedRecipientTests
         Assert.Equal(4, Base64Unpadded.Decode(stanza.Args[0]).Length);
         Assert.Equal(65, Base64Unpadded.Decode(stanza.Args[1]).Length);
         Assert.Equal(32, stanza.Body.Length);
-        Assert.Null(recipient.Label);
+        Assert.Null(((IRecipient)recipient).Label);
     }
 
     [Fact]
@@ -215,6 +216,119 @@ public class TaggedRecipientTests
         AgeEncrypt.Encrypt(new MemoryStream([1]), new MemoryStream(), classic, x25519.Recipient);
     }
 
+    // --- Opening what Wrap produces, with code of the test's own -------------------------------
+
+    // The vectors pin the KEMs and the key schedule one call at a time. These open a stanza that
+    // a recipient's own Wrap produced, as the hardware's plugin would, with an implementation
+    // written here: BouncyCastle's generic P-256 (the library uses its specialised one) and
+    // ML-KEM decapsulation, and .NET's HKDF and ChaCha20-Poly1305. A wrong KEM ID, suite, info
+    // string, tag or key half anywhere on the Wrap path makes them fail.
+    [SkippableFact]
+    public void AP256TagStanza_OpensWithTheRecipientsPrivateKey()
+    {
+        Skip.IfNot(System.Security.Cryptography.ChaCha20Poly1305.IsSupported, "no platform ChaCha20-Poly1305 to open with");
+        var (privateKey, point) = NewP256Key();
+        var recipient = P256TagRecipient.Parse(Bech32.Encode("age1tag", Compress(point)));
+        var fileKey = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
+
+        var stanza = recipient.Wrap(fileKey);
+
+        var enc = Base64Unpadded.Decode(stanza.Args[1]);
+        var dh = EcdhX(privateKey, enc);
+        var sharedSecret = DhKemSharedSecret(dh, enc, point);
+        var info = "age-encryption.org/p256tag"u8.ToArray();
+
+        Assert.Equal("p256tag", stanza.Type);
+        Assert.Equal(ExpectedTag(enc, Compress(point), info), Base64Unpadded.Decode(stanza.Args[0]));
+        Assert.Equal(fileKey, Open(kemId: 0x0010, sharedSecret, info, stanza.Body.ToArray()));
+    }
+
+    [SkippableFact]
+    public void AnMlKem768P256TagStanza_OpensWithTheRecipientsPrivateKeys()
+    {
+        Skip.IfNot(System.Security.Cryptography.ChaCha20Poly1305.IsSupported, "no platform ChaCha20-Poly1305 to open with");
+        var (privateKey, point) = NewP256Key();
+        var mlKem = new Org.BouncyCastle.Crypto.Generators.MLKemKeyPairGenerator();
+        mlKem.Init(new Org.BouncyCastle.Crypto.Parameters.MLKemKeyGenerationParameters(new SecureRandom(),
+            Org.BouncyCastle.Crypto.Parameters.MLKemParameters.ml_kem_768));
+        var mlKemPair = mlKem.GenerateKeyPair();
+        var encapsulationKey = ((Org.BouncyCastle.Crypto.Parameters.MLKemPublicKeyParameters)mlKemPair.Public).GetEncoded();
+        var recipient = MlKem768P256TagRecipient.Parse(Bech32.Encode("age1tagpq", [.. encapsulationKey, .. point]));
+        var fileKey = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
+
+        var stanza = recipient.Wrap(fileKey);
+
+        var enc = Base64Unpadded.Decode(stanza.Args[1]);
+        var (ctPq, ctT) = (enc[..1088], enc[1088..]);
+        var decapsulator = new Org.BouncyCastle.Crypto.Kems.MLKemDecapsulator(Org.BouncyCastle.Crypto.Parameters.MLKemParameters.ml_kem_768);
+        decapsulator.Init(mlKemPair.Private);
+        var ssPq = new byte[32];
+        decapsulator.Decapsulate(ctPq, 0, ctPq.Length, ssPq, 0, ssPq.Length);
+        var ssT = EcdhX(privateKey, ctT);
+
+        // ss = SHA3-256(ss_PQ || ss_T || ct_T || ek_T || "MLKEM768-P256"), draft-ietf-hpke-pq
+        var sha3 = new Org.BouncyCastle.Crypto.Digests.Sha3Digest(256);
+        foreach (var part in new[] { ssPq, ssT, ctT, point, "MLKEM768-P256"u8.ToArray() })
+            sha3.BlockUpdate(part, 0, part.Length);
+        var sharedSecret = new byte[32];
+        sha3.DoFinal(sharedSecret, 0);
+        var info = "age-encryption.org/mlkem768p256tag"u8.ToArray();
+
+        Assert.Equal("mlkem768p256tag", stanza.Type);
+        Assert.Equal(ExpectedTag(enc, point, info), Base64Unpadded.Decode(stanza.Args[0]));
+        Assert.Equal(fileKey, Open(kemId: 0x0050, sharedSecret, info, stanza.Body.ToArray()));
+    }
+
+    private static readonly Org.BouncyCastle.Asn1.X9.X9ECParameters GenericP256 =
+        Org.BouncyCastle.Asn1.X9.ECNamedCurveTable.GetByName("secp256r1");
+
+    private static (Org.BouncyCastle.Math.BigInteger PrivateKey, byte[] Point) NewP256Key()
+    {
+        var d = new Org.BouncyCastle.Math.BigInteger(256, new SecureRandom()).Mod(GenericP256.N.Subtract(Org.BouncyCastle.Math.BigInteger.One)).Add(Org.BouncyCastle.Math.BigInteger.One);
+        return (d, GenericP256.G.Multiply(d).Normalize().GetEncoded(false));
+    }
+
+    private static byte[] Compress(byte[] point) =>
+        GenericP256.Curve.DecodePoint(point).GetEncoded(true);
+
+    private static byte[] EcdhX(Org.BouncyCastle.Math.BigInteger privateKey, byte[] peerPoint) =>
+        GenericP256.Curve.DecodePoint(peerPoint).Multiply(privateKey).Normalize().AffineXCoord.GetEncoded();
+
+    // DHKEM's ExtractAndExpand (RFC 9180, section 4.1), with the KEM's own suite ID.
+    private static byte[] DhKemSharedSecret(byte[] dh, byte[] enc, byte[] recipientPoint)
+    {
+        byte[] kemSuite = [.. "KEM"u8, 0x00, 0x10];
+        var eaePrk = LabeledExtract(kemSuite, [], "eae_prk", dh);
+        return LabeledExpand(kemSuite, eaePrk, "shared_secret", [.. enc, .. recipientPoint], 32);
+    }
+
+    // The base-mode key schedule (RFC 9180, section 5.1), then the first message's ChaCha20-Poly1305.
+    private static byte[] Open(ushort kemId, byte[] sharedSecret, byte[] info, byte[] body)
+    {
+        byte[] suite = [.. "HPKE"u8, (byte)(kemId >> 8), (byte)kemId, 0x00, 0x01, 0x00, 0x03];
+        byte[] context = [0x00, .. LabeledExtract(suite, [], "psk_id_hash", []), .. LabeledExtract(suite, [], "info_hash", info)];
+        var secret = LabeledExtract(suite, sharedSecret, "secret", []);
+        var key = LabeledExpand(suite, secret, "key", context, 32);
+        var nonce = LabeledExpand(suite, secret, "base_nonce", context, 12);
+
+        var plaintext = new byte[body.Length - 16];
+        using var chacha = new System.Security.Cryptography.ChaCha20Poly1305(key);
+        chacha.Decrypt(nonce, body.AsSpan(0, plaintext.Length), body.AsSpan(plaintext.Length), plaintext);
+        return plaintext;
+    }
+
+    private static byte[] LabeledExtract(byte[] suite, byte[] salt, string label, byte[] ikm) =>
+        System.Security.Cryptography.HKDF.Extract(System.Security.Cryptography.HashAlgorithmName.SHA256,
+            [.. "HPKE-v1"u8, .. suite, .. System.Text.Encoding.ASCII.GetBytes(label), .. ikm], salt);
+
+    private static byte[] LabeledExpand(byte[] suite, byte[] prk, string label, byte[] info, int length) =>
+        System.Security.Cryptography.HKDF.Expand(System.Security.Cryptography.HashAlgorithmName.SHA256, prk, length,
+            [(byte)(length >> 8), (byte)length, .. "HPKE-v1"u8, .. suite, .. System.Text.Encoding.ASCII.GetBytes(label), .. info]);
+
+    private static byte[] ExpectedTag(byte[] enc, byte[] taggedKey, byte[] info) =>
+        System.Security.Cryptography.HKDF.Extract(System.Security.Cryptography.HashAlgorithmName.SHA256,
+            [.. enc, .. System.Security.Cryptography.SHA256.HashData(taggedKey)[..4]], info)[..4];
+
     // --- Reading files that carry tagged stanzas ---------------------------------------------
 
     // This library only encrypts to tagged recipients, but must still read a file that has
@@ -266,7 +380,8 @@ public class TaggedRecipientTests
 
     private static (string Classic, string Hybrid) GoAgeRecipients()
     {
-        var lines = File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "TestData", "Hpke", "goage-tagtest-recipients.txt"))
+        var lines = File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "TestData", "Hpke", "goage-plugin-tagtest-recipients.txt"))
+            .Where(line => !line.StartsWith('#'))
             .Select(line => line.Split(' ')).ToDictionary(f => f[0], f => f[1]);
         return (lines["p256tag"], lines["mlkem768p256tag"]);
     }

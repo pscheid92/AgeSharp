@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto.EC;
 using Org.BouncyCastle.Math;
+using Org.BouncyCastle.Math.EC.Multiplier;
 using ECPoint = Org.BouncyCastle.Math.EC.ECPoint;
 using Org.BouncyCastle.Security;
 
@@ -32,6 +33,8 @@ internal static class DhKemP256
     // BouncyCastle's custom P-256 (SecP256R1Curve), with specialised field arithmetic, rather
     // than the generic curve ECNamedCurveTable returns.
     private static readonly X9ECParameters Curve = CustomNamedCurves.GetByName("secp256r1");
+
+    private static readonly FixedPointCombMultiplier GeneratorMultiplier = new();
 
     // suite_id = "KEM" || I2OSP(kem_id, 2), as DHKEM's ExtractAndExpand uses.
     private static readonly byte[] KemSuiteId = [(byte)'K', (byte)'E', (byte)'M', Id >> 8, Id & 0xff];
@@ -83,7 +86,10 @@ internal static class DhKemP256
         if (shared.IsInfinity)
             throw new CryptographicException("P-256 ECDH produced the point at infinity");
 
-        var ephemeralPoint = Curve.G.Multiply(scalar).Normalize().GetEncoded(compressed: false);
+        // The generator goes through BouncyCastle's fixed-point comb, which is more regular than
+        // the default wNAF. Neither is constant-time as go-age's P-256 is; the scalar is ephemeral
+        // and used for one stanza.
+        var ephemeralPoint = GeneratorMultiplier.Multiply(Curve.G, scalar).Normalize().GetEncoded(compressed: false);
         return (shared.AffineXCoord.GetEncoded(), ephemeralPoint);
     }
 
@@ -158,6 +164,6 @@ internal static class DhKemP256
 
         return bytes.Length == ScalarSize && scalar.SignValue > 0 && scalar.CompareTo(Curve.N) < 0
             ? scalar
-            : throw new ArgumentException("not a P-256 private scalar", nameof(bytes));
+            : throw new ArgumentException("not a P-256 private scalar", "ephemeralScalar");
     }
 }
