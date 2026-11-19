@@ -23,6 +23,10 @@ public static class AgeKeygen
         X25519Identity.Parse(s);
 
     /// <summary>Parses an X25519 recipient (<c>age1…</c>).</summary>
+    /// <remarks>
+    /// X25519 only. For a recipient of any type, use <see cref="ParseRecipientsFile"/> on the
+    /// single line, or the type's own <c>Parse</c>.
+    /// </remarks>
     /// <exception cref="FormatException">The string is not a valid X25519 recipient.</exception>
     public static X25519Recipient ParseRecipient(string s) =>
         X25519Recipient.Parse(s);

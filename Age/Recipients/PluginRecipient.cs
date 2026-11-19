@@ -101,7 +101,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
         while (true)
         {
-            var (type, args, body) = ReadNextStanza(conn);
+            var (type, args, body) = conn.ReadNextStanza();
 
             switch (type)
             {
@@ -121,7 +121,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
                         : throw new AgePluginException("plugin completed without producing a recipient stanza");
 
                 default:
-                    HandleCommonStanza(conn, type, args, body);
+                    PluginPrompts.Answer(conn, callbacks, type, args, body);
                     break;
             }
         }
@@ -139,70 +139,6 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
         var stanzaType = args[1];
         var stanzaArgs = args.Length > 2 ? args[2..] : [];
         return new Stanza(stanzaType, stanzaArgs, body);
-    }
-
-    private static (string Type, string[] Args, byte[] Body) ReadNextStanza(PluginConnection conn)
-    {
-        // stderr is the only account of why the plugin died, so Failure() quotes it.
-        var raw = conn.ReadStanza() ?? throw conn.Failure("unexpected end of plugin output");
-        return raw;
-    }
-
-    private void HandleCommonStanza(PluginConnection conn, string type, string[] args, byte[] body)
-    {
-        switch (type)
-        {
-            // The spec answers interactive requests with fail when the client has no UI.
-            case "msg" or "request-secret" or "request-public" or "confirm" when callbacks is null:
-                conn.WriteStanza("fail", [], []);
-                break;
-
-            case "msg":
-                callbacks!.DisplayMessage(Encoding.UTF8.GetString(body));
-                conn.WriteStanza("ok", [], []);
-                break;
-
-            // request-secret masks the input; request-public does not. Same flow otherwise.
-            case "request-secret":
-            case "request-public":
-                var value = callbacks!.RequestValue(Encoding.UTF8.GetString(body), secret: type == "request-secret");
-                conn.WriteStanza("ok", [], Encoding.UTF8.GetBytes(value));
-                break;
-
-            case "confirm":
-                HandleConfirm(conn, args, body);
-                break;
-
-            default:
-                conn.WriteStanza("unsupported", [], []);
-                break;
-        }
-    }
-
-    private void HandleConfirm(PluginConnection conn, string[] args, byte[] body)
-    {
-        // (confirm, Base64(YES_STRING) [Base64(NO_STRING)]; MESSAGE) — the yes label is
-        // mandatory, so a missing one is a malformed command, not a prompt to invent a label for.
-        if (args.Length is not (1 or 2))
-            throw new AgePluginException("malformed confirm stanza: unexpected number of arguments");
-
-        var message = Encoding.UTF8.GetString(body);
-        var yes = DecodeOptionLabel(args[0]);
-        var no = args.Length > 1 ? DecodeOptionLabel(args[1]) : null;
-        var confirmed = callbacks!.Confirm(message, yes, no);
-        conn.WriteStanza("ok", [confirmed ? "yes" : "no"], []);
-    }
-
-    private static string DecodeOptionLabel(string arg)
-    {
-        try
-        {
-            return Encoding.UTF8.GetString(Base64Unpadded.Decode(arg));
-        }
-        catch (FormatException)
-        {
-            throw new AgePluginException($"confirm option label is not valid unpadded base64: {arg}");
-        }
     }
 
     internal static string ExtractPluginName(string recipient)
