@@ -100,7 +100,7 @@ public static class AgeKeygen
 
     /// <summary>
     /// Parses a recipients file containing public keys, comments, and blank lines.
-    /// Supports age X25519 (age1...), ML-KEM-768 (age1pq...), plugin (age1name1...), and SSH public keys.
+    /// Supports age X25519 (age1...), ML-KEM-768 (age1pq...), tagged (age1tag1..., age1tagpq1...), plugin (age1name1...), and SSH public keys.
     /// The returned array converts implicitly to the <c>ReadOnlySpan&lt;IRecipient&gt;</c>
     /// that <see cref="AgeEncrypt.Encrypt(Stream, Stream, ReadOnlySpan{IRecipient})"/> accepts.
     /// </summary>
@@ -126,6 +126,8 @@ public static class AgeKeygen
         {
             "age" => X25519Recipient.Parse(line),
             "age1pq" => MlKem768X25519Recipient.Parse(line),
+            "age1tag" => P256TagRecipient.Parse(line),
+            "age1tagpq" => MlKem768P256TagRecipient.Parse(line),
             _ when hrp.StartsWith("age1", StringComparison.Ordinal) => new PluginRecipient(line, callbacks),
             _ when line.StartsWith("ssh-", StringComparison.Ordinal) => ParseSshRecipient(line),
             _ => throw new FormatException($"unrecognized recipient: {line}")

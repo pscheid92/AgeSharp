@@ -10,3 +10,13 @@ Age.Recipients.EncryptedSshIdentity.Dispose() -> void
 Age.Recipients.EncryptedSshIdentity.Recipient.get -> Age.Recipients.IRecipient!
 Age.Recipients.EncryptedSshIdentity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
 static Age.AgeKeygen.ParseSshIdentity(string! pemText, System.Func<string!>! passphrase) -> Age.Recipients.IIdentity!
+Age.Recipients.MlKem768P256TagRecipient
+Age.Recipients.MlKem768P256TagRecipient.Label.get -> string!
+Age.Recipients.MlKem768P256TagRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
+Age.Recipients.P256TagRecipient
+Age.Recipients.P256TagRecipient.Label.get -> string?
+Age.Recipients.P256TagRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
+override Age.Recipients.MlKem768P256TagRecipient.ToString() -> string!
+override Age.Recipients.P256TagRecipient.ToString() -> string!
+static Age.Recipients.MlKem768P256TagRecipient.Parse(string! s) -> Age.Recipients.MlKem768P256TagRecipient!
+static Age.Recipients.P256TagRecipient.Parse(string! s) -> Age.Recipients.P256TagRecipient!

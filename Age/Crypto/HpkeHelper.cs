@@ -6,61 +6,68 @@ using Org.BouncyCastle.Crypto.Parameters;
 
 namespace Age.Crypto;
 
+/// <summary>
+/// HPKE (RFC 9180) in base mode, single-shot, with HKDF-SHA256 and ChaCha20-Poly1305: the KDF
+/// and AEAD every age recipient type built on HPKE uses. The KEM is the caller's; it is named
+/// by its ID, which goes into the key schedule's suite ID.
+/// </summary>
+/// <remarks>
+/// Compared with filippo.io/hpke v0.4.0 (hpke.go, kdf.go), which go-age uses, and checked
+/// against the RFC 9180 test vectors.
+/// </remarks>
 internal static class HpkeHelper
 {
-    // SuiteID = "HPKE" || BE16(0x647a) || BE16(0x0001) || BE16(0x0003)
-    private static readonly byte[] SuiteId =
-    [
-        (byte)'H', (byte)'P', (byte)'K', (byte)'E',
-        0x64, 0x7a, // KEM ID: X-Wing
-        0x00, 0x01, // KDF ID: HKDF-SHA256
-        0x00, 0x03 // AEAD ID: ChaCha20Poly1305
-    ];
+    private const ushort HkdfSha256 = 0x0001;
+    private const ushort ChaCha20Poly1305 = 0x0003;
+
+    private const int KeySize = 32;
+    private const int NonceSize = 12;
 
     private static readonly byte[] HpkeV1 = "HPKE-v1"u8.ToArray();
 
-    // ss is the X-Wing shared secret and key is the ChaCha20-Poly1305 key that wraps the file
-    // key. Neither was cleared anywhere in this file, on either path.
-    public static (byte[] Enc, byte[] Ct) SealBase(byte[] publicKey, byte[] info, byte[] plaintext)
+    /// <summary>
+    /// Seals <paramref name="plaintext"/> as the first message of a sender context set up from
+    /// the KEM's shared secret.
+    /// </summary>
+    public static byte[] SealBase(ushort kemId, byte[] sharedSecret, byte[] info, byte[] plaintext)
     {
-        var (ss, enc) = XWing.Encaps(publicKey);
-        var (key, nonce) = KeyScheduleBase(ss, info);
+        var (key, nonce) = KeyScheduleBase(kemId, sharedSecret, info);
 
         try
         {
-            return (enc, CryptoHelper.ChaChaEncrypt(key, nonce, plaintext));
+            return CryptoHelper.ChaChaEncrypt(key, nonce, plaintext);
         }
         finally
         {
-            CryptographicOperations.ZeroMemory(ss);
             CryptographicOperations.ZeroMemory(key);
             CryptographicOperations.ZeroMemory(nonce);
         }
     }
 
-    public static byte[]? OpenBase(byte[] enc, byte[] seed, byte[] info, byte[] ct)
+    /// <summary>Opens the first message of a recipient context, or returns null if it does not authenticate.</summary>
+    public static byte[]? OpenBase(ushort kemId, byte[] sharedSecret, byte[] info, byte[] ciphertext)
     {
-        var ss = XWing.Decaps(enc, seed);
-        var (key, nonce) = KeyScheduleBase(ss, info);
+        var (key, nonce) = KeyScheduleBase(kemId, sharedSecret, info);
 
         try
         {
-            return CryptoHelper.ChaChaDecrypt(key, nonce, ct);
+            return CryptoHelper.ChaChaDecrypt(key, nonce, ciphertext);
         }
         finally
         {
-            CryptographicOperations.ZeroMemory(ss);
             CryptographicOperations.ZeroMemory(key);
             CryptographicOperations.ZeroMemory(nonce);
         }
     }
 
-    private static (byte[] Key, byte[] Nonce) KeyScheduleBase(byte[] sharedSecret, byte[] info)
+    /// <summary>The key schedule of RFC 9180, section 5.1, in base mode: the AEAD key and base nonce.</summary>
+    internal static (byte[] Key, byte[] Nonce) KeyScheduleBase(ushort kemId, byte[] sharedSecret, byte[] info)
     {
+        var suiteId = SuiteId(kemId);
         var empty = Array.Empty<byte>();
 
-        var pskIdHash = LabeledExtract(empty, "psk_id_hash", empty);
-        var infoHash = LabeledExtract(empty, "info_hash", info);
+        var pskIdHash = LabeledExtract(suiteId, empty, "psk_id_hash", empty);
+        var infoHash = LabeledExtract(suiteId, empty, "info_hash", info);
 
         // ks_context = 0x00 || psk_id_hash || info_hash
         var ksContext = new byte[1 + 32 + 32];
@@ -70,12 +77,12 @@ internal static class HpkeHelper
 
         // secret is the HPKE PRK — both the key and the nonce derive from it, so it outlives
         // neither and is cleared as soon as they exist.
-        var secret = LabeledExtract(sharedSecret, "secret", empty);
+        var secret = LabeledExtract(suiteId, sharedSecret, "secret", empty);
 
         try
         {
-            return (LabeledExpand(secret, "key", ksContext, 32),
-                    LabeledExpand(secret, "base_nonce", ksContext, 12));
+            return (LabeledExpand(suiteId, secret, "key", ksContext, KeySize),
+                    LabeledExpand(suiteId, secret, "base_nonce", ksContext, NonceSize));
         }
         finally
         {
@@ -83,18 +90,32 @@ internal static class HpkeHelper
         }
     }
 
-    private static byte[] LabeledExtract(byte[] salt, string label, byte[] ikm)
+    // suite_id = "HPKE" || I2OSP(kem_id, 2) || I2OSP(kdf_id, 2) || I2OSP(aead_id, 2)
+    private static byte[] SuiteId(ushort kemId) =>
+    [
+        (byte)'H', (byte)'P', (byte)'K', (byte)'E',
+        (byte)(kemId >> 8), (byte)kemId,
+        HkdfSha256 >> 8, HkdfSha256 & 0xff,
+        ChaCha20Poly1305 >> 8, ChaCha20Poly1305 & 0xff,
+    ];
+
+    /// <summary>
+    /// LabeledExtract of RFC 9180, section 4, over HKDF-SHA256. <paramref name="suiteId"/> is
+    /// either the HPKE suite ID or a KEM's own ("KEM" || kem_id), which DHKEM's
+    /// ExtractAndExpand uses.
+    /// </summary>
+    internal static byte[] LabeledExtract(byte[] suiteId, byte[] salt, string label, byte[] ikm)
     {
-        // labeled_ikm = "HPKE-v1" || SuiteID || label || ikm
+        // labeled_ikm = "HPKE-v1" || suite_id || label || ikm
         var labelBytes = Encoding.ASCII.GetBytes(label);
-        var labeledIkm = new byte[HpkeV1.Length + SuiteId.Length + labelBytes.Length + ikm.Length];
+        var labeledIkm = new byte[HpkeV1.Length + suiteId.Length + labelBytes.Length + ikm.Length];
 
         var pos = 0;
         HpkeV1.CopyTo(labeledIkm, pos);
         pos += HpkeV1.Length;
 
-        SuiteId.CopyTo(labeledIkm, pos);
-        pos += SuiteId.Length;
+        suiteId.CopyTo(labeledIkm, pos);
+        pos += suiteId.Length;
 
         labelBytes.CopyTo(labeledIkm, pos);
         pos += labelBytes.Length;
@@ -110,17 +131,18 @@ internal static class HpkeHelper
         }
         finally
         {
-            // labeledIkm ends with a verbatim copy of ikm, which on the "secret" call is the
-            // X-Wing shared secret.
+            // labeledIkm ends with a verbatim copy of ikm, which on the "secret" and "eae_prk"
+            // calls is key material.
             CryptographicOperations.ZeroMemory(labeledIkm);
         }
     }
 
-    private static byte[] LabeledExpand(byte[] prk, string label, byte[] info, int length)
+    /// <summary>LabeledExpand of RFC 9180, section 4, over HKDF-SHA256.</summary>
+    internal static byte[] LabeledExpand(byte[] suiteId, byte[] prk, string label, byte[] info, int length)
     {
-        // labeled_info = BE16(length) || "HPKE-v1" || SuiteID || label || info
+        // labeled_info = I2OSP(length, 2) || "HPKE-v1" || suite_id || label || info
         var labelBytes = Encoding.ASCII.GetBytes(label);
-        var labeledInfo = new byte[2 + HpkeV1.Length + SuiteId.Length + labelBytes.Length + info.Length];
+        var labeledInfo = new byte[2 + HpkeV1.Length + suiteId.Length + labelBytes.Length + info.Length];
 
         var pos = 0;
         labeledInfo[pos++] = (byte)(length >> 8);
@@ -128,9 +150,9 @@ internal static class HpkeHelper
         HpkeV1.CopyTo(labeledInfo, pos);
 
         pos += HpkeV1.Length;
-        SuiteId.CopyTo(labeledInfo, pos);
+        suiteId.CopyTo(labeledInfo, pos);
 
-        pos += SuiteId.Length;
+        pos += suiteId.Length;
         labelBytes.CopyTo(labeledInfo, pos);
 
         pos += labelBytes.Length;

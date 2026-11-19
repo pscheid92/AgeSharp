@@ -14,13 +14,12 @@ AgeSharp package may lag `main`; check the release notes for what a given versio
 | SSH-RSA | ✅ | ✅ | ✅ | |
 | Passphrase-protected SSH keys | ✅ | ✅ | ✅ | Go reads OpenSSH keys protected with aes256-ctr or aes256-cbc, and legacy encrypted PEM (with the `.pub` file). rage reads more ciphers, refuses legacy PEM, and has no bcrypt round limit. AgeSharp reads OpenSSH keys with AES-CTR, AES-CBC, AES-GCM, ChaCha20-Poly1305 or 3DES, not legacy PEM, and like Go refuses more than 2048 bcrypt rounds |
 | ML-KEM-768-X25519 (`age1pq1…`) | ✅ | ❌ | ✅ | In rage this is an open draft PR |
-| Tagged P-256 (`age1tag1…`) | ✅ | ✅ | ❌ | Encryption only in Go and rage; decryption is a plugin's job |
-| Tagged P-256 + ML-KEM-768 (`age1tagpq1…`) | ✅ | ✅ | ❌ | As above |
+| Tagged P-256 (`age1tag1…`) | ✅ | ✅ | ✅ | Encryption only in all three; decryption is a plugin's job |
+| Tagged P-256 + ML-KEM-768 (`age1tagpq1…`) | ✅ | ✅ | ✅ | As above |
 | Plugin recipients and identities | ✅ | ✅ | ✅ | Client side of the `age-plugin-*` protocol |
 | Writing plugins | ✅ | ✅ | ❌ | Go's `plugin` package, rage's `age-plugin` crate |
 
-AgeSharp treats a tagged recipient as a plugin recipient, so encrypting to one works only
-with `age-plugin-tag` / `age-plugin-tagpq` installed.
+AgeSharp builds the HPKE for both on BouncyCastle, so they also work in the browser.
 
 ## Core format
 
@@ -58,10 +57,10 @@ ships `rage`, `rage-keygen` and `rage-mount`; use those for the command line.
 
 ## Summary
 
-AgeSharp covers the six standard recipient types, the plugin client protocol, and Go's
+AgeSharp covers the six standard recipient types and the two tagged ones (encryption only), the plugin client protocol, and Go's
 v1.3 library additions: detached headers, pull-based streams, random-access decryption and
 `inspect`. Like rage's library it runs in the browser, and it has native post-quantum
 support, which rage does not.
 
-It trails both Go and rage on tagged recipients and support for writing plugins. It trails Go on file-key extraction and the finer-grained
+It trails both Go and rage on support for writing plugins. It trails Go on file-key extraction and the finer-grained
 recipient and error APIs, and rage on async I/O.

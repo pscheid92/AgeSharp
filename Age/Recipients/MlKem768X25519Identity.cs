@@ -130,9 +130,19 @@ public sealed class MlKem768X25519Identity : IIdentity, IDisposable
         if (enc.Length != XWing.EncSize)
             throw new AgeHeaderException($"mlkem768x25519 enc must be {XWing.EncSize} bytes, got {enc.Length}");
 
-        return stanza.Body.Length == WrappedKeySize
-            ? HpkeHelper.OpenBase(enc, _seed, AgeProtocol.MlKemHpkeInfo, stanza.Body.ToArray())
-            : throw new AgeHeaderException($"mlkem768x25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
+        if (stanza.Body.Length != WrappedKeySize)
+            throw new AgeHeaderException($"mlkem768x25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
+
+        var sharedSecret = XWing.Decaps(enc, _seed);
+
+        try
+        {
+            return HpkeHelper.OpenBase(XWing.KemId, sharedSecret, AgeProtocol.MlKemHpkeInfo, stanza.Body.ToArray());
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(sharedSecret);
+        }
     }
 
     /// <summary>Zeroes the secret seed.</summary>

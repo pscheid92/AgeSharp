@@ -13,4 +13,10 @@ internal static class AgeProtocol
 
     public const string MlKemStanzaType = "mlkem768x25519";
     public static readonly byte[] MlKemHpkeInfo = "age-encryption.org/mlkem768x25519"u8.ToArray();
+
+    public const string P256TagStanzaType = "p256tag";
+    public static readonly byte[] P256TagHpkeInfo = "age-encryption.org/p256tag"u8.ToArray();
+
+    public const string MlKem768P256TagStanzaType = "mlkem768p256tag";
+    public static readonly byte[] MlKem768P256TagHpkeInfo = "age-encryption.org/mlkem768p256tag"u8.ToArray();
 }
