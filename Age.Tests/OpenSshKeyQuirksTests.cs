@@ -132,7 +132,7 @@ public class OpenSshKeyQuirksTests
     private static byte[] Encrypt(IRecipient recipient)
     {
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(Plaintext), output, recipient);
+        new Recipients(recipient).Encrypt(new MemoryStream(Plaintext), output);
         return output.ToArray();
     }
 

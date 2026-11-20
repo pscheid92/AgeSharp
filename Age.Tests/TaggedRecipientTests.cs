@@ -85,7 +85,7 @@ public class TaggedRecipientTests
     {
         var (classic, hybrid) = GoAgeRecipients();
 
-        var recipients = AgeKeygen.ParseRecipientsFile($"# hardware keys\n{classic}\n{hybrid}\n");
+        var recipients = Recipients.Parse($"# hardware keys\n{classic}\n{hybrid}\n");
 
         Assert.IsType<P256TagRecipient>(recipients[0]);
         Assert.IsType<MlKem768P256TagRecipient>(recipients[1]);
@@ -228,13 +228,13 @@ public class TaggedRecipientTests
         var classic = P256TagRecipient.Parse(GoAgeRecipients().Classic);
         using var x25519 = X25519Identity.Generate();
 
-        Assert.Throws<AgeException>(() => AgeEncrypt.Encrypt(new MemoryStream([1]), new MemoryStream(), hybrid, classic));
-        Assert.Throws<AgeException>(() => AgeEncrypt.Encrypt(new MemoryStream([1]), new MemoryStream(), hybrid, x25519.Recipient));
+        Assert.Throws<AgeException>(() => new Recipients(hybrid, classic).Encrypt(new MemoryStream([1]), new MemoryStream()));
+        Assert.Throws<AgeException>(() => new Recipients(hybrid, x25519.Recipient).Encrypt(new MemoryStream([1]), new MemoryStream()));
 
         // Two post-quantum recipients, and two classic ones, are fine.
         using var pq = MlKem768X25519Identity.Generate();
-        AgeEncrypt.Encrypt(new MemoryStream([1]), new MemoryStream(), hybrid, pq.Recipient);
-        AgeEncrypt.Encrypt(new MemoryStream([1]), new MemoryStream(), classic, x25519.Recipient);
+        new Recipients(hybrid, pq.Recipient).Encrypt(new MemoryStream([1]), new MemoryStream());
+        new Recipients(classic, x25519.Recipient).Encrypt(new MemoryStream([1]), new MemoryStream());
     }
 
     // --- Opening what Wrap produces, with code of the test's own -------------------------------
@@ -386,7 +386,7 @@ public class TaggedRecipientTests
     private static byte[] Encrypt(params IRecipient[] recipients)
     {
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(Plaintext), output, recipients);
+        new Recipients(recipients).Encrypt(new MemoryStream(Plaintext), output);
         return output.ToArray();
     }
 

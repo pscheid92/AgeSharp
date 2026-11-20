@@ -52,6 +52,26 @@ public class RageInteropTests
         Assert.Equal(plaintext, RageCli.Decrypt(identity.Identity + "\n", ciphertext));
     }
 
+    // The async encrypt path, judged by rage at the chunk boundaries.
+    [SkippableTheory]
+    [InlineData(0, false)]
+    [InlineData(65536, false)]
+    [InlineData(65537, false)]
+    [InlineData(0, true)]
+    [InlineData(65536, true)]
+    [InlineData(65537, true)]
+    public void X25519_EncryptAsyncWithCSharp_DecryptWithRage(int size, bool armored)
+    {
+        Skip.IfNot(RageCli.Available, "rage CLI not found on PATH");
+
+        var identity = AgeUnderTest.GenerateX25519();
+        var plaintext = MakePlaintext(size);
+
+        var ciphertext = AgeUnderTest.Encrypt(plaintext, armored, asynchronously: true, identity.Recipient);
+
+        Assert.Equal(plaintext, RageCli.Decrypt(identity.Identity + "\n", ciphertext));
+    }
+
     [SkippableTheory]
     [InlineData(0, false)]
     [InlineData(1, false)]

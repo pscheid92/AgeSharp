@@ -15,7 +15,7 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, recipient);
+        new Recipients(recipient).Encrypt(encInput, encOutput);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
@@ -34,7 +34,7 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, recipient);
+        new Recipients(recipient).Encrypt(encInput, encOutput);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
@@ -55,7 +55,7 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, recipient);
+        new Recipients(recipient).Encrypt(encInput, encOutput);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
@@ -76,7 +76,7 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, recipient);
+        new Recipients(recipient).Encrypt(encInput, encOutput);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
@@ -95,7 +95,7 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, recipient);
+        new Recipients(recipient).Encrypt(encInput, encOutput);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
@@ -114,7 +114,7 @@ public class RoundTripTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, id1.Recipient, id2.Recipient);
+        new Recipients(id1.Recipient, id2.Recipient).Encrypt(encInput, encOutput);
 
         // Decrypt with first identity
         encOutput.Position = 0;
@@ -137,7 +137,7 @@ public class RoundTripTests
         var recipientStr = identity.Recipient.ToString();
 
         using var parsed = AgeKeygen.ParseIdentity(identityStr);
-        var parsedRecipient = AgeKeygen.ParseRecipient(recipientStr);
+        var parsedRecipient = X25519Recipient.Parse(recipientStr);
 
         Assert.Equal(identityStr, parsed.ToSecretString());
         Assert.Equal(recipientStr, parsedRecipient.ToString());

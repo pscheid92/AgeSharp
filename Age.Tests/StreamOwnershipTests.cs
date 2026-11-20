@@ -34,7 +34,7 @@ public class StreamOwnershipTests
 
         using var input = new MemoryStream(plaintext);
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, armored, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(input, output, new AgeEncryptOptions { Armor = armored });
 
         return (identity, output.ToArray());
     }
@@ -107,7 +107,7 @@ public class StreamOwnershipTests
         var input = new Tracked(new byte[100]);
         using var output = new MemoryStream();
 
-        AgeEncrypt.Encrypt(input, output, armored, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(input, output, new AgeEncryptOptions { Armor = armored });
 
         Assert.False(input.Disposed);
         Assert.True(output.CanWrite); // still usable, i.e. not disposed
@@ -121,7 +121,7 @@ public class StreamOwnershipTests
         using var identity = X25519Identity.Generate();
         var input = new Tracked(new byte[100]);
 
-        using (var reader = AgeEncrypt.EncryptReader(input, armored, identity.Recipient))
+        using (var reader = new Recipients(identity.Recipient).EncryptReader(input, new AgeEncryptOptions { Armor = armored }))
             reader.CopyTo(Stream.Null);
 
         Assert.False(input.Disposed);

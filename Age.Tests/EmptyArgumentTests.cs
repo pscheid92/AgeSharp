@@ -17,7 +17,7 @@ public class EmptyArgumentTests
     {
         using var input = new MemoryStream("x"u8.ToArray());
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(input, output);
         return output.ToArray();
     }
 
@@ -25,7 +25,7 @@ public class EmptyArgumentTests
     public void Encrypt_WithNoRecipients_Throws()
     {
         var ex = Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.Encrypt(Empty(), Empty(), ReadOnlySpan<IRecipient>.Empty));
+            new Recipients(ReadOnlySpan<IRecipient>.Empty).Encrypt(Empty(), Empty()));
 
         Assert.Equal("recipients", ex.ParamName);
         Assert.Contains("at least one recipient", ex.Message, StringComparison.Ordinal);
@@ -35,7 +35,7 @@ public class EmptyArgumentTests
     public void EncryptArmored_WithNoRecipients_Throws()
     {
         var ex = Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.Encrypt(Empty(), Empty(), true, ReadOnlySpan<IRecipient>.Empty));
+            new Recipients(ReadOnlySpan<IRecipient>.Empty).Encrypt(Empty(), Empty(), new AgeEncryptOptions { Armor = true }));
 
         Assert.Equal("recipients", ex.ParamName);
     }
@@ -44,7 +44,7 @@ public class EmptyArgumentTests
     public void EncryptReader_WithNoRecipients_Throws()
     {
         var ex = Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.EncryptReader(Empty(), ReadOnlySpan<IRecipient>.Empty));
+            new Recipients(ReadOnlySpan<IRecipient>.Empty).EncryptReader(Empty()));
 
         Assert.Equal("recipients", ex.ParamName);
     }
@@ -53,7 +53,7 @@ public class EmptyArgumentTests
     public void EncryptDetached_WithNoRecipients_Throws()
     {
         var ex = Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.EncryptDetached(Empty(), Empty(), Empty(), ReadOnlySpan<IRecipient>.Empty));
+            new Recipients(ReadOnlySpan<IRecipient>.Empty).EncryptDetached(Empty(), Empty(), Empty()));
 
         Assert.Equal("recipients", ex.ParamName);
     }
@@ -112,7 +112,7 @@ public class EmptyArgumentTests
         var input = new ThrowOnReadStream();
 
         Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.Encrypt(input, Empty(), ReadOnlySpan<IRecipient>.Empty));
+            new Recipients(ReadOnlySpan<IRecipient>.Empty).Encrypt(input, Empty()));
     }
 
     private sealed class ThrowOnReadStream : Stream

@@ -216,7 +216,7 @@ public class RecipientIdentityContractTests
     private static byte[] Encrypt(params IRecipient[] recipients)
     {
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(Plaintext), output, recipients);
+        new Recipients(recipients).Encrypt(new MemoryStream(Plaintext), output);
         return output.ToArray();
     }
 

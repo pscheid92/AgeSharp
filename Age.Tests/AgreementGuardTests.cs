@@ -71,7 +71,7 @@ public class AgreementGuardTests
 
         using var input = new MemoryStream("guarded"u8.ToArray());
         using var encrypted = new MemoryStream();
-        AgeEncrypt.Encrypt(input, encrypted, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(input, encrypted);
 
         var tampered = ReplaceFirstStanzaArg(encrypted.ToArray(), "X25519",
             Base64Unpadded.Encode(Convert.FromHexString(pointHex)));
@@ -100,7 +100,7 @@ public class AgreementGuardTests
         {
             using var input = new MemoryStream("guarded"u8.ToArray());
             using var output = new MemoryStream();
-            AgeEncrypt.Encrypt(input, output, recipient);
+            new Recipients(recipient).Encrypt(input, output);
         });
 
         Assert.NotNull(ex);

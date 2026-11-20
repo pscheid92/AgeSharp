@@ -63,7 +63,7 @@ var recipient = identity.Recipient;
 
 using var input = new MemoryStream("Hello, age!"u8.ToArray());
 using var encrypted = new MemoryStream();
-AgeEncrypt.Encrypt(input, encrypted, recipient);
+new Recipients(recipient).Encrypt(input, encrypted);
 
 encrypted.Position = 0;
 using var decrypted = new MemoryStream();
@@ -77,7 +77,7 @@ var passphrase = new ScryptRecipient("correct-horse-battery-staple");
 
 using var input = new MemoryStream("Hello, age!"u8.ToArray());
 using var encrypted = new MemoryStream();
-AgeEncrypt.Encrypt(input, encrypted, passphrase);
+new Recipients(passphrase).Encrypt(input, encrypted);
 
 encrypted.Position = 0;
 using var decrypted = new MemoryStream();
@@ -87,7 +87,7 @@ AgeEncrypt.Decrypt(encrypted, decrypted, passphrase);
 ### ASCII armor
 
 ```csharp
-AgeEncrypt.Encrypt(input, encrypted, armor: true, recipient);
+new Recipients(recipient).Encrypt(input, encrypted, new AgeEncryptOptions { Armor = true });
 
 // -----BEGIN AGE ENCRYPTED FILE-----
 // YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA...
@@ -103,10 +103,24 @@ cannot seek, such as a pipe or a network stream.
 using var alice = X25519Identity.Generate();
 using var bob = X25519Identity.Generate();
 
-AgeEncrypt.Encrypt(input, encrypted, alice.Recipient, bob.Recipient);
+new Recipients(alice.Recipient, bob.Recipient).Encrypt(input, encrypted);
 
 // Either identity can decrypt
 AgeEncrypt.Decrypt(encrypted, decrypted, bob);
+```
+
+A `Recipients` set is checked once, when it is built: it must not be empty, and a
+passphrase can't be combined with other recipients. Recipients that declare different
+security labels (post-quantum and classical, say) are refused when encrypting, before
+anything is written. The same set can encrypt any number of files.
+
+### Bytes and async
+
+```csharp
+var to = new Recipients(recipient);
+
+byte[] sealedValue = to.Encrypt("a secret"u8);                 // small values
+await to.EncryptAsync(input, encrypted, cancellationToken: ct); // every read and write is async
 ```
 
 ### SSH keys
@@ -115,7 +129,7 @@ AgeEncrypt.Decrypt(encrypted, decrypted, bob);
 var recipient = SshEd25519Recipient.Parse("ssh-ed25519 AAAA...");
 var identity = SshEd25519Identity.Parse(File.ReadAllText("/path/to/id_ed25519"));
 
-AgeEncrypt.Encrypt(input, encrypted, recipient);
+new Recipients(recipient).Encrypt(input, encrypted);
 
 encrypted.Position = 0;
 AgeEncrypt.Decrypt(encrypted, decrypted, identity);
@@ -152,7 +166,7 @@ convert them with `ssh-keygen -p`.
 using var identity = MlKem768X25519Identity.Generate();
 var recipient = identity.Recipient;
 
-AgeEncrypt.Encrypt(input, encrypted, recipient);
+new Recipients(recipient).Encrypt(input, encrypted);
 ```
 
 ### Hardware keys (tagged recipients)
@@ -169,10 +183,10 @@ by the plugin, through `PluginIdentity`.
 
 ```csharp
 var recipient = P256TagRecipient.Parse("age1tag1...");
-AgeEncrypt.Encrypt(input, encrypted, recipient);
+new Recipients(recipient).Encrypt(input, encrypted);
 
 // Recipients files read them too
-var recipients = AgeKeygen.ParseRecipientsFile(File.ReadAllText("recipients.txt"));
+var recipients = Recipients.Parse(File.ReadAllText("recipients.txt"));
 ```
 
 ### Pull-based streaming
@@ -181,7 +195,7 @@ Returns a readable `Stream` — header and key setup is eager, payload encryptio
 
 ```csharp
 // Encrypt: returns a Stream you read ciphertext from
-using var encryptedStream = AgeEncrypt.EncryptReader(plaintext, recipient);
+using var encryptedStream = new Recipients(recipient).EncryptReader(plaintext);
 encryptedStream.CopyTo(networkStream);
 
 // Decrypt: returns a Stream you read plaintext from
@@ -196,7 +210,7 @@ the header and payload in different locations.
 
 ```csharp
 // Encrypt with separate header and payload
-AgeEncrypt.EncryptDetached(input, headerOutput, payloadOutput, recipient);
+new Recipients(recipient).EncryptDetached(input, headerOutput, payloadOutput);
 
 // Decrypt from separate streams
 AgeEncrypt.DecryptDetached(headerInput, payloadInput, output, identity);
@@ -241,18 +255,13 @@ foreach (var stanza in header.Recipients)
 
 ```csharp
 using var identity = AgeKeygen.ParseIdentity("AGE-SECRET-KEY-1...");
-var recipient = AgeKeygen.ParseRecipient("age1...");
-```
-
-`ParseIdentity` and `ParseRecipient` read X25519 keys only. For a recipient string of
-any type (`age1pq1…`, `age1tag1…`, an SSH public key, a plugin's `age1name1…`), parse
-it as a one-line recipients file, or use the type's own `Parse`:
-
-```csharp
-var recipient = AgeKeygen.ParseRecipientsFile(line)[0];        // any type
+var recipient = Recipients.ParseOne(line);                     // any type
 var tagged = P256TagRecipient.Parse("age1tag1...");            // a specific type
-var ssh = AgeKeygen.ParseSshRecipient("ssh-ed25519 AAAA...");
 ```
+
+`Recipients.ParseOne` reads a recipient of any type: `age1…`, `age1pq1…`, `age1tag1…`,
+`age1tagpq1…`, a plugin's `age1name1…`, or an SSH public key. `AgeKeygen.ParseIdentity`
+still reads X25519 identities only; identities get the same treatment next.
 
 ### Custom recipients and identities
 

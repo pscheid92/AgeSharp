@@ -40,7 +40,7 @@ public class SshParsingErrorTests
     public void ParseSshRecipient_Malformed_ThrowsFormatException(string why, string line)
     {
         _ = why;
-        Assert.Throws<FormatException>(() => AgeKeygen.ParseSshRecipient(line));
+        Assert.Throws<FormatException>(() => Recipients.ParseOne(line));
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class SshParsingErrorTests
         _ = why;
         var recipient = ((AgeSharp.SshRsaIdentity)AgeKeygen.ParseSshIdentity(SshFixture("rsa_plain"))).Recipient;
         using var encrypted = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream("plaintext"u8.ToArray()), encrypted, recipient);
+        new Recipients(recipient).Encrypt(new MemoryStream("plaintext"u8.ToArray()), encrypted);
         encrypted.Position = 0;
         using var decrypted = new MemoryStream();
 
@@ -169,7 +169,7 @@ public class SshParsingErrorTests
     {
         var identity = (AgeSharp.SshRsaIdentity)AgeKeygen.ParseSshIdentity(SshFixture("rsa_pkcs8_large_exponent"));
         using var encrypted = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream("plaintext"u8.ToArray()), encrypted, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(new MemoryStream("plaintext"u8.ToArray()), encrypted);
         encrypted.Position = 0;
         using var decrypted = new MemoryStream();
 
@@ -197,7 +197,7 @@ public class SshParsingErrorTests
         var modulus = ((RsaKeyParameters)Rsa2048.Public).Modulus.ToByteArray();
         byte[] wire = [.. Field("ssh-rsa"u8.ToArray()), .. Field(Mpint(exponent)), .. Field(modulus)];
 
-        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseSshRecipient($"ssh-rsa {Convert.ToBase64String(wire)}"));
+        var ex = Assert.Throws<FormatException>(() => Recipients.ParseOne($"ssh-rsa {Convert.ToBase64String(wire)}"));
 
         Assert.Contains("exponent", ex.Message);
     }

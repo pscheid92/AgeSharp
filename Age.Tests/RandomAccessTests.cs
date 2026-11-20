@@ -263,7 +263,7 @@ public class RandomAccessTests
 
         using var input = new MemoryStream(plaintext);
         var ciphertext = new MemoryStream();
-        AgeEncrypt.Encrypt(input, ciphertext, armor: true, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(input, ciphertext, new AgeEncryptOptions { Armor = true });
         ciphertext.Position = 0;
 
         using var ra = new AgeRandomAccess(ciphertext, identity);
@@ -290,7 +290,7 @@ public class RandomAccessTests
         var plaintext = "random access from wherever the stream was left"u8.ToArray();
 
         var ciphertext = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(plaintext), ciphertext, armor, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(new MemoryStream(plaintext), ciphertext, new AgeEncryptOptions { Armor = armor });
 
         using var ra = new AgeRandomAccess(ciphertext, identity);
         var buf = new byte[plaintext.Length];
@@ -390,7 +390,7 @@ public class RandomAccessTests
     {
         using var input = new MemoryStream(plaintext);
         var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, recipient);
+        new Recipients(recipient).Encrypt(input, output);
         output.Position = 0;
         return output;
     }

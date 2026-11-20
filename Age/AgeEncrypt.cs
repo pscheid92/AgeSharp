@@ -5,7 +5,7 @@ using AgeSharp;
 namespace AgeSharp;
 
 /// <summary>
-/// Top-level entry point for encrypting and decrypting data in the age format.
+/// Decrypting data in the age format; encrypting is on <see cref="Recipients"/>.
 /// All streaming APIs are memory-bounded: a 1 GiB input uses the same working
 /// set as a 1 MB input (two 64 KiB chunk buffers rented from <c>ArrayPool</c>).
 /// </summary>
@@ -13,36 +13,6 @@ public static class AgeEncrypt
 {
     internal const int PayloadNonceSize = 16;
     internal const int PayloadKeySize = 32;
-
-    /// <summary>
-    /// Encrypts <paramref name="input"/> into binary age format and writes the
-    /// result to <paramref name="output"/>.
-    /// </summary>
-    /// <param name="input">The plaintext source. Read once, start to end.</param>
-    /// <param name="output">The ciphertext destination.</param>
-    /// <param name="recipients">One or more recipients. Must all carry the same security labels (see <see cref="IRecipientWithLabels"/>).</param>
-    /// <exception cref="ArgumentException">No recipients were supplied.</exception>
-    /// <exception cref="AgeException">
-    /// Recipients have mismatched security labels, or a passphrase (scrypt)
-    /// recipient was combined with other recipients.
-    /// </exception>
-    public static void Encrypt(Stream input, Stream output, params ReadOnlySpan<IRecipient> recipients)
-        => Encrypt(input, output, false, recipients);
-
-    /// <summary>
-    /// Encrypts <paramref name="input"/> and writes the result to <paramref name="output"/>,
-    /// optionally wrapping the binary ciphertext in ASCII armor.
-    /// </summary>
-    /// <param name="input">The plaintext source.</param>
-    /// <param name="output">The ciphertext destination.</param>
-    /// <param name="armor">If <c>true</c>, output is a PEM-like armored text block; otherwise raw binary.</param>
-    /// <param name="recipients">One or more recipients. Must all carry the same security labels (see <see cref="IRecipientWithLabels"/>).</param>
-    public static void Encrypt(Stream input, Stream output, bool armor, params ReadOnlySpan<IRecipient> recipients)
-    {
-        ArgumentException.ThrowIfEmpty(recipients, "recipient");
-        using var stream = EncryptReader(input, armor, recipients);
-        stream.CopyTo(output);
-    }
 
     /// <summary>
     /// Decrypts an age-encrypted <paramref name="input"/> into <paramref name="output"/>.
@@ -65,32 +35,8 @@ public static class AgeEncrypt
     }
 
     /// <summary>
-    /// Encrypts <paramref name="input"/>, writing the age header to
-    /// <paramref name="headerOutput"/> and the encrypted payload to
-    /// <paramref name="payloadOutput"/>. Useful when header and payload
-    /// need to live in separate locations (e.g. a metadata store and a
-    /// blob store).
-    /// </summary>
-    public static void EncryptDetached(Stream input, Stream headerOutput, Stream payloadOutput, params ReadOnlySpan<IRecipient> recipients)
-    {
-        ArgumentException.ThrowIfEmpty(recipients, "recipient");
-
-        using var fileKey = FileKey.Fresh();
-
-        var header = BuildHeader(recipients, fileKey.Bytes);
-        header.WriteTo(headerOutput, fileKey.Bytes);
-
-        var payloadNonce = new byte[PayloadNonceSize];
-        RandomNumberGenerator.Fill(payloadNonce);
-        var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", PayloadKeySize);
-
-        using var payloadStream = new EncryptStream([], payloadNonce, payloadKey, input);
-        payloadStream.CopyTo(payloadOutput);
-    }
-
-    /// <summary>
     /// Decrypts an age file whose header and payload are stored separately
-    /// (the inverse of <see cref="EncryptDetached"/>).
+    /// (the inverse of <see cref="Recipients.EncryptDetached"/>).
     /// </summary>
     public static void DecryptDetached(Stream headerInput, Stream payloadInput, Stream output, params ReadOnlySpan<IIdentity> identities)
     {
@@ -108,46 +54,6 @@ public static class AgeEncrypt
         using var decryptStream = new DecryptStream(payloadKey, payloadInput, ownsStream: false);
         decryptStream.CopyTo(output);
         output.EnsureMaterialized();
-    }
-
-    /// <summary>
-    /// Returns a readable <see cref="Stream"/> that produces age ciphertext
-    /// as the caller reads from it. Header setup and key derivation happen
-    /// eagerly; payload encryption is lazy (chunk-by-chunk on <c>Read()</c>).
-    /// Dispose the returned stream when done.
-    /// </summary>
-    /// <param name="plaintext">The plaintext source.</param>
-    /// <param name="recipients">One or more recipients.</param>
-    public static Stream EncryptReader(Stream plaintext, params ReadOnlySpan<IRecipient> recipients)
-        => EncryptReader(plaintext, false, recipients);
-
-    /// <summary>
-    /// Returns a readable <see cref="Stream"/> that produces age ciphertext,
-    /// optionally ASCII-armored, as the caller reads from it.
-    /// </summary>
-    public static Stream EncryptReader(Stream plaintext, bool armor, params ReadOnlySpan<IRecipient> recipients)
-    {
-        ArgumentException.ThrowIfEmpty(recipients, "recipient");
-
-        if (armor)
-        {
-            var ciphertextStream = EncryptReader(plaintext, armor: false, recipients);
-            return new ArmorStream(ciphertextStream);
-        }
-
-        using var fileKey = FileKey.Fresh();
-
-        var header = BuildHeader(recipients, fileKey.Bytes);
-
-        using var headerMs = new MemoryStream();
-        header.WriteTo(headerMs, fileKey.Bytes);
-        var headerBytes = headerMs.ToArray();
-
-        var payloadNonce = new byte[PayloadNonceSize];
-        RandomNumberGenerator.Fill(payloadNonce);
-        var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", PayloadKeySize);
-
-        return new EncryptStream(headerBytes, payloadNonce, payloadKey, plaintext);
     }
 
     /// <summary>
@@ -182,74 +88,6 @@ public static class AgeEncrypt
             binaryInput.Dispose();
             throw;
         }
-    }
-
-    /// <summary>
-    /// Wraps <paramref name="fileKey"/> for every recipient and returns the resulting header.
-    /// </summary>
-    /// <remarks>
-    /// Takes the file key rather than creating one, so that whoever created it also holds the
-    /// only <c>finally</c> that clears it. When this returned the key as well, a caller reading
-    /// its own method could not tell whether a throw in here leaked — the guarantee lived in
-    /// another method's <c>catch</c>. That non-locality is how S9 happened: all five sites the
-    /// survey found were "the clear is somewhere else" situations. Nothing here owns the key, so
-    /// nothing here has to remember to clear it.
-    /// </remarks>
-    private static Header BuildHeader(ReadOnlySpan<IRecipient> recipients, ReadOnlySpan<byte> fileKey)
-    {
-        var header = new Header();
-        HashSet<string>? firstLabels = null;
-
-        foreach (var recipient in recipients)
-        {
-            var (stanzas, labels) = recipient is IRecipientWithLabels labelled
-                ? labelled.WrapWithLabels(fileKey)
-                : new LabelledStanzas(recipient.Wrap(fileKey), []);
-
-            // A header without this recipient's stanza would leave out a recipient the caller
-            // named, which is not something to do silently. Null (a default LabelledStanzas, or
-            // a custom Wrap returning null) is the same mistake.
-            if (stanzas is null || stanzas.Count == 0)
-                throw new AgeException($"recipient {recipient.GetType().Name} produced no stanzas");
-
-            // age-plugin.md:227: every stanza wrapping one file key must carry exactly the same
-            // label set. Agreeing with the first recipient's set implies agreeing pairwise. The
-            // comparison is ordinal whatever set type the recipient handed over.
-            var labelSet = new HashSet<string>(labels ?? [], StringComparer.Ordinal);
-
-            if (firstLabels is null)
-                firstLabels = labelSet;
-            else if (!firstLabels.SetEquals(labelSet))
-                throw new AgeException(IncompatibleLabels(firstLabels, labelSet));
-
-            header.Stanzas.AddRange(stanzas);
-        }
-
-        // A scrypt stanza must be the only stanza in the header — the same rule decryption
-        // enforces. Checked post-Wrap so custom recipients that emit scrypt stanzas are
-        // caught too.
-        if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
-            throw new AgeException("a passphrase (scrypt) recipient must be the only recipient");
-
-        return header;
-    }
-
-    /// <summary>
-    /// Explains a label mismatch, naming the consequence when post-quantum security is what was
-    /// lost. "Different security labels" is accurate but leaves the user to work out the cost.
-    /// </summary>
-    private static string IncompatibleLabels(HashSet<string> a, HashSet<string> b)
-    {
-        const string postQuantum = "postquantum";
-
-        if (a.Contains(postQuantum) != b.Contains(postQuantum))
-            return "cannot mix post-quantum and classical recipients: the file would be "
-                 + "readable by a quantum computer, so the post-quantum recipient buys nothing";
-
-        return $"cannot mix recipients with different security labels: {Describe(a)} and {Describe(b)}";
-
-        static string Describe(HashSet<string> labels) =>
-            labels.Count == 0 ? "none" : string.Join(", ", labels.Order(StringComparer.Ordinal).Select(l => $"\"{l}\""));
     }
 
     private static FileKey UnwrapFileKey(Stream headerInput, ReadOnlySpan<IIdentity> identities)

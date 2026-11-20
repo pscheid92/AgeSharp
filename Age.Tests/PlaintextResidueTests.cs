@@ -34,7 +34,7 @@ public class PlaintextResidueTests
         using var identity = X25519Identity.Generate();
         using var header = new MemoryStream();
         using var payload = new MemoryStream();
-        AgeEncrypt.EncryptDetached(new MemoryStream(MarkedPlaintext()), header, payload, identity.Recipient);
+        new Recipients(identity.Recipient).EncryptDetached(new MemoryStream(MarkedPlaintext()), header, payload);
         header.Position = 0;
         payload.Position = 0;
 
@@ -155,7 +155,7 @@ public class PlaintextResidueTests
     private static byte[] Encrypt(byte[] plaintext, IRecipient recipient)
     {
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(plaintext), output, recipient);
+        new Recipients(recipient).Encrypt(new MemoryStream(plaintext), output);
         return output.ToArray();
     }
 

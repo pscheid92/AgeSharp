@@ -132,7 +132,7 @@ public class ArmoredOnAPipeTests
     private static byte[] Encrypt(X25519Identity identity, bool armor)
     {
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(Plaintext), output, armor, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(new MemoryStream(Plaintext), output, new AgeEncryptOptions { Armor = armor });
         return output.ToArray();
     }
 

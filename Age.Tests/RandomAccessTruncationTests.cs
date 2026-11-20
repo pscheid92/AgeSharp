@@ -116,7 +116,7 @@ public class RandomAccessTruncationTests
 
         using var source = new MemoryStream(plaintext);
         using var armored = new MemoryStream();
-        AgeEncrypt.Encrypt(source, armored, armor: true, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(source, armored, new AgeEncryptOptions { Armor = true });
 
         // Drop the last body line before the END marker: the dearmored payload loses its
         // final chunk, which layout arithmetic alone would still accept.
@@ -159,7 +159,7 @@ public class RandomAccessTruncationTests
     {
         using var input = new MemoryStream(plaintext);
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, recipient);
+        new Recipients(recipient).Encrypt(input, output);
 
         return output.ToArray();
     }

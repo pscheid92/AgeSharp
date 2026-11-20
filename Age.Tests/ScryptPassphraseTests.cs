@@ -22,7 +22,7 @@ public class ScryptPassphraseTests
         using var output = new MemoryStream();
 
         var ex = Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.Encrypt(new MemoryStream("plaintext"u8.ToArray()), output, new ScryptRecipient("", workFactor: 10)));
+            new Recipients(new ScryptRecipient("", workFactor: 10)).Encrypt(new MemoryStream("plaintext"u8.ToArray()), output));
 
         Assert.Contains("empty", ex.Message);
         Assert.Equal(0, output.Length);
@@ -33,7 +33,7 @@ public class ScryptPassphraseTests
     {
         var plaintext = "made by an earlier AgeSharp"u8.ToArray();
         using var file = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(plaintext), file, new EmptyPassphraseScrypt());
+        new Recipients(new EmptyPassphraseScrypt()).Encrypt(new MemoryStream(plaintext), file);
         file.Position = 0;
 
         using var output = new MemoryStream();
