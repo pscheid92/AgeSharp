@@ -8,6 +8,8 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
     <PackageId>AgeSharp</PackageId>
+    <AssemblyName>AgeSharp</AssemblyName>
+    <RootNamespace>AgeSharp</RootNamespace>
     <Authors>pscheid92</Authors>
     <Description>A C# implementation of the age file encryption format</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

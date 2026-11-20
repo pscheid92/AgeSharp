@@ -1,8 +1,8 @@
-namespace Age;
+namespace AgeSharp;
 
 /// <summary>
 /// Base class for all age-specific errors thrown by this library. Parse methods
-/// on key types (e.g. <see cref="Recipients.X25519Identity.Parse"/>) throw
+/// on key types (e.g. <see cref="X25519Identity.Parse"/>) throw
 /// <see cref="FormatException"/> instead, matching BCL parsing conventions.
 /// </summary>
 public class AgeException : Exception

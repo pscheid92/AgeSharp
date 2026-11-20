@@ -1,4 +1,4 @@
-namespace Age.Format;
+namespace AgeSharp;
 
 /// <summary>
 /// A read-only stream that can look ahead without seeking, so a pipe or a network stream can be

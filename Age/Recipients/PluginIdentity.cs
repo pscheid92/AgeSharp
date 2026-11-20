@@ -1,9 +1,8 @@
 using System.Text;
-using Age.Crypto;
-using Age.Format;
-using Age.Plugin;
+using AgeSharp.Crypto;
+using AgeSharp;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// An identity handled by an external <c>age-plugin-*</c> binary. Unwrapping

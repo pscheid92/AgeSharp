@@ -1,8 +1,8 @@
-using Age.Crypto;
-using Age.Format;
+using AgeSharp.Crypto;
+using AgeSharp;
 using Org.BouncyCastle.Security;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// A tagged P-256 recipient (<c>age1tag1…</c>), used to encrypt to a key held on hardware,

@@ -1,5 +1,5 @@
 using System.Text;
-using Age.Recipients;
+using AgeSharp;
 using Xunit;
 
 namespace Age.Tests;
@@ -300,7 +300,7 @@ public class LegacyPemSshKeyTests
     [Fact]
     public void InTheBrowser_ALegacyKeyIsRefused()
     {
-        Assert.NotNull(Age.Crypto.LegacyPemSshKey.WhyItCannotBeDecryptedInTheBrowser());
+        Assert.NotNull(AgeSharp.Crypto.LegacyPemSshKey.WhyItCannotBeDecryptedInTheBrowser());
     }
 
     [SkippableFact]

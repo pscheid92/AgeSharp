@@ -1,11 +1,11 @@
 using System.Security.Cryptography;
-using Age.Crypto;
-using Age.Format;
+using AgeSharp.Crypto;
+using AgeSharp;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.Parameters;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// An identity backed by an ssh-ed25519 private key, converted to X25519 for the

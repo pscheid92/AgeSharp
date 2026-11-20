@@ -6,7 +6,7 @@ using Org.BouncyCastle.Math.EC.Multiplier;
 using ECPoint = Org.BouncyCastle.Math.EC.ECPoint;
 using Org.BouncyCastle.Security;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// DHKEM(P-256, HKDF-SHA256), the KEM of RFC 9180, section 4.1, for encapsulation only: what

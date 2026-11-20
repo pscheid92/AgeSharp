@@ -7,7 +7,7 @@ using Renci.SshNet.Security;
 using BcBigInteger = Org.BouncyCastle.Math.BigInteger;
 using PemReader = Org.BouncyCastle.OpenSsl.PemReader;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// A passphrase-protected ssh-rsa key in the legacy PEM format: PKCS#1 (<c>BEGIN RSA PRIVATE

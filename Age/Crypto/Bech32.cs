@@ -1,5 +1,5 @@
 using System.Security.Cryptography;
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 // Bech32 encoding/decoding per BIP-173.
 // Reference: https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki

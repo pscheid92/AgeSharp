@@ -1,4 +1,4 @@
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 internal static class Base64Unpadded
 {

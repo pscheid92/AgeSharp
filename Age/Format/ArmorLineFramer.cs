@@ -1,4 +1,4 @@
-namespace Age.Format;
+namespace AgeSharp;
 
 /// <summary>One armor line: its bytes without the line ending, and how the line ended.</summary>
 /// <remarks>

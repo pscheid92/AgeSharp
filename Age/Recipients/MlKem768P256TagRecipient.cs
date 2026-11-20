@@ -1,8 +1,8 @@
-using Age.Crypto;
-using Age.Format;
+using AgeSharp.Crypto;
+using AgeSharp;
 using Org.BouncyCastle.Security;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// A tagged post-quantum recipient (<c>age1tagpq1…</c>): ML-KEM-768 hybridised with P-256, used

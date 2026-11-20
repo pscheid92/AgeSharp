@@ -1,6 +1,6 @@
-using Age.Format;
+using AgeSharp;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// Recovers a file key from an age header's stanzas. Implement this to add a custom identity

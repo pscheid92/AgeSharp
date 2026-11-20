@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Age;
+namespace AgeSharp;
 
 /// <summary>
 /// Adds a span-shaped emptiness check to <see cref="ArgumentException"/>, alongside the BCL's own

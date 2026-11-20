@@ -1,4 +1,4 @@
-namespace Age.Format;
+namespace AgeSharp;
 
 /// <summary>
 /// A read-only stream of the bytes an armored input decodes to, decoded a line at a time as they

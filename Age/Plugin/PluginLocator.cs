@@ -1,4 +1,4 @@
-namespace Age.Plugin;
+namespace AgeSharp;
 
 /// <summary>
 /// Resolves an <c>age-plugin-&lt;name&gt;</c> binary to an absolute path, searching

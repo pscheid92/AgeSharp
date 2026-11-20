@@ -1,4 +1,4 @@
-namespace Age.Format;
+namespace AgeSharp;
 
 /// <summary>
 /// Reads header lines from a stream for <see cref="Header.Parse"/>, through a

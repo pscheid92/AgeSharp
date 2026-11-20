@@ -6,7 +6,7 @@ using Renci.SshNet;
 using Renci.SshNet.Security;
 using BcBigInteger = Org.BouncyCastle.Math.BigInteger;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// Keys read by SSH.NET, turned into what the rest of AgeSharp uses and held to the same

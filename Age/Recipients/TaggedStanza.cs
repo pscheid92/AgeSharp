@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
-using Age.Crypto;
-using Age.Format;
+using AgeSharp.Crypto;
+using AgeSharp;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// The stanza both tagged recipient types write: the file key sealed with HPKE, and a 4-byte

@@ -7,7 +7,7 @@ using Org.BouncyCastle.Math;
 using Org.BouncyCastle.OpenSsl;
 using Org.BouncyCastle.Security;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 internal static class SshKeyParser
 {

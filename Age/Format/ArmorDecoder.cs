@@ -2,7 +2,7 @@ using System.Buffers;
 using System.Buffers.Text;
 using System.Text;
 
-namespace Age.Format;
+namespace AgeSharp;
 
 /// <summary>
 /// The rules of age's ASCII armor, applied line by line and never touching a stream: the

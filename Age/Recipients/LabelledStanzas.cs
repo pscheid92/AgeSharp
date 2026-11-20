@@ -1,6 +1,6 @@
-using Age.Format;
+using AgeSharp;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// What one call to <see cref="IRecipientWithLabels.WrapWithLabels"/> produced: the stanzas, and

@@ -1,11 +1,11 @@
 using System.Security.Cryptography;
 using Org.BouncyCastle.Crypto;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// A passphrase-protected SSH private key whose public key is known without the passphrase:
-/// what <see cref="Age.Recipients.EncryptedSshIdentity"/> needs to tell which stanzas are its
+/// what <see cref="AgeSharp.EncryptedSshIdentity"/> needs to tell which stanzas are its
 /// own before asking for one.
 /// </summary>
 internal interface IProtectedSshKey

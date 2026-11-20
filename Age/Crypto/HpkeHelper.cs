@@ -4,7 +4,7 @@ using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// HPKE (RFC 9180) in base mode, single-shot, with HKDF-SHA256 and ChaCha20-Poly1305: the KDF

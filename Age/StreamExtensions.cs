@@ -1,4 +1,4 @@
-namespace Age;
+namespace AgeSharp;
 
 /// <summary>
 /// Adds <see cref="EnsureMaterialized"/> to <see cref="Stream"/>.

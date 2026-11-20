@@ -1,7 +1,6 @@
 using System.Text.Json;
-using Age.Crypto;
-using Age.Format;
-using Age.Recipients;
+using AgeSharp.Crypto;
+using AgeSharp;
 using Org.BouncyCastle.Security;
 using Xunit;
 

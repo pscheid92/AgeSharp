@@ -1,6 +1,6 @@
 using System.IO.Compression;
 using System.Text;
-using Age.Format;
+using AgeSharp;
 using Xunit;
 
 namespace Age.Tests;

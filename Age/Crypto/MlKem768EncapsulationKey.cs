@@ -2,7 +2,7 @@ using Org.BouncyCastle.Crypto.Kems;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// An ML-KEM-768 encapsulation key (FIPS 203), checked when it is decoded: the post-quantum half

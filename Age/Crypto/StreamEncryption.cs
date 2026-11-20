@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 internal static class StreamEncryption
 {

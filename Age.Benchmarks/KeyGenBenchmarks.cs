@@ -1,4 +1,4 @@
-using Age.Recipients;
+using AgeSharp;
 using BenchmarkDotNet.Attributes;
 
 namespace Age.Benchmarks;

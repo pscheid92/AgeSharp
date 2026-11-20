@@ -1,3 +1,4 @@
+using AgeSharp;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
@@ -44,11 +45,11 @@ public class SshParsingErrorTests
 
     [Fact]
     public void RsaRecipientParse_UnderMinimumSize_ThrowsFormatException() =>
-        Assert.Throws<FormatException>(() => Age.Recipients.SshRsaRecipient.Parse($"ssh-rsa {Wire(Rsa1024)}"));
+        Assert.Throws<FormatException>(() => AgeSharp.SshRsaRecipient.Parse($"ssh-rsa {Wire(Rsa1024)}"));
 
     [Fact]
     public void Ed25519RecipientParse_RsaKeyData_ThrowsFormatException() =>
-        Assert.Throws<FormatException>(() => Age.Recipients.SshEd25519Recipient.Parse($"ssh-ed25519 {Wire(Rsa2048)}"));
+        Assert.Throws<FormatException>(() => AgeSharp.SshEd25519Recipient.Parse($"ssh-ed25519 {Wire(Rsa2048)}"));
 
     public static TheoryData<string, string> PassphraseProtectedKeys => new()
     {
@@ -137,7 +138,7 @@ public class SshParsingErrorTests
     public void ParseSshIdentity_RsaKeyWithAStaleCrtValue_StillDecrypts(string why, Func<System.Numerics.BigInteger[], System.Numerics.BigInteger[]> change)
     {
         _ = why;
-        var recipient = ((Age.Recipients.SshRsaIdentity)AgeKeygen.ParseSshIdentity(SshFixture("rsa_plain"))).Recipient;
+        var recipient = ((AgeSharp.SshRsaIdentity)AgeKeygen.ParseSshIdentity(SshFixture("rsa_plain"))).Recipient;
         using var encrypted = new MemoryStream();
         AgeEncrypt.Encrypt(new MemoryStream("plaintext"u8.ToArray()), encrypted, recipient);
         encrypted.Position = 0;
@@ -166,7 +167,7 @@ public class SshParsingErrorTests
     [Fact]
     public void ParseSshIdentity_Pkcs8RsaKeyWithAnExponentOver24Bits_Works()
     {
-        var identity = (Age.Recipients.SshRsaIdentity)AgeKeygen.ParseSshIdentity(SshFixture("rsa_pkcs8_large_exponent"));
+        var identity = (AgeSharp.SshRsaIdentity)AgeKeygen.ParseSshIdentity(SshFixture("rsa_pkcs8_large_exponent"));
         using var encrypted = new MemoryStream();
         AgeEncrypt.Encrypt(new MemoryStream("plaintext"u8.ToArray()), encrypted, identity.Recipient);
         encrypted.Position = 0;

@@ -5,7 +5,7 @@ using Org.BouncyCastle.Crypto;
 using Renci.SshNet;
 using Renci.SshNet.Common;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// A passphrase-protected private key in OpenSSH's own format (<c>openssh-key-v1</c>): the

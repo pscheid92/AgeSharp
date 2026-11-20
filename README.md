@@ -56,8 +56,7 @@ dotnet add package AgeSharp
 ### Encrypt and decrypt
 
 ```csharp
-using Age;
-using Age.Recipients;
+using AgeSharp;
 
 using var identity = X25519Identity.Generate();
 var recipient = identity.Recipient;

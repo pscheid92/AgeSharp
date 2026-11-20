@@ -1,3 +1,5 @@
+using AgeSharp;
+
 namespace Age.Tests;
 
 /// <summary>

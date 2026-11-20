@@ -1,6 +1,6 @@
 using System.Text;
-using Age.Crypto;
-using Age.Recipients;
+using AgeSharp.Crypto;
+using AgeSharp;
 using Xunit;
 
 namespace Age.Tests;

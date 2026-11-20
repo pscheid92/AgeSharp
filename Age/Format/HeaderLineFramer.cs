@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace Age.Format;
+namespace AgeSharp;
 
 /// <summary>
 /// Splits header bytes into lines, fed one byte at a time and never touching a stream: what a
