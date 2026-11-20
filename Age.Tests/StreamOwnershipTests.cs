@@ -49,7 +49,7 @@ public class StreamOwnershipTests
 
         var input = new Tracked(ciphertext);
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(input, output, identity);
+        new Identities(identity).Decrypt(input, output);
 
         Assert.False(input.Disposed);
     }
@@ -63,7 +63,7 @@ public class StreamOwnershipTests
         using var _ = identity;
 
         var input = new Tracked(ciphertext);
-        using (var reader = AgeEncrypt.DecryptReader(input, identity))
+        using (var reader = new Identities(identity).DecryptReader(input))
             reader.CopyTo(Stream.Null);
 
         Assert.False(input.Disposed);
@@ -139,11 +139,11 @@ public class StreamOwnershipTests
 
         using var input = new MemoryStream(ciphertext);
         using var first = new MemoryStream();
-        AgeEncrypt.Decrypt(input, first, identity);
+        new Identities(identity).Decrypt(input, first);
 
         input.Position = 0;
         using var second = new MemoryStream();
-        AgeEncrypt.Decrypt(input, second, identity);
+        new Identities(identity).Decrypt(input, second);
 
         Assert.Equal(first.ToArray(), second.ToArray());
     }

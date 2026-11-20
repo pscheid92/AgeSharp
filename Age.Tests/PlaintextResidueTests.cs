@@ -22,7 +22,7 @@ public class PlaintextResidueTests
         var ciphertext = Encrypt(MarkedPlaintext(), identity.Recipient);
 
         var destination = new RecordingStream();
-        AgeEncrypt.Decrypt(new MemoryStream(ciphertext), destination, identity);
+        new Identities(identity).Decrypt(new MemoryStream(ciphertext), destination);
 
         Assert.Equal(MarkedPlaintext(), destination.Received);
         Assert.DoesNotContain(destination.SourceArrays, HoldsPlaintext);
@@ -39,7 +39,7 @@ public class PlaintextResidueTests
         payload.Position = 0;
 
         var destination = new RecordingStream();
-        AgeEncrypt.DecryptDetached(header, payload, destination, identity);
+        new Identities(identity).DecryptDetached(header, payload, destination);
 
         Assert.Equal(MarkedPlaintext(), destination.Received);
         Assert.DoesNotContain(destination.SourceArrays, HoldsPlaintext);
@@ -54,7 +54,7 @@ public class PlaintextResidueTests
         var ciphertext = Encrypt(MarkedPlaintext(), identity.Recipient);
 
         var destination = new RecordingStream();
-        using (var decrypted = AgeEncrypt.DecryptReader(new MemoryStream(ciphertext), identity))
+        using (var decrypted = new Identities(identity).DecryptReader(new MemoryStream(ciphertext)))
             await Copy(decrypted, destination, async);
 
         Assert.Equal(MarkedPlaintext(), destination.Received);
@@ -68,7 +68,7 @@ public class PlaintextResidueTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = MarkedPlaintext();
-        using var decrypted = AgeEncrypt.DecryptReader(new MemoryStream(Encrypt(plaintext, identity.Recipient)), identity);
+        using var decrypted = new Identities(identity).DecryptReader(new MemoryStream(Encrypt(plaintext, identity.Recipient)));
 
         var head = new byte[10];
         decrypted.ReadExactly(head);
@@ -92,7 +92,7 @@ public class PlaintextResidueTests
         var payloadStart = (int)AgeHeader.Parse(new MemoryStream(ciphertext)).PayloadOffset + 16;
         ciphertext[payloadStart] ^= 0x01;
 
-        using var decrypted = AgeEncrypt.DecryptReader(new MemoryStream(ciphertext), identity);
+        using var decrypted = new Identities(identity).DecryptReader(new MemoryStream(ciphertext));
 
         var first = Assert.Throws<AgePayloadException>(() => decrypted.ReadByte());
         var copy = await Assert.ThrowsAsync<AgePayloadException>(() => Copy(decrypted, new RecordingStream(), async));

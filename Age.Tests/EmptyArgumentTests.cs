@@ -65,7 +65,7 @@ public class EmptyArgumentTests
         using var source = new MemoryStream(SomeCiphertext(identity));
 
         var ex = Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.Decrypt(source, Empty(), ReadOnlySpan<IIdentity>.Empty));
+            new Identities(ReadOnlySpan<IIdentity>.Empty).Decrypt(source, Empty()));
 
         Assert.Equal("identities", ex.ParamName);
         Assert.Contains("at least one identity", ex.Message, StringComparison.Ordinal);
@@ -78,7 +78,7 @@ public class EmptyArgumentTests
         using var source = new MemoryStream(SomeCiphertext(identity));
 
         var ex = Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.DecryptReader(source, ReadOnlySpan<IIdentity>.Empty));
+            new Identities(ReadOnlySpan<IIdentity>.Empty).DecryptReader(source));
 
         Assert.Equal("identities", ex.ParamName);
     }
@@ -87,7 +87,7 @@ public class EmptyArgumentTests
     public void DecryptDetached_WithNoIdentities_Throws()
     {
         var ex = Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.DecryptDetached(Empty(), Empty(), Empty(), ReadOnlySpan<IIdentity>.Empty));
+            new Identities(ReadOnlySpan<IIdentity>.Empty).DecryptDetached(Empty(), Empty(), Empty()));
 
         Assert.Equal("identities", ex.ParamName);
     }

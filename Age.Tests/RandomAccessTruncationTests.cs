@@ -133,7 +133,7 @@ public class RandomAccessTruncationTests
     {
         using var forwardInput = new MemoryStream(ciphertext);
         using var sink = new MemoryStream();
-        Assert.Throws<AgePayloadException>(() => AgeEncrypt.Decrypt(forwardInput, sink, identity));
+        Assert.Throws<AgePayloadException>(() => new Identities(identity).Decrypt(forwardInput, sink));
 
         using var seekInput = new MemoryStream(ciphertext);
         Assert.Throws<AgePayloadException>(() => new AgeRandomAccess(seekInput, identity));

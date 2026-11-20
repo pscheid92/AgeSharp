@@ -19,7 +19,7 @@ public class DetachedHeaderTests
         headerOut.Position = 0;
         payloadOut.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.DecryptDetached(headerOut, payloadOut, output, identity);
+        new Identities(identity).DecryptDetached(headerOut, payloadOut, output);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -47,7 +47,7 @@ public class DetachedHeaderTests
         using var headerIn = new MemoryStream(headerBytes);
         using var payloadIn = new MemoryStream(payloadBytes);
         using var output = new MemoryStream();
-        AgeEncrypt.DecryptDetached(headerIn, payloadIn, output, identity);
+        new Identities(identity).DecryptDetached(headerIn, payloadIn, output);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -72,7 +72,7 @@ public class DetachedHeaderTests
 
         combined.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(combined, output, identity);
+        new Identities(identity).Decrypt(combined, output);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -129,7 +129,7 @@ public class DetachedHeaderTests
         headerOut.Position = 0;
         payloadOut.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.DecryptDetached(headerOut, payloadOut, output, identity);
+        new Identities(identity).DecryptDetached(headerOut, payloadOut, output);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -150,7 +150,7 @@ public class DetachedHeaderTests
         headerOut.Position = 0;
         payloadOut.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.DecryptDetached(headerOut, payloadOut, output, id2);
+        new Identities(id2).DecryptDetached(headerOut, payloadOut, output);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -170,7 +170,7 @@ public class DetachedHeaderTests
         headerOut.Position = 0;
         payloadOut.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.DecryptDetached(headerOut, payloadOut, output, identity);
+        new Identities(identity).DecryptDetached(headerOut, payloadOut, output);
 
         Assert.Equal(plaintext, output.ToArray());
     }

@@ -10,24 +10,56 @@ internal static class AsciiArmor
 
     // Valid armor has at most this much whitespace before its begin marker: blank lines worth
     // MaxArmorWhitespaceBytes (each counting its length plus one, so up to twice that in raw
-    // bytes with CRLF), then the marker line's own indent, within one line's bound. Past this,
-    // the input is armor or nothing, and the armor reader says which rule it breaks.
-    private const int MaxWhitespaceLookahead = 4 * AgeLimits.MaxArmorLineBytes;
+    // bytes with CRLF), then the marker line's own indent, within one line's bound, with a
+    // line's room to spare: 4 KiB at the defaults. Past this, the input is armor or nothing (a
+    // binary file starts with its version line), and the armor reader says which rule it breaks.
+    private static int MaxWhitespaceLookahead(AgeDecryptOptions options) =>
+        2 * AgeLimits.MaxArmorWhitespaceBytes + 2 * options.MaxArmorLineBytes;
+
+    private static readonly byte[] Marker = Encoding.ASCII.GetBytes(BeginMarker);
 
     /// <summary>
     /// The input to read age's binary format from: the input itself, or what its armor decodes
     /// to. Detects armor by looking ahead, not by seeking, so it works on a pipe, and looks only
     /// as far as it needs: past leading whitespace and the length of the begin marker.
     /// </summary>
-    /// <exception cref="AgeArmorException">The input is armored, and its begin marker is malformed.</exception>
-    public static (Stream Binary, bool IsArmored) Open(Stream input)
+    /// <exception cref="AgeArmorException">
+    /// The input is armored and its begin marker is malformed, or armor is required and the
+    /// input is not armored.
+    /// </exception>
+    public static (Stream Binary, bool IsArmored) Open(Stream input, AgeDecryptOptions? options = null)
+    {
+        options ??= AgeDecryptOptions.Default;
+        var peekable = new PeekableStream(input);
+        var lookahead = Marker.Length;
+        bool? armored;
+
+        while ((armored = Decide(peekable.Peek(lookahead), ref lookahead, options)) is null) { }
+
+        if (armored.Value)
+            return (Dearmor(peekable, options), true);
+
+        return options.RequireArmor ? throw NotArmored() : (peekable, false);
+    }
+
+    /// <summary>The asynchronous <see cref="Open"/>.</summary>
+    /// <exception cref="AgeArmorException">As for <see cref="Open"/>.</exception>
+    public static async ValueTask<(Stream Binary, bool IsArmored)> OpenAsync(Stream input, AgeDecryptOptions options, CancellationToken cancellationToken)
     {
         var peekable = new PeekableStream(input);
+        var lookahead = Marker.Length;
+        bool? armored;
 
-        return StartsWithArmor(peekable)
-            ? (Dearmor(peekable), true)
-            : (peekable, false);
+        while ((armored = Decide((await peekable.PeekAsync(lookahead, cancellationToken).ConfigureAwait(false)).Span, ref lookahead, options)) is null) { }
+
+        if (armored.Value)
+            return (await DearmorAsync(peekable, cancellationToken, options).ConfigureAwait(false), true);
+
+        return options.RequireArmor ? throw NotArmored() : (peekable, false);
     }
+
+    private static AgeArmorException NotArmored() =>
+        new("input is not ASCII-armored, and armor is required");
 
     /// <summary>Whether a seekable stream holds armor at its position, which is left where it was.</summary>
     public static bool IsArmored(Stream seekable)
@@ -36,7 +68,13 @@ internal static class AsciiArmor
 
         try
         {
-            return StartsWithArmor(new PeekableStream(seekable));
+            var peekable = new PeekableStream(seekable);
+            var lookahead = Marker.Length;
+            bool? armored;
+
+            while ((armored = Decide(peekable.Peek(lookahead), ref lookahead, AgeDecryptOptions.Default)) is null) { }
+
+            return armored.Value;
         }
         finally
         {
@@ -44,40 +82,40 @@ internal static class AsciiArmor
         }
     }
 
-    private static bool StartsWithArmor(PeekableStream input)
+    /// <summary>
+    /// Whether <paramref name="prefix"/>, the first <paramref name="lookahead"/> bytes or fewer
+    /// if the input ended, starts armor; or null, with <paramref name="lookahead"/> raised, if
+    /// more must be read to tell.
+    /// </summary>
+    private static bool? Decide(ReadOnlySpan<byte> prefix, ref int lookahead, AgeDecryptOptions options)
     {
-        var marker = Encoding.ASCII.GetBytes(BeginMarker);
-        var lookahead = marker.Length;
+        var whitespace = prefix.IndexOfAnyExcept(" \t\r\n"u8);
+        var inputEnded = prefix.Length < lookahead;
+        var bound = MaxWhitespaceLookahead(options);
 
-        while (true)
+        if (whitespace < 0)
         {
-            var prefix = input.Peek(lookahead);
-            var whitespace = prefix.IndexOfAnyExcept(" \t\r\n"u8);
-            var inputEnded = prefix.Length < lookahead;
+            // Whitespace to the end of what could be read: not armor if the input ended,
+            // armor if there is too much of it to be anything else.
+            if (inputEnded)
+                return false;
 
-            if (whitespace < 0)
-            {
-                // Whitespace to the end of what could be read: not armor if the input ended,
-                // armor if there is too much of it to be anything else.
-                if (inputEnded)
-                    return false;
-
-                if (prefix.Length >= MaxWhitespaceLookahead)
-                    return true;
-
-                lookahead *= 2;
-                continue;
-            }
-
-            if (whitespace >= MaxWhitespaceLookahead)
+            if (prefix.Length >= bound)
                 return true;
 
-            if (inputEnded || prefix.Length - whitespace >= marker.Length)
-                return prefix[whitespace..].StartsWith(marker);
-
-            // The whitespace left too little of the lookahead to hold the marker.
-            lookahead = whitespace + marker.Length;
+            lookahead *= 2;
+            return null;
         }
+
+        if (whitespace >= bound)
+            return true;
+
+        if (inputEnded || prefix.Length - whitespace >= Marker.Length)
+            return prefix[whitespace..].StartsWith(Marker);
+
+        // The whitespace left too little of the lookahead to hold the marker.
+        lookahead = whitespace + Marker.Length;
+        return null;
     }
 
     /// <summary>
@@ -85,18 +123,18 @@ internal static class AsciiArmor
     /// marker is read here, so input that is not armor is refused at once.
     /// </summary>
     /// <exception cref="AgeArmorException">The input does not start like armor.</exception>
-    public static Stream Dearmor(Stream input)
+    public static Stream Dearmor(Stream input, AgeDecryptOptions? options = null)
     {
-        var dearmored = new DearmorStream(input);
+        var dearmored = new DearmorStream(input, (options ?? AgeDecryptOptions.Default).MaxArmorLineBytes);
         dearmored.ReadBegin();
         return dearmored;
     }
 
     /// <summary>The asynchronous <see cref="Dearmor"/>.</summary>
     /// <exception cref="AgeArmorException">The input does not start like armor.</exception>
-    public static async ValueTask<Stream> DearmorAsync(Stream input, CancellationToken cancellationToken)
+    public static async ValueTask<Stream> DearmorAsync(Stream input, CancellationToken cancellationToken, AgeDecryptOptions? options = null)
     {
-        var dearmored = new DearmorStream(input);
+        var dearmored = new DearmorStream(input, (options ?? AgeDecryptOptions.Default).MaxArmorLineBytes);
         await dearmored.ReadBeginAsync(cancellationToken).ConfigureAwait(false);
         return dearmored;
     }

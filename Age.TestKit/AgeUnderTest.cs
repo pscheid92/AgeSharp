@@ -90,9 +90,13 @@ internal static class AgeUnderTest
     }
 
     /// <summary>Decrypts with identity strings; anything but success fails the calling test.</summary>
-    public static byte[] Decrypt(byte[] ciphertext, params string[] identities)
+    public static byte[] Decrypt(byte[] ciphertext, params string[] identities) =>
+        Decrypt(ciphertext, asynchronously: false, identities);
+
+    /// <summary>Decrypts, through the async path if asked; anything but success fails the calling test.</summary>
+    public static byte[] Decrypt(byte[] ciphertext, bool asynchronously, params string[] identities)
     {
-        var decryption = TryDecrypt(ciphertext, identities);
+        var decryption = TryDecrypt(ciphertext, identities, overAPipe: asynchronously, asynchronously: asynchronously);
 
         return decryption.Outcome == Outcome.Success
             ? decryption.Plaintext!
@@ -102,9 +106,11 @@ internal static class AgeUnderTest
     /// <summary>
     /// Decrypts with identity strings (X25519, post-quantum, plugin, or a PEM SSH key) and, if
     /// given, a passphrase, and reports how it ended. With <paramref name="overAPipe"/>, the
-    /// file is read from a stream that cannot seek.
+    /// file is read from a stream that cannot seek; with <paramref name="asynchronously"/>,
+    /// every read and write goes through the async path.
     /// </summary>
-    public static Decryption TryDecrypt(byte[] ciphertext, IReadOnlyList<string> identities, string? passphrase = null, bool overAPipe = false)
+    public static Decryption TryDecrypt(byte[] ciphertext, IReadOnlyList<string> identities, string? passphrase = null,
+                                        bool overAPipe = false, bool asynchronously = false)
     {
         var parsed = ParseIdentities(identities, passphrase);
 
@@ -115,10 +121,15 @@ internal static class AgeUnderTest
 
         using Stream input = overAPipe ? new Pipe(ciphertext) : new MemoryStream(ciphertext);
         using var output = new MemoryStream();
+        var with = new Identities(parsed);
 
         try
         {
-            AgeEncrypt.Decrypt(input, output, parsed.ToArray());
+            if (asynchronously)
+                with.DecryptAsync(input, output).GetAwaiter().GetResult();
+            else
+                with.Decrypt(input, output);
+
             return new Decryption(Outcome.Success, output.ToArray(), null);
         }
         catch (AgeException ex)
@@ -128,7 +139,7 @@ internal static class AgeUnderTest
         finally
         {
             foreach (var identity in parsed)
-                (identity as IDisposable)?.Dispose();
+                identity.Dispose();
         }
     }
 
@@ -179,7 +190,7 @@ internal static class AgeUnderTest
             if (identity.StartsWith("-----BEGIN", StringComparison.Ordinal))
                 parsed.Add(AgeKeygen.ParseSshIdentity(identity));
             else
-                parsed.AddRange(AgeKeygen.ParseIdentityFile(identity));
+                parsed.AddRange(Identities.Parse(identity));
         }
 
         if (passphrase is not null)

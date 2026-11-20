@@ -192,12 +192,13 @@ public sealed class AgeRandomAccess : IDisposable
 
     private static PayloadInfo InitializeFromStream(Stream binaryInput, ReadOnlySpan<IIdentity> identities)
     {
-        var (fileKey, reader) = AgeEncrypt.UnwrapHeaderFromReader(binaryInput, identities);
+        var reader = new HeaderReader(binaryInput);
+        var fileKey = Identities.Unlock(Identities.ParseHeader(reader), Identities.TryOrder(identities));
 
         using (fileKey)
         {
-            var payloadNonce = ReadPayloadNonce(reader);
-            var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", AgeEncrypt.PayloadKeySize);
+            var payloadNonce = new byte[StreamEncryption.PayloadNonceSize];
+            var payloadKey = Identities.PayloadKey(fileKey, payloadNonce, reader.ReadPayloadBytes(payloadNonce));
 
             try
             {
@@ -289,16 +290,6 @@ public sealed class AgeRandomAccess : IDisposable
         return bytesRead == encChunkSize
             ? encChunk
             : throw new AgePayloadException($"could not read full chunk at offset {ciphertextPos}");
-    }
-
-    private static byte[] ReadPayloadNonce(HeaderReader reader)
-    {
-        var payloadNonce = new byte[AgeEncrypt.PayloadNonceSize];
-        var nonceRead = reader.ReadPayloadBytes(payloadNonce);
-
-        return nonceRead == AgeEncrypt.PayloadNonceSize
-            ? payloadNonce
-            : throw new AgeHeaderException($"expected {AgeEncrypt.PayloadNonceSize}-byte payload nonce, got {nonceRead} bytes");
     }
 
     // DearmorStream cannot seek, so the decoded ciphertext is buffered in full. Cost is the

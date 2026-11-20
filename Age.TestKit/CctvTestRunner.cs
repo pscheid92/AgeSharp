@@ -25,16 +25,18 @@ public class CctvTestRunner
             // pre-rename *.txt copies in the output dir). Also skip unsupported vectors.
             if (name.Contains('.') || name.StartsWith("p256tag_") || name.StartsWith("mlkem768p256tag_"))
                 continue;
-            // Every vector twice: from a seekable stream, and from a pipe, which armor
-            // detection must handle by reading ahead rather than seeking.
-            yield return new object[] { name, file, false };
-            yield return new object[] { name, file, true };
+            // Every vector three times: from a seekable stream; from a pipe, which armor
+            // detection must handle by reading ahead rather than seeking; and from a pipe
+            // asynchronously, where every read and write is awaited.
+            yield return new object[] { name, file, false, false };
+            yield return new object[] { name, file, true, false };
+            yield return new object[] { name, file, true, true };
         }
     }
 
     [Theory]
     [MemberData(nameof(GetTestVectors))]
-    public void RunTestVector(string name, string path, bool overAPipe)
+    public void RunTestVector(string name, string path, bool overAPipe, bool asynchronously)
     {
         _ = name; // Used for test display
         var (metadata, identityStrings, ageFileBytes) = ParseTestFile(path);
@@ -43,7 +45,7 @@ public class CctvTestRunner
         string? passphrase = metadata.GetValueOrDefault("passphrase");
         string? payloadHash = metadata.GetValueOrDefault("payload");
 
-        var decryption = AgeUnderTest.TryDecrypt(ageFileBytes, identityStrings, passphrase, overAPipe);
+        var decryption = AgeUnderTest.TryDecrypt(ageFileBytes, identityStrings, passphrase, overAPipe, asynchronously);
 
         Assert.True(Accepted(expect).Contains(decryption.Outcome),
             $"expected {expect}, got {decryption.Outcome}: {decryption.Error}");
@@ -52,6 +54,31 @@ public class CctvTestRunner
         {
             Assert.NotNull(payloadHash);
             Assert.Equal(payloadHash, Convert.ToHexStringLower(SHA256.HashData(decryption.Plaintext!)));
+        }
+    }
+
+    public static IEnumerable<object[]> GetVectorFiles() =>
+        GetTestVectors().Where(v => !(bool)v[2]).Select(v => new[] { v[0], v[1] });
+
+    // Not just the same category: the three ways of reading a file end identically, the error
+    // message included, so no path reports a failure differently from the others.
+    [Theory]
+    [MemberData(nameof(GetVectorFiles))]
+    public void EveryWayOfReading_EndsTheSame(string name, string path)
+    {
+        _ = name;
+        var (metadata, identityStrings, ageFileBytes) = ParseTestFile(path);
+        var passphrase = metadata.GetValueOrDefault("passphrase");
+
+        var fromFile = AgeUnderTest.TryDecrypt(ageFileBytes, identityStrings, passphrase);
+        var fromPipe = AgeUnderTest.TryDecrypt(ageFileBytes, identityStrings, passphrase, overAPipe: true);
+        var asynchronously = AgeUnderTest.TryDecrypt(ageFileBytes, identityStrings, passphrase, overAPipe: true, asynchronously: true);
+
+        foreach (var other in new[] { fromPipe, asynchronously })
+        {
+            Assert.Equal(fromFile.Outcome, other.Outcome);
+            Assert.Equal(fromFile.Error, other.Error);
+            Assert.Equal(fromFile.Plaintext, other.Plaintext);
         }
     }
 

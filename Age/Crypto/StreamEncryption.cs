@@ -7,6 +7,12 @@ internal static class StreamEncryption
     internal const int ChunkSize = 64 * 1024; // 64 KiB plaintext
     internal const int TagSize = 16; // Poly1305 tag
     internal const int EncryptedChunkSize = ChunkSize + TagSize;
+
+    /// <summary>The random nonce that starts the payload, from which its key is derived.</summary>
+    internal const int PayloadNonceSize = 16;
+
+    /// <summary>The payload key, derived from the file key and the payload nonce.</summary>
+    internal const int PayloadKeySize = 32;
     private const int NonceSize = 12;
 
     /// <summary>

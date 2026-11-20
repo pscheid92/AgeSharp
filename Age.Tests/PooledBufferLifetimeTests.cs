@@ -48,7 +48,7 @@ public class PooledBufferLifetimeTests
         var (ciphertext, identity) = Encrypted();
         using (identity)
         {
-            var stream = AgeEncrypt.DecryptReader(new MemoryStream(ciphertext), identity);
+            var stream = new Identities(identity).DecryptReader(new MemoryStream(ciphertext));
             using (var sink = new MemoryStream()) stream.CopyTo(sink);
 
             stream.Close();     // documented alias for Dispose()
@@ -97,7 +97,7 @@ public class PooledBufferLifetimeTests
         var (ciphertext, identity) = Encrypted();
         using (identity)
         {
-            using (var stream = AgeEncrypt.DecryptReader(new MemoryStream(ciphertext), identity))
+            using (var stream = new Identities(identity).DecryptReader(new MemoryStream(ciphertext)))
             using (var reader = new StreamReader(stream))
                 _ = reader.ReadToEnd();
         }
@@ -112,7 +112,7 @@ public class PooledBufferLifetimeTests
         var (ciphertext, identity) = Encrypted();
         using (identity)
         {
-            var stream = AgeEncrypt.DecryptReader(new MemoryStream(ciphertext), identity);
+            var stream = new Identities(identity).DecryptReader(new MemoryStream(ciphertext));
             stream.Dispose();
 
             Assert.Throws<ObjectDisposedException>(() => stream.Read(new byte[16], 0, 16));
@@ -138,14 +138,14 @@ public class PooledBufferLifetimeTests
         var (ciphertext, identity) = Encrypted(200_000);
         using (identity)
         {
-            var stream = AgeEncrypt.DecryptReader(new MemoryStream(ciphertext), identity);
+            var stream = new Identities(identity).DecryptReader(new MemoryStream(ciphertext));
             using (var sink = new MemoryStream()) stream.CopyTo(sink);
             stream.Close();
             stream.Dispose();
 
             using var input = new MemoryStream(ciphertext);
             using var output = new MemoryStream();
-            AgeEncrypt.Decrypt(input, output, identity);
+            new Identities(identity).Decrypt(input, output);
 
             Assert.Equal(200_000, output.Length);
         }

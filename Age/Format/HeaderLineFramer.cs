@@ -8,7 +8,7 @@ namespace AgeSharp;
 /// header line may contain, how large the header may grow, and the raw bytes the MAC covers.
 /// Where the bytes come from (a synchronous read, an asynchronous one) is the reader's business.
 /// </summary>
-internal sealed class HeaderLineFramer
+internal sealed class HeaderLineFramer(int maxHeaderBytes = AgeLimits.MaxHeaderBytes)
 {
     private readonly List<byte> _line = [];
     private readonly MemoryStream _raw = new();
@@ -19,13 +19,13 @@ internal sealed class HeaderLineFramer
 
     /// <summary>Takes the next byte, and returns the line it completes, without its LF, or null.</summary>
     /// <exception cref="AgeHeaderException">
-    /// The byte is a CR or not ASCII, or the header would exceed <see cref="AgeLimits.MaxHeaderBytes"/>.
+    /// The byte is a CR or not ASCII, or the header would exceed its bound (<see cref="AgeDecryptOptions.MaxHeaderBytes"/>).
     /// As in go-age, a line has no bound of its own beyond the header's.
     /// </exception>
     public string? Feed(byte b)
     {
-        if (_raw.Length >= AgeLimits.MaxHeaderBytes)
-            throw new AgeHeaderException($"header exceeds {AgeLimits.MaxHeaderBytes} bytes");
+        if (_raw.Length >= maxHeaderBytes)
+            throw new AgeHeaderException($"header exceeds {maxHeaderBytes} bytes");
 
         _raw.WriteByte(b);
 

@@ -24,5 +24,9 @@ internal static class StreamExtensions
         /// Call it only after a successful copy, so failures still leave no output behind.
         /// </remarks>
         public void EnsureMaterialized() => stream.Write(ReadOnlySpan<byte>.Empty);
+
+        /// <summary>The asynchronous <see cref="EnsureMaterialized"/>.</summary>
+        public ValueTask EnsureMaterializedAsync(CancellationToken cancellationToken) =>
+            stream.WriteAsync(ReadOnlyMemory<byte>.Empty, cancellationToken);
     }
 }

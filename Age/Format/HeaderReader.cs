@@ -10,11 +10,15 @@ namespace AgeSharp;
 /// that starts with <c>---</c>, since stanza lines start with <c>-&gt; </c> and body lines are
 /// base64. The stream is then left at the payload nonce, as a synchronous read leaves it.
 /// </remarks>
-internal sealed class HeaderReader(Stream stream)
+internal sealed class HeaderReader(Stream stream, AgeDecryptOptions? options = null)
 {
-    private readonly HeaderLineFramer _framer = new();
+    private readonly HeaderLineFramer _framer = new((options ?? AgeDecryptOptions.Default).MaxHeaderBytes);
+
     private Queue<string>? _prefilled;
     private string? _pushedBack;
+
+    /// <summary>The limits the header is parsed under.</summary>
+    public AgeDecryptOptions Options { get; } = options ?? AgeDecryptOptions.Default;
 
     /// <summary>All raw header bytes read so far: what the MAC is computed over.</summary>
     public ReadOnlySpan<byte> RawBytes =>
@@ -79,4 +83,8 @@ internal sealed class HeaderReader(Stream stream)
     /// <summary>Reads payload bytes, which are not part of the header and not recorded.</summary>
     public int ReadPayloadBytes(Span<byte> buffer) =>
         stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
+
+    /// <summary>The asynchronous <see cref="ReadPayloadBytes"/>.</summary>
+    public ValueTask<int> ReadPayloadBytesAsync(Memory<byte> buffer, CancellationToken cancellationToken) =>
+        stream.ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false, cancellationToken);
 }

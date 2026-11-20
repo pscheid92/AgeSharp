@@ -31,7 +31,7 @@ AgeSharp builds the HPKE for both on BouncyCastle, so they also work in the brow
 | Security labels (prevent mixing) | ✅ | ✅ | ✅ | A set of labels per recipient, compared unordered, as in Go |
 | Encrypted identity files | ✅ | ✅ | ✅ | |
 | Recipients files | ✅ | ✅ | ✅ | |
-| Header limits (2 MiB, 1024 stanzas, 128 arguments) | ✅ | ❌ | ✅ | Introduced by Go v1.3.2; not in the spec |
+| Header limits (2 MiB, 1024 stanzas, 128 arguments) | ✅ | ❌ | ✅ | Introduced by Go v1.3.2; not in the spec. Adjustable in AgeSharp through `AgeDecryptOptions`, with go-age's values as defaults |
 | Armor line length bound | ❌ | ❌ | ✅ | 1 KiB |
 | C2SP conformance vectors | ✅ | ✅ | ✅ | AgeSharp passes all 147 of the 2026-08-29 set |
 
@@ -47,7 +47,7 @@ AgeSharp builds the HPKE for both on BouncyCastle, so they also work in the brow
 | Standalone armor reader/writer | ✅ | ✅ | ❌ | Internal in AgeSharp |
 | Adjustable scrypt maximum work factor | ✅ | ✅ | ❌ | Fixed at 22 in AgeSharp |
 | Per-identity errors on no match | ✅ | ❌ | ❌ | |
-| Async encrypt/decrypt | ❌ | ✅ | Encrypting only | Encrypting: `Recipients.EncryptAsync` and `EncryptDetachedAsync`, async all the way through; decrypting has no async entry point yet |
+| Async encrypt/decrypt | ❌ | ✅ | ✅ | `EncryptAsync`, `DecryptAsync`, `DecryptReaderAsync` and the detached forms, async all the way through; unwrapping for a plugin or encrypted SSH key is synchronous |
 | Browser / WebAssembly | — | ✅ | ✅ | rage's `age` crate builds for `wasm32-unknown-unknown`; AgeSharp runs under Blazor WebAssembly with a managed ChaCha20-Poly1305 backend, but of protected SSH keys only ed25519 with AES-GCM or ChaCha20-Poly1305. Not a stated target for Go |
 
 ## Command line

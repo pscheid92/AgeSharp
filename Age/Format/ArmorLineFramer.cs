@@ -20,30 +20,30 @@ internal readonly ref struct ArmorLine(ReadOnlySpan<byte> text, bool endedWithCr
 /// <summary>
 /// Splits armor bytes into lines, fed as they arrive and never touching a stream. A line ends at
 /// an LF, with one CR at its end removed, as go-age reads armor; a lone CR does not end a line.
-/// A line may not exceed <see cref="AgeLimits.MaxArmorLineBytes"/>, so a line that never ends
+/// A line may not exceed its bound (<see cref="AgeDecryptOptions.MaxArmorLineBytes"/>), so a line that never ends
 /// cannot grow without bound.
 /// </summary>
 /// <remarks>
 /// Nothing is allocated per line. A line that arrives whole is handed out where it lies in the
 /// input; only one split across two feeds is copied, into a buffer of the bound's size.
 /// </remarks>
-internal sealed class ArmorLineFramer
+internal sealed class ArmorLineFramer(int maxLineBytes = AgeLimits.MaxArmorLineBytes)
 {
-    private readonly byte[] _pending = new byte[AgeLimits.MaxArmorLineBytes];
+    private readonly byte[] _pending = new byte[maxLineBytes];
     private int _pendingLength;
 
     /// <summary>
     /// Takes bytes from the front of <paramref name="input"/> up to and including the next LF,
     /// and returns the line they complete. Without an LF, keeps them all and returns false.
     /// </summary>
-    /// <exception cref="AgeArmorException">The line exceeds <see cref="AgeLimits.MaxArmorLineBytes"/>.</exception>
+    /// <exception cref="AgeArmorException">The line exceeds its bound (<see cref="AgeDecryptOptions.MaxArmorLineBytes"/>).</exception>
     public bool TryTakeLine(ref ReadOnlySpan<byte> input, out ArmorLine line)
     {
         var lf = input.IndexOf((byte)'\n');
         var part = lf < 0 ? input : input[..lf];
 
-        if (_pendingLength + part.Length > AgeLimits.MaxArmorLineBytes)
-            throw new AgeArmorException($"armor line exceeds {AgeLimits.MaxArmorLineBytes} bytes");
+        if (_pendingLength + part.Length > maxLineBytes)
+            throw new AgeArmorException($"armor line exceeds {maxLineBytes} bytes");
 
         if (lf < 0)
         {

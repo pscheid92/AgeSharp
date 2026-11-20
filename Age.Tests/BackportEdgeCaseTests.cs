@@ -117,7 +117,7 @@ public class BackportEdgeCaseTests
         using var output = new MemoryStream();
 
         Assert.Throws<AgeHmacException>(
-            () => AgeEncrypt.Decrypt(source, output, new PartialKeyIdentity()));
+            () => new Identities(new PartialKeyIdentity()).Decrypt(source, output));
         Assert.Equal(0, output.Length);
     }
 

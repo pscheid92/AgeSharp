@@ -107,7 +107,7 @@ public class RecipientsFileTests
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        new Identities(identity).Decrypt(encOutput, decOutput);
         Assert.Equal(plaintext, decOutput.ToArray());
     }
 
@@ -137,13 +137,13 @@ public class RecipientsFileTests
         // Decrypt with first identity
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, id1);
+        new Identities(id1).Decrypt(encOutput, decOutput);
         Assert.Equal(plaintext, decOutput.ToArray());
 
         // Decrypt with second identity
         encOutput.Position = 0;
         using var decOutput2 = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput2, id2);
+        new Identities(id2).Decrypt(encOutput, decOutput2);
         Assert.Equal(plaintext, decOutput2.ToArray());
     }
 }

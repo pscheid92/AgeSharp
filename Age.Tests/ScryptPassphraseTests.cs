@@ -37,7 +37,7 @@ public class ScryptPassphraseTests
         file.Position = 0;
 
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(file, output, new ScryptRecipient(""));
+        new Identities(new ScryptRecipient("")).Decrypt(file, output);
 
         Assert.Equal(plaintext, output.ToArray());
     }

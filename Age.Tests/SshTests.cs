@@ -700,7 +700,7 @@ public class SshRoundTripTests
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        new Identities(identity).Decrypt(encOutput, decOutput);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -729,7 +729,7 @@ public class SshRoundTripTests
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        new Identities(identity).Decrypt(encOutput, decOutput);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -761,13 +761,13 @@ public class SshRoundTripTests
         // Decrypt with X25519 identity
         encOutput.Position = 0;
         using var decOutput1 = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput1, x25519Identity);
+        new Identities(x25519Identity).Decrypt(encOutput, decOutput1);
         Assert.Equal(plaintext, decOutput1.ToArray());
 
         // Decrypt with SSH identity
         encOutput.Position = 0;
         using var decOutput2 = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput2, sshIdentity);
+        new Identities(sshIdentity).Decrypt(encOutput, decOutput2);
         Assert.Equal(plaintext, decOutput2.ToArray());
     }
 
@@ -925,7 +925,7 @@ public class SshRoundTripTests
             var ciphertext = File.ReadAllBytes(cipherPath);
             using var decInput = new MemoryStream(ciphertext);
             using var decOutput = new MemoryStream();
-            AgeEncrypt.Decrypt(decInput, decOutput, identity);
+            new Identities(identity).Decrypt(decInput, decOutput);
 
             var result = Encoding.UTF8.GetString(decOutput.ToArray());
             Assert.Equal("Hello from age CLI SSH!", result);
@@ -1030,7 +1030,7 @@ public class SshRoundTripTests
             var ciphertext = File.ReadAllBytes(cipherPath);
             using var decInput = new MemoryStream(ciphertext);
             using var decOutput = new MemoryStream();
-            AgeEncrypt.Decrypt(decInput, decOutput, identity);
+            new Identities(identity).Decrypt(decInput, decOutput);
 
             var result = Encoding.UTF8.GetString(decOutput.ToArray());
             Assert.Equal("Hello from age CLI RSA!", result);

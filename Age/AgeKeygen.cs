@@ -1,35 +1,16 @@
 using System.Security.Cryptography;
 using System.Text;
 using AgeSharp.Crypto;
-using AgeSharp;
-
 namespace AgeSharp;
 
 /// <summary>
-/// Key generation and key/identity-file parsing: single keys, recipients files
-/// (<c>-R</c> style), plaintext identity files (<c>-i</c> style), and
-/// passphrase-protected identity files.
+/// SSH private keys, including passphrase-protected ones, and passphrase-protected identity
+/// files. Recipients and identities of every other kind parse through <see cref="Recipients"/>,
+/// <see cref="Identities"/> and the key types themselves.
 /// </summary>
+/// <remarks>What is left here moves to the key types themselves with the key-material rework.</remarks>
 public static class AgeKeygen
 {
-    /// <summary>Generates a new X25519 identity (the <c>age-keygen</c> default).</summary>
-    public static X25519Identity Generate() =>
-        X25519Identity.Generate();
-
-    /// <summary>Parses an X25519 secret key (<c>AGE-SECRET-KEY-1…</c>).</summary>
-    /// <exception cref="FormatException">The string is not a valid X25519 secret key.</exception>
-    public static X25519Identity ParseIdentity(string s) =>
-        X25519Identity.Parse(s);
-
-    /// <summary>Generates a new post-quantum ML-KEM-768-X25519 identity.</summary>
-    public static MlKem768X25519Identity GeneratePq() =>
-        MlKem768X25519Identity.Generate();
-
-    /// <summary>Parses an ML-KEM-768-X25519 secret key (<c>AGE-SECRET-KEY-PQ-1…</c>).</summary>
-    /// <exception cref="FormatException">The string is not a valid ML-KEM-768-X25519 secret key.</exception>
-    public static MlKem768X25519Identity ParsePqIdentity(string s) =>
-        MlKem768X25519Identity.Parse(s);
-
     /// <summary>
     /// Parses an SSH private key from PEM text and returns the appropriate identity.
     /// Supports ssh-ed25519 and ssh-rsa key types in OpenSSH, PKCS#1, or PKCS#8 format.
@@ -131,66 +112,12 @@ public static class AgeKeygen
     }
 
     /// <summary>
-    /// Parses a plaintext identity file containing AGE-SECRET-KEY lines, plugin identities, comments, and blank lines.
-    /// The returned array converts implicitly to the <c>ReadOnlySpan&lt;IIdentity&gt;</c>
-    /// that <see cref="AgeEncrypt.Decrypt(Stream, Stream, ReadOnlySpan{IIdentity})"/> accepts.
-    /// </summary>
-    /// <exception cref="FormatException">
-    /// A line is not a valid identity. The message names the line by number and never quotes it.
-    /// </exception>
-    public static IIdentity[] ParseIdentityFile(string text, IPluginCallbacks? callbacks = null)
-    {
-        var identities = new List<IIdentity>();
-        var lines = text.Split('\n');
-
-        for (var i = 0; i < lines.Length; i++)
-        {
-            var line = lines[i].TrimEnd('\r');
-            if (line.Length == 0 || line.StartsWith('#'))
-                continue;
-
-            identities.Add(ParseIdentityLine(line, lineNumber: i + 1, callbacks));
-        }
-
-        return [.. identities];
-    }
-
-    /// <remarks>
-    /// Errors cite <paramref name="lineNumber"/> instead of the line, as go-age does: a line that
-    /// fails to parse is often a secret key with a stray space or the wrong case, and exception
-    /// messages end up in logs and terminals. The parsers' own messages are safe to pass on —
-    /// at most they name a single offending character.
-    /// </remarks>
-    private static IIdentity ParseIdentityLine(string line, int lineNumber, IPluginCallbacks? callbacks)
-    {
-        try
-        {
-            if (line.StartsWith("AGE-SECRET-KEY-PQ-", StringComparison.Ordinal))
-                return MlKem768X25519Identity.Parse(line);
-
-            if (line.StartsWith("AGE-SECRET-KEY-", StringComparison.Ordinal))
-                return X25519Identity.Parse(line);
-
-            if (line.StartsWith("AGE-PLUGIN-", StringComparison.Ordinal))
-                return new PluginIdentity(line, callbacks);
-        }
-        catch (FormatException ex)
-        {
-            throw new FormatException($"invalid identity on line {lineNumber}: {ex.Message}", ex);
-        }
-
-        throw new FormatException(
-            $"unrecognized line {lineNumber} in identity file: expected AGE-SECRET-KEY-1..., " +
-            "AGE-SECRET-KEY-PQ-1... or AGE-PLUGIN-... with no surrounding whitespace");
-    }
-
-    /// <summary>
     /// Decrypts an encrypted (passphrase-protected) identity file and parses the contained identities.
     /// </summary>
     /// <remarks>
     ///     The decrypted file contains <c>AGE-SECRET-KEY-1…</c> lines in the clear. The byte
     ///     copies are cleared here; the <see cref="string" /> they are decoded into cannot be,
-    ///     because <see cref="ParseIdentityFile" /> takes a string and is shipped public API.
+    ///     because <see cref="Identities.Parse" /> takes a string.
     ///     Treat this as reducing the exposure rather than eliminating it.
     /// </remarks>
     public static IIdentity[] DecryptIdentityFile(byte[] data, string passphrase)
@@ -202,7 +129,8 @@ public static class AgeKeygen
         // keys in it, where the clearing below cannot reach.
         using var output = new MemoryStream(data.Length);
 
-        AgeEncrypt.Decrypt(input, output, new ScryptRecipient(passphrase));
+        using var passphraseIdentity = new ScryptRecipient(passphrase);
+        new Identities(passphraseIdentity).Decrypt(input, output);
 
         // ToArray copies out, and the MemoryStream's own buffer keeps the plaintext too —
         // Dispose does not clear it. Both are private keys in the clear.
@@ -210,7 +138,8 @@ public static class AgeKeygen
 
         try
         {
-            return ParseIdentityFile(Encoding.UTF8.GetString(plaintextBytes));
+            // The set is not disposed: the identities are handed to the caller, who owns them.
+            return [.. Identities.Parse(Encoding.UTF8.GetString(plaintextBytes))];
         }
         finally
         {

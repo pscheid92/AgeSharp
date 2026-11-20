@@ -37,8 +37,8 @@ internal sealed class Header
 
             if (line.StartsWith("-> ", StringComparison.Ordinal))
             {
-                if (header.Stanzas.Count == AgeLimits.MaxRecipientStanzas)
-                    throw new AgeHeaderException($"header contains more than {AgeLimits.MaxRecipientStanzas} recipient stanzas");
+                if (header.Stanzas.Count == reader.Options.MaxRecipientStanzas)
+                    throw new AgeHeaderException($"header contains more than {reader.Options.MaxRecipientStanzas} recipient stanzas");
 
                 reader.PushBack(line);
                 header.Stanzas.Add(Stanza.Parse(reader));

@@ -17,7 +17,7 @@ public class RandomAccessTests
         // Full decrypt for comparison
         ciphertext.Position = 0;
         using var fullDecOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(ciphertext, fullDecOutput, identity);
+        new Identities(identity).Decrypt(ciphertext, fullDecOutput);
         var expected = fullDecOutput.ToArray();
 
         // Sequential read via ReadAt

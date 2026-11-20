@@ -70,6 +70,36 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         return totalRead;
     }
 
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+        ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+    // The same steps as Read, with the ciphertext read awaited: the only I/O this stream does.
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        ThrowIfUnusable();
+
+        var totalRead = 0;
+
+        while (totalRead < buffer.Length)
+        {
+            if (_plaintextOffset < _plaintextLength)
+            {
+                var toCopy = Math.Min(_plaintextLength - _plaintextOffset, buffer.Length - totalRead);
+                _plaintextBuffer.AsSpan(_plaintextOffset, toCopy).CopyTo(buffer.Span[totalRead..]);
+                _plaintextOffset += toCopy;
+                totalRead += toCopy;
+                continue;
+            }
+
+            if (_state == State.Done)
+                return totalRead;
+
+            await NextChunkAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return totalRead;
+    }
+
     /// <summary>
     /// Writes each chunk straight from the plaintext buffer, which Dispose clears.
     /// <paramref name="bufferSize"/> is ignored: the chunk is the unit.
