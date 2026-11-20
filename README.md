@@ -27,7 +27,7 @@ and needs to raise its pin to 2.7.0.
 - **Hardware keys**: tagged P-256 and P-256 + ML-KEM-768 recipients (`age1tag1…`, `age1tagpq1…`), encryption only
 - **Plugin protocol** — interoperates with `age-plugin-*` binaries
 - Encrypt to multiple recipients
-- ASCII armor support
+- ASCII armor, detected when decrypting from any stream, pipes and network streams included
 - Streaming encryption and decryption across all APIs — memory is bounded
   by a single 64 KiB chunk buffer regardless of input size (1 GiB file uses
   the same working set as a 1 MB file)
@@ -94,6 +94,9 @@ AgeEncrypt.Encrypt(input, encrypted, armor: true, recipient);
 // YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA...
 // -----END AGE ENCRYPTED FILE-----
 ```
+
+Decrypting needs no flag: armor is recognised by reading ahead, so it works on a stream that
+cannot seek, such as a pipe or a network stream.
 
 ### Multiple recipients
 

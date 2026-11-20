@@ -24,13 +24,16 @@ public class CctvTestRunner
             // pre-rename *.txt copies in the output dir). Also skip unsupported vectors.
             if (name.Contains('.') || name.StartsWith("p256tag_") || name.StartsWith("mlkem768p256tag_"))
                 continue;
-            yield return new object[] { name, file };
+            // Every vector twice: from a seekable stream, and from a pipe, which armor
+            // detection must handle by reading ahead rather than seeking.
+            yield return new object[] { name, file, false };
+            yield return new object[] { name, file, true };
         }
     }
 
     [Theory]
     [MemberData(nameof(GetTestVectors))]
-    public void RunTestVector(string name, string path)
+    public void RunTestVector(string name, string path, bool overAPipe)
     {
         _ = name; // Used for test display
         var (metadata, identityStrings, ageFileBytes) = ParseTestFile(path);
@@ -39,7 +42,7 @@ public class CctvTestRunner
         string? passphrase = metadata.GetValueOrDefault("passphrase");
         string? payloadHash = metadata.GetValueOrDefault("payload");
 
-        var decryption = AgeUnderTest.TryDecrypt(ageFileBytes, identityStrings, passphrase);
+        var decryption = AgeUnderTest.TryDecrypt(ageFileBytes, identityStrings, passphrase, overAPipe);
 
         Assert.True(Accepted(expect).Contains(decryption.Outcome),
             $"expected {expect}, got {decryption.Outcome}: {decryption.Error}");

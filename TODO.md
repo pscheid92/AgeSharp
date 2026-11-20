@@ -46,7 +46,7 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 ## API (breaking — fold into the rebuild)
 
 - [ ] Async entry points for encrypt and decrypt (design exists on `next-version`)
-- [ ] Peeking armor detection, so armored input is recognised on non-seekable streams too (pipes, network streams); today it needs a seekable stream
+- [x] Peeking armor detection, so armored input is recognised on non-seekable streams too (pipes, network streams) — rebuild step 3c: `PeekableStream`; `Decrypt`, `DecryptReader` and `AgeHeader.Parse` read ahead instead of seeking
 - [ ] `Passphrase` type instead of `string`, so it can be zeroed
 - [x] `IRecipient.Wrap` returning several stanzas and labels; make the multi-stanza interface public — rebuild step 1: `Wrap → IReadOnlyList<Stanza>`, `IRecipientWithLabels` with `LabelledStanzas`, `IIdentity.TryUnwrap(Stanza, Span<byte>)`, `IIdentityWithRecipient`
 - [ ] Split `ScryptRecipient` into recipient and identity; adjustable maximum work factor

@@ -47,7 +47,7 @@ public static class AgeEncrypt
 
     /// <summary>
     /// Decrypts an age-encrypted <paramref name="input"/> into <paramref name="output"/>.
-    /// Armored input is auto-detected when the stream is seekable.
+    /// Armored input is detected, on any readable stream.
     /// </summary>
     /// <param name="input">The age-encrypted source (binary or ASCII-armored).</param>
     /// <param name="output">The plaintext destination.</param>
@@ -154,23 +154,20 @@ public static class AgeEncrypt
     /// <summary>
     /// Returns a readable <see cref="Stream"/> that yields plaintext as the
     /// caller reads from it. Header parsing and MAC verification happen
-    /// eagerly; payload decryption is lazy. Armored input is auto-detected
-    /// when the stream is seekable. Dispose the returned stream when done.
+    /// eagerly; payload decryption is lazy. Armored input is detected, on any
+    /// readable stream. Dispose the returned stream when done.
     /// </summary>
     public static Stream DecryptReader(Stream ciphertext, params ReadOnlySpan<IIdentity> identities)
     {
         ArgumentException.ThrowIfEmpty(identities, "identity");
 
-        // `dearmored` is the ownership token: non-null means we made it and must dispose it.
-        // Unlike the other two dearmor sites this one cannot use `using`, because on success
-        // ownership passes to the returned DecryptStream — so the catch covers failure alone.
-        var dearmored = ciphertext.CanSeek && AsciiArmor.IsArmored(ciphertext)
-            ? AsciiArmor.Dearmor(ciphertext)
-            : null;
+        // The binary input is ours (a look-ahead or a dearmoring wrapper, neither of which
+        // disposes the caller's stream). On success the returned DecryptStream takes it over, so
+        // the catch covers failure alone.
+        var (binaryInput, _) = AsciiArmor.Open(ciphertext);
 
         try
         {
-            var binaryInput = dearmored ?? ciphertext;
             var (fileKey, reader) = UnwrapHeaderFromReader(binaryInput, identities);
 
             using (fileKey)
@@ -178,12 +175,12 @@ public static class AgeEncrypt
                 var payloadNonce = ReadPayloadNonce(reader);
                 var payloadKey = CryptoHelper.HkdfDerive(fileKey.Bytes, payloadNonce, "payload", PayloadKeySize);
 
-                return new DecryptStream(payloadKey, binaryInput, ownsStream: dearmored is not null);
+                return new DecryptStream(payloadKey, binaryInput, ownsStream: true);
             }
         }
         catch
         {
-            dearmored?.Dispose();
+            binaryInput.Dispose();
             throw;
         }
     }
