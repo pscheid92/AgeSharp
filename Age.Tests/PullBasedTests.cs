@@ -12,7 +12,7 @@ public class PullBasedTests
         var plaintext = "pull-based encrypt test"u8.ToArray();
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = AgeEncrypt.EncryptReader(input, identity.Recipient);
+        using var encryptedStream = new Recipients(identity.Recipient).EncryptReader(input);
 
         // Read all encrypted data
         using var ciphertext = new MemoryStream();
@@ -34,7 +34,7 @@ public class PullBasedTests
 
         using var input = new MemoryStream(plaintext);
         using var ciphertext = new MemoryStream();
-        AgeEncrypt.Encrypt(input, ciphertext, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(input, ciphertext);
 
         ciphertext.Position = 0;
         using var decryptedStream = AgeEncrypt.DecryptReader(ciphertext, identity);
@@ -52,7 +52,7 @@ public class PullBasedTests
         var plaintext = "both pull-based"u8.ToArray();
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = AgeEncrypt.EncryptReader(input, identity.Recipient);
+        using var encryptedStream = new Recipients(identity.Recipient).EncryptReader(input);
 
         // Pipe encrypted reader into decrypt reader
         using var ciphertextBuffer = new MemoryStream();
@@ -73,7 +73,7 @@ public class PullBasedTests
         var plaintext = "byte by byte"u8.ToArray();
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = AgeEncrypt.EncryptReader(input, identity.Recipient);
+        using var encryptedStream = new Recipients(identity.Recipient).EncryptReader(input);
 
         // Read encrypted data one byte at a time
         using var ciphertext = new MemoryStream();
@@ -102,7 +102,7 @@ public class PullBasedTests
         new Random(42).NextBytes(plaintext);
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = AgeEncrypt.EncryptReader(input, identity.Recipient);
+        using var encryptedStream = new Recipients(identity.Recipient).EncryptReader(input);
 
         using var ciphertext = new MemoryStream();
         encryptedStream.CopyTo(ciphertext);
@@ -122,7 +122,7 @@ public class PullBasedTests
         var plaintext = Array.Empty<byte>();
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = AgeEncrypt.EncryptReader(input, identity.Recipient);
+        using var encryptedStream = new Recipients(identity.Recipient).EncryptReader(input);
 
         using var ciphertext = new MemoryStream();
         encryptedStream.CopyTo(ciphertext);
@@ -142,7 +142,7 @@ public class PullBasedTests
         var plaintext = "armored pull test"u8.ToArray();
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = AgeEncrypt.EncryptReader(input, true, identity.Recipient);
+        using var encryptedStream = new Recipients(identity.Recipient).EncryptReader(input, new AgeEncryptOptions { Armor = true });
 
         using var ciphertext = new MemoryStream();
         encryptedStream.CopyTo(ciphertext);
@@ -159,7 +159,7 @@ public class PullBasedTests
     {
         using var identity = X25519Identity.Generate();
         using var input = new MemoryStream("test"u8.ToArray());
-        using var stream = AgeEncrypt.EncryptReader(input, identity.Recipient);
+        using var stream = new Recipients(identity.Recipient).EncryptReader(input);
 
         Assert.True(stream.CanRead);
         Assert.False(stream.CanSeek);
@@ -173,7 +173,7 @@ public class PullBasedTests
 
         using var input = new MemoryStream("test"u8.ToArray());
         using var ciphertext = new MemoryStream();
-        AgeEncrypt.Encrypt(input, ciphertext, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(input, ciphertext);
 
         ciphertext.Position = 0;
         using var stream = AgeEncrypt.DecryptReader(ciphertext, identity);
@@ -191,7 +191,7 @@ public class PullBasedTests
         new Random(42).NextBytes(plaintext);
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = AgeEncrypt.EncryptReader(input, identity.Recipient);
+        using var encryptedStream = new Recipients(identity.Recipient).EncryptReader(input);
 
         using var ciphertext = new MemoryStream();
         encryptedStream.CopyTo(ciphertext);
@@ -214,7 +214,7 @@ public class PullBasedTests
         new Random(42).NextBytes(plaintext);
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = AgeEncrypt.EncryptReader(input, armor: true, identity.Recipient);
+        using var encryptedStream = new Recipients(identity.Recipient).EncryptReader(input, new AgeEncryptOptions { Armor = true });
 
         using var ciphertext = new MemoryStream();
         encryptedStream.CopyTo(ciphertext);
@@ -237,7 +237,7 @@ public class PullBasedTests
         new Random(42).NextBytes(plaintext);
 
         using var input = new MemoryStream(plaintext);
-        using var encryptedStream = AgeEncrypt.EncryptReader(input, armor: true, identity.Recipient);
+        using var encryptedStream = new Recipients(identity.Recipient).EncryptReader(input, new AgeEncryptOptions { Armor = true });
 
         using var ciphertext = new MemoryStream();
         var oneByte = new byte[1];

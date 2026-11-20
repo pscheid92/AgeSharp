@@ -45,71 +45,86 @@ internal sealed class ArmorStream : Stream
         // Reading would pull from the disposed inner EncryptStream's returned buffers.
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        var totalWritten = 0;
-
-        while (totalWritten < buffer.Length)
-        {
-            if (_scratchOffset < _scratchLength)
-            {
-                var available = _scratchLength - _scratchOffset;
-                var toCopy = Math.Min(available, buffer.Length - totalWritten);
-                _scratch.AsSpan(_scratchOffset, toCopy).CopyTo(buffer[totalWritten..]);
-                _scratchOffset += toCopy;
-                totalWritten += toCopy;
-                continue;
-            }
-
-            if (!FillScratch())
-                return totalWritten;
-        }
-
-        return totalWritten;
-    }
-
-    private bool FillScratch()
-    {
-        _scratchOffset = 0;
+        var total = 0;
 
         while (true)
         {
-            switch (_phase)
-            {
-                case Phase.Begin:
-                    BeginBytes.CopyTo(_scratch, 0);
-                    _scratchLength = BeginBytes.Length;
-                    _phase = Phase.Body;
-                    return true;
+            total += EmitReady(buffer[total..]);
 
-                case Phase.Body:
-                    var read = ReadFullChunk();
-                    if (read == 0)
-                    {
-                        _phase = Phase.End;
-                        continue;
-                    }
-                    Base64.EncodeToUtf8(_sourceScratch.AsSpan(0, read), _scratch, out _, out var bytesWritten);
-                    _scratch[bytesWritten] = (byte)'\n';
-                    _scratchLength = bytesWritten + 1;
-                    return true;
+            if (total == buffer.Length || _phase == Phase.Done)
+                return total;
 
-                case Phase.End:
-                    EndBytes.CopyTo(_scratch, 0);
-                    _scratchLength = EndBytes.Length;
-                    _phase = Phase.Done;
-                    return true;
-
-                case Phase.Done:
-                    _scratchLength = 0;
-                    return false;
-
-                default:
-                    throw new InvalidOperationException($"unknown armor phase: {_phase}");
-            }
+            FillScratch(_phase == Phase.Body ? ReadBodyChunk() : 0);
         }
     }
 
-    private int ReadFullChunk()
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+        ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+    // The same steps as Read, with the body read awaited: the only I/O this stream does.
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var total = 0;
+
+        while (true)
+        {
+            total += EmitReady(buffer.Span[total..]);
+
+            if (total == buffer.Length || _phase == Phase.Done)
+                return total;
+
+            FillScratch(_phase == Phase.Body ? await ReadBodyChunkAsync(cancellationToken).ConfigureAwait(false) : 0);
+        }
+    }
+
+    private int EmitReady(Span<byte> dest)
+    {
+        var toCopy = Math.Min(_scratchLength - _scratchOffset, dest.Length);
+        _scratch.AsSpan(_scratchOffset, toCopy).CopyTo(dest);
+        _scratchOffset += toCopy;
+        return toCopy;
+    }
+
+    // The next line into the scratch buffer. In the body, read is how many bytes of binary
+    // input it encodes; none means the body has ended and the END line follows.
+    private void FillScratch(int read)
+    {
+        _scratchOffset = 0;
+
+        switch (_phase)
+        {
+            case Phase.Begin:
+                BeginBytes.CopyTo(_scratch, 0);
+                _scratchLength = BeginBytes.Length;
+                _phase = Phase.Body;
+                break;
+
+            case Phase.Body when read > 0:
+                Base64.EncodeToUtf8(_sourceScratch.AsSpan(0, read), _scratch, out _, out var bytesWritten);
+                _scratch[bytesWritten] = (byte)'\n';
+                _scratchLength = bytesWritten + 1;
+                break;
+
+            case Phase.Body:
+                EndBytes.CopyTo(_scratch, 0);
+                _scratchLength = EndBytes.Length;
+                _phase = Phase.End;
+                break;
+
+            case Phase.End:
+                _scratchLength = 0;
+                _phase = Phase.Done;
+                break;
+        }
+    }
+
+    private int ReadBodyChunk()
         => _source.ReadAtLeast(_sourceScratch, _sourceScratch.Length, throwOnEndOfStream: false);
+
+    private ValueTask<int> ReadBodyChunkAsync(CancellationToken cancellationToken)
+        => _source.ReadAtLeastAsync(_sourceScratch, _sourceScratch.Length, throwOnEndOfStream: false, cancellationToken);
 
     // Guarded for the same reason as the streams it wraps: _source is an EncryptStream whose
     // Dispose returns pooled buffers, so forwarding a second Dispose would return them twice.

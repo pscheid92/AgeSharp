@@ -62,7 +62,7 @@ public class BackportEdgeCaseTests
         using var input = new MemoryStream("x"u8.ToArray());
         using var output = new MemoryStream();
 
-        AgeEncrypt.Encrypt(input, output, new LabelledRecipient(a), new LabelledRecipient(b));
+        new Recipients(new LabelledRecipient(a), new LabelledRecipient(b)).Encrypt(input, output);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class BackportEdgeCaseTests
 
         using var input = new MemoryStream("edge"u8.ToArray());
         using var encrypted = new MemoryStream();
-        AgeEncrypt.Encrypt(input, encrypted, real.Recipient);
+        new Recipients(real.Recipient).Encrypt(input, encrypted);
 
         using var source = new MemoryStream(encrypted.ToArray());
         using var output = new MemoryStream();
@@ -150,9 +150,9 @@ public class BackportEdgeCaseTests
             using var b = new MemoryStream();
 
             if (detached)
-                AgeEncrypt.EncryptDetached(input, a, b, recipient);
+                new Recipients(recipient).EncryptDetached(input, a, b);
             else
-                AgeEncrypt.Encrypt(input, a, recipient);
+                new Recipients(recipient).Encrypt(input, a);
         });
 
         // The recipient saw a real, non-zero key...
@@ -167,7 +167,7 @@ public class BackportEdgeCaseTests
         {
             using var input = new MemoryStream("x"u8.ToArray());
             using var a = new MemoryStream();
-            AgeEncrypt.Encrypt(input, a, second);
+            new Recipients(second).Encrypt(input, a);
         });
 
         Assert.NotEqual(recipient.SeenFileKey, second.SeenFileKey);
@@ -182,7 +182,7 @@ public class BackportEdgeCaseTests
 
         using var input = new MemoryStream(plaintext);
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(input, output);
 
         return output.ToArray();
     }

@@ -46,16 +46,29 @@ internal static class AgeUnderTest
         return new KeyPair(identity.ToSecretString(), identity.Recipient.ToString());
     }
 
-    /// <summary>Encrypts to recipient strings of any type.</summary>
+    /// <summary>
+    /// Encrypts to recipient strings of any type. With <paramref name="asynchronously"/>, every
+    /// read and write goes through the async path.
+    /// </summary>
     /// <exception cref="Refused">AgeSharp refused the recipients.</exception>
-    public static byte[] Encrypt(byte[] plaintext, bool armored, params string[] recipients)
+    public static byte[] Encrypt(byte[] plaintext, bool armored, params string[] recipients) =>
+        Encrypt(plaintext, armored, asynchronously: false, recipients);
+
+    /// <inheritdoc cref="Encrypt(byte[], bool, string[])"/>
+    public static byte[] Encrypt(byte[] plaintext, bool armored, bool asynchronously, params string[] recipients)
     {
         using var input = new MemoryStream(plaintext);
         using var output = new MemoryStream();
+        var options = new AgeEncryptOptions { Armor = armored };
 
         try
         {
-            AgeEncrypt.Encrypt(input, output, armored, ParseRecipients(recipients));
+            var to = ParseRecipients(recipients);
+
+            if (asynchronously)
+                to.EncryptAsync(input, output, options).GetAwaiter().GetResult();
+            else
+                to.Encrypt(input, output, options);
         }
         catch (AgeException ex)
         {
@@ -72,7 +85,7 @@ internal static class AgeUnderTest
         using var header = new MemoryStream();
         using var payload = new MemoryStream();
 
-        AgeEncrypt.EncryptDetached(input, header, payload, ParseRecipients(recipients));
+        ParseRecipients(recipients).EncryptDetached(input, header, payload);
         return (header.ToArray(), payload.ToArray());
     }
 
@@ -153,8 +166,9 @@ internal static class AgeUnderTest
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
-    private static IRecipient[] ParseRecipients(string[] recipients) =>
-        recipients.SelectMany(r => AgeKeygen.ParseRecipientsFile(r)).ToArray();
+    // Each string is one recipient of any type: an age1… string or an authorized_keys line.
+    private static Recipients ParseRecipients(string[] recipients) =>
+        new(recipients.Select(r => Recipients.ParseOne(r)));
 
     private static List<IIdentity> ParseIdentities(IReadOnlyList<string> identities, string? passphrase)
     {

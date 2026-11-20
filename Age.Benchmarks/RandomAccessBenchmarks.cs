@@ -24,7 +24,7 @@ public class RandomAccessBenchmarks
         Random.Shared.NextBytes(plaintext);
 
         using var encOut = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(plaintext), encOut, recipient);
+        new Recipients(recipient).Encrypt(new MemoryStream(plaintext), encOut);
         _ciphertext = encOut.ToArray();
 
         _randomAccess = new AgeRandomAccess(new MemoryStream(_ciphertext), _identity);

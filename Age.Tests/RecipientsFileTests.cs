@@ -17,7 +17,7 @@ public class RecipientsFileTests
         using var identity = X25519Identity.Generate();
         var text = $"# my recipient\n{identity.Recipient}\n";
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text);
+        var parsed = Recipients.Parse(text);
         Assert.Single(parsed);
         Assert.Equal(identity.Recipient.ToString(), parsed[0].ToString());
     }
@@ -28,7 +28,7 @@ public class RecipientsFileTests
         using var identity = MlKem768X25519Identity.Generate();
         var text = $"{identity.Recipient}\n";
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text);
+        var parsed = Recipients.Parse(text);
         Assert.Single(parsed);
         Assert.Equal(identity.Recipient.ToString(), parsed[0].ToString());
     }
@@ -39,7 +39,7 @@ public class RecipientsFileTests
         var pubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGJQGjgPbMDwrhAEaWNKLdSIHAxiKJDtMCmLj7Zeg844 test@host";
         var text = $"# SSH key\n{pubKey}\n";
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text);
+        var parsed = Recipients.Parse(text);
         Assert.Single(parsed);
     }
 
@@ -61,8 +61,8 @@ public class RecipientsFileTests
             {sshKey}
             """;
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text);
-        Assert.Equal(3, parsed.Length);
+        var parsed = Recipients.Parse(text);
+        Assert.Equal(3, parsed.Count);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class RecipientsFileTests
         using var identity = X25519Identity.Generate();
         var text = $"# comment 1\n\n# comment 2\n\n{identity.Recipient}\n\n";
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text);
+        var parsed = Recipients.Parse(text);
         Assert.Single(parsed);
     }
 
@@ -79,7 +79,7 @@ public class RecipientsFileTests
     public void ParseRecipientsFile_UnrecognizedLine_Throws()
     {
         var text = "NOT-A-VALID-RECIPIENT\n";
-        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseRecipientsFile(text));
+        var ex = Assert.Throws<FormatException>(() => Recipients.Parse(text));
         Assert.Contains("unrecognized recipient", ex.Message);
     }
 
@@ -89,7 +89,7 @@ public class RecipientsFileTests
         using var identity = X25519Identity.Parse(PqLookalikeIdentity);
         Assert.Equal(PqLookalikeRecipient, identity.Recipient.ToString());
 
-        var parsed = AgeKeygen.ParseRecipientsFile($"{PqLookalikeRecipient}\n");
+        var parsed = Recipients.Parse($"{PqLookalikeRecipient}\n");
         Assert.Single(parsed);
         Assert.IsType<X25519Recipient>(parsed[0]);
     }
@@ -98,12 +98,12 @@ public class RecipientsFileTests
     public void ParseRecipientsFile_X25519StartingWithAge1Pq_RoundTrips()
     {
         using var identity = X25519Identity.Parse(PqLookalikeIdentity);
-        var recipients = AgeKeygen.ParseRecipientsFile($"{PqLookalikeRecipient}\n");
+        var recipients = Recipients.Parse($"{PqLookalikeRecipient}\n");
         var plaintext = "pq-lookalike recipient"u8.ToArray();
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, recipients.ToArray());
+        new Recipients(recipients.ToArray()).Encrypt(encInput, encOutput);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
@@ -115,15 +115,9 @@ public class RecipientsFileTests
     public void ParseRecipientsFile_PluginNameStartingWithPq_ParsesAsPlugin()
     {
         var recipient = Bech32.Encode("age1pqtest", [0x01, 0x02, 0x03]);
-        var parsed = AgeKeygen.ParseRecipientsFile($"{recipient}\n");
+        var parsed = Recipients.Parse($"{recipient}\n");
         Assert.Single(parsed);
         Assert.IsType<PluginRecipient>(parsed[0]);
-    }
-
-    [Fact]
-    public void ParseRecipientsFile_Empty_ReturnsEmpty()
-    {
-        Assert.Empty(AgeKeygen.ParseRecipientsFile(""));
     }
 
     [Fact]
@@ -133,12 +127,12 @@ public class RecipientsFileTests
         using var id2 = X25519Identity.Generate();
         var text = $"# Recipients\n{id1.Recipient}\n{id2.Recipient}\n";
 
-        var recipients = AgeKeygen.ParseRecipientsFile(text);
+        var recipients = Recipients.Parse(text);
         var plaintext = "Hello, recipients file!"u8.ToArray();
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, recipients.ToArray());
+        new Recipients(recipients.ToArray()).Encrypt(encInput, encOutput);
 
         // Decrypt with first identity
         encOutput.Position = 0;

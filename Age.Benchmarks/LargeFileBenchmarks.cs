@@ -29,11 +29,11 @@ public class LargeFileBenchmarks
         Random.Shared.NextBytes(_plaintext);
 
         using var encrypted = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(_plaintext), encrypted, _recipient);
+        new Recipients(_recipient).Encrypt(new MemoryStream(_plaintext), encrypted);
         _ciphertext = encrypted.ToArray();
 
         using var armored = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(_plaintext), armored, armor: true, _recipient);
+        new Recipients(_recipient).Encrypt(new MemoryStream(_plaintext), armored, new AgeEncryptOptions { Armor = true });
         _armoredCiphertext = armored.ToArray();
     }
 
@@ -42,7 +42,7 @@ public class LargeFileBenchmarks
 
     [Benchmark]
     public void Encrypt256MiB() =>
-        AgeEncrypt.Encrypt(new MemoryStream(_plaintext), Stream.Null, _recipient);
+        new Recipients(_recipient).Encrypt(new MemoryStream(_plaintext), Stream.Null);
 
     [Benchmark]
     public void Decrypt256MiB() =>
@@ -50,7 +50,7 @@ public class LargeFileBenchmarks
 
     [Benchmark]
     public void EncryptArmored256MiB() =>
-        AgeEncrypt.Encrypt(new MemoryStream(_plaintext), Stream.Null, armor: true, _recipient);
+        new Recipients(_recipient).Encrypt(new MemoryStream(_plaintext), Stream.Null, new AgeEncryptOptions { Armor = true });
 
     [Benchmark]
     public void DecryptArmored256MiB() =>

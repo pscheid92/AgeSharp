@@ -17,7 +17,7 @@ public class ValidationTests
     private static MemoryStream EncryptTo(IRecipient recipient)
     {
         var encrypted = new MemoryStream();
-        AgeEncrypt.Encrypt(Plaintext(), encrypted, recipient);
+        new Recipients(recipient).Encrypt(Plaintext(), encrypted);
         encrypted.Position = 0;
         return encrypted;
     }
@@ -31,7 +31,7 @@ public class ValidationTests
         var scrypt = new ScryptRecipient("pw", LowWorkFactor);
 
         var ex = Assert.Throws<AgeException>(() =>
-            AgeEncrypt.Encrypt(Plaintext(), new MemoryStream(), scrypt, identity.Recipient));
+            new Recipients(scrypt, identity.Recipient).Encrypt(Plaintext(), new MemoryStream()));
 
         Assert.Contains("only recipient", ex.Message);
     }
@@ -43,7 +43,7 @@ public class ValidationTests
         var second = new ScryptRecipient("pw2", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
-            AgeEncrypt.Encrypt(Plaintext(), new MemoryStream(), first, second));
+            new Recipients(first, second).Encrypt(Plaintext(), new MemoryStream()));
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class ValidationTests
         var scrypt = new ScryptRecipient("pw", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
-            AgeEncrypt.EncryptDetached(Plaintext(), new MemoryStream(), new MemoryStream(), scrypt, identity.Recipient));
+            new Recipients(scrypt, identity.Recipient).EncryptDetached(Plaintext(), new MemoryStream(), new MemoryStream()));
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class ValidationTests
         var scrypt = new ScryptRecipient("pw", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
-            AgeEncrypt.EncryptReader(Plaintext(), scrypt, identity.Recipient));
+            new Recipients(scrypt, identity.Recipient).EncryptReader(Plaintext()));
     }
 
     [Fact]

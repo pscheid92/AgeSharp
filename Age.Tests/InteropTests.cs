@@ -53,6 +53,28 @@ public class InteropTests
         Assert.Equal(plaintext, result);
     }
 
+    // The async encrypt path, judged by go-age at the chunk boundaries.
+    [SkippableTheory]
+    [InlineData(0, false)]
+    [InlineData(65536, false)]
+    [InlineData(65537, false)]
+    [InlineData(1048576, false)]
+    [InlineData(0, true)]
+    [InlineData(65536, true)]
+    [InlineData(65537, true)]
+    [InlineData(1048576, true)]
+    public void X25519_EncryptAsyncWithCSharp_DecryptWithAge(int size, bool armored)
+    {
+        Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
+
+        var identity = AgeUnderTest.GenerateX25519();
+        var plaintext = MakePlaintext(size);
+
+        var ciphertext = AgeUnderTest.Encrypt(plaintext, armored, asynchronously: true, identity.Recipient);
+
+        Assert.Equal(plaintext, AgeCli.Decrypt(identity.Identity, ciphertext));
+    }
+
     [SkippableTheory]
     [InlineData(0, false)]
     [InlineData(1, false)]

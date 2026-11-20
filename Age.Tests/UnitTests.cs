@@ -1219,7 +1219,7 @@ public class AgeEncryptTests
     {
         using var input = new MemoryStream("test"u8.ToArray());
         using var output = new MemoryStream();
-        Assert.Throws<ArgumentException>(() => AgeEncrypt.Encrypt(input, output));
+        Assert.Throws<ArgumentException>(() => new Recipients().Encrypt(input, output));
     }
 
     [Fact]
@@ -1230,7 +1230,7 @@ public class AgeEncryptTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, armor: true, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(encInput, encOutput, new AgeEncryptOptions { Armor = true });
 
         // Verify it's actually armored
         encOutput.Position = 0;
@@ -1252,7 +1252,7 @@ public class AgeEncryptTests
         var plaintext = "test"u8.ToArray();
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, id1.Recipient);
+        new Recipients(id1.Recipient).Encrypt(encInput, encOutput);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
@@ -1375,7 +1375,7 @@ public class DecryptStreamTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(encInput, encOutput);
         var ciphertextBytes = encOutput.ToArray();
 
         // Parse header to find payload offset
@@ -1417,7 +1417,7 @@ public class DecryptStreamTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(encInput, encOutput);
         var ciphertextBytes = encOutput.ToArray();
 
         // Parse header to find payload offset

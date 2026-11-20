@@ -57,7 +57,7 @@ public class OrdinalFramingTests
 
         using var input = new MemoryStream("ordinal"u8.ToArray());
         using var encrypted = new MemoryStream();
-        AgeEncrypt.Encrypt(input, encrypted, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(input, encrypted);
 
         using var source = new MemoryStream(encrypted.ToArray());
         using var output = new MemoryStream();

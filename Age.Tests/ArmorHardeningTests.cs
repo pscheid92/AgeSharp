@@ -13,7 +13,7 @@ public class ArmorHardeningTests
     {
         using var input = new MemoryStream(plaintext);
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, armor: true, recipient);
+        new Recipients(recipient).Encrypt(input, output, new AgeEncryptOptions { Armor = true });
         return output.ToArray();
     }
 

@@ -54,7 +54,8 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 - [ ] File-key extraction and injection (`ExtractHeader`, `DecryptHeader`, injected-file-key identity)
 - [ ] Public armor reader and writer
 - [ ] Replace the `AgeEncrypt` / `AgeKeygen` static catch-alls with domain types
-  - `AgeKeygen.ParseRecipient(string)` parses X25519 only (it returns `X25519Recipient`); a recipient string of unknown type takes `ParseRecipientsFile(line)[0]` (or the type's own `Parse` when the type is known). Until the rebuild, the README and the method's docs say so
+  - [x] Encrypting: `Recipients` (rebuild step 4b), with `Recipients.ParseOne` for a recipient of any type
+  - [ ] Decrypting: `Identities` (4c); the writer forms (4d); the seekable reader, the header read and public armor (4e)
 
 ## Internal (from the 2026-09-22 review)
 

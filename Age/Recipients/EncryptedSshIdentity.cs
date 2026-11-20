@@ -31,7 +31,7 @@ public sealed class EncryptedSshIdentity : IIdentityWithRecipient, IDisposable
         _tag = SshKeyParser.ComputeTag(protectedKey.PublicKey);
 
         var authorizedKeysLine = $"{_keyType} {Convert.ToBase64String(protectedKey.PublicKey)}";
-        Recipient = AgeKeygen.ParseSshRecipient(authorizedKeysLine);
+        Recipient = Recipients.ParseSsh(authorizedKeysLine);
     }
 
     /// <summary>The matching recipient, from the key's public key. Needs no passphrase.</summary>

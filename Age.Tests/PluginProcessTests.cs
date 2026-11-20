@@ -227,7 +227,7 @@ public class PluginProcessTests
 
             using var input = new MemoryStream("through the facade"u8.ToArray());
             using var output = new MemoryStream();
-            AgeEncrypt.Encrypt(input, output, recipient);
+            new Recipients(recipient).Encrypt(input, output);
 
             // The plugin's stanza reached the header, so the file is well formed even though we
             // hold no identity that could open it.

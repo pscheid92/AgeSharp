@@ -57,7 +57,7 @@ public class LegacyPemSshKeyTests
     [Fact]
     public void DoesNotAsk_WhenTheFileIsForAnotherSshKey()
     {
-        var ciphertext = Encrypt(AgeKeygen.ParseSshRecipient(Key("rsa_other.pub")));
+        var ciphertext = Encrypt(Recipients.ParseOne(Key("rsa_other.pub")));
         using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_plain.pub", NeverAsked);
 
         Assert.Throws<NoIdentityMatchException>(() => Decrypt(ciphertext, identity));
@@ -177,7 +177,7 @@ public class LegacyPemSshKeyTests
         var pem = Key("rsa_legacy_pem").Replace("DEK-Info: AES-128-CBC,", $"DEK-Info: {cipher},");
         using var identity = Assert.IsType<EncryptedSshIdentity>(AgeKeygen.ParseSshIdentity(pem, Key("rsa_plain.pub"), NeverAsked));
 
-        var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(AgeKeygen.ParseSshRecipient(Key("rsa_plain.pub"))), identity));
+        var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(Recipients.ParseOne(Key("rsa_plain.pub"))), identity));
 
         Assert.Contains(shown, ex.Message);
         Assert.DoesNotContain('\u001b', ex.Message);
@@ -214,7 +214,7 @@ public class LegacyPemSshKeyTests
         var pem = DamageBody(Key("rsa_legacy_pem"));
         using var identity = Assert.IsType<EncryptedSshIdentity>(AgeKeygen.ParseSshIdentity(pem, Key("rsa_plain.pub"), () => Passphrase));
 
-        var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(AgeKeygen.ParseSshRecipient(Key("rsa_plain.pub"))), identity));
+        var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(Recipients.ParseOne(Key("rsa_plain.pub"))), identity));
 
         Assert.Contains("incorrect passphrase", ex.Message);
     }
@@ -324,12 +324,12 @@ public class LegacyPemSshKeyTests
     private static string Key(string name) =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "EncryptedSsh", name));
 
-    private static IRecipient PlainRecipient() => AgeKeygen.ParseSshRecipient(Key("rsa_plain.pub"));
+    private static IRecipient PlainRecipient() => Recipients.ParseOne(Key("rsa_plain.pub"));
 
     private static byte[] Encrypt(IRecipient recipient)
     {
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(Plaintext), output, recipient);
+        new Recipients(recipient).Encrypt(new MemoryStream(Plaintext), output);
         return output.ToArray();
     }
 

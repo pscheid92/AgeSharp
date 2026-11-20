@@ -760,7 +760,7 @@ public class PluginTests
         var pluginRecip = MakePluginRecipient("yubikey");
         var text = $"# plugin key\n{pluginRecip}\n";
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text);
+        var parsed = Recipients.Parse(text);
         Assert.Single(parsed);
         Assert.IsType<PluginRecipient>(parsed[0]);
         Assert.Equal(pluginRecip, parsed[0].ToString());
@@ -773,7 +773,7 @@ public class PluginTests
         using var pq = MlKem768X25519Identity.Generate();
         var text = $"{pq.Recipient}\n";
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text);
+        var parsed = Recipients.Parse(text);
         Assert.Single(parsed);
         Assert.IsType<MlKem768X25519Recipient>(parsed[0]);
     }
@@ -785,7 +785,7 @@ public class PluginTests
         using var x25519 = X25519Identity.Generate();
         var text = $"{x25519.Recipient}\n";
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text);
+        var parsed = Recipients.Parse(text);
         Assert.Single(parsed);
         Assert.IsType<X25519Recipient>(parsed[0]);
     }
@@ -797,8 +797,8 @@ public class PluginTests
         var pluginRecip = MakePluginRecipient("yubikey");
         var text = $"{x25519.Recipient}\n{pluginRecip}\n";
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text);
-        Assert.Equal(2, parsed.Length);
+        var parsed = Recipients.Parse(text);
+        Assert.Equal(2, parsed.Count);
         Assert.IsType<X25519Recipient>(parsed[0]);
         Assert.IsType<PluginRecipient>(parsed[1]);
     }
@@ -835,7 +835,7 @@ public class PluginTests
         var callbacks = new TestCallbacks();
         var text = $"{pluginRecip}\n";
 
-        var parsed = AgeKeygen.ParseRecipientsFile(text, callbacks);
+        var parsed = Recipients.Parse(text, callbacks);
         Assert.Single(parsed);
         Assert.IsType<PluginRecipient>(parsed[0]);
     }
@@ -897,7 +897,7 @@ public class PluginTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(encInput, encOutput);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
@@ -913,7 +913,7 @@ public class PluginTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        AgeEncrypt.Encrypt(encInput, encOutput, new ScryptRecipient(passphrase, 10));
+        new Recipients(new ScryptRecipient(passphrase, 10)).Encrypt(encInput, encOutput);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();

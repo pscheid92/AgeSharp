@@ -23,7 +23,7 @@ public class PooledBufferLifetimeTests
 
         using var input = new MemoryStream(plaintext);
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, identity.Recipient);
+        new Recipients(identity.Recipient).Encrypt(input, output);
 
         return (output.ToArray(), identity);
     }
@@ -64,7 +64,7 @@ public class PooledBufferLifetimeTests
     {
         using var identity = X25519Identity.Generate();
 
-        var stream = AgeEncrypt.EncryptReader(new MemoryStream(new byte[4096]), identity.Recipient);
+        var stream = new Recipients(identity.Recipient).EncryptReader(new MemoryStream(new byte[4096]));
         using (var sink = new MemoryStream()) stream.CopyTo(sink);
 
         stream.Close();
@@ -79,7 +79,7 @@ public class PooledBufferLifetimeTests
     {
         using var identity = X25519Identity.Generate();
 
-        var stream = AgeEncrypt.EncryptReader(new MemoryStream(new byte[4096]), true, identity.Recipient);
+        var stream = new Recipients(identity.Recipient).EncryptReader(new MemoryStream(new byte[4096]), new AgeEncryptOptions { Armor = true });
         using (var sink = new MemoryStream()) stream.CopyTo(sink);
 
         stream.Close();
@@ -124,7 +124,7 @@ public class PooledBufferLifetimeTests
     {
         using var identity = X25519Identity.Generate();
 
-        var stream = AgeEncrypt.EncryptReader(new MemoryStream(new byte[64]), identity.Recipient);
+        var stream = new Recipients(identity.Recipient).EncryptReader(new MemoryStream(new byte[64]));
         stream.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => stream.Read(new byte[16], 0, 16));

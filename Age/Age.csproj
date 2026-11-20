@@ -43,4 +43,15 @@
     <None Include="../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
+    <PropertyGroup>
+        <!-- RS0026: "do not add multiple overloads with optional parameters". Recipients.Encrypt
+             (and, from step 4c, Identities.Decrypt) has a stream form and a bytes form, both
+             taking optional options. The rule guards against ambiguous overload resolution and
+             against baking a default into caller binaries; neither applies. The two forms differ
+             in their first parameter (Stream against ReadOnlySpan<byte>), so they never compete,
+             and the only default is null, resolved inside the method, so changing what a
+             default means never needs callers recompiled. -->
+        <NoWarn>$(NoWarn);RS0026</NoWarn>
+    </PropertyGroup>
+
 </Project>

@@ -22,7 +22,7 @@ public class FailStopStreamTests
         using var identity = X25519Identity.Generate();
         // Fails partway, at the third plaintext chunk.
         using var source = new FailsOnceStream(new MemoryStream(Plaintext(200_000)), failAt: 2 * StreamEncryption.ChunkSize);
-        using var encrypted = AgeEncrypt.EncryptReader(source, armor, identity.Recipient);
+        using var encrypted = new Recipients(identity.Recipient).EncryptReader(source, new AgeEncryptOptions { Armor = armor });
 
         var first = Assert.Throws<IOException>(() => DrainOneByteAtATime(encrypted));
         var retry = Assert.Throws<IOException>(() => DrainOneByteAtATime(encrypted));
@@ -124,7 +124,7 @@ public class FailStopStreamTests
     private static byte[] Encrypt(byte[] plaintext, IRecipient recipient)
     {
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(plaintext), output, recipient);
+        new Recipients(recipient).Encrypt(new MemoryStream(plaintext), output);
         return output.ToArray();
     }
 

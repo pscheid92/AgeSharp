@@ -26,11 +26,11 @@ public class EncryptDecryptBenchmarks
 
         // Pre-encrypt for decrypt benchmarks
         using var encOut = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(_plaintext), encOut, _recipient);
+        new Recipients(_recipient).Encrypt(new MemoryStream(_plaintext), encOut);
         _ciphertext = encOut.ToArray();
 
         using var armorOut = new MemoryStream();
-        AgeEncrypt.Encrypt(new MemoryStream(_plaintext), armorOut, armor: true, _recipient);
+        new Recipients(_recipient).Encrypt(new MemoryStream(_plaintext), armorOut, new AgeEncryptOptions { Armor = true });
         _armoredCiphertext = armorOut.ToArray();
     }
 
@@ -42,7 +42,7 @@ public class EncryptDecryptBenchmarks
     {
         using var input = new MemoryStream(_plaintext);
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, _recipient);
+        new Recipients(_recipient).Encrypt(input, output);
     }
 
     [Benchmark]
@@ -58,7 +58,7 @@ public class EncryptDecryptBenchmarks
     {
         using var input = new MemoryStream(_plaintext);
         using var output = new MemoryStream();
-        AgeEncrypt.Encrypt(input, output, armor: true, _recipient);
+        new Recipients(_recipient).Encrypt(input, output, new AgeEncryptOptions { Armor = true });
     }
 
     [Benchmark]

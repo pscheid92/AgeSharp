@@ -6,17 +6,9 @@ namespace AgeSharp.Crypto;
 
 internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byte[] payloadKey, Stream plaintext) : Stream
 {
-    private enum State
-    {
-        Preamble,
-        Chunks,
-        Done
-    }
-
     private const int PlaintextBufferSize = StreamEncryption.ChunkSize + 1;
     private const int CiphertextBufferSize = StreamEncryption.EncryptedChunkSize;
 
-    private State _state = State.Preamble;
     private bool _disposed;
     private ExceptionDispatchInfo? _failure;
     private readonly byte[] _preamble = [..headerBytes, ..payloadNonce];
@@ -47,16 +39,22 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
 
     public override int Read(Span<byte> buffer)
     {
-        // See DecryptStream.Read: the pooled buffers no longer belong to this stream.
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        // A failed read has already consumed the look-ahead byte. Carrying on would encrypt the
-        // plaintext without it, and the result would still authenticate — so fail every read.
-        _failure?.Throw();
+        ThrowIfUnusable();
 
         try
         {
-            return ReadCore(buffer);
+            var total = 0;
+
+            while (true)
+            {
+                total += EmitReady(buffer[total..]);
+
+                // Short of a full buffer, EmitReady has handed out everything encrypted so far.
+                if (total == buffer.Length || _emittedFinal)
+                    return total;
+
+                EncryptChunk(ReadPlaintext());
+            }
         }
         catch (Exception ex)
         {
@@ -65,54 +63,62 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         }
     }
 
-    private int ReadCore(Span<byte> buffer)
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+        ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+    // The same steps as Read, with the plaintext read awaited: the only I/O this stream does.
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        var totalRead = 0;
+        ThrowIfUnusable();
 
-        while (totalRead < buffer.Length)
+        try
         {
-            switch (_state)
+            var total = 0;
+
+            while (true)
             {
-                case State.Preamble:
-                    totalRead += EmitBuffer(_preamble, ref _preambleOffset, buffer[totalRead..]);
-                    if (_preambleOffset >= _preamble.Length)
-                        _state = State.Chunks;
-                    break;
+                total += EmitReady(buffer.Span[total..]);
 
-                case State.Chunks:
-                    totalRead += EmitNextChunk(buffer[totalRead..]);
-                    break;
+                // Short of a full buffer, EmitReady has handed out everything encrypted so far.
+                if (total == buffer.Length || _emittedFinal)
+                    return total;
 
-                case State.Done:
-                    return totalRead;
-
-                default:
-                    throw new ArgumentOutOfRangeException();
+                EncryptChunk(await ReadPlaintextAsync(cancellationToken).ConfigureAwait(false));
             }
         }
-
-        return totalRead;
-    }
-
-    private int EmitNextChunk(Span<byte> dest)
-    {
-        if (_chunkOffset < _chunkLength)
-            return EmitBuffer(_ciphertextBuffer.AsSpan(0, _chunkLength), ref _chunkOffset, dest);
-
-        if (_emittedFinal)
+        catch (Exception ex)
         {
-            _state = State.Done;
-            return 0;
+            _failure = ExceptionDispatchInfo.Capture(ex);
+            throw;
         }
-
-        EncryptNextChunk();
-        return EmitBuffer(_ciphertextBuffer.AsSpan(0, _chunkLength), ref _chunkOffset, dest);
     }
 
-    private void EncryptNextChunk()
+    private void ThrowIfUnusable()
     {
-        // Read ChunkSize+1 bytes: the extra byte detects EOF
-        var bytesRead = ReadFromPlaintext(_plaintextBuffer, StreamEncryption.ChunkSize + 1);
+        // See DecryptStream.Read: the pooled buffers no longer belong to this stream.
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // A failed read has already consumed the look-ahead byte. Carrying on would encrypt the
+        // plaintext without it, and the result would still authenticate — so fail every read.
+        _failure?.Throw();
+    }
+
+    // Copies out what is already encrypted, the header and nonce first, without reading
+    // plaintext. Stops when the buffer is full or the next chunk has to be read.
+    private int EmitReady(Span<byte> dest)
+    {
+        var total = EmitBuffer(_preamble, ref _preambleOffset, dest);
+
+        if (_preambleOffset == _preamble.Length)
+            total += EmitBuffer(_ciphertextBuffer.AsSpan(0, _chunkLength), ref _chunkOffset, dest[total..]);
+
+        return total;
+    }
+
+
+    // bytesRead counts the look-ahead byte: ChunkSize + 1 means another chunk follows.
+    private void EncryptChunk(int bytesRead)
+    {
         var isFinal = bytesRead <= StreamEncryption.ChunkSize;
         var chunkLen = Math.Min(bytesRead, StreamEncryption.ChunkSize);
 
@@ -146,16 +152,23 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         return toCopy;
     }
 
-    private int ReadFromPlaintext(byte[] buffer, int count)
+    // Reads ChunkSize + 1 bytes, the extra one detecting the end. _plaintextBuffer[0] already
+    // holds the pending byte; the flag is cleared only once the read has succeeded, so a throw
+    // leaves it describing the buffer truthfully.
+    private int ReadPlaintext()
     {
-        // buffer[0] already contains the pending byte. The flag is cleared only once the read has
-        // succeeded, so a throw leaves it describing the buffer truthfully.
-        var total = _pendingByte ? 1 : 0;
-
-        total += plaintext.ReadAtLeast(buffer.AsSpan(total, count - total), count - total, throwOnEndOfStream: false);
+        var pending = _pendingByte ? 1 : 0;
+        var read = plaintext.ReadAtLeast(_plaintextBuffer.AsSpan(pending, PlaintextBufferSize - pending), PlaintextBufferSize - pending, throwOnEndOfStream: false);
         _pendingByte = false;
+        return pending + read;
+    }
 
-        return total;
+    private async ValueTask<int> ReadPlaintextAsync(CancellationToken cancellationToken)
+    {
+        var pending = _pendingByte ? 1 : 0;
+        var read = await plaintext.ReadAtLeastAsync(_plaintextBuffer.AsMemory(pending, PlaintextBufferSize - pending), PlaintextBufferSize - pending, throwOnEndOfStream: false, cancellationToken).ConfigureAwait(false);
+        _pendingByte = false;
+        return pending + read;
     }
 
     // See DecryptStream.Dispose: without the guard, a legal Close()+Dispose() Returns each
