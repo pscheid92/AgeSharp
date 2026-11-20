@@ -89,10 +89,10 @@ public class PlaintextResidueTests
         var ciphertext = Encrypt(MarkedPlaintext(), identity.Recipient);
 
         // Corrupt chunk 0, the one the first ReadByte decrypts. 16 is the payload nonce.
-        var payloadStart = (int)AgeHeader.Parse(new MemoryStream(ciphertext)).PayloadOffset + 16;
+        var payloadStart = (int)AgeHeader.Read(new MemoryStream(ciphertext)).PayloadOffset!.Value + 16;
         ciphertext[payloadStart] ^= 0x01;
 
-        using var decrypted = new Identities(identity).DecryptReader(new MemoryStream(ciphertext));
+        using var decrypted = new Identities(identity).DecryptReader(new NonSeekableStream(new MemoryStream(ciphertext)));
 
         var first = Assert.Throws<AgePayloadException>(() => decrypted.ReadByte());
         var copy = await Assert.ThrowsAsync<AgePayloadException>(() => Copy(decrypted, new RecordingStream(), async));
@@ -106,10 +106,10 @@ public class PlaintextResidueTests
     public async Task RandomAccess_Copy_LeavesNoPlaintextInTheBuffersItWritesFrom(bool async)
     {
         using var identity = X25519Identity.Generate();
-        using var reader = new AgeRandomAccess(new MemoryStream(Encrypt(MarkedPlaintext(), identity.Recipient)), identity);
+        using var reader = new Identities(identity).DecryptReader(new MemoryStream(Encrypt(MarkedPlaintext(), identity.Recipient)));
 
         var destination = new RecordingStream();
-        await Copy(reader.GetStream(), destination, async);
+        await Copy(reader.From(), destination, async);
 
         Assert.Equal(MarkedPlaintext(), destination.Received);
         Assert.DoesNotContain(destination.SourceArrays, HoldsPlaintext);
@@ -122,10 +122,10 @@ public class PlaintextResidueTests
     {
         using var identity = X25519Identity.Generate();
         var plaintext = MarkedPlaintext();
-        using var reader = new AgeRandomAccess(new MemoryStream(Encrypt(plaintext, identity.Recipient)), identity);
+        using var reader = new Identities(identity).DecryptReader(new MemoryStream(Encrypt(plaintext, identity.Recipient)));
 
         const int start = StreamEncryption.ChunkSize + 123;
-        using var stream = reader.GetStream(start);
+        using var stream = reader.From(start);
 
         var destination = new RecordingStream();
         await Copy(stream, destination, async);

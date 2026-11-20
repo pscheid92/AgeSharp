@@ -200,7 +200,7 @@ public class BackportEdgeCaseTests
         Assert.Throws<AgePayloadException>(() =>
         {
             using var source = new MemoryStream(truncated);
-            using var reader = new AgeRandomAccess(source, identity);
+            using var reader = new Identities(identity).DecryptReader(source);
         });
     }
 
@@ -217,7 +217,7 @@ public class BackportEdgeCaseTests
         Assert.Throws<AgePayloadException>(() =>
         {
             using var source = new MemoryStream(truncated);
-            using var reader = new AgeRandomAccess(source, identity);
+            using var reader = new Identities(identity).DecryptReader(source);
         });
     }
 

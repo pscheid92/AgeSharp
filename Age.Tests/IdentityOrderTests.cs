@@ -12,7 +12,7 @@ public class IdentityOrderTests
 {
     private static readonly byte[] Plaintext = "tried in order"u8.ToArray();
 
-    public static TheoryData<string> DecryptionPaths => ["Decrypt", "DecryptReader", "DecryptDetached", "AgeRandomAccess"];
+    public static TheoryData<string> DecryptionPaths => ["Decrypt", "DecryptReader", "DecryptDetached", "SeekableDecryptReader"];
 
     // go-age's TestDecryptNativeIdentitiesFirst, on every way in.
     [Theory]
@@ -90,7 +90,7 @@ public class IdentityOrderTests
             }
             case "DecryptReader":
             {
-                using var reader = new Identities(identities).DecryptReader(new MemoryStream(ciphertext));
+                using var reader = new Identities(identities).DecryptReader(new NonSeekableStream(new MemoryStream(ciphertext)));
                 using var output = new MemoryStream();
                 reader.CopyTo(output);
                 return output.ToArray();
@@ -100,7 +100,7 @@ public class IdentityOrderTests
                 using var header = new MemoryStream();
                 using var payload = new MemoryStream();
                 // Split the file the way EncryptDetached would have: the header ends at the MAC line.
-                var offset = AgeHeader.Parse(new MemoryStream(ciphertext)).PayloadOffset;
+                var offset = AgeHeader.Read(new MemoryStream(ciphertext)).PayloadOffset!.Value;
                 header.Write(ciphertext, 0, (int)offset);
                 payload.Write(ciphertext, (int)offset, ciphertext.Length - (int)offset);
                 header.Position = payload.Position = 0;
@@ -108,11 +108,11 @@ public class IdentityOrderTests
                 new Identities(identities).DecryptDetached(header, payload, output);
                 return output.ToArray();
             }
-            case "AgeRandomAccess":
+            case "SeekableDecryptReader":
             {
-                using var randomAccess = new AgeRandomAccess(new MemoryStream(ciphertext), identities);
-                var plaintext = new byte[randomAccess.PlaintextLength];
-                randomAccess.ReadAt(0, plaintext);
+                using var seekable = new Identities(identities).DecryptReader(new MemoryStream(ciphertext));
+                var plaintext = new byte[seekable.Length];
+                seekable.ReadAt(0, plaintext);
                 return plaintext;
             }
             default:

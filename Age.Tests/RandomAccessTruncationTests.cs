@@ -6,8 +6,8 @@ namespace Age.Tests;
 /// <summary>
 /// The seekable path must reject a truncated or tampered payload exactly as the
 /// forward-only path does. Chunk layout alone cannot tell a truncated file from a
-/// shorter one, so <see cref="AgeRandomAccess"/> authenticates the final chunk at
-/// construction. Every case here asserts both paths agree.
+/// shorter one, so the seekable reader <c>DecryptReader</c> returns authenticates the final
+/// chunk when it opens. Every case here asserts both paths agree.
 /// </summary>
 public class RandomAccessTruncationTests
 {
@@ -63,9 +63,9 @@ public class RandomAccessTruncationTests
     {
         using var identity = X25519Identity.Generate();
         using var input = new MemoryStream(Encrypt(0, identity.Recipient));
-        using var ra = new AgeRandomAccess(input, identity);
+        using var ra = new Identities(identity).DecryptReader(input);
 
-        Assert.Equal(0, ra.PlaintextLength);
+        Assert.Equal(0, ra.Length);
         Assert.Equal(0, ra.ReadAt(0, new byte[10]));
     }
 
@@ -79,7 +79,7 @@ public class RandomAccessTruncationTests
         var truncated = Truncate(Encrypt(196608, identity.Recipient), 5);
 
         using var input = new MemoryStream(truncated);
-        Assert.Throws<AgePayloadException>(() => new AgeRandomAccess(input, identity));
+        Assert.Throws<AgePayloadException>(() => new Identities(identity).DecryptReader(input));
     }
 
     [Fact]
@@ -90,8 +90,8 @@ public class RandomAccessTruncationTests
         new Random(7).NextBytes(plaintext);
 
         using var input = new MemoryStream(Encrypt(plaintext, identity.Recipient));
-        using var ra = new AgeRandomAccess(input, identity);
-        using var stream = ra.GetStream();
+        using var ra = new Identities(identity).DecryptReader(input);
+        using var stream = ra.From();
 
         Assert.Equal(plaintext.Length, stream.Length);
         Assert.Equal(plaintext.Length, stream.Seek(0, SeekOrigin.End));
@@ -125,8 +125,10 @@ public class RandomAccessTruncationTests
         lines.RemoveAt(lines.Count - 2);
         var bytes = System.Text.Encoding.ASCII.GetBytes(string.Join('\n', lines) + "\n");
 
+        // Armor is read in order, so the missing chunk is found where reading reaches it.
         using var input = new MemoryStream(bytes);
-        Assert.Throws<AgePayloadException>(() => new AgeRandomAccess(input, identity));
+        using var reader = new Identities(identity).DecryptReader(input);
+        Assert.Throws<AgePayloadException>(() => reader.CopyTo(Stream.Null));
     }
 
     private static void AssertBothPathsReject(byte[] ciphertext, IIdentity identity)
@@ -136,7 +138,7 @@ public class RandomAccessTruncationTests
         Assert.Throws<AgePayloadException>(() => new Identities(identity).Decrypt(forwardInput, sink));
 
         using var seekInput = new MemoryStream(ciphertext);
-        Assert.Throws<AgePayloadException>(() => new AgeRandomAccess(seekInput, identity));
+        Assert.Throws<AgePayloadException>(() => new Identities(identity).DecryptReader(seekInput));
     }
 
     private static long EncryptedLength(long plaintextLength)

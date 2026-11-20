@@ -16,7 +16,7 @@ public class HeaderLimitsTests
 
     [Fact]
     public void RecipientStanzas_UpToTheLimit_AreAccepted() =>
-        Assert.Equal(1024, Parse(Stanzas(1024)).RecipientCount);
+        Assert.Equal(1024, Parse(Stanzas(1024)).Stanzas.Count);
 
     [Fact]
     public void RecipientStanzas_BeyondTheLimit_AreRejected()
@@ -27,7 +27,7 @@ public class HeaderLimitsTests
 
     [Fact]
     public void StanzaArguments_UpToTheLimit_AreAccepted() =>
-        Assert.Equal(128, Parse(Stanza(arguments: 128)).Recipients[0].Args.Count);
+        Assert.Equal(128, Parse(Stanza(arguments: 128)).Stanzas[0].Args.Count);
 
     [Fact]
     public void StanzaArguments_BeyondTheLimit_AreRejected() =>
@@ -36,7 +36,7 @@ public class HeaderLimitsTests
     // A single line may be as long as the header allows: go-age has no separate line limit.
     [Fact]
     public void LongStanzaLine_IsAccepted() =>
-        Assert.Equal(100 * 1024, Parse(StanzaWithArgumentOf(100 * 1024)).Recipients[0].Args[0].Length);
+        Assert.Equal(100 * 1024, Parse(StanzaWithArgumentOf(100 * 1024)).Stanzas[0].Args[0].Length);
 
     [Theory]
     [InlineData(0, true)]
@@ -55,7 +55,7 @@ public class HeaderLimitsTests
     }
 
     private static AgeHeader Parse(string header) =>
-        AgeHeader.Parse(new MemoryStream(Encoding.ASCII.GetBytes(header)));
+        AgeHeader.Read(new MemoryStream(Encoding.ASCII.GetBytes(header)));
 
     private static string Stanzas(int count) =>
         Intro + string.Concat(Enumerable.Repeat("-> t a\n\n", count)) + MacLine;

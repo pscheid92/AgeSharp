@@ -27,7 +27,7 @@ public class RecipientIdentityContractTests
 
         var ciphertext = Encrypt(group);
 
-        Assert.Equal(2, AgeHeader.Parse(new MemoryStream(ciphertext)).RecipientCount);
+        Assert.Equal(2, AgeHeader.Read(new MemoryStream(ciphertext)).Stanzas.Count);
         Assert.Equal(Plaintext, Decrypt(ciphertext, first));
         Assert.Equal(Plaintext, Decrypt(ciphertext, second));
     }

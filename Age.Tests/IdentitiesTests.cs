@@ -323,7 +323,7 @@ public class IdentitiesTests
     {
         using var alice = X25519Identity.Generate();
         var file = new Recipients(alice.Recipient).Encrypt(Plaintext);
-        var headerLength = (int)AgeHeader.Parse(new MemoryStream(file)).PayloadOffset;
+        var headerLength = (int)AgeHeader.Read(new MemoryStream(file)).PayloadOffset!.Value;
         var truncated = file[..(headerLength + 5)];
         var with = new Identities(alice);
 

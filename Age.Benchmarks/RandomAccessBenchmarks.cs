@@ -11,7 +11,7 @@ public class RandomAccessBenchmarks
 
     private X25519Identity _identity = null!;
     private byte[] _ciphertext = null!;
-    private AgeRandomAccess _randomAccess = null!;
+    private Stream _randomAccess = null!;
     private long[] _randomOffsets = null!;
 
     [GlobalSetup]
@@ -27,11 +27,12 @@ public class RandomAccessBenchmarks
         new Recipients(recipient).Encrypt(new MemoryStream(plaintext), encOut);
         _ciphertext = encOut.ToArray();
 
-        _randomAccess = new AgeRandomAccess(new MemoryStream(_ciphertext), _identity);
+        // Seekable, because the ciphertext is: DecryptReader reads from any position.
+        _randomAccess = new Identities(_identity).DecryptReader(new MemoryStream(_ciphertext));
 
         // Pre-generate random offsets with fixed seed for reproducibility
         var rng = new Random(42);
-        var maxOffset = _randomAccess.PlaintextLength - ReadSize;
+        var maxOffset = _randomAccess.Length - ReadSize;
         _randomOffsets = new long[256];
         for (var i = 0; i < _randomOffsets.Length; i++)
             _randomOffsets[i] = rng.NextInt64(0, maxOffset);
@@ -49,9 +50,10 @@ public class RandomAccessBenchmarks
     {
         Span<byte> buffer = stackalloc byte[ReadSize];
         long offset = 0;
-        while (offset < _randomAccess.PlaintextLength)
+        while (offset < _randomAccess.Length)
         {
-            _randomAccess.ReadAt(offset, buffer);
+            _randomAccess.Position = offset;
+            _randomAccess.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
             offset += ReadSize;
         }
     }
@@ -61,6 +63,9 @@ public class RandomAccessBenchmarks
     {
         Span<byte> buffer = stackalloc byte[ReadSize];
         foreach (var offset in _randomOffsets)
-            _randomAccess.ReadAt(offset, buffer);
+        {
+            _randomAccess.Position = offset;
+            _randomAccess.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
+        }
     }
 }

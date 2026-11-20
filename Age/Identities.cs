@@ -187,7 +187,8 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
     {
         ArgumentNullException.ThrowIfNull(plaintext);
 
-        using var stream = DecryptReader(ciphertext, options);
+        // Front to back, whatever the stream: a whole decryption has no use for seeking.
+        using var stream = OpenReader(ciphertext, options, seekable: false);
         stream.CopyTo(plaintext);
         plaintext.EnsureMaterialized();
     }
@@ -231,7 +232,7 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
     {
         ArgumentNullException.ThrowIfNull(plaintext);
 
-        var stream = await DecryptReaderAsync(ciphertext, options, cancellationToken).ConfigureAwait(false);
+        var stream = await OpenReaderAsync(ciphertext, options, seekable: false, cancellationToken).ConfigureAwait(false);
 
         await using (stream.ConfigureAwait(false))
         {
@@ -246,13 +247,34 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
     /// time as it is read. Armor is detected on any readable stream. Dispose it when done; that
     /// leaves <paramref name="ciphertext"/> open.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When <paramref name="ciphertext"/> can seek and is binary, so can the returned stream:
+    /// its <see cref="Stream.Length"/> is the plaintext's, and it reads from any position,
+    /// decrypting only the chunks a read touches. The age file must run to the end of
+    /// <paramref name="ciphertext"/>, starting at its position. Opening decrypts the final chunk,
+    /// so the length is authenticated and a truncated file is refused at once. A read that fails
+    /// leaves the position where it was. Reading moves <paramref name="ciphertext"/>'s position,
+    /// so use one reader per thread.
+    /// </para>
+    /// <para>
+    /// Armored input, and input that cannot seek, is read front to back. After a failed read
+    /// such a stream fails every later read, since where the next chunk starts is then unknown.
+    /// </para>
+    /// </remarks>
     /// <exception cref="NoIdentityMatchException">No identity opened any stanza.</exception>
-    /// <exception cref="AgeException">The header or armor is malformed, or the header failed authentication.</exception>
-    public Stream DecryptReader(Stream ciphertext, AgeDecryptOptions? options = null)
+    /// <exception cref="AgeException">The header or armor is malformed, the header failed authentication, or (seekable) the final chunk did.</exception>
+    public Stream DecryptReader(Stream ciphertext, AgeDecryptOptions? options = null) =>
+        OpenReader(ciphertext, options, seekable: true);
+
+    private Stream OpenReader(Stream ciphertext, AgeDecryptOptions? options, bool seekable)
     {
         ArgumentNullException.ThrowIfNull(ciphertext);
         ObjectDisposedException.ThrowIf(_disposed, this);
         options ??= AgeDecryptOptions.Default;
+
+        if (seekable && ciphertext.CanSeek && !AsciiArmor.IsArmored(ciphertext, options))
+            return OpenSeekable(ciphertext, options);
 
         // The binary input is ours (a look-ahead or a dearmoring wrapper, neither of which
         // disposes the caller's stream). The returned DecryptStream takes it over; until then a
@@ -275,14 +297,38 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
         }
     }
 
-    /// <summary>The asynchronous <see cref="DecryptReader"/>: the header is read asynchronously too.</summary>
+    // A binary file on a seekable stream is read where it lies, with no look-ahead wrapper.
+    private SeekableDecryptStream OpenSeekable(Stream ciphertext, AgeDecryptOptions options)
+    {
+        if (options.RequireArmor)
+            throw AsciiArmor.NotArmored();
+
+        var reader = new HeaderReader(ciphertext, options);
+
+        byte[] payloadKey;
+        using (var fileKey = Unlock(ParseHeader(reader)))
+        {
+            var nonce = new byte[StreamEncryption.PayloadNonceSize];
+            payloadKey = PayloadKey(fileKey, nonce, reader.ReadPayloadBytes(nonce));
+        }
+
+        return SeekableDecryptStream.Open(payloadKey, ciphertext);
+    }
+
+    /// <summary>The asynchronous <see cref="DecryptReader"/>: the header, and when seekable the final chunk, are read asynchronously too.</summary>
     /// <exception cref="NoIdentityMatchException">No identity opened any stanza.</exception>
-    /// <exception cref="AgeException">The header or armor is malformed, or the header failed authentication.</exception>
-    public async ValueTask<Stream> DecryptReaderAsync(Stream ciphertext, AgeDecryptOptions? options = null, CancellationToken cancellationToken = default)
+    /// <exception cref="AgeException">The header or armor is malformed, the header failed authentication, or (seekable) the final chunk did.</exception>
+    public ValueTask<Stream> DecryptReaderAsync(Stream ciphertext, AgeDecryptOptions? options = null, CancellationToken cancellationToken = default) =>
+        OpenReaderAsync(ciphertext, options, seekable: true, cancellationToken);
+
+    private async ValueTask<Stream> OpenReaderAsync(Stream ciphertext, AgeDecryptOptions? options, bool seekable, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(ciphertext);
         ObjectDisposedException.ThrowIf(_disposed, this);
         options ??= AgeDecryptOptions.Default;
+
+        if (seekable && ciphertext.CanSeek && !await AsciiArmor.IsArmoredAsync(ciphertext, options, cancellationToken).ConfigureAwait(false))
+            return await OpenSeekableAsync(ciphertext, options, cancellationToken).ConfigureAwait(false);
 
         var (binary, _) = await AsciiArmor.OpenAsync(ciphertext, options, cancellationToken).ConfigureAwait(false);
 
@@ -309,6 +355,25 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
             await binary.DisposeAsync().ConfigureAwait(false);
             throw;
         }
+    }
+
+    private async ValueTask<Stream> OpenSeekableAsync(Stream ciphertext, AgeDecryptOptions options, CancellationToken cancellationToken)
+    {
+        if (options.RequireArmor)
+            throw AsciiArmor.NotArmored();
+
+        var reader = new HeaderReader(ciphertext, options);
+        await reader.PrefillAsync(cancellationToken).ConfigureAwait(false);
+
+        var header = ParseHeader(reader);
+        var nonce = new byte[StreamEncryption.PayloadNonceSize];
+        var nonceRead = await reader.ReadPayloadBytesAsync(nonce, cancellationToken).ConfigureAwait(false);
+
+        byte[] payloadKey;
+        using (var fileKey = Unlock(header))
+            payloadKey = PayloadKey(fileKey, nonce, nonceRead);
+
+        return await SeekableDecryptStream.OpenAsync(payloadKey, ciphertext, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

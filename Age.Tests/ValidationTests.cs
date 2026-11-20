@@ -114,7 +114,7 @@ public class ValidationTests
         using var identity = X25519Identity.Generate();
         using var encrypted = EncryptTo(identity.Recipient);
 
-        Assert.Throws<ArgumentException>(() => new AgeRandomAccess(encrypted));
+        Assert.Throws<ArgumentException>(() => new Identities().DecryptReader(encrypted));
     }
 
     // --- Stanza constructor rejects input that would corrupt header framing ---

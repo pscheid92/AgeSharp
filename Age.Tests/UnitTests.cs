@@ -485,7 +485,7 @@ public class AsciiArmorTests
 
         using var input = new MemoryStream(data);
         using var armored = new MemoryStream();
-        AsciiArmor.Armor(input, armored);
+        Armor.Encode(input, armored);
 
         armored.Position = 0;
         using var dearmored = AsciiArmor.Dearmor(armored);
@@ -498,10 +498,10 @@ public class AsciiArmorTests
         var data = new byte[10];
         using var input = new MemoryStream(data);
         using var armored = new MemoryStream();
-        AsciiArmor.Armor(input, armored);
+        Armor.Encode(input, armored);
 
         armored.Position = 0;
-        Assert.True(AsciiArmor.IsArmored(armored));
+        Assert.True(AsciiArmor.IsArmored(armored, AgeDecryptOptions.Default));
     }
 
     [Fact]
@@ -509,7 +509,7 @@ public class AsciiArmorTests
     {
         byte[] data = [0x00, 0x01, 0x02, 0x03];
         using var stream = new MemoryStream(data);
-        Assert.False(AsciiArmor.IsArmored(stream));
+        Assert.False(AsciiArmor.IsArmored(stream, AgeDecryptOptions.Default));
     }
 
     [Fact]
@@ -534,7 +534,7 @@ public class AsciiArmorTests
         var data = new byte[10];
         using var input = new MemoryStream(data);
         using var armored = new MemoryStream();
-        AsciiArmor.Armor(input, armored);
+        Armor.Encode(input, armored);
 
         // Append trailing non-whitespace
         armored.Write("extra"u8);
@@ -577,7 +577,7 @@ public class AsciiArmorTests
         // bound is the header's own 2 MiB, not a separate per-line limit.
         var text = "age-encryption.org/v1\n" + new string('a', AgeLimits.MaxHeaderBytes + 1000);
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        var ex = Assert.Throws<AgeHeaderException>(() => AgeHeader.Parse(stream));
+        var ex = Assert.Throws<AgeHeaderException>(() => AgeHeader.Read(stream));
         Assert.Contains("exceeds", ex.Message);
     }
 
@@ -639,7 +639,7 @@ public class AsciiArmorTests
         new Random(42).NextBytes(data);
         using var input = new MemoryStream(data);
         using var armored = new MemoryStream();
-        AsciiArmor.Armor(input, armored);
+        Armor.Encode(input, armored);
 
         // Prepend whitespace
         var armoredBytes = armored.ToArray();
@@ -660,7 +660,7 @@ public class AsciiArmorTests
         var data = new byte[10];
         using var input = new MemoryStream(data);
         using var armored = new MemoryStream();
-        AsciiArmor.Armor(input, armored);
+        Armor.Encode(input, armored);
 
         var armoredBytes = armored.ToArray();
         var withWs = new byte[2 + armoredBytes.Length];
@@ -669,7 +669,7 @@ public class AsciiArmorTests
         armoredBytes.CopyTo(withWs, 2);
 
         using var wsStream = new MemoryStream(withWs);
-        Assert.True(AsciiArmor.IsArmored(wsStream));
+        Assert.True(AsciiArmor.IsArmored(wsStream, AgeDecryptOptions.Default));
     }
 
     [Fact]
@@ -727,7 +727,7 @@ public class AsciiArmorTests
         new Random(42).NextBytes(data);
         using var input = new MemoryStream(data);
         using var armored = new MemoryStream();
-        AsciiArmor.Armor(input, armored);
+        Armor.Encode(input, armored);
 
         // Replace \n with \r\n
         var armoredStr = Encoding.ASCII.GetString(armored.ToArray());
@@ -744,7 +744,7 @@ public class AsciiArmorTests
         new Random(42).NextBytes(data);
         using var input = new MemoryStream(data);
         using var armored = new MemoryStream();
-        AsciiArmor.Armor(input, armored);
+        Armor.Encode(input, armored);
 
         armored.Write("\n  \n"u8);
         armored.Position = 0;
@@ -768,7 +768,7 @@ public class AsciiArmorTests
 
             using var input = new MemoryStream(data);
             using var armored = new MemoryStream();
-            AsciiArmor.Armor(input, armored);
+            Armor.Encode(input, armored);
 
             armored.Position = 0;
             using var dearmored = AsciiArmor.Dearmor(armored);
@@ -1234,7 +1234,7 @@ public class AgeEncryptTests
 
         // Verify it's actually armored
         encOutput.Position = 0;
-        Assert.True(AsciiArmor.IsArmored(encOutput));
+        Assert.True(AsciiArmor.IsArmored(encOutput, AgeDecryptOptions.Default));
 
         // Decrypt
         encOutput.Position = 0;
@@ -1380,8 +1380,8 @@ public class DecryptStreamTests
 
         // Parse header to find payload offset
         encOutput.Position = 0;
-        var header = AgeHeader.Parse(encOutput);
-        var payloadOffset = (int)header.PayloadOffset;
+        var header = AgeHeader.Read(encOutput);
+        var payloadOffset = (int)header.PayloadOffset!.Value;
 
         // Payload: 16-byte nonce + encrypted chunks
         // Keep header + nonce + first encrypted chunk only (remove final chunk)
@@ -1391,8 +1391,10 @@ public class DecryptStreamTests
 
         var truncated = ciphertextBytes[..truncateAt];
 
-        using var truncatedStream = new MemoryStream(truncated);
+        // Read front to back, as on a pipe: a seekable reader refuses the file when opening it.
+        using var truncatedStream = new NonSeekableStream(new MemoryStream(truncated));
         using var reader = new Identities(identity).DecryptReader(truncatedStream);
+        Assert.Throws<AgePayloadException>(() => new Identities(identity).DecryptReader(new MemoryStream(truncated)));
 
         var buf = new byte[plaintext.Length];
         // Truncating removes the final chunk, so DecryptStream will detect
@@ -1422,15 +1424,17 @@ public class DecryptStreamTests
 
         // Parse header to find payload offset
         encOutput.Position = 0;
-        var header = AgeHeader.Parse(encOutput);
-        var payloadOffset = (int)header.PayloadOffset;
+        var header = AgeHeader.Read(encOutput);
+        var payloadOffset = (int)header.PayloadOffset!.Value;
 
         // Keep header + nonce + only a few bytes of payload (< TagSize = 16)
         var truncateAt = payloadOffset + 16 + 5; // nonce + 5 bytes
         var truncated = ciphertextBytes[..truncateAt];
 
-        using var truncatedStream = new MemoryStream(truncated);
+        // Read front to back, as on a pipe: a seekable reader refuses the file when opening it.
+        using var truncatedStream = new NonSeekableStream(new MemoryStream(truncated));
         using var reader = new Identities(identity).DecryptReader(truncatedStream);
+        Assert.Throws<AgePayloadException>(() => new Identities(identity).DecryptReader(new MemoryStream(truncated)));
 
         var buf = new byte[100];
         Assert.Throws<AgePayloadException>(() => reader.Read(buf, 0, buf.Length));

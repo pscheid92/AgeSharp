@@ -5,8 +5,8 @@ using Xunit;
 namespace Age.Tests;
 
 /// <summary>
-/// Once a Read on an encrypt or decrypt stream has thrown, every later Read throws the same
-/// exception. A stream that carried on would resume from a state the failure had already
+/// Once a Read on an encrypt or decrypt stream read front to back has thrown, every later Read
+/// throws the same exception. A stream that carried on would resume from a state the failure had already
 /// half-consumed: the encrypt side drops its look-ahead byte and emits authentic ciphertext of
 /// the wrong plaintext, and the decrypt side skips whatever failed to authenticate.
 /// </summary>
@@ -39,7 +39,7 @@ public class FailStopStreamTests
 
         // Garbage one byte longer than a chunk after chunk 0: the failed read consumes it all,
         // so a stream that carried on would land exactly on the genuine chunk 1.
-        var payloadStart = (int)AgeHeader.Parse(new MemoryStream(ciphertext)).PayloadOffset + PayloadNonceSize;
+        var payloadStart = (int)AgeHeader.Read(new MemoryStream(ciphertext)).PayloadOffset!.Value + PayloadNonceSize;
         var chunk1Start = payloadStart + StreamEncryption.EncryptedChunkSize;
         byte[] tampered =
         [
@@ -48,7 +48,7 @@ public class FailStopStreamTests
             .. ciphertext.AsSpan(chunk1Start),
         ];
 
-        using var decrypted = new Identities(identity).DecryptReader(new MemoryStream(tampered));
+        using var decrypted = new Identities(identity).DecryptReader(new NonSeekableStream(new MemoryStream(tampered)));
 
         var first = Assert.Throws<AgePayloadException>(() => Drain(decrypted));
         var retry = Assert.Throws<AgePayloadException>(() => Drain(decrypted));
@@ -64,7 +64,7 @@ public class FailStopStreamTests
 
         // Fails the first read that reaches into the second payload chunk, however the reads
         // before it were split.
-        var payloadStart = AgeHeader.Parse(new MemoryStream(ciphertext)).PayloadOffset + PayloadNonceSize;
+        var payloadStart = AgeHeader.Read(new MemoryStream(ciphertext)).PayloadOffset!.Value + PayloadNonceSize;
         using var source = new FailsOnceStream(new MemoryStream(ciphertext), failAt: payloadStart + StreamEncryption.EncryptedChunkSize);
         using var decrypted = new Identities(identity).DecryptReader(source);
 
@@ -83,10 +83,10 @@ public class FailStopStreamTests
         var ciphertext = Encrypt(Plaintext(3 * StreamEncryption.ChunkSize + 10), identity.Recipient);
 
         // Corrupt chunk 1, so the copy delivers chunk 0 and fails partway through.
-        var payloadStart = (int)AgeHeader.Parse(new MemoryStream(ciphertext)).PayloadOffset + PayloadNonceSize;
+        var payloadStart = (int)AgeHeader.Read(new MemoryStream(ciphertext)).PayloadOffset!.Value + PayloadNonceSize;
         ciphertext[payloadStart + StreamEncryption.EncryptedChunkSize] ^= 0x01;
 
-        using var decrypted = new Identities(identity).DecryptReader(new MemoryStream(ciphertext));
+        using var decrypted = new Identities(identity).DecryptReader(new NonSeekableStream(new MemoryStream(ciphertext)));
 
         var first = async
             ? await Assert.ThrowsAsync<AgePayloadException>(() => decrypted.CopyToAsync(Stream.Null))
@@ -102,7 +102,7 @@ public class FailStopStreamTests
         using var identity = X25519Identity.Generate();
         var ciphertext = Encrypt(Plaintext(200_000), identity.Recipient);
 
-        using var decrypted = new Identities(identity).DecryptReader(new MemoryStream(ciphertext));
+        using var decrypted = new Identities(identity).DecryptReader(new NonSeekableStream(new MemoryStream(ciphertext)));
 
         // A cancelled read may already have consumed ciphertext, so the stream cannot tell where
         // the next chunk starts: cancellation is a failure like any other.

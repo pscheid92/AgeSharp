@@ -5,8 +5,6 @@ namespace AgeSharp;
 internal static class AsciiArmor
 {
     private const string BeginMarker = "-----BEGIN AGE ENCRYPTED FILE-----";
-    private const string EndMarker = "-----END AGE ENCRYPTED FILE-----";
-    private const int ColumnsPerLine = 64;
 
     // Valid armor has at most this much whitespace before its begin marker: blank lines worth
     // MaxArmorWhitespaceBytes (each counting its length plus one, so up to twice that in raw
@@ -65,7 +63,7 @@ internal static class AsciiArmor
         new("input is not ASCII-armored, and armor is required");
 
     /// <summary>Whether a seekable stream holds armor at its position, which is left where it was.</summary>
-    public static bool IsArmored(Stream seekable)
+    public static bool IsArmored(Stream seekable, AgeDecryptOptions options)
     {
         var position = seekable.Position;
 
@@ -75,7 +73,28 @@ internal static class AsciiArmor
             var lookahead = Marker.Length;
             bool? armored;
 
-            while ((armored = Decide(peekable.Peek(lookahead), ref lookahead, AgeDecryptOptions.Default)) is null) { }
+            while ((armored = Decide(peekable.Peek(lookahead), ref lookahead, options)) is null) { }
+
+            return armored.Value;
+        }
+        finally
+        {
+            seekable.Position = position;
+        }
+    }
+
+    /// <summary>The asynchronous <see cref="IsArmored"/>.</summary>
+    public static async ValueTask<bool> IsArmoredAsync(Stream seekable, AgeDecryptOptions options, CancellationToken cancellationToken)
+    {
+        var position = seekable.Position;
+
+        try
+        {
+            var peekable = new PeekableStream(seekable);
+            var lookahead = Marker.Length;
+            bool? armored;
+
+            while ((armored = Decide((await peekable.PeekAsync(lookahead, cancellationToken).ConfigureAwait(false)).Span, ref lookahead, options)) is null) { }
 
             return armored.Value;
         }
@@ -141,33 +160,4 @@ internal static class AsciiArmor
         await dearmored.ReadBeginAsync(cancellationToken).ConfigureAwait(false);
         return dearmored;
     }
-
-    public static void Armor(Stream input, Stream output)
-    {
-        const int bytesPerLine = 48; // 48 bytes encode to exactly 64 base64 chars
-        var readBuffer = new byte[bytesPerLine];
-        Span<char> charBuffer = stackalloc char[ColumnsPerLine + 4]; // room for padding
-
-        var writer = new StreamWriter(output, leaveOpen: true) { NewLine = "\n" };
-        writer.WriteLine(BeginMarker);
-
-        while (true)
-        {
-            var bytesRead = ReadChunk(input, readBuffer);
-
-            if (bytesRead == 0)
-                break;
-
-            Convert.TryToBase64Chars(readBuffer.AsSpan(0, bytesRead), charBuffer, out var charsWritten);
-            writer.Write(charBuffer[..charsWritten]);
-            writer.WriteLine();
-        }
-
-        writer.WriteLine(EndMarker);
-        writer.Flush();
-    }
-
-    private static int ReadChunk(Stream stream, byte[] buffer)
-        => stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
-
 }

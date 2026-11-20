@@ -167,7 +167,7 @@ public class PullBasedTests
     }
 
     [Fact]
-    public void DecryptReader_CanSeekIsFalse()
+    public void DecryptReader_OnAPipe_CannotSeek()
     {
         using var identity = X25519Identity.Generate();
 
@@ -176,11 +176,28 @@ public class PullBasedTests
         new Recipients(identity.Recipient).Encrypt(input, ciphertext);
 
         ciphertext.Position = 0;
-        using var stream = new Identities(identity).DecryptReader(ciphertext);
+        using var stream = new Identities(identity).DecryptReader(new NonSeekableStream(ciphertext));
 
         Assert.True(stream.CanRead);
         Assert.False(stream.CanSeek);
         Assert.False(stream.CanWrite);
+    }
+
+    [Fact]
+    public void DecryptReader_OnASeekableBinaryFile_CanSeek()
+    {
+        using var identity = X25519Identity.Generate();
+
+        using var ciphertext = new MemoryStream();
+        new Recipients(identity.Recipient).Encrypt(new MemoryStream("test"u8.ToArray()), ciphertext);
+
+        ciphertext.Position = 0;
+        using var stream = new Identities(identity).DecryptReader(ciphertext);
+
+        Assert.True(stream.CanRead);
+        Assert.True(stream.CanSeek);
+        Assert.False(stream.CanWrite);
+        Assert.Equal(4, stream.Length);
     }
 
     [Fact]
@@ -277,7 +294,7 @@ public class PullBasedTests
 
         using var pushSource = new MemoryStream(fixedCiphertext);
         using var pushOut = new MemoryStream();
-        AgeSharp.AsciiArmor.Armor(pushSource, pushOut);
+        AgeSharp.Armor.Encode(pushSource, pushOut);
 
         Assert.Equal(pushOut.ToArray(), pullOut.ToArray());
     }

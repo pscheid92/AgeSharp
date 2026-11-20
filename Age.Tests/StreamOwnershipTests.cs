@@ -78,7 +78,7 @@ public class StreamOwnershipTests
         using var _ = identity;
 
         var input = new Tracked(ciphertext);
-        AgeHeader.Parse(input);
+        AgeHeader.Read(input);
 
         Assert.False(input.Disposed);
     }
@@ -92,8 +92,8 @@ public class StreamOwnershipTests
         using var _ = identity;
 
         var input = new Tracked(ciphertext);
-        using (var random = new AgeRandomAccess(input, identity))
-            Assert.Equal(100, random.PlaintextLength);
+        using (var reader = new Identities(identity).DecryptReader(input))
+            Assert.Equal(100, reader.ReadAtLeast(new byte[200], 200, throwOnEndOfStream: false));
 
         Assert.False(input.Disposed);
     }
