@@ -1,4 +1,6 @@
 using System.Buffers;
+using System.Buffers.Text;
+using System.Text;
 
 namespace Age.Format;
 
@@ -14,11 +16,11 @@ internal sealed class ArmorDecoder
 
     private const int ColumnsPerLine = 64;
     private const string BeginMarker = "-----BEGIN AGE ENCRYPTED FILE-----";
-    private const string EndMarker = "-----END AGE ENCRYPTED FILE-----";
 
     private const string Base64Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-    private static readonly SearchValues<char> Base64Chars = SearchValues.Create(Base64Alphabet + "=");
+    private static readonly SearchValues<byte> Base64Bytes = SearchValues.Create(Encoding.ASCII.GetBytes(Base64Alphabet + "="));
+    private static ReadOnlySpan<byte> EndMarkerBytes => "-----END AGE ENCRYPTED FILE-----"u8;
 
     private Stage _stage = Stage.BeforeBegin;
     private int _leadingWhitespace;
@@ -37,7 +39,7 @@ internal sealed class ArmorDecoder
         _stage != Stage.BeforeBegin;
 
     /// <summary>Takes the next line, and writes what it decodes to into <paramref name="decoded"/>.</summary>
-    /// <param name="line">The line.</param>
+    /// <param name="line">The line. Nothing of it is kept.</param>
     /// <param name="decoded">At least <see cref="MaxDecodedPerLine"/> bytes.</param>
     /// <returns>How many bytes the line decoded to: zero for anything but a body line.</returns>
     /// <exception cref="AgeArmorException">The line breaks the armor's rules.</exception>
@@ -46,10 +48,10 @@ internal sealed class ArmorDecoder
         switch (_stage)
         {
             case Stage.BeforeBegin:
-                TakeLineBeforeBegin(line.Text);
+                TakeLineBeforeBegin(Text(line.Text));
                 return 0;
 
-            case Stage.Body when line.Text == EndMarker:
+            case Stage.Body when line.Text.SequenceEqual(EndMarkerBytes):
                 _stage = Stage.AfterEnd;
                 return 0;
 
@@ -94,19 +96,27 @@ internal sealed class ArmorDecoder
         _stage = Stage.Body;
     }
 
-    private int DecodeBodyLine(string line, Span<byte> decoded)
+    // The hot path: decoded from the bytes as they are, nothing allocated unless the line fails.
+    private int DecodeBodyLine(ReadOnlySpan<byte> line, Span<byte> decoded)
     {
         ValidateBodyLine(line);
 
-        if (!Convert.TryFromBase64Chars(line.AsSpan(), decoded, out var bytesWritten))
-            throw new AgeArmorException("invalid base64 in armor");
+        if (Base64.DecodeFromUtf8(line, decoded, out _, out var bytesWritten) == OperationStatus.Done)
+            return bytesWritten;
 
-        // Padding may appear on a line of any width: a final chunk of 46 bytes encodes to a full
-        // 64 characters ending "==", and 47 bytes to 64 characters ending "=". Wherever it
-        // appears, the bits the padding covers must be zero. Checked after the decode, so a
-        // structurally malformed line fails there first.
-        ValidateCanonicalPadding(line.AsSpan());
-        return bytesWritten;
+        // The decoder refuses malformed base64, and also padding that covers bits that are not
+        // zero (padding may appear on a line of any width: a final chunk of 46 or 47 bytes
+        // encodes to a full 64 characters). A line of whole quads with '=' only as its last one
+        // or two characters can only have failed for those bits, so it is named for them.
+        throw new AgeArmorException(HasWellFormedPadding(line)
+            ? "non-canonical base64 in armor"
+            : "invalid base64 in armor");
+    }
+
+    private static bool HasWellFormedPadding(ReadOnlySpan<byte> line)
+    {
+        var firstPad = line.IndexOf((byte)'=');
+        return line.Length % 4 == 0 && firstPad >= line.Length - 2 && !line[firstPad..].ContainsAnyExcept((byte)'=');
     }
 
     // After the footer only whitespace may follow, and less than go-age's allowance of it
@@ -114,7 +124,7 @@ internal sealed class ArmorDecoder
     // endings included, as the bytes arrived.
     private void TakeLineAfterEnd(ArmorLine line)
     {
-        foreach (var c in line.Text)
+        foreach (var c in Text(line.Text))
             TakeTrailing(c);
 
         if (line.EndedWithCr)
@@ -134,12 +144,12 @@ internal sealed class ArmorDecoder
                 $"{AgeLimits.MaxArmorWhitespaceBytes} or more bytes of whitespace after the armor footer");
     }
 
-    private void ValidateBodyLine(string line)
+    private void ValidateBodyLine(ReadOnlySpan<byte> line)
     {
         if (line.Length == 0)
             throw new AgeArmorException("empty line in armor body");
 
-        if (line[0] is ' ' or '\t' || line[^1] is ' ' or '\t')
+        if (line[0] is (byte)' ' or (byte)'\t' || line[^1] is (byte)' ' or (byte)'\t')
             throw new AgeArmorException("whitespace in armor body line");
 
         if (line.Length > ColumnsPerLine)
@@ -151,26 +161,16 @@ internal sealed class ArmorDecoder
         // The body ends at the first line that cannot be followed by another: one shorter than
         // the full column width, or a full-width line carrying base64 padding (46- and 47-byte
         // final chunks encode to exactly 64 characters).
-        if (line.Length < ColumnsPerLine || line[^1] == '=')
+        if (line.Length < ColumnsPerLine || line[^1] == (byte)'=')
             _bodyEnded = true;
 
-        var invalid = line.AsSpan().IndexOfAnyExcept(Base64Chars);
+        var invalid = line.IndexOfAnyExcept(Base64Bytes);
         if (invalid >= 0)
-            throw new AgeArmorException($"invalid character in armor body: '{line[invalid]}'");
+            throw new AgeArmorException($"invalid character in armor body: '{Text(line.Slice(invalid, 1))}'");
     }
 
-    private static void ValidateCanonicalPadding(ReadOnlySpan<char> line)
-    {
-        var padCount = line[^1] != '=' ? 0 : line.Length > 1 && line[^2] == '=' ? 2 : 1;
-
-        if (padCount == 0)
-            return;
-
-        // The character was validated as base64 already, so it is in the alphabet.
-        var value = Base64Alphabet.IndexOf(line[^(padCount + 1)]);
-        var mask = (1 << (padCount == 1 ? 2 : 4)) - 1;
-
-        if ((value & mask) != 0)
-            throw new AgeArmorException("non-canonical base64 in armor");
-    }
+    // The text of a line that is not on the hot path, or the part of one an error names. A byte
+    // outside ASCII becomes '?', as a StreamReader with Encoding.ASCII made it.
+    private static string Text(ReadOnlySpan<byte> bytes) =>
+        Encoding.ASCII.GetString(bytes);
 }
