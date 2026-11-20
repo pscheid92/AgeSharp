@@ -217,7 +217,7 @@ public class RecipientsTests
             new AsyncOnlyStream(new MemoryStream(Plaintext)), new AsyncOnlyStream(header), new AsyncOnlyStream(payload));
 
         using var output = new MemoryStream();
-        AgeEncrypt.DecryptDetached(new MemoryStream(header.ToArray()), new MemoryStream(payload.ToArray()), output, identity);
+        new Identities(identity).DecryptDetached(new MemoryStream(header.ToArray()), new MemoryStream(payload.ToArray()), output);
         Assert.Equal(Plaintext, output.ToArray());
     }
 
@@ -293,7 +293,7 @@ public class RecipientsTests
     private static byte[] Decrypt(byte[] file, IIdentity identity)
     {
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(new MemoryStream(file), output, identity);
+        new Identities(identity).Decrypt(new MemoryStream(file), output);
         return output.ToArray();
     }
 
@@ -315,46 +315,5 @@ public class RecipientsTests
 
         public LabelledStanzas WrapWithLabels(ReadOnlySpan<byte> fileKey) =>
             new([new Stanza("unlabelled", [], fileKey.ToArray())], null!);
-    }
-
-    // A stream that throws on every synchronous read or write, so only async paths get through.
-    private sealed class AsyncOnlyStream(Stream inner) : Stream
-    {
-        public override bool CanRead => inner.CanRead;
-        public override bool CanSeek => false;
-        public override bool CanWrite => inner.CanWrite;
-        public override long Length => throw new NotSupportedException();
-
-        public override long Position
-        {
-            get => throw new NotSupportedException();
-            set => throw new NotSupportedException();
-        }
-
-        public override int Read(byte[] buffer, int offset, int count) => throw Sync();
-        public override int Read(Span<byte> buffer) => throw Sync();
-        public override int ReadByte() => throw Sync();
-        public override void Write(byte[] buffer, int offset, int count) => throw Sync();
-        public override void Write(ReadOnlySpan<byte> buffer) => throw Sync();
-        public override void WriteByte(byte value) => throw Sync();
-        public override void Flush() => throw Sync();
-
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
-            inner.ReadAsync(buffer, cancellationToken);
-
-        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
-            inner.ReadAsync(buffer, offset, count, cancellationToken);
-
-        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) =>
-            inner.WriteAsync(buffer, cancellationToken);
-
-        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
-            inner.WriteAsync(buffer, offset, count, cancellationToken);
-
-        public override Task FlushAsync(CancellationToken cancellationToken) => inner.FlushAsync(cancellationToken);
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-
-        private static InvalidOperationException Sync() => new("synchronous I/O on an async-only stream");
     }
 }

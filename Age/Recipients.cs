@@ -283,9 +283,9 @@ public sealed class Recipients : IReadOnlyList<IRecipient>
     // key clears it when disposed.
     private static (byte[] Nonce, byte[] Key) NewPayloadKey(FileKey fileKey)
     {
-        var nonce = new byte[AgeEncrypt.PayloadNonceSize];
+        var nonce = new byte[StreamEncryption.PayloadNonceSize];
         RandomNumberGenerator.Fill(nonce);
-        return (nonce, CryptoHelper.HkdfDerive(fileKey.Bytes, nonce, "payload", AgeEncrypt.PayloadKeySize));
+        return (nonce, CryptoHelper.HkdfDerive(fileKey.Bytes, nonce, "payload", StreamEncryption.PayloadKeySize));
     }
 
     /// <summary>

@@ -50,7 +50,7 @@ public class EncryptDecryptBenchmarks
     {
         using var input = new MemoryStream(_ciphertext);
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(input, output, _identity);
+        new Identities(_identity).Decrypt(input, output);
     }
 
     [Benchmark]
@@ -66,6 +66,6 @@ public class EncryptDecryptBenchmarks
     {
         using var input = new MemoryStream(_armoredCiphertext);
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(input, output, _identity);
+        new Identities(_identity).Decrypt(input, output);
     }
 }

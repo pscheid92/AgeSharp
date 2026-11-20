@@ -435,7 +435,7 @@ public class EncryptedSshKeyTests
         var ciphertext = Encrypt(can.Recipient);
 
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(new MemoryStream(ciphertext), output, cannot, can);
+        new Identities(cannot, can).Decrypt(new MemoryStream(ciphertext), output);
 
         Assert.Equal(Plaintext, output.ToArray());
     }
@@ -489,7 +489,7 @@ public class EncryptedSshKeyTests
     private static byte[] Decrypt(byte[] ciphertext, IIdentity identity)
     {
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(new MemoryStream(ciphertext), output, identity);
+        new Identities(identity).Decrypt(new MemoryStream(ciphertext), output);
         return output.ToArray();
     }
 

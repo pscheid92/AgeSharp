@@ -67,7 +67,7 @@ new Recipients(recipient).Encrypt(input, encrypted);
 
 encrypted.Position = 0;
 using var decrypted = new MemoryStream();
-AgeEncrypt.Decrypt(encrypted, decrypted, identity);
+new Identities(identity).Decrypt(encrypted, decrypted);
 ```
 
 ### Passphrase encryption
@@ -81,7 +81,7 @@ new Recipients(passphrase).Encrypt(input, encrypted);
 
 encrypted.Position = 0;
 using var decrypted = new MemoryStream();
-AgeEncrypt.Decrypt(encrypted, decrypted, passphrase);
+new Identities(passphrase).Decrypt(encrypted, decrypted);
 ```
 
 ### ASCII armor
@@ -106,7 +106,7 @@ using var bob = X25519Identity.Generate();
 new Recipients(alice.Recipient, bob.Recipient).Encrypt(input, encrypted);
 
 // Either identity can decrypt
-AgeEncrypt.Decrypt(encrypted, decrypted, bob);
+new Identities(bob).Decrypt(encrypted, decrypted);
 ```
 
 A `Recipients` set is checked once, when it is built: it must not be empty, and a
@@ -121,6 +121,11 @@ var to = new Recipients(recipient);
 
 byte[] sealedValue = to.Encrypt("a secret"u8);                 // small values
 await to.EncryptAsync(input, encrypted, cancellationToken: ct); // every read and write is async
+
+using var with = new Identities(identity);
+byte[] opened = with.Decrypt(sealedValue);
+await with.DecryptAsync(encrypted, decrypted, cancellationToken: ct);
+await using var reader = await with.DecryptReaderAsync(encrypted, cancellationToken: ct);
 ```
 
 ### SSH keys
@@ -132,7 +137,7 @@ var identity = SshEd25519Identity.Parse(File.ReadAllText("/path/to/id_ed25519"))
 new Recipients(recipient).Encrypt(input, encrypted);
 
 encrypted.Position = 0;
-AgeEncrypt.Decrypt(encrypted, decrypted, identity);
+new Identities(identity).Decrypt(encrypted, decrypted);
 ```
 
 A passphrase-protected key (OpenSSH format) needs somewhere to get its passphrase
@@ -199,7 +204,7 @@ using var encryptedStream = new Recipients(recipient).EncryptReader(plaintext);
 encryptedStream.CopyTo(networkStream);
 
 // Decrypt: returns a Stream you read plaintext from
-using var decryptedStream = AgeEncrypt.DecryptReader(ciphertext, identity);
+using var decryptedStream = new Identities(identity).DecryptReader(ciphertext);
 decryptedStream.CopyTo(outputStream);
 ```
 
@@ -213,7 +218,7 @@ the header and payload in different locations.
 new Recipients(recipient).EncryptDetached(input, headerOutput, payloadOutput);
 
 // Decrypt from separate streams
-AgeEncrypt.DecryptDetached(headerInput, payloadInput, output, identity);
+new Identities(identity).DecryptDetached(headerInput, payloadInput, output);
 ```
 
 ### Random-access decryption
@@ -254,14 +259,20 @@ foreach (var stanza in header.Recipients)
 ### Parse existing keys
 
 ```csharp
-using var identity = AgeKeygen.ParseIdentity("AGE-SECRET-KEY-1...");
 var recipient = Recipients.ParseOne(line);                     // any type
 var tagged = P256TagRecipient.Parse("age1tag1...");            // a specific type
+
+using var identity = Identities.ParseOne(secret);              // any type
+using var keys = Identities.Parse(File.ReadAllText("keys.txt")); // an identity file
 ```
 
 `Recipients.ParseOne` reads a recipient of any type: `age1…`, `age1pq1…`, `age1tag1…`,
-`age1tagpq1…`, a plugin's `age1name1…`, or an SSH public key. `AgeKeygen.ParseIdentity`
-still reads X25519 identities only; identities get the same treatment next.
+`age1tagpq1…`, a plugin's `age1name1…`, or an SSH public key. `Identities.ParseOne` reads
+`AGE-SECRET-KEY-1…`, `AGE-SECRET-KEY-PQ-1…`, a plugin's `AGE-PLUGIN-…`, or an SSH private
+key that has no passphrase; `AgeKeygen.ParseSshIdentity` reads one that has.
+
+An `Identities` set parsed from a file owns its keys: disposing it clears them.
+Identities you build a set from stay yours to dispose.
 
 ### Custom recipients and identities
 
@@ -305,14 +316,18 @@ passphrase or a touch, is asked only if none of those opens the file.
 An age header must be buffered in full before its MAC can be verified, so
 AgeSharp caps how much it will read before authentication — otherwise a hostile
 or truncated stream with an unterminated (or endlessly repeated) line could
-exhaust memory. The limits are exposed as constants on `AgeLimits`:
+exhaust memory. The limits are options of `AgeDecryptOptions`:
 
-| Constant | Default | Bounds |
+| Option | Default | Bounds |
 | --- | --- | --- |
-| `AgeLimits.MaxHeaderBytes` | 2 MiB | The whole header (all stanzas) |
-| `AgeLimits.MaxRecipientStanzas` | 1024 | Recipient stanzas in a header |
-| `AgeLimits.MaxStanzaArguments` | 128 | Arguments on one stanza line |
-| `AgeLimits.MaxArmorLineBytes` | 1 KiB | A single ASCII-armor line |
+| `MaxHeaderBytes` | 2 MiB | The whole header (all stanzas) |
+| `MaxRecipientStanzas` | 1024 | Recipient stanzas in a header |
+| `MaxStanzaArguments` | 128 | Arguments on one stanza line |
+| `MaxArmorLineBytes` | 1 KiB | A single ASCII-armor line |
+
+```csharp
+with.Decrypt(input, output, new AgeDecryptOptions { MaxRecipientStanzas = 4096 });
+```
 
 Exceeding a limit throws `AgeHeaderException` / `AgeArmorException`. The age
 [specification](https://github.com/C2SP/C2SP/blob/main/age.md) sets no such
@@ -320,8 +335,9 @@ bounds. The three header limits are the ones the Go implementation applies from
 v1.3.2 on, so both accept and reject the same files; the armor line limit is
 AgeSharp's own. They sit far above any real file (the largest built-in stanza
 line is ~1.5 KiB, so 2 MiB holds well over a thousand post-quantum recipients),
-so legitimate input never trips them. `AgeLimits.MaxHeaderLineBytes` is obsolete:
-a header line is bounded only by `MaxHeaderBytes`.
+so legitimate input never trips them; raise one only for legitimate input that does. A
+header line is bounded only by `MaxHeaderBytes`, as in go-age. `RequireArmor` refuses
+input that is not armored.
 
 ## Command line
 

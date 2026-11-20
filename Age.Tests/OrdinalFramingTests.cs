@@ -61,7 +61,7 @@ public class OrdinalFramingTests
 
         using var source = new MemoryStream(encrypted.ToArray());
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(source, output, identity);
+        new Identities(identity).Decrypt(source, output);
 
         Assert.Equal("ordinal"u8.ToArray(), output.ToArray());
     }

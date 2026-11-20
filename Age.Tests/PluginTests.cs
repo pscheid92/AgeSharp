@@ -809,7 +809,7 @@ public class PluginTests
         var pluginId = MakePluginIdentity("yubikey");
         var text = $"# plugin identity\n{pluginId}\n";
 
-        var parsed = AgeKeygen.ParseIdentityFile(text);
+        var parsed = Identities.Parse(text);
         Assert.Single(parsed);
         var parsedPlugin = Assert.IsType<PluginIdentity>(parsed[0]);
         Assert.Equal(pluginId, parsedPlugin.ToSecretString());
@@ -822,8 +822,8 @@ public class PluginTests
         var pluginId = MakePluginIdentity("yubikey");
         var text = $"{x25519.ToSecretString()}\n{pluginId}\n";
 
-        var parsed = AgeKeygen.ParseIdentityFile(text);
-        Assert.Equal(2, parsed.Length);
+        var parsed = Identities.Parse(text);
+        Assert.Equal(2, parsed.Count);
         Assert.IsType<X25519Identity>(parsed[0]);
         Assert.IsType<PluginIdentity>(parsed[1]);
     }
@@ -847,7 +847,7 @@ public class PluginTests
         var callbacks = new TestCallbacks();
         var text = $"{pluginId}\n";
 
-        var parsed = AgeKeygen.ParseIdentityFile(text, callbacks);
+        var parsed = Identities.Parse(text, callbacks);
         Assert.Single(parsed);
         Assert.IsType<PluginIdentity>(parsed[0]);
     }
@@ -901,7 +901,7 @@ public class PluginTests
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        new Identities(identity).Decrypt(encOutput, decOutput);
         Assert.Equal(plaintext, decOutput.ToArray());
     }
 
@@ -917,7 +917,7 @@ public class PluginTests
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, new ScryptRecipient(passphrase));
+        new Identities(new ScryptRecipient(passphrase)).Decrypt(encOutput, decOutput);
         Assert.Equal(plaintext, decOutput.ToArray());
     }
 

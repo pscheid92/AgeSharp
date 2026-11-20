@@ -258,7 +258,7 @@ public class PqRoundTripTests
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        new Identities(identity).Decrypt(encOutput, decOutput);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -277,7 +277,7 @@ public class PqRoundTripTests
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        new Identities(identity).Decrypt(encOutput, decOutput);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -298,7 +298,7 @@ public class PqRoundTripTests
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        new Identities(identity).Decrypt(encOutput, decOutput);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -318,13 +318,13 @@ public class PqRoundTripTests
         // Decrypt with first identity
         encOutput.Position = 0;
         using var decOutput1 = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput1, id1);
+        new Identities(id1).Decrypt(encOutput, decOutput1);
         Assert.Equal(plaintext, decOutput1.ToArray());
 
         // Decrypt with second identity
         encOutput.Position = 0;
         using var decOutput2 = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput2, id2);
+        new Identities(id2).Decrypt(encOutput, decOutput2);
         Assert.Equal(plaintext, decOutput2.ToArray());
     }
 
@@ -342,7 +342,7 @@ public class PqRoundTripTests
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        AgeEncrypt.Decrypt(encOutput, decOutput, identity);
+        new Identities(identity).Decrypt(encOutput, decOutput);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -354,7 +354,7 @@ public class PqRoundTripTests
         var identityStr = identity.ToSecretString();
         var recipientStr = identity.Recipient.ToString();
 
-        using var parsed = AgeKeygen.ParsePqIdentity(identityStr);
+        using var parsed = MlKem768X25519Identity.Parse(identityStr);
         var parsedRecipient = MlKem768X25519Recipient.Parse(recipientStr);
 
         Assert.Equal(identityStr, parsed.ToSecretString());

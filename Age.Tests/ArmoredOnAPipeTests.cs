@@ -18,7 +18,7 @@ public class ArmoredOnAPipeTests
         using var identity = X25519Identity.Generate();
         using var output = new MemoryStream();
 
-        AgeEncrypt.Decrypt(new Pipe(Encrypt(identity, armor: true)), output, identity);
+        new Identities(identity).Decrypt(new Pipe(Encrypt(identity, armor: true)), output);
 
         Assert.Equal(Plaintext, output.ToArray());
     }
@@ -27,7 +27,7 @@ public class ArmoredOnAPipeTests
     public void ArmoredInputOnAPipe_DecryptsThroughTheReaderToo()
     {
         using var identity = X25519Identity.Generate();
-        using var reader = AgeEncrypt.DecryptReader(new Pipe(Encrypt(identity, armor: true)), identity);
+        using var reader = new Identities(identity).DecryptReader(new Pipe(Encrypt(identity, armor: true)));
         using var output = new MemoryStream();
 
         reader.CopyTo(output);
@@ -72,7 +72,7 @@ public class ArmoredOnAPipeTests
         using var identity = X25519Identity.Generate();
         using var output = new MemoryStream();
 
-        AgeEncrypt.Decrypt(new Pipe([.. "\n\n  \n"u8, .. Encrypt(identity, armor: true)]), output, identity);
+        new Identities(identity).Decrypt(new Pipe([.. "\n\n  \n"u8, .. Encrypt(identity, armor: true)]), output);
 
         Assert.Equal(Plaintext, output.ToArray());
     }
@@ -88,8 +88,8 @@ public class ArmoredOnAPipeTests
         using var identity = X25519Identity.Generate();
         byte[] file = [.. Enumerable.Repeat((byte)'\n', newlines), .. Encrypt(identity, armor: true)];
 
-        var fromFile = Assert.Throws<AgeArmorException>(() => AgeEncrypt.Decrypt(new MemoryStream(file), new MemoryStream(), identity));
-        var fromPipe = Assert.Throws<AgeArmorException>(() => AgeEncrypt.Decrypt(new Pipe(file), new MemoryStream(), identity));
+        var fromFile = Assert.Throws<AgeArmorException>(() => new Identities(identity).Decrypt(new MemoryStream(file), new MemoryStream()));
+        var fromPipe = Assert.Throws<AgeArmorException>(() => new Identities(identity).Decrypt(new Pipe(file), new MemoryStream()));
 
         Assert.Equal(fromFile.Message, fromPipe.Message);
     }
@@ -110,7 +110,7 @@ public class ArmoredOnAPipeTests
         using var identity = X25519Identity.Generate();
         var file = System.Text.Encoding.ASCII.GetBytes("age-encryption.org/v2\n--- AAAA\n");
 
-        var ex = Assert.Throws<AgeHeaderException>(() => AgeEncrypt.Decrypt(new Pipe(file), new MemoryStream(), identity));
+        var ex = Assert.Throws<AgeHeaderException>(() => new Identities(identity).Decrypt(new Pipe(file), new MemoryStream()));
 
         Assert.Contains("unsupported version", ex.Message, StringComparison.Ordinal);
     }
@@ -123,7 +123,7 @@ public class ArmoredOnAPipeTests
         var armored = Encrypt(identity, armor: true);
 
         var ex = Assert.Throws<AgeHeaderException>(() =>
-            AgeEncrypt.DecryptDetached(new MemoryStream(armored), new MemoryStream(), new MemoryStream(), identity));
+            new Identities(identity).DecryptDetached(new MemoryStream(armored), new MemoryStream(), new MemoryStream()));
 
         Assert.Contains("ASCII-armored", ex.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("seekable", ex.Message, StringComparison.Ordinal);

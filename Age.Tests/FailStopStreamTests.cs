@@ -48,7 +48,7 @@ public class FailStopStreamTests
             .. ciphertext.AsSpan(chunk1Start),
         ];
 
-        using var decrypted = AgeEncrypt.DecryptReader(new MemoryStream(tampered), identity);
+        using var decrypted = new Identities(identity).DecryptReader(new MemoryStream(tampered));
 
         var first = Assert.Throws<AgePayloadException>(() => Drain(decrypted));
         var retry = Assert.Throws<AgePayloadException>(() => Drain(decrypted));
@@ -66,7 +66,7 @@ public class FailStopStreamTests
         // before it were split.
         var payloadStart = AgeHeader.Parse(new MemoryStream(ciphertext)).PayloadOffset + PayloadNonceSize;
         using var source = new FailsOnceStream(new MemoryStream(ciphertext), failAt: payloadStart + StreamEncryption.EncryptedChunkSize);
-        using var decrypted = AgeEncrypt.DecryptReader(source, identity);
+        using var decrypted = new Identities(identity).DecryptReader(source);
 
         var first = Assert.Throws<IOException>(() => Drain(decrypted));
         var retry = Assert.Throws<IOException>(() => Drain(decrypted));
@@ -86,7 +86,7 @@ public class FailStopStreamTests
         var payloadStart = (int)AgeHeader.Parse(new MemoryStream(ciphertext)).PayloadOffset + PayloadNonceSize;
         ciphertext[payloadStart + StreamEncryption.EncryptedChunkSize] ^= 0x01;
 
-        using var decrypted = AgeEncrypt.DecryptReader(new MemoryStream(ciphertext), identity);
+        using var decrypted = new Identities(identity).DecryptReader(new MemoryStream(ciphertext));
 
         var first = async
             ? await Assert.ThrowsAsync<AgePayloadException>(() => decrypted.CopyToAsync(Stream.Null))
@@ -102,7 +102,7 @@ public class FailStopStreamTests
         using var identity = X25519Identity.Generate();
         var ciphertext = Encrypt(Plaintext(200_000), identity.Recipient);
 
-        using var decrypted = AgeEncrypt.DecryptReader(new MemoryStream(ciphertext), identity);
+        using var decrypted = new Identities(identity).DecryptReader(new MemoryStream(ciphertext));
 
         // A cancelled read may already have consumed ciphertext, so the stream cannot tell where
         // the next chunk starts: cancellation is a failure like any other.

@@ -46,7 +46,7 @@ public class LargeFileBenchmarks
 
     [Benchmark]
     public void Decrypt256MiB() =>
-        AgeEncrypt.Decrypt(new MemoryStream(_ciphertext), Stream.Null, _identity);
+        new Identities(_identity).Decrypt(new MemoryStream(_ciphertext), Stream.Null);
 
     [Benchmark]
     public void EncryptArmored256MiB() =>
@@ -54,5 +54,5 @@ public class LargeFileBenchmarks
 
     [Benchmark]
     public void DecryptArmored256MiB() =>
-        AgeEncrypt.Decrypt(new MemoryStream(_armoredCiphertext), Stream.Null, _identity);
+        new Identities(_identity).Decrypt(new MemoryStream(_armoredCiphertext), Stream.Null);
 }

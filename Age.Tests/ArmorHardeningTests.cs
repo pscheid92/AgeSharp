@@ -21,7 +21,7 @@ public class ArmorHardeningTests
     {
         using var input = new MemoryStream(file);
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(input, output, identity);
+        new Identities(identity).Decrypt(input, output);
         return output.ToArray();
     }
 

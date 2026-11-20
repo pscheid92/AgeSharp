@@ -8,9 +8,9 @@ namespace AgeSharp;
 /// follows it.
 /// </summary>
 /// <remarks>Disposing does not dispose the input, which belongs to the caller.</remarks>
-internal sealed class DearmorStream(Stream input) : Stream
+internal sealed class DearmorStream(Stream input, int maxLineBytes = AgeLimits.MaxArmorLineBytes) : Stream
 {
-    private readonly ArmorLineFramer _framer = new();
+    private readonly ArmorLineFramer _framer = new(maxLineBytes);
     private readonly ArmorDecoder _decoder = new();
     private readonly byte[] _read = new byte[4096];
     private readonly byte[] _decoded = new byte[ArmorDecoder.MaxDecodedPerLine];

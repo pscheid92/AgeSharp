@@ -336,7 +336,7 @@ public class LegacyPemSshKeyTests
     private static byte[] Decrypt(byte[] ciphertext, IIdentity identity)
     {
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(new MemoryStream(ciphertext), output, identity);
+        new Identities(identity).Decrypt(new MemoryStream(ciphertext), output);
         return output.ToArray();
     }
 

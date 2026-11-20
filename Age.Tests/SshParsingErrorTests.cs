@@ -144,7 +144,7 @@ public class SshParsingErrorTests
         encrypted.Position = 0;
         using var decrypted = new MemoryStream();
 
-        AgeEncrypt.Decrypt(encrypted, decrypted, AgeKeygen.ParseSshIdentity(RsaKey(change)));
+        new Identities(AgeKeygen.ParseSshIdentity(RsaKey(change))).Decrypt(encrypted, decrypted);
 
         Assert.Equal("plaintext"u8.ToArray(), decrypted.ToArray());
     }
@@ -173,7 +173,7 @@ public class SshParsingErrorTests
         encrypted.Position = 0;
         using var decrypted = new MemoryStream();
 
-        AgeEncrypt.Decrypt(encrypted, decrypted, identity);
+        new Identities(identity).Decrypt(encrypted, decrypted);
 
         Assert.Equal("plaintext"u8.ToArray(), decrypted.ToArray());
     }

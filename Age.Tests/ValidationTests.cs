@@ -73,7 +73,7 @@ public class ValidationTests
         using var encrypted = EncryptTo(scrypt);
 
         using var decrypted = new MemoryStream();
-        AgeEncrypt.Decrypt(encrypted, decrypted, scrypt);
+        new Identities(scrypt).Decrypt(encrypted, decrypted);
 
         Assert.Equal("hello"u8.ToArray(), decrypted.ToArray());
     }
@@ -87,7 +87,7 @@ public class ValidationTests
         using var encrypted = EncryptTo(identity.Recipient);
 
         var ex = Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.Decrypt(encrypted, new MemoryStream()));
+            new Identities().Decrypt(encrypted, new MemoryStream()));
 
         Assert.Equal("identities", ex.ParamName);
     }
@@ -98,14 +98,14 @@ public class ValidationTests
         using var identity = X25519Identity.Generate();
         using var encrypted = EncryptTo(identity.Recipient);
 
-        Assert.Throws<ArgumentException>(() => AgeEncrypt.DecryptReader(encrypted));
+        Assert.Throws<ArgumentException>(() => new Identities().DecryptReader(encrypted));
     }
 
     [Fact]
     public void DecryptDetached_NoIdentities_ThrowsArgumentException()
     {
         Assert.Throws<ArgumentException>(() =>
-            AgeEncrypt.DecryptDetached(new MemoryStream(), new MemoryStream(), new MemoryStream()));
+            new Identities().DecryptDetached(new MemoryStream(), new MemoryStream(), new MemoryStream()));
     }
 
     [Fact]

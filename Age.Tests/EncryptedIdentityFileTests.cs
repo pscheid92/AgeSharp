@@ -29,7 +29,7 @@ public class EncryptedIdentityFileTests
             {identity.ToSecretString()}
             """;
 
-        var parsed = AgeKeygen.ParseIdentityFile(text);
+        var parsed = Identities.Parse(text);
         Assert.Single(parsed);
         Assert.Equal(identity.ToSecretString(), Secret(parsed[0]));
     }
@@ -40,7 +40,7 @@ public class EncryptedIdentityFileTests
         using var identity = X25519Identity.Generate();
         var text = $"# comment\n\n{identity.ToSecretString()}\n\n# another comment\n";
 
-        var parsed = AgeKeygen.ParseIdentityFile(text);
+        var parsed = Identities.Parse(text);
         Assert.Single(parsed);
         Assert.Equal(identity.ToSecretString(), Secret(parsed[0]));
     }
@@ -52,8 +52,8 @@ public class EncryptedIdentityFileTests
         using var pq = MlKem768X25519Identity.Generate();
         var text = $"# X25519 key\n{x25519.ToSecretString()}\n# PQ key\n{pq.ToSecretString()}\n";
 
-        var parsed = AgeKeygen.ParseIdentityFile(text);
-        Assert.Equal(2, parsed.Length);
+        var parsed = Identities.Parse(text);
+        Assert.Equal(2, parsed.Count);
         Assert.Equal(x25519.ToSecretString(), Secret(parsed[0]));
         Assert.Equal(pq.ToSecretString(), Secret(parsed[1]));
     }
@@ -62,8 +62,8 @@ public class EncryptedIdentityFileTests
     public void ParseIdentityFile_UnrecognizedLine_Throws()
     {
         var text = "# comment\nNOT-A-VALID-KEY\n";
-        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseIdentityFile(text));
-        Assert.Contains("unrecognized line", ex.Message);
+        var ex = Assert.Throws<FormatException>(() => Identities.Parse(text));
+        Assert.Contains("unrecognized identity (line 2 of the identity file)", ex.Message);
     }
 
     // A line that almost is a key is still a key. Error messages reach logs and terminals, so a
@@ -98,7 +98,7 @@ public class EncryptedIdentityFileTests
             _ => secret.ToLowerInvariant(),
         };
 
-        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseIdentityFile($"# comment\n\n{line}\n"));
+        var ex = Assert.Throws<FormatException>(() => Identities.Parse($"# comment\n\n{line}\n"));
 
         // The key material is the bech32 data after the last '1'; no part of the message may carry it.
         var keyData = secret[(secret.LastIndexOf('1') + 1)..];
@@ -106,18 +106,14 @@ public class EncryptedIdentityFileTests
         Assert.Contains("line 3", ex.Message);
     }
 
-    [Fact]
-    public void ParseIdentityFile_Empty_ReturnsEmpty()
+    // As in go-age: an identity file without an identity can only ever fail to decrypt.
+    [Theory]
+    [InlineData("")]
+    [InlineData("# just a comment\n# another\n")]
+    public void ParseIdentityFile_WithoutIdentities_IsRefused(string text)
     {
-        var parsed = AgeKeygen.ParseIdentityFile("");
-        Assert.Empty(parsed);
-    }
-
-    [Fact]
-    public void ParseIdentityFile_OnlyComments_ReturnsEmpty()
-    {
-        var parsed = AgeKeygen.ParseIdentityFile("# just a comment\n# another\n");
-        Assert.Empty(parsed);
+        var ex = Assert.Throws<FormatException>(() => Identities.Parse(text));
+        Assert.Contains("no identities", ex.Message);
     }
 
     [Fact]
@@ -215,7 +211,7 @@ public class EncryptedIdentityFileTests
 
             // Parse the age-keygen output with AgeSharp
             var keyText = File.ReadAllText(tempKey);
-            var parsed = AgeKeygen.ParseIdentityFile(keyText);
+            var parsed = Identities.Parse(keyText);
 
             Assert.Single(parsed);
             Assert.StartsWith("AGE-SECRET-KEY-1", Secret(parsed[0]));
@@ -264,7 +260,7 @@ public class EncryptedIdentityFileTests
             var ciphertext = File.ReadAllBytes(tempCipher);
             using var decInput = new MemoryStream(ciphertext);
             using var decOutput = new MemoryStream();
-            AgeEncrypt.Decrypt(decInput, decOutput, parsed.ToArray());
+            new Identities(parsed.ToArray()).Decrypt(decInput, decOutput);
 
             var result = System.Text.Encoding.UTF8.GetString(decOutput.ToArray());
             Assert.Equal("secret from age CLI", result);

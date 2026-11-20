@@ -36,6 +36,27 @@ internal sealed class PeekableStream(Stream source) : Stream
         return _peeked.AsSpan(_start, Math.Min(count, _end - _start));
     }
 
+    /// <summary>The asynchronous <see cref="Peek"/>.</summary>
+    public async ValueTask<ReadOnlyMemory<byte>> PeekAsync(int count, CancellationToken cancellationToken)
+    {
+        if (_end - _start < count)
+        {
+            Grow(count);
+
+            while (_end - _start < count)
+            {
+                var read = await source.ReadAsync(_peeked.AsMemory(_end, _start + count - _end), cancellationToken).ConfigureAwait(false);
+
+                if (read == 0)
+                    break;
+
+                _end += read;
+            }
+        }
+
+        return _peeked.AsMemory(_start, Math.Min(count, _end - _start));
+    }
+
     // Room for count bytes from _start, keeping what has been looked at and not yet read.
     private void Grow(int count)
     {

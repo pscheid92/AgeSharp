@@ -80,7 +80,7 @@ public class AgreementGuardTests
         {
             using var source = new MemoryStream(tampered);
             using var output = new MemoryStream();
-            AgeEncrypt.Decrypt(source, output, identity);
+            new Identities(identity).Decrypt(source, output);
         });
 
         Assert.NotNull(ex);

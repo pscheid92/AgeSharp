@@ -85,12 +85,12 @@ public class IdentityOrderTests
             case "Decrypt":
             {
                 using var output = new MemoryStream();
-                AgeEncrypt.Decrypt(new MemoryStream(ciphertext), output, identities);
+                new Identities(identities).Decrypt(new MemoryStream(ciphertext), output);
                 return output.ToArray();
             }
             case "DecryptReader":
             {
-                using var reader = AgeEncrypt.DecryptReader(new MemoryStream(ciphertext), identities);
+                using var reader = new Identities(identities).DecryptReader(new MemoryStream(ciphertext));
                 using var output = new MemoryStream();
                 reader.CopyTo(output);
                 return output.ToArray();
@@ -105,7 +105,7 @@ public class IdentityOrderTests
                 payload.Write(ciphertext, (int)offset, ciphertext.Length - (int)offset);
                 header.Position = payload.Position = 0;
                 using var output = new MemoryStream();
-                AgeEncrypt.DecryptDetached(header, payload, output, identities);
+                new Identities(identities).DecryptDetached(header, payload, output);
                 return output.ToArray();
             }
             case "AgeRandomAccess":

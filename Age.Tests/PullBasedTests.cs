@@ -21,7 +21,7 @@ public class PullBasedTests
         // Decrypt with push-based API
         ciphertext.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(ciphertext, output, identity);
+        new Identities(identity).Decrypt(ciphertext, output);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -37,7 +37,7 @@ public class PullBasedTests
         new Recipients(identity.Recipient).Encrypt(input, ciphertext);
 
         ciphertext.Position = 0;
-        using var decryptedStream = AgeEncrypt.DecryptReader(ciphertext, identity);
+        using var decryptedStream = new Identities(identity).DecryptReader(ciphertext);
 
         using var output = new MemoryStream();
         decryptedStream.CopyTo(output);
@@ -59,7 +59,7 @@ public class PullBasedTests
         encryptedStream.CopyTo(ciphertextBuffer);
         ciphertextBuffer.Position = 0;
 
-        using var decryptedStream = AgeEncrypt.DecryptReader(ciphertextBuffer, identity);
+        using var decryptedStream = new Identities(identity).DecryptReader(ciphertextBuffer);
         using var output = new MemoryStream();
         decryptedStream.CopyTo(output);
 
@@ -84,7 +84,7 @@ public class PullBasedTests
 
         // Decrypt
         ciphertext.Position = 0;
-        using var decryptedStream = AgeEncrypt.DecryptReader(ciphertext, identity);
+        using var decryptedStream = new Identities(identity).DecryptReader(ciphertext);
 
         // Also read decrypted one byte at a time
         using var output = new MemoryStream();
@@ -108,7 +108,7 @@ public class PullBasedTests
         encryptedStream.CopyTo(ciphertext);
 
         ciphertext.Position = 0;
-        using var decryptedStream = AgeEncrypt.DecryptReader(ciphertext, identity);
+        using var decryptedStream = new Identities(identity).DecryptReader(ciphertext);
         using var output = new MemoryStream();
         decryptedStream.CopyTo(output);
 
@@ -128,7 +128,7 @@ public class PullBasedTests
         encryptedStream.CopyTo(ciphertext);
 
         ciphertext.Position = 0;
-        using var decryptedStream = AgeEncrypt.DecryptReader(ciphertext, identity);
+        using var decryptedStream = new Identities(identity).DecryptReader(ciphertext);
         using var output = new MemoryStream();
         decryptedStream.CopyTo(output);
 
@@ -149,7 +149,7 @@ public class PullBasedTests
 
         ciphertext.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(ciphertext, output, identity);
+        new Identities(identity).Decrypt(ciphertext, output);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -176,7 +176,7 @@ public class PullBasedTests
         new Recipients(identity.Recipient).Encrypt(input, ciphertext);
 
         ciphertext.Position = 0;
-        using var stream = AgeEncrypt.DecryptReader(ciphertext, identity);
+        using var stream = new Identities(identity).DecryptReader(ciphertext);
 
         Assert.True(stream.CanRead);
         Assert.False(stream.CanSeek);
@@ -197,7 +197,7 @@ public class PullBasedTests
         encryptedStream.CopyTo(ciphertext);
 
         ciphertext.Position = 0;
-        using var decryptedStream = AgeEncrypt.DecryptReader(ciphertext, identity);
+        using var decryptedStream = new Identities(identity).DecryptReader(ciphertext);
         using var output = new MemoryStream();
         decryptedStream.CopyTo(output);
 
@@ -221,7 +221,7 @@ public class PullBasedTests
 
         ciphertext.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(ciphertext, output, identity);
+        new Identities(identity).Decrypt(ciphertext, output);
 
         Assert.Equal(plaintext, output.ToArray());
     }
@@ -246,7 +246,7 @@ public class PullBasedTests
 
         ciphertext.Position = 0;
         using var output = new MemoryStream();
-        AgeEncrypt.Decrypt(ciphertext, output, identity);
+        new Identities(identity).Decrypt(ciphertext, output);
 
         Assert.Equal(plaintext, output.ToArray());
     }
