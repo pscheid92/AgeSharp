@@ -32,7 +32,8 @@ and needs to raise its pin to 2.7.0.
   by a single 64 KiB chunk buffer regardless of input size (1 GiB file uses
   the same working set as a 1 MB file)
 - Pull-based streaming (`EncryptReader` / `DecryptReader`) returns a readable
-  `Stream` for pipe-and-forget use cases
+  `Stream` for pipe-and-forget use cases, and push-based streaming
+  (`EncryptWriter` / `DecryptWriter`) a writable one, as `GZipStream` does
 - Detached header APIs (`EncryptDetached` / `DecryptDetached`)
 - Random-access decryption (`AgeRandomAccess`) — seek into encrypted files
 - Header inspection without decryption (`AgeHeader.Parse`)
@@ -207,6 +208,26 @@ encryptedStream.CopyTo(networkStream);
 using var decryptedStream = new Identities(identity).DecryptReader(ciphertext);
 decryptedStream.CopyTo(outputStream);
 ```
+
+### Push-based streaming
+
+Returns a writable `Stream`, as `GZipStream` does: you write plaintext (or an age file) to
+it, and it writes the age file (or the plaintext) to the stream you gave it. Disposing it
+finishes the file, so dispose it, with `using` or `await using`.
+
+```csharp
+// Encrypt: write plaintext, the age file goes to fileStream
+await using (var writer = new Recipients(recipient).EncryptWriter(fileStream))
+    await source.CopyToAsync(writer);
+
+// Decrypt: write the age file, the plaintext goes to outputStream
+using (var writer = new Identities(identity).DecryptWriter(outputStream))
+    await response.Content.CopyToAsync(writer);
+```
+
+A decrypt writer only knows the file has ended when it is disposed, so that is where the
+last chunk is checked and where a truncated file throws: until then, the plaintext written
+out is unconfirmed. Once a write fails, a writer fails every later write and finishes nothing.
 
 ### Detached headers
 

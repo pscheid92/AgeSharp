@@ -52,15 +52,17 @@ public class RageInteropTests
         Assert.Equal(plaintext, RageCli.Decrypt(identity.Identity + "\n", ciphertext));
     }
 
-    // The async decrypt path, over a pipe, on files rage wrote, at the chunk boundaries.
+    // Every other way of decrypting (async over a pipe, the two writers) on files rage wrote,
+    // at the chunk boundaries.
+    public static IEnumerable<object[]> DecryptionWays() =>
+        from way in new[] { "PipeAsync", "Writer", "WriterAsync" }
+        from size in new[] { 0, 65536, 65537 }
+        from armored in new[] { false, true }
+        select new object[] { way, size, armored };
+
     [SkippableTheory]
-    [InlineData(0, false)]
-    [InlineData(65536, false)]
-    [InlineData(65537, false)]
-    [InlineData(0, true)]
-    [InlineData(65536, true)]
-    [InlineData(65537, true)]
-    public void X25519_EncryptWithRage_DecryptAsyncWithCSharp(int size, bool armored)
+    [MemberData(nameof(DecryptionWays))]
+    public void X25519_EncryptWithRage_DecryptEveryWayWithCSharp(string way, int size, bool armored)
     {
         Skip.IfNot(RageCli.Available, "rage CLI not found on PATH");
 
@@ -69,25 +71,27 @@ public class RageInteropTests
 
         var ciphertext = RageCli.Encrypt(plaintext, armored, identity.Recipient);
 
-        Assert.Equal(plaintext, AgeUnderTest.Decrypt(ciphertext, asynchronously: true, identity.Identity));
+        Assert.Equal(plaintext, AgeUnderTest.Decrypt(ciphertext, Enum.Parse<AgeUnderTest.Decryption>(way), identity.Identity));
     }
 
-    // The async encrypt path, judged by rage at the chunk boundaries.
+    // Every other way of encrypting (async, the two writers), judged by rage at the chunk
+    // boundaries.
+    public static IEnumerable<object[]> EncryptionWays() =>
+        from way in new[] { "StreamAsync", "Writer", "WriterAsync" }
+        from size in new[] { 0, 65536, 65537 }
+        from armored in new[] { false, true }
+        select new object[] { way, size, armored };
+
     [SkippableTheory]
-    [InlineData(0, false)]
-    [InlineData(65536, false)]
-    [InlineData(65537, false)]
-    [InlineData(0, true)]
-    [InlineData(65536, true)]
-    [InlineData(65537, true)]
-    public void X25519_EncryptAsyncWithCSharp_DecryptWithRage(int size, bool armored)
+    [MemberData(nameof(EncryptionWays))]
+    public void X25519_EncryptEveryWayWithCSharp_DecryptWithRage(string way, int size, bool armored)
     {
         Skip.IfNot(RageCli.Available, "rage CLI not found on PATH");
 
         var identity = AgeUnderTest.GenerateX25519();
         var plaintext = MakePlaintext(size);
 
-        var ciphertext = AgeUnderTest.Encrypt(plaintext, armored, asynchronously: true, identity.Recipient);
+        var ciphertext = AgeUnderTest.Encrypt(plaintext, armored, Enum.Parse<AgeUnderTest.Encryption>(way), identity.Recipient);
 
         Assert.Equal(plaintext, RageCli.Decrypt(identity.Identity + "\n", ciphertext));
     }

@@ -228,6 +228,34 @@ public sealed class Recipients : IReadOnlyList<IRecipient>
     }
 
     /// <summary>
+    /// A stream that encrypts what is written to it, writing the age file to
+    /// <paramref name="ciphertext"/> as it goes, in the manner of <c>GZipStream</c>. The file key
+    /// is wrapped before this returns; nothing is written until the first write. Disposing the
+    /// stream writes the final chunk (and the end marker, if armored), which is what completes the
+    /// file, and leaves <paramref name="ciphertext"/> open. Writes may be synchronous or
+    /// asynchronous; use <c>await using</c> to finish asynchronously too.
+    /// </summary>
+    /// <remarks>
+    /// Once a write has thrown, every later write throws the same exception and disposing writes
+    /// nothing more, so a failed file is never completed.
+    /// </remarks>
+    /// <exception cref="AgeException">The recipients declare different security labels.</exception>
+    public Stream EncryptWriter(Stream ciphertext, AgeEncryptOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(ciphertext);
+        options ??= AgeEncryptOptions.Default;
+
+        using var fileKey = FileKey.Fresh();
+
+        using var headerBytes = new MemoryStream();
+        BuildHeader(fileKey.Bytes).WriteTo(headerBytes, fileKey.Bytes);
+
+        var (nonce, payloadKey) = NewPayloadKey(fileKey);
+        return new EncryptWriterStream(headerBytes.ToArray(), nonce, payloadKey, ciphertext,
+            options.Armor ? new ArmorWriterStream(ciphertext) : null);
+    }
+
+    /// <summary>
     /// Encrypts <paramref name="plaintext"/>, writing the header to <paramref name="header"/> and
     /// the payload to <paramref name="payload"/>, for when the two are kept apart (a metadata
     /// store and a blob store, say).

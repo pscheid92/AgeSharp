@@ -79,6 +79,7 @@ AgeSharp.Identities.DecryptDetached(System.IO.Stream! header, System.IO.Stream! 
 AgeSharp.Identities.DecryptDetachedAsync(System.IO.Stream! header, System.IO.Stream! payload, System.IO.Stream! plaintext, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 AgeSharp.Identities.DecryptReader(System.IO.Stream! ciphertext, AgeSharp.AgeDecryptOptions? options = null) -> System.IO.Stream!
 AgeSharp.Identities.DecryptReaderAsync(System.IO.Stream! ciphertext, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<System.IO.Stream!>
+AgeSharp.Identities.DecryptWriter(System.IO.Stream! plaintext, AgeSharp.AgeDecryptOptions? options = null) -> System.IO.Stream!
 AgeSharp.Identities.Dispose() -> void
 AgeSharp.Identities.GetEnumerator() -> System.Collections.Generic.IEnumerator<AgeSharp.IIdentity!>!
 AgeSharp.Identities.Identities(System.Collections.Generic.IEnumerable<AgeSharp.IIdentity!>! identities) -> void
@@ -109,6 +110,7 @@ AgeSharp.Recipients.EncryptAsync(System.IO.Stream! plaintext, System.IO.Stream! 
 AgeSharp.Recipients.EncryptDetached(System.IO.Stream! plaintext, System.IO.Stream! header, System.IO.Stream! payload) -> void
 AgeSharp.Recipients.EncryptDetachedAsync(System.IO.Stream! plaintext, System.IO.Stream! header, System.IO.Stream! payload, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 AgeSharp.Recipients.EncryptReader(System.IO.Stream! plaintext, AgeSharp.AgeEncryptOptions? options = null) -> System.IO.Stream!
+AgeSharp.Recipients.EncryptWriter(System.IO.Stream! ciphertext, AgeSharp.AgeEncryptOptions? options = null) -> System.IO.Stream!
 AgeSharp.Recipients.GetEnumerator() -> System.Collections.Generic.IEnumerator<AgeSharp.IRecipient!>!
 AgeSharp.Recipients.Recipients(System.Collections.Generic.IEnumerable<AgeSharp.IRecipient!>! recipients) -> void
 AgeSharp.Recipients.Recipients(params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void

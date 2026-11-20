@@ -312,6 +312,33 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
     }
 
     /// <summary>
+    /// A stream that decrypts the age file written to it, binary or armored, writing the
+    /// plaintext to <paramref name="plaintext"/> a chunk at a time as each authenticates, in the
+    /// manner of <c>GZipStream</c>. Creating it reads nothing; the header is parsed and the file
+    /// key unwrapped once enough of the file has been written. Writes may be synchronous or
+    /// asynchronous; use <c>await using</c> to finish asynchronously too.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only disposing says the file has ended, so that is where the last chunk is decrypted and
+    /// where a truncated or malformed ending throws. Dispose it explicitly, or with
+    /// <c>using</c>, and expect it to throw. Until it has returned, the plaintext written so far
+    /// is unconfirmed: a file cut short is found out only at its end.
+    /// </para>
+    /// <para>
+    /// Once a write has thrown, every later write throws the same exception and disposing
+    /// finishes nothing and throws nothing more. <paramref name="plaintext"/> stays open.
+    /// </para>
+    /// </remarks>
+    public Stream DecryptWriter(Stream plaintext, AgeDecryptOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(plaintext);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        return new DecryptWriterStream(plaintext, this, options ?? AgeDecryptOptions.Default);
+    }
+
+    /// <summary>
     /// Decrypts a file whose header and payload are kept apart, the inverse of
     /// <see cref="Recipients.EncryptDetached"/>.
     /// </summary>

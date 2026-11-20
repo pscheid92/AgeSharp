@@ -109,6 +109,14 @@ the machine above.
 | Decrypt | 473 ms | 16 KB |
 | Encrypt (armored) | 519 ms | 23 KB |
 | Decrypt (armored) | 658 ms | 26 KB |
+| Encrypt, pushed into `EncryptWriter` | 421–426 ms | 35 KB |
+| Decrypt, pushed into `DecryptWriter` | 463–464 ms | 17 KB |
+| Decrypt (armored), pushed into `DecryptWriter` | 611–613 ms | 19 KB |
+
+The writer rows were measured later the same day, two runs each, fed by `CopyTo` in its
+default 80 KiB pieces. In the same runs the reading forms took 427–438 ms (encrypt),
+463–483 ms (decrypt) and 626–792 ms (armored decrypt; the 792 ms run was disturbed), so
+pushing costs nothing over pulling.
 
 What a call allocates does not grow with the file, armored decryption included. Before the
 armor decoder read lines as bytes, armored decryption allocated a string for every 64-character

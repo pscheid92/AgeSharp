@@ -29,7 +29,7 @@ internal static class AgeUnderTest
     }
 
     /// <summary>A decryption's outcome, its plaintext on success, and the error's message otherwise.</summary>
-    public sealed record Decryption(Outcome Outcome, byte[]? Plaintext, string? Error);
+    public sealed record Result(Outcome Outcome, byte[]? Plaintext, string? Error);
 
     /// <summary>AgeSharp refused to encrypt, for example to a mix of classical and post-quantum recipients.</summary>
     public sealed class Refused(string message, Exception inner) : Exception(message, inner);
@@ -46,16 +46,32 @@ internal static class AgeUnderTest
         return new KeyPair(identity.ToSecretString(), identity.Recipient.ToString());
     }
 
-    /// <summary>
-    /// Encrypts to recipient strings of any type. With <paramref name="asynchronously"/>, every
-    /// read and write goes through the async path.
-    /// </summary>
+    /// <summary>How a file is written: from a stream, synchronously or not, or through a writer.</summary>
+    public enum Encryption
+    {
+        Stream,
+        StreamAsync,
+        Writer,
+        WriterAsync,
+    }
+
+    /// <summary>How a file is read: from a seekable stream, from a pipe, or pushed into a writer.</summary>
+    public enum Decryption
+    {
+        File,
+        Pipe,
+        PipeAsync,
+        Writer,
+        WriterAsync,
+    }
+
+    /// <summary>Encrypts to recipient strings of any type.</summary>
     /// <exception cref="Refused">AgeSharp refused the recipients.</exception>
     public static byte[] Encrypt(byte[] plaintext, bool armored, params string[] recipients) =>
-        Encrypt(plaintext, armored, asynchronously: false, recipients);
+        Encrypt(plaintext, armored, Encryption.Stream, recipients);
 
     /// <inheritdoc cref="Encrypt(byte[], bool, string[])"/>
-    public static byte[] Encrypt(byte[] plaintext, bool armored, bool asynchronously, params string[] recipients)
+    public static byte[] Encrypt(byte[] plaintext, bool armored, Encryption way, params string[] recipients)
     {
         using var input = new MemoryStream(plaintext);
         using var output = new MemoryStream();
@@ -65,10 +81,25 @@ internal static class AgeUnderTest
         {
             var to = ParseRecipients(recipients);
 
-            if (asynchronously)
-                to.EncryptAsync(input, output, options).GetAwaiter().GetResult();
-            else
-                to.Encrypt(input, output, options);
+            switch (way)
+            {
+                case Encryption.Stream:
+                    to.Encrypt(input, output, options);
+                    break;
+
+                case Encryption.StreamAsync:
+                    to.EncryptAsync(input, output, options).GetAwaiter().GetResult();
+                    break;
+
+                case Encryption.Writer:
+                    using (var writer = to.EncryptWriter(output, options))
+                        WriteInPieces(writer, plaintext, 4093);
+                    break;
+
+                default:
+                    WriteInPiecesAsync(to.EncryptWriter(output, options), plaintext, 61).GetAwaiter().GetResult();
+                    break;
+            }
         }
         catch (AgeException ex)
         {
@@ -76,6 +107,23 @@ internal static class AgeUnderTest
         }
 
         return output.ToArray();
+    }
+
+    // Writes in pieces of a size that divides nothing in the format, so they split lines, the
+    // header, the nonce and chunks anywhere; then disposes, which is what ends a writer's input.
+    private static void WriteInPieces(Stream writer, byte[] data, int piece)
+    {
+        for (var at = 0; at < data.Length; at += piece)
+            writer.Write(data, at, Math.Min(piece, data.Length - at));
+    }
+
+    private static async Task WriteInPiecesAsync(Stream writer, byte[] data, int piece)
+    {
+        await using (writer)
+        {
+            for (var at = 0; at < data.Length; at += piece)
+                await writer.WriteAsync(data.AsMemory(at, Math.Min(piece, data.Length - at)));
+        }
     }
 
     /// <summary>Encrypts with the header and the payload written apart.</summary>
@@ -91,12 +139,12 @@ internal static class AgeUnderTest
 
     /// <summary>Decrypts with identity strings; anything but success fails the calling test.</summary>
     public static byte[] Decrypt(byte[] ciphertext, params string[] identities) =>
-        Decrypt(ciphertext, asynchronously: false, identities);
+        Decrypt(ciphertext, Decryption.File, identities);
 
-    /// <summary>Decrypts, through the async path if asked; anything but success fails the calling test.</summary>
-    public static byte[] Decrypt(byte[] ciphertext, bool asynchronously, params string[] identities)
+    /// <summary>Decrypts the given way; anything but success fails the calling test.</summary>
+    public static byte[] Decrypt(byte[] ciphertext, Decryption way, params string[] identities)
     {
-        var decryption = TryDecrypt(ciphertext, identities, overAPipe: asynchronously, asynchronously: asynchronously);
+        var decryption = TryDecrypt(ciphertext, identities, way: way);
 
         return decryption.Outcome == Outcome.Success
             ? decryption.Plaintext!
@@ -105,12 +153,10 @@ internal static class AgeUnderTest
 
     /// <summary>
     /// Decrypts with identity strings (X25519, post-quantum, plugin, or a PEM SSH key) and, if
-    /// given, a passphrase, and reports how it ended. With <paramref name="overAPipe"/>, the
-    /// file is read from a stream that cannot seek; with <paramref name="asynchronously"/>,
-    /// every read and write goes through the async path.
+    /// given, a passphrase, and reports how it ended, read the given way.
     /// </summary>
-    public static Decryption TryDecrypt(byte[] ciphertext, IReadOnlyList<string> identities, string? passphrase = null,
-                                        bool overAPipe = false, bool asynchronously = false)
+    public static Result TryDecrypt(byte[] ciphertext, IReadOnlyList<string> identities, string? passphrase = null,
+                                    Decryption way = Decryption.File)
     {
         var parsed = ParseIdentities(identities, passphrase);
 
@@ -119,22 +165,37 @@ internal static class AgeUnderTest
         if (parsed.Count == 0)
             parsed.Add(X25519Identity.Generate());
 
-        using Stream input = overAPipe ? new Pipe(ciphertext) : new MemoryStream(ciphertext);
+        using Stream input = way == Decryption.File ? new MemoryStream(ciphertext) : new Pipe(ciphertext);
         using var output = new MemoryStream();
         var with = new Identities(parsed);
 
         try
         {
-            if (asynchronously)
-                with.DecryptAsync(input, output).GetAwaiter().GetResult();
-            else
-                with.Decrypt(input, output);
+            switch (way)
+            {
+                case Decryption.File or Decryption.Pipe:
+                    with.Decrypt(input, output);
+                    break;
 
-            return new Decryption(Outcome.Success, output.ToArray(), null);
+                case Decryption.PipeAsync:
+                    with.DecryptAsync(input, output).GetAwaiter().GetResult();
+                    break;
+
+                case Decryption.Writer:
+                    using (var writer = with.DecryptWriter(output))
+                        WriteInPieces(writer, ciphertext, 4093);
+                    break;
+
+                default:
+                    WriteInPiecesAsync(with.DecryptWriter(output), ciphertext, 61).GetAwaiter().GetResult();
+                    break;
+            }
+
+            return new Result(Outcome.Success, output.ToArray(), null);
         }
         catch (AgeException ex)
         {
-            return new Decryption(OutcomeOf(ex), null, $"{ex.GetType().Name}: {ex.Message}");
+            return new Result(OutcomeOf(ex), null, $"{ex.GetType().Name}: {ex.Message}");
         }
         finally
         {
