@@ -1,14 +1,14 @@
-using Age.Crypto;
+using AgeSharp.Crypto;
 
-namespace Age.Format;
+namespace AgeSharp;
 
 /// <summary>
 /// One entry in an age file header's recipient list. A stanza carries the
 /// wrapped file key for a single recipient, plus recipient-specific metadata.
 /// </summary>
 /// <remarks>
-/// Stanzas are the extensibility primitive used by custom <see cref="Age.Recipients.IRecipient"/>
-/// and <see cref="Age.Recipients.IIdentity"/> implementations to communicate
+/// Stanzas are the extensibility primitive used by custom <see cref="AgeSharp.IRecipient"/>
+/// and <see cref="AgeSharp.IIdentity"/> implementations to communicate
 /// wrapped keys through the age wire format. The <see cref="Type"/> tag
 /// identifies the recipient kind (<c>"X25519"</c>, <c>"scrypt"</c>, <c>"ssh-ed25519"</c>,
 /// <c>"ssh-rsa"</c>, <c>"mlkem768x25519"</c>, or any custom tag).
@@ -161,7 +161,7 @@ public sealed class Stanza
     /// Deliberately not <c>List&lt;byte&gt;</c> or <c>SelectMany().ToArray()</c>, both of which
     /// would be shorter: those grow by reallocating, and every abandoned backing array keeps a
     /// copy of the wrapped file key that nothing can reach to clear. Same reasoning as
-    /// <see cref="Age.Crypto.Bech32"/>, which sizes its output exactly for the same reason.
+    /// <see cref="AgeSharp.Crypto.Bech32"/>, which sizes its output exactly for the same reason.
     /// </remarks>
     private static byte[] Concat(List<byte[]> chunks)
     {
@@ -183,7 +183,7 @@ public sealed class Stanza
     /// index of the first character outside 0x21-0x7E, or -1 if there is none.
     /// </summary>
     /// <remarks>
-    /// Shared with <see cref="Age.Plugin.PluginConnection"/>, which applies the same rule to what
+    /// Shared with <see cref="AgeSharp.PluginConnection"/>, which applies the same rule to what
     /// a plugin sends. Only the rule is shared — each site words its own message, because they
     /// blame different parties: malformed wire data, a bad argument, or a misbehaving plugin.
     /// </remarks>

@@ -1,3 +1,4 @@
+using AgeSharp;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using BenchmarkDotNet.Attributes;

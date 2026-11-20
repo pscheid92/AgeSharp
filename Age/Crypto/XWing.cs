@@ -4,7 +4,7 @@ using Org.BouncyCastle.Crypto.Kems;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// X-Wing (MLKEM768-X25519, draft-connolly-cfrg-xwing-kem): what the mlkem768x25519 recipient

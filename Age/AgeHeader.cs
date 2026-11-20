@@ -1,6 +1,6 @@
-using Age.Format;
+using AgeSharp;
 
-namespace Age;
+namespace AgeSharp;
 
 /// <summary>
 /// The parsed header of an age file: its recipient stanzas and layout facts.

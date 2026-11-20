@@ -5,7 +5,7 @@ using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 internal static class CryptoHelper
 {

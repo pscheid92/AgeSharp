@@ -1,6 +1,6 @@
 using Org.BouncyCastle.Crypto.Digests;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// What the two hybrid KEMs, X-Wing and MLKEM768-P256, have in common: ML-KEM-768 next to a

@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
-using Age.Crypto;
-using Age.Format;
+using AgeSharp.Crypto;
+using AgeSharp;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// An identity backed by a passphrase-protected SSH private key: ssh-ed25519 or ssh-rsa in

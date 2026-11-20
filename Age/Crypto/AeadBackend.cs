@@ -1,4 +1,4 @@
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// Selects a ChaCha20-Poly1305 implementation. Internal: the backend is chosen automatically

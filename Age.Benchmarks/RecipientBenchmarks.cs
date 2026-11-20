@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
-using Age.Format;
-using Age.Recipients;
+using AgeSharp;
 using BenchmarkDotNet.Attributes;
 
 namespace Age.Benchmarks;

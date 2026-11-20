@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Age;
+namespace AgeSharp;
 
 /// <summary>
 /// The 16-byte symmetric key that protects one age file's payload, owning its own lifetime:
@@ -9,8 +9,8 @@ namespace Age;
 /// <remarks>
 /// A bare <c>byte[]</c> cannot carry that guarantee — every site had to remember a
 /// <c>try/finally</c>, and the ones that forgot were the S9 defects. Recipients and identities
-/// see the key only as a span: <see cref="Recipients.IRecipient.Wrap"/> reads it, and
-/// <see cref="Recipients.IIdentity.TryUnwrap(Format.Stanza, Span{byte})"/> writes it into the
+/// see the key only as a span: <see cref="IRecipient.Wrap"/> reads it, and
+/// <see cref="IIdentity.TryUnwrap(Stanza, Span{byte})"/> writes it into the
 /// buffer this owns.
 /// </remarks>
 internal sealed class FileKey : IDisposable
@@ -45,7 +45,7 @@ internal sealed class FileKey : IDisposable
     /// Asks each identity, in order, for the file key the stanzas wrap, and returns it from the
     /// first that has it, or null if none does.
     /// </summary>
-    public static FileKey? UnwrapFrom(IReadOnlyList<Format.Stanza> stanzas, IEnumerable<Recipients.IIdentity> identities)
+    public static FileKey? UnwrapFrom(IReadOnlyList<Stanza> stanzas, IEnumerable<IIdentity> identities)
     {
         var key = new FileKey(new byte[Size]);
 

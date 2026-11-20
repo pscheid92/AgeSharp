@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using Org.BouncyCastle.Security;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// The MLKEM768-P256 hybrid KEM of draft-ietf-hpke-pq, for encapsulation only: what the

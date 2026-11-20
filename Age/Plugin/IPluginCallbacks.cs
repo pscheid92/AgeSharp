@@ -1,4 +1,4 @@
-namespace Age.Plugin;
+namespace AgeSharp;
 
 /// <summary>
 /// User-interaction callbacks invoked when an age plugin needs to display a message

@@ -1,4 +1,4 @@
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// An <see cref="IRecipient"/> that also produces security labels. Every recipient in a file

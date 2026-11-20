@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
-using Age.Crypto;
+using AgeSharp.Crypto;
 
-namespace Age.Plugin;
+namespace AgeSharp;
 
 /// <summary>
 /// Answers what a plugin asks of the user: <c>msg</c>, <c>request-secret</c>,

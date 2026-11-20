@@ -2,7 +2,7 @@ using System.Buffers;
 using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool ownsStream) : Stream
 {

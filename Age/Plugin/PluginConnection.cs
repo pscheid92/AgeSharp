@@ -3,10 +3,10 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using Age.Crypto;
-using Age.Format;
+using AgeSharp.Crypto;
+using AgeSharp;
 
-namespace Age.Plugin;
+namespace AgeSharp;
 
 internal sealed class PluginConnection : IDisposable
 {

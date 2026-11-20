@@ -1,5 +1,5 @@
 using System.Text;
-using Age.Recipients;
+using AgeSharp;
 using Xunit;
 
 namespace Age.Tests;
@@ -455,7 +455,7 @@ public class EncryptedSshKeyTests
     [InlineData("ssh-rsa", "aes256-gcm@openssh.com", true)]
     [InlineData("ssh-rsa", "chacha20-poly1305@openssh.com", true)]
     public void WhichKeysTheBrowserCannotDecrypt(string keyType, string cipher, bool refused) =>
-        Assert.Equal(refused, Age.Crypto.ProtectedOpenSshKey.WhyItCannotBeDecryptedInTheBrowser(keyType, cipher) is not null);
+        Assert.Equal(refused, AgeSharp.Crypto.ProtectedOpenSshKey.WhyItCannotBeDecryptedInTheBrowser(keyType, cipher) is not null);
 
     [SkippableFact]
     public void Interop_AgeEncryptsToThePublicKey_TheProtectedKeyDecrypts()

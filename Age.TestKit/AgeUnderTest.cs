@@ -1,5 +1,4 @@
-using Age;
-using Age.Recipients;
+using AgeSharp;
 
 namespace OuterLoop;
 

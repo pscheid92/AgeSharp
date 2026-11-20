@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Age.Crypto;
+namespace AgeSharp.Crypto;
 
 /// <summary>
 /// <see cref="IAeadCipher"/> backed by the platform <see cref="ChaCha20Poly1305"/> —

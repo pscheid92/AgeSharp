@@ -1,4 +1,4 @@
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// An <see cref="IIdentity"/> that knows its own public half, so a caller can go from a secret

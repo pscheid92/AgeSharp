@@ -1,9 +1,9 @@
 using System.Security.Cryptography;
-using Age.Crypto;
-using Age.Format;
+using AgeSharp.Crypto;
+using AgeSharp;
 using Org.BouncyCastle.Security;
 
-namespace Age.Recipients;
+namespace AgeSharp;
 
 /// <summary>
 /// A post-quantum ML-KEM-768-X25519 hybrid recipient (<c>age1pq1…</c>), used to

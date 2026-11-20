@@ -59,5 +59,5 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 ## Internal (from the 2026-09-22 review)
 
 - [ ] `PayloadKey` type
-- [x] Shared plugin prompt handler — `Age.Plugin.PluginPrompts`, used by `PluginRecipient` and `PluginIdentity`
+- [x] Shared plugin prompt handler — `AgeSharp.PluginPrompts`, used by `PluginRecipient` and `PluginIdentity`
 - [ ] Remove test-only code from the production assembly (the KEMs' scalar overloads and `PluginRecipient.WrapWithConnection` are gone; `PluginIdentity.UnwrapWithConnection` and others remain)

@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using Age.Format;
-using Age.Recipients;
+using AgeSharp;
 using Org.BouncyCastle.Crypto.Generators;
 using Xunit;
 
