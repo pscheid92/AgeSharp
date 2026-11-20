@@ -86,7 +86,7 @@ internal sealed class DearmorStream(Stream input) : Stream
             if (!_inputEnded)
                 return false;
 
-            if (_framer.FinishAtEnd() is { } last)
+            if (_framer.TryFinishAtEnd(out var last))
                 Decode(last);
 
             _decoder.Finish();

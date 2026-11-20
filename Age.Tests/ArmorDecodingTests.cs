@@ -113,6 +113,30 @@ public class ArmorDecodingTests
         Assert.Equal("hello armor"u8.ToArray(), buffer[..read]);
     }
 
+    // A malformed last line is "invalid base64"; a well-formed one whose padding covers bits
+    // that are not zero is "non-canonical". These are the old decoder's answers, line by line.
+    [Theory]
+    [InlineData("ABA=", null)]
+    [InlineData("AA==", null)]
+    [InlineData("ABC=", "non-canonical base64 in armor")]
+    [InlineData("AF==", "non-canonical base64 in armor")]
+    [InlineData("ABC", "invalid base64 in armor")]
+    [InlineData("ABCDEF=", "invalid base64 in armor")]
+    [InlineData("A=BC", "invalid base64 in armor")]
+    [InlineData("AB=C", "invalid base64 in armor")]
+    [InlineData("A===", "invalid base64 in armor")]
+    public void AMalformedLastLine_IsInvalid_AndStrayPaddingBits_AreNonCanonical(string line, string? refusal)
+    {
+        var text = $"-----BEGIN AGE ENCRYPTED FILE-----\n{line}\n-----END AGE ENCRYPTED FILE-----\n";
+
+        var result = Dearmor(new MemoryStream(Encoding.ASCII.GetBytes(text)));
+
+        if (refusal is null)
+            Assert.DoesNotContain("Exception", result);
+        else
+            Assert.Equal($"AgeArmorException: {refusal}", result);
+    }
+
     private static string Armor(ReadOnlySpan<byte> bytes)
     {
         using var output = new MemoryStream();
