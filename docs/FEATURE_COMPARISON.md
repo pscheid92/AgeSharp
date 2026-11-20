@@ -32,7 +32,7 @@ AgeSharp builds the HPKE for both on BouncyCastle, so they also work in the brow
 | Encrypted identity files | ✅ | ✅ | ✅ | |
 | Recipients files | ✅ | ✅ | ✅ | |
 | Header limits (2 MiB, 1024 stanzas, 128 arguments) | ✅ | ❌ | ✅ | Introduced by Go v1.3.2; not in the spec |
-| Armor line length bound | ❌ | ❌ | ✅ | 64 KiB |
+| Armor line length bound | ❌ | ❌ | ✅ | 1 KiB |
 | C2SP conformance vectors | ✅ | ✅ | ✅ | AgeSharp passes all 147 of the 2026-08-29 set |
 
 ## Library APIs

@@ -8,36 +8,75 @@ internal static class AsciiArmor
     private const string EndMarker = "-----END AGE ENCRYPTED FILE-----";
     private const int ColumnsPerLine = 64;
 
-    public static bool IsArmored(Stream stream)
+    // Valid armor has at most this much whitespace before its begin marker: blank lines worth
+    // MaxArmorWhitespaceBytes (each counting its length plus one, so up to twice that in raw
+    // bytes with CRLF), then the marker line's own indent, within one line's bound. Past this,
+    // the input is armor or nothing, and the armor reader says which rule it breaks.
+    private const int MaxWhitespaceLookahead = 4 * AgeLimits.MaxArmorLineBytes;
+
+    /// <summary>
+    /// The input to read age's binary format from: the input itself, or what its armor decodes
+    /// to. Detects armor by looking ahead, not by seeking, so it works on a pipe, and looks only
+    /// as far as it needs: past leading whitespace and the length of the begin marker.
+    /// </summary>
+    /// <exception cref="AgeArmorException">The input is armored, and its begin marker is malformed.</exception>
+    public static (Stream Binary, bool IsArmored) Open(Stream input)
     {
-        if (!stream.CanSeek)
-            return false;
+        var peekable = new PeekableStream(input);
 
-        var pos = stream.Position;
-        SkipLeadingWhitespace(stream);
-
-        var marker = Encoding.ASCII.GetBytes(BeginMarker);
-        var buf = new byte[marker.Length];
-        var read = ReadChunk(stream, buf);
-
-        stream.Position = pos;
-        return read == marker.Length && buf.AsSpan().SequenceEqual(marker);
+        return StartsWithArmor(peekable)
+            ? (Dearmor(peekable), true)
+            : (peekable, false);
     }
 
-    private static void SkipLeadingWhitespace(Stream stream)
+    /// <summary>Whether a seekable stream holds armor at its position, which is left where it was.</summary>
+    public static bool IsArmored(Stream seekable)
     {
+        var position = seekable.Position;
+
+        try
+        {
+            return StartsWithArmor(new PeekableStream(seekable));
+        }
+        finally
+        {
+            seekable.Position = position;
+        }
+    }
+
+    private static bool StartsWithArmor(PeekableStream input)
+    {
+        var marker = Encoding.ASCII.GetBytes(BeginMarker);
+        var lookahead = marker.Length;
+
         while (true)
         {
-            var b = stream.ReadByte();
+            var prefix = input.Peek(lookahead);
+            var whitespace = prefix.IndexOfAnyExcept(" \t\r\n"u8);
+            var inputEnded = prefix.Length < lookahead;
 
-            if (b < 0)
-                break;
+            if (whitespace < 0)
+            {
+                // Whitespace to the end of what could be read: not armor if the input ended,
+                // armor if there is too much of it to be anything else.
+                if (inputEnded)
+                    return false;
 
-            if (b is ' ' or '\t' or '\r' or '\n')
+                if (prefix.Length >= MaxWhitespaceLookahead)
+                    return true;
+
+                lookahead *= 2;
                 continue;
+            }
 
-            stream.Position--;
-            break;
+            if (whitespace >= MaxWhitespaceLookahead)
+                return true;
+
+            if (inputEnded || prefix.Length - whitespace >= marker.Length)
+                return prefix[whitespace..].StartsWith(marker);
+
+            // The whitespace left too little of the lookahead to hold the marker.
+            lookahead = whitespace + marker.Length;
         }
     }
 

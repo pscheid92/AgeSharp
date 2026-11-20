@@ -20,7 +20,8 @@ public class FailStopStreamTests
     public void EncryptReader_AfterSourceFails_KeepsFailing(bool armor)
     {
         using var identity = X25519Identity.Generate();
-        using var source = new FailsOnceStream(new MemoryStream(Plaintext(200_000)), failingRead: 3);
+        // Fails partway, at the third plaintext chunk.
+        using var source = new FailsOnceStream(new MemoryStream(Plaintext(200_000)), failAt: 2 * StreamEncryption.ChunkSize);
         using var encrypted = AgeEncrypt.EncryptReader(source, armor, identity.Recipient);
 
         var first = Assert.Throws<IOException>(() => DrainOneByteAtATime(encrypted));
@@ -61,10 +62,10 @@ public class FailStopStreamTests
         using var identity = X25519Identity.Generate();
         var ciphertext = Encrypt(Plaintext(200_000), identity.Recipient);
 
-        // Header parsing makes one Read per byte and the nonce one more, so this fails the Read
-        // for the second payload chunk.
-        var headerReads = (int)AgeHeader.Parse(new MemoryStream(ciphertext)).PayloadOffset + 1;
-        using var source = new FailsOnceStream(new MemoryStream(ciphertext), failingRead: headerReads + 2);
+        // Fails the first read that reaches into the second payload chunk, however the reads
+        // before it were split.
+        var payloadStart = AgeHeader.Parse(new MemoryStream(ciphertext)).PayloadOffset + PayloadNonceSize;
+        using var source = new FailsOnceStream(new MemoryStream(ciphertext), failAt: payloadStart + StreamEncryption.EncryptedChunkSize);
         using var decrypted = AgeEncrypt.DecryptReader(source, identity);
 
         var first = Assert.Throws<IOException>(() => Drain(decrypted));
@@ -141,17 +142,33 @@ public class FailStopStreamTests
         while (stream.Read(buffer) > 0) { }
     }
 
-    /// <summary>A source whose <paramref name="failingRead"/>-th Read throws; every other Read succeeds.</summary>
-    private sealed class FailsOnceStream(Stream inner, int failingRead) : Stream
+    /// <summary>A source that fails, once, the first read that would deliver the byte at <paramref name="failAt"/>.</summary>
+    private sealed class FailsOnceStream(Stream inner, long failAt) : Stream
     {
-        private int _reads;
+        private long _position;
+        private bool _failed;
 
         public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
 
-        public override int Read(Span<byte> buffer) =>
-            ++_reads == failingRead
-                ? throw new IOException("transient source failure")
-                : inner.Read(buffer);
+        public override int Read(Span<byte> buffer)
+        {
+            if (!_failed && _position + buffer.Length > failAt)
+            {
+                var upTo = (int)(failAt - _position);
+
+                if (upTo == 0)
+                {
+                    _failed = true;
+                    throw new IOException("transient source failure");
+                }
+
+                buffer = buffer[..upTo];
+            }
+
+            var read = inner.Read(buffer);
+            _position += read;
+            return read;
+        }
 
         public override int ReadByte()
         {

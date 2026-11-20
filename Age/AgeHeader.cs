@@ -35,21 +35,20 @@ public sealed class AgeHeader
     }
 
     /// <summary>
-    /// Parses the header of an age file (binary, or armored when the stream is
-    /// seekable) without decrypting it. Reads from the current position and
-    /// leaves the stream positioned wherever header reading stopped.
+    /// Parses the header of an age file, binary or armored, without decrypting it. Reads from
+    /// the current position. For a binary file, the stream is left where the header ends, at
+    /// the payload, on any stream; armor is read further, as far as its lines run.
     /// </summary>
     /// <param name="input">The age-encrypted source.</param>
     /// <exception cref="AgeHeaderException">The header is malformed or exceeds <see cref="AgeLimits"/>.</exception>
     /// <exception cref="AgeArmorException">The input is armored and the armor is malformed.</exception>
     public static AgeHeader Parse(Stream input)
     {
-        var isArmored = input.CanSeek && AsciiArmor.IsArmored(input);
-
-        // Which variable holds the stream is the ownership claim: `dearmored` is ours to dispose,
-        // `input` is the caller's. `using` on a null is a no-op, so the borrowed case needs no flag.
-        using var dearmored = isArmored ? AsciiArmor.Dearmor(input) : null;
-        var reader = new HeaderReader(dearmored ?? input);
+        // The binary input is a look-ahead or a dearmoring wrapper: ours to dispose, and neither
+        // disposes the caller's stream.
+        var (binary, isArmored) = AsciiArmor.Open(input);
+        using var _ = binary;
+        var reader = new HeaderReader(binary);
 
         Header header;
         try

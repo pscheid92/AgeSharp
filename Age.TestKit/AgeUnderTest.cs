@@ -89,9 +89,10 @@ internal static class AgeUnderTest
 
     /// <summary>
     /// Decrypts with identity strings (X25519, post-quantum, plugin, or a PEM SSH key) and, if
-    /// given, a passphrase, and reports how it ended.
+    /// given, a passphrase, and reports how it ended. With <paramref name="overAPipe"/>, the
+    /// file is read from a stream that cannot seek.
     /// </summary>
-    public static Decryption TryDecrypt(byte[] ciphertext, IReadOnlyList<string> identities, string? passphrase = null)
+    public static Decryption TryDecrypt(byte[] ciphertext, IReadOnlyList<string> identities, string? passphrase = null, bool overAPipe = false)
     {
         var parsed = ParseIdentities(identities, passphrase);
 
@@ -100,7 +101,7 @@ internal static class AgeUnderTest
         if (parsed.Count == 0)
             parsed.Add(X25519Identity.Generate());
 
-        using var input = new MemoryStream(ciphertext);
+        using Stream input = overAPipe ? new Pipe(ciphertext) : new MemoryStream(ciphertext);
         using var output = new MemoryStream();
 
         try
@@ -129,6 +130,29 @@ internal static class AgeUnderTest
         AgeArmorException => Outcome.ArmorFailure,
         _ => throw new InvalidOperationException($"no outcome for {ex.GetType().Name}: {ex.Message}", ex),
     };
+
+    // A stream that cannot seek, like a pipe or a network socket.
+    private sealed class Pipe(byte[] data) : Stream
+    {
+        private readonly MemoryStream _inner = new(data);
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
 
     private static IRecipient[] ParseRecipients(string[] recipients) =>
         recipients.SelectMany(r => AgeKeygen.ParseRecipientsFile(r)).ToArray();

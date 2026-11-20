@@ -24,12 +24,11 @@ internal sealed class Header
 
         if (versionLine != VersionLine)
             throw new AgeHeaderException(
-                // Armor is auto-detected only on a seekable stream, so armored input from a pipe
-                // arrives here intact. Reporting its BEGIN marker as an "unsupported version"
-                // sent people looking for a version problem that does not exist.
+                // Armor reaches here only where it is not expected, as a detached header, which is
+                // binary by definition. Reporting its BEGIN marker as an "unsupported version"
+                // would send people looking for a version problem that does not exist.
                 versionLine.TrimStart().StartsWith("-----BEGIN AGE ENCRYPTED FILE-----", StringComparison.Ordinal)
-                    ? "input is ASCII-armored, but armor is only auto-detected on a seekable " +
-                      "stream; buffer it first (for example into a MemoryStream) or strip the armor"
+                    ? "input is ASCII-armored where a binary age header was expected; a detached header is never armored"
                     : $"unsupported version: {versionLine}");
 
         while (true)
