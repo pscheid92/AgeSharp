@@ -276,7 +276,7 @@ internal static class AgeUnderTest
         foreach (var identity in identities)
         {
             if (identity.StartsWith("-----BEGIN", StringComparison.Ordinal))
-                parsed.Add(AgeKeygen.ParseSshIdentity(identity));
+                parsed.Add(SshIdentity.Parse(identity));
             else
                 parsed.AddRange(Identities.Parse(identity));
         }

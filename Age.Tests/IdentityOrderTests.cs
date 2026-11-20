@@ -60,9 +60,9 @@ public class IdentityOrderTests
     public void APassphraseProtectedSshKeyListedFirst_IsNotAskedFor_WhenAnotherKeyMatches()
     {
         using var x25519 = X25519Identity.Generate();
-        var plainSsh = (SshEd25519Identity)AgeKeygen.ParseSshIdentity(Fixture("ed25519_plain"));
+        var plainSsh = (SshEd25519Identity)SshIdentity.Parse(Fixture("ed25519_plain"));
         var ciphertext = Encrypt(plainSsh.Recipient, x25519.Recipient);
-        using var protectedSsh = (EncryptedSshIdentity)AgeKeygen.ParseSshIdentity(Fixture("ed25519_aes256ctr"),
+        using var protectedSsh = (EncryptedSshIdentity)SshIdentity.Parse(Fixture("ed25519_aes256ctr"),
             () => throw new InvalidOperationException("the passphrase was asked for"));
 
         Assert.Equal(Plaintext, Decrypt("Decrypt", ciphertext, protectedSsh, x25519));

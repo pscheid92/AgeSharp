@@ -42,7 +42,7 @@ public class LegacyPemSshKeyTests
 
         var ciphertext = Encrypt(identity.Recipient);
 
-        Assert.Equal(Plaintext, Decrypt(ciphertext, AgeKeygen.ParseSshIdentity(Key("rsa_plain"))));
+        Assert.Equal(Plaintext, Decrypt(ciphertext, SshIdentity.Parse(Key("rsa_plain"))));
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public class LegacyPemSshKeyTests
     public void APublicKeyFileThatIsNotAPublicKey_IsRefused()
     {
         Assert.Throws<FormatException>(() =>
-            AgeKeygen.ParseSshIdentity(Key("rsa_legacy_pem"), "not a public key", NeverAsked));
+            SshIdentity.Parse(Key("rsa_legacy_pem"), "not a public key", NeverAsked));
     }
 
     // go-age reads single-DES keys too; SSH.NET does not, and openssl no longer writes them
@@ -175,7 +175,7 @@ public class LegacyPemSshKeyTests
     public void AnUnknownCipher_IsReadButRefusedWhenAFileMatches_WithoutAsking(string cipher, string shown)
     {
         var pem = Key("rsa_legacy_pem").Replace("DEK-Info: AES-128-CBC,", $"DEK-Info: {cipher},");
-        using var identity = Assert.IsType<EncryptedSshIdentity>(AgeKeygen.ParseSshIdentity(pem, Key("rsa_plain.pub"), NeverAsked));
+        using var identity = Assert.IsType<EncryptedSshIdentity>(SshIdentity.Parse(pem, Key("rsa_plain.pub"), NeverAsked));
 
         var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(Recipients.ParseOne(Key("rsa_plain.pub"))), identity));
 
@@ -202,7 +202,7 @@ public class LegacyPemSshKeyTests
     {
         var pem = change(Key("rsa_legacy_pem"));
 
-        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseSshIdentity(pem, Key("rsa_plain.pub"), NeverAsked));
+        var ex = Assert.Throws<FormatException>(() => SshIdentity.Parse(pem, Key("rsa_plain.pub"), NeverAsked));
 
         Assert.False(string.IsNullOrEmpty(ex.Message), because);
     }
@@ -212,7 +212,7 @@ public class LegacyPemSshKeyTests
     {
         // Indistinguishable from a wrong passphrase: the format authenticates nothing.
         var pem = DamageBody(Key("rsa_legacy_pem"));
-        using var identity = Assert.IsType<EncryptedSshIdentity>(AgeKeygen.ParseSshIdentity(pem, Key("rsa_plain.pub"), () => Passphrase));
+        using var identity = Assert.IsType<EncryptedSshIdentity>(SshIdentity.Parse(pem, Key("rsa_plain.pub"), () => Passphrase));
 
         var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(Recipients.ParseOne(Key("rsa_plain.pub"))), identity));
 
@@ -236,7 +236,7 @@ public class LegacyPemSshKeyTests
 
             try
             {
-                var identity = AgeKeygen.ParseSshIdentity(Encoding.ASCII.GetString(text), Key("rsa_plain.pub"), () => Passphrase);
+                var identity = SshIdentity.Parse(Encoding.ASCII.GetString(text), Key("rsa_plain.pub"), () => Passphrase);
                 Decrypt(ciphertext, identity);
                 (identity as IDisposable)?.Dispose();
             }
@@ -259,7 +259,7 @@ public class LegacyPemSshKeyTests
     [Fact]
     public void WithoutThePublicKeyFile_TheErrorPointsAtTheOverloadThatTakesIt()
     {
-        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseSshIdentity(Key("rsa_legacy_pem"), NeverAsked));
+        var ex = Assert.Throws<FormatException>(() => SshIdentity.Parse(Key("rsa_legacy_pem"), NeverAsked));
 
         Assert.Contains(".pub", ex.Message);
         Assert.Contains("ssh-keygen -p", ex.Message);
@@ -268,7 +268,7 @@ public class LegacyPemSshKeyTests
     [Fact]
     public void WithoutAPassphraseSource_TheErrorSaysItIsPassphraseProtected()
     {
-        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseSshIdentity(Key("rsa_legacy_pem")));
+        var ex = Assert.Throws<FormatException>(() => SshIdentity.Parse(Key("rsa_legacy_pem")));
 
         Assert.Contains("passphrase", ex.Message);
     }
@@ -314,7 +314,7 @@ public class LegacyPemSshKeyTests
     }
 
     private static IIdentity Parse(string keyFile, string publicKeyFile, Func<string> passphrase) =>
-        AgeKeygen.ParseSshIdentity(Key(keyFile), Key(publicKeyFile), passphrase);
+        SshIdentity.Parse(Key(keyFile), Key(publicKeyFile), passphrase);
 
     private static EncryptedSshIdentity ParseEncrypted(string keyFile, string publicKeyFile, Func<string> passphrase) =>
         Assert.IsType<EncryptedSshIdentity>(Parse(keyFile, publicKeyFile, passphrase));
