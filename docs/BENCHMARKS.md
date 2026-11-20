@@ -97,6 +97,23 @@ Wrap costs about 2 us for the point and 3 us for the ML-KEM key, so caching it w
 per recipient per file: it dominates a small file (an X25519 encrypt of 1 KB takes
 ~100 us in all) and disappears behind the payload from a few megabytes on.
 
+### Large files
+
+A 256 MiB file through every path, written to `Stream.Null` so the output buffer's growth
+does not count (`LargeFileBenchmarks`; one warm-up, five iterations). Measured 2026-11-20 on
+the machine above.
+
+| Operation | Time | Allocated |
+|---|---:|---:|
+| Encrypt | 441 ms | 22 KB |
+| Decrypt | 473 ms | 16 KB |
+| Encrypt (armored) | 519 ms | 23 KB |
+| Decrypt (armored) | 658 ms | 26 KB |
+
+What a call allocates does not grow with the file, armored decryption included. Before the
+armor decoder read lines as bytes, armored decryption allocated a string for every 64-character
+line: 861 MB of short-lived garbage for this file, and 751–800 ms.
+
 ### Random Access
 
 | Operation | Time | Allocated |

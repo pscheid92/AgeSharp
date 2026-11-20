@@ -1,26 +1,36 @@
-using System.Text;
-
 namespace Age.Format;
 
-/// <summary>One armor line: its text without the line ending, and how the line ended.</summary>
-/// <param name="Text">The line, without its LF and without one CR at its end.</param>
-/// <param name="EndedWithCr">Whether a CR at the end of the line was removed.</param>
-/// <param name="EndedWithLf">Whether an LF ended the line, rather than the end of the input.</param>
-internal readonly record struct ArmorLine(string Text, bool EndedWithCr, bool EndedWithLf);
+/// <summary>One armor line: its bytes without the line ending, and how the line ended.</summary>
+/// <remarks>
+/// The bytes are borrowed, from the input or from the framer, and valid only until the framer is
+/// fed again: take what you need from a line before asking for the next.
+/// </remarks>
+internal readonly ref struct ArmorLine(ReadOnlySpan<byte> text, bool endedWithCr, bool endedWithLf)
+{
+    /// <summary>The line, without its LF and without one CR at its end.</summary>
+    public ReadOnlySpan<byte> Text { get; } = text;
+
+    /// <summary>Whether a CR at the end of the line was removed.</summary>
+    public bool EndedWithCr { get; } = endedWithCr;
+
+    /// <summary>Whether an LF ended the line, rather than the end of the input.</summary>
+    public bool EndedWithLf { get; } = endedWithLf;
+}
 
 /// <summary>
 /// Splits armor bytes into lines, fed as they arrive and never touching a stream. A line ends at
-/// an LF, with one CR before it removed, as go-age reads armor; a lone CR does not end a line.
+/// an LF, with one CR at its end removed, as go-age reads armor; a lone CR does not end a line.
 /// A line may not exceed <see cref="AgeLimits.MaxArmorLineBytes"/>, so a line that never ends
 /// cannot grow without bound.
 /// </summary>
 /// <remarks>
-/// Bytes outside ASCII become '?', as a <see cref="StreamReader"/> with
-/// <see cref="Encoding.ASCII"/> made them, so the decoder's refusals name the same character.
+/// Nothing is allocated per line. A line that arrives whole is handed out where it lies in the
+/// input; only one split across two feeds is copied, into a buffer of the bound's size.
 /// </remarks>
 internal sealed class ArmorLineFramer
 {
-    private readonly List<byte> _pending = [];
+    private readonly byte[] _pending = new byte[AgeLimits.MaxArmorLineBytes];
+    private int _pendingLength;
 
     /// <summary>
     /// Takes bytes from the front of <paramref name="input"/> up to and including the next LF,
@@ -32,35 +42,53 @@ internal sealed class ArmorLineFramer
         var lf = input.IndexOf((byte)'\n');
         var part = lf < 0 ? input : input[..lf];
 
-        if (_pending.Count + part.Length > AgeLimits.MaxArmorLineBytes)
+        if (_pendingLength + part.Length > AgeLimits.MaxArmorLineBytes)
             throw new AgeArmorException($"armor line exceeds {AgeLimits.MaxArmorLineBytes} bytes");
-
-        _pending.AddRange(part);
 
         if (lf < 0)
         {
+            part.CopyTo(_pending.AsSpan(_pendingLength));
+            _pendingLength += part.Length;
             input = default;
             line = default;
             return false;
         }
 
         input = input[(lf + 1)..];
-        line = TakePending(endedWithLf: true);
+
+        if (_pendingLength == 0)
+        {
+            line = Line(part, endedWithLf: true);
+            return true;
+        }
+
+        part.CopyTo(_pending.AsSpan(_pendingLength));
+        line = TakePending(_pendingLength + part.Length, endedWithLf: true);
         return true;
     }
 
-    /// <summary>Ends the input: the last line if it had no LF, or null.</summary>
-    public ArmorLine? FinishAtEnd() =>
-        _pending.Count == 0 ? null : TakePending(endedWithLf: false);
-
-    private ArmorLine TakePending(bool endedWithLf)
+    /// <summary>Ends the input: the last line, if it had no LF.</summary>
+    public bool TryFinishAtEnd(out ArmorLine line)
     {
-        var text = Encoding.ASCII.GetString(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_pending));
-        _pending.Clear();
+        if (_pendingLength == 0)
+        {
+            line = default;
+            return false;
+        }
 
-        // One CR comes off whether or not an LF followed, as the old line reader did at the end.
-        return text.EndsWith('\r')
-            ? new ArmorLine(text[..^1], EndedWithCr: true, endedWithLf)
-            : new ArmorLine(text, EndedWithCr: false, endedWithLf);
+        line = TakePending(_pendingLength, endedWithLf: false);
+        return true;
     }
+
+    private ArmorLine TakePending(int length, bool endedWithLf)
+    {
+        _pendingLength = 0;
+        return Line(_pending.AsSpan(0, length), endedWithLf);
+    }
+
+    // One CR comes off whether or not an LF followed, as go-age trims it.
+    private static ArmorLine Line(ReadOnlySpan<byte> text, bool endedWithLf) =>
+        text.Length > 0 && text[^1] == (byte)'\r'
+            ? new ArmorLine(text[..^1], endedWithCr: true, endedWithLf)
+            : new ArmorLine(text, endedWithCr: false, endedWithLf);
 }
