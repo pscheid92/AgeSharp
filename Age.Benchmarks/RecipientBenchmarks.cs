@@ -27,7 +27,7 @@ public class RecipientBenchmarks
     private P256TagRecipient _p256TagRecipient = null!;
     private MlKem768P256TagRecipient _mlKemP256TagRecipient = null!;
 
-    private ScryptRecipient _scryptRecipient = null!;
+    private Passphrase _scryptRecipient = null!;
     private Stanza _scryptStanza = null!;
 
     [GlobalSetup]
@@ -50,7 +50,7 @@ public class RecipientBenchmarks
         _mlKemP256TagRecipient = MlKem768P256TagRecipient.Parse(MlKem768P256Tag);
 
         // scrypt (workFactor: 10 to keep benchmarks fast)
-        _scryptRecipient = new ScryptRecipient("benchmark-passphrase", workFactor: 10);
+        _scryptRecipient = new Passphrase("benchmark-passphrase", workFactor: 10);
         _scryptStanza = _scryptRecipient.Wrap(_fileKey)[0];
     }
 

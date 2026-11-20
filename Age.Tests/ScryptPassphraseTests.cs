@@ -14,7 +14,7 @@ public class ScryptPassphraseTests
 {
     [Fact]
     public void NullPassphrase_IsRejectedAtConstruction() =>
-        Assert.Throws<ArgumentNullException>(() => new ScryptRecipient(null!));
+        Assert.Throws<ArgumentNullException>(() => new Passphrase(null!));
 
     [Fact]
     public void EmptyPassphrase_CannotEncrypt()
@@ -22,7 +22,7 @@ public class ScryptPassphraseTests
         using var output = new MemoryStream();
 
         var ex = Assert.Throws<ArgumentException>(() =>
-            new Recipients(new ScryptRecipient("", workFactor: 10)).Encrypt(new MemoryStream("plaintext"u8.ToArray()), output));
+            new Recipients(new Passphrase("", workFactor: 10)).Encrypt(new MemoryStream("plaintext"u8.ToArray()), output));
 
         Assert.Contains("empty", ex.Message);
         Assert.Equal(0, output.Length);
@@ -37,14 +37,14 @@ public class ScryptPassphraseTests
         file.Position = 0;
 
         using var output = new MemoryStream();
-        new Identities(new ScryptRecipient("")).Decrypt(file, output);
+        new Identities(new Passphrase("")).Decrypt(file, output);
 
         Assert.Equal(plaintext, output.ToArray());
     }
 
     /// <summary>
     /// The scrypt stanza an empty passphrase produces, built from age.md rather than through
-    /// ScryptRecipient, which no longer makes one.
+    /// Passphrase, which no longer makes one.
     /// </summary>
     private sealed class EmptyPassphraseScrypt : IRecipient
     {

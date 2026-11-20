@@ -85,7 +85,7 @@ public class RecipientsTests
     {
         var watched = new WatchedRecipient();
 
-        var ex = Assert.Throws<AgeException>(() => new Recipients(watched, new ScryptRecipient("pass", 10)));
+        var ex = Assert.Throws<AgeException>(() => new Recipients(watched, new Passphrase("pass", 10)));
 
         Assert.Contains("only recipient", ex.Message, StringComparison.Ordinal);
         Assert.Equal(0, watched.Wraps);
@@ -113,7 +113,7 @@ public class RecipientsTests
     [Fact]
     public void APassphraseAlone_Encrypts()
     {
-        using var passphrase = new ScryptRecipient("correct horse", 10);
+        using var passphrase = new Passphrase("correct horse", 10);
 
         var file = new Recipients(passphrase).Encrypt(Plaintext);
 

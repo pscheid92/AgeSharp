@@ -129,7 +129,7 @@ public static class AgeKeygen
         // keys in it, where the clearing below cannot reach.
         using var output = new MemoryStream(data.Length);
 
-        using var passphraseIdentity = new ScryptRecipient(passphrase);
+        using var passphraseIdentity = new Passphrase(passphrase);
         new Identities(passphraseIdentity).Decrypt(input, output);
 
         // ToArray copies out, and the MemoryStream's own buffer keeps the plaintext too —
@@ -164,7 +164,7 @@ public static class AgeKeygen
             using var input = new MemoryStream(plaintextBytes);
             using var output = new MemoryStream();
 
-            new Recipients(new ScryptRecipient(passphrase, workFactor)).Encrypt(input, output, new AgeEncryptOptions { Armor = armor });
+            new Recipients(new Passphrase(passphrase, workFactor)).Encrypt(input, output, new AgeEncryptOptions { Armor = armor });
             return output.ToArray();
         }
         finally

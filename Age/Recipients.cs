@@ -43,7 +43,7 @@ public sealed class Recipients : IReadOnlyList<IRecipient>
                 throw new ArgumentException("a recipient is null", nameof(recipients));
 
             // A scrypt stanza must be the only stanza in the header, as decryption requires.
-            if (recipient is ScryptRecipient && recipients.Length > 1)
+            if (recipient is Passphrase && recipients.Length > 1)
                 throw new AgeException(PassphraseNotAlone);
         }
 

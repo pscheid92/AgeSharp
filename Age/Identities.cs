@@ -64,7 +64,7 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
     }
 
     private static bool IsNative(IIdentity identity) =>
-        identity is X25519Identity or MlKem768X25519Identity or ScryptRecipient;
+        identity is X25519Identity or MlKem768X25519Identity or Passphrase;
 
     /// <summary>The number of identities.</summary>
     public int Count => _members.Length;

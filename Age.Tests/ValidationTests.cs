@@ -28,7 +28,7 @@ public class ValidationTests
     public void Encrypt_ScryptMixedWithX25519_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var scrypt = new ScryptRecipient("pw", LowWorkFactor);
+        var scrypt = new Passphrase("pw", LowWorkFactor);
 
         var ex = Assert.Throws<AgeException>(() =>
             new Recipients(scrypt, identity.Recipient).Encrypt(Plaintext(), new MemoryStream()));
@@ -37,10 +37,10 @@ public class ValidationTests
     }
 
     [Fact]
-    public void Encrypt_TwoScryptRecipients_Throws()
+    public void Encrypt_TwoPassphrases_Throws()
     {
-        var first = new ScryptRecipient("pw1", LowWorkFactor);
-        var second = new ScryptRecipient("pw2", LowWorkFactor);
+        var first = new Passphrase("pw1", LowWorkFactor);
+        var second = new Passphrase("pw2", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
             new Recipients(first, second).Encrypt(Plaintext(), new MemoryStream()));
@@ -50,7 +50,7 @@ public class ValidationTests
     public void EncryptDetached_ScryptMixedWithX25519_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var scrypt = new ScryptRecipient("pw", LowWorkFactor);
+        var scrypt = new Passphrase("pw", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
             new Recipients(scrypt, identity.Recipient).EncryptDetached(Plaintext(), new MemoryStream(), new MemoryStream()));
@@ -60,7 +60,7 @@ public class ValidationTests
     public void EncryptReader_ScryptMixedWithX25519_Throws()
     {
         using var identity = X25519Identity.Generate();
-        var scrypt = new ScryptRecipient("pw", LowWorkFactor);
+        var scrypt = new Passphrase("pw", LowWorkFactor);
 
         Assert.Throws<AgeException>(() =>
             new Recipients(scrypt, identity.Recipient).EncryptReader(Plaintext()));
@@ -69,7 +69,7 @@ public class ValidationTests
     [Fact]
     public void Encrypt_ScryptAlone_StillRoundTrips()
     {
-        var scrypt = new ScryptRecipient("pw", LowWorkFactor);
+        var scrypt = new Passphrase("pw", LowWorkFactor);
         using var encrypted = EncryptTo(scrypt);
 
         using var decrypted = new MemoryStream();

@@ -22,6 +22,8 @@
 *REMOVED*AgeSharp.PluginIdentity.Unwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas) -> byte[]?
 *REMOVED*AgeSharp.PluginRecipient.Label.get -> string?
 *REMOVED*AgeSharp.PluginRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+*REMOVED*AgeSharp.ScryptRecipient
+*REMOVED*AgeSharp.ScryptRecipient.ScryptRecipient(string! passphrase, int workFactor = 18) -> void
 *REMOVED*AgeSharp.ScryptRecipient.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
 *REMOVED*AgeSharp.ScryptRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
 *REMOVED*AgeSharp.SshEd25519Identity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
@@ -112,6 +114,16 @@ AgeSharp.MlKem768X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Syst
 AgeSharp.MlKem768X25519Recipient.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.LabelledStanzas
 AgeSharp.P256TagRecipient
 AgeSharp.P256TagRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+AgeSharp.Passphrase
+AgeSharp.Passphrase.Dispose() -> void
+AgeSharp.Passphrase.MaxWorkFactor.get -> int
+AgeSharp.Passphrase.MaxWorkFactor.init -> void
+AgeSharp.Passphrase.Passphrase(System.ReadOnlySpan<char> passphrase) -> void
+AgeSharp.Passphrase.Passphrase(System.ReadOnlySpan<char> passphrase, int workFactor) -> void
+AgeSharp.Passphrase.Passphrase(string! passphrase) -> void
+AgeSharp.Passphrase.Passphrase(string! passphrase, int workFactor) -> void
+AgeSharp.Passphrase.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
+AgeSharp.Passphrase.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.PluginIdentity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.PluginIdentity.TryUnwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas, System.Span<byte> fileKey) -> bool
 AgeSharp.PluginRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
@@ -128,8 +140,6 @@ AgeSharp.Recipients.GetEnumerator() -> System.Collections.Generic.IEnumerator<Ag
 AgeSharp.Recipients.Recipients(System.Collections.Generic.IEnumerable<AgeSharp.IRecipient!>! recipients) -> void
 AgeSharp.Recipients.Recipients(params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
 AgeSharp.Recipients.this[int index].get -> AgeSharp.IRecipient!
-AgeSharp.ScryptRecipient.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
-AgeSharp.ScryptRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.SshEd25519Identity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.SshEd25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.SshRsaIdentity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool

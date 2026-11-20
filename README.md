@@ -76,7 +76,7 @@ new Identities(identity).Decrypt(encrypted, decrypted);
 ### Passphrase encryption
 
 ```csharp
-var passphrase = new ScryptRecipient("correct-horse-battery-staple");
+var passphrase = new Passphrase("correct-horse-battery-staple");
 
 using var input = new MemoryStream("Hello, age!"u8.ToArray());
 using var encrypted = new MemoryStream();
@@ -85,6 +85,15 @@ new Recipients(passphrase).Encrypt(input, encrypted);
 encrypted.Position = 0;
 using var decrypted = new MemoryStream();
 new Identities(passphrase).Decrypt(encrypted, decrypted);
+```
+
+The same `Passphrase` encrypts and decrypts, and must be a file's only recipient. It keeps only
+a UTF-8 copy, which `Dispose` clears; pass a `ReadOnlySpan<char>` you clear yourself where the
+passphrase is held for long, since a `string` can't be cleared. Decrypting refuses files that
+ask for a work factor above 22, as go-age does; raise it with `MaxWorkFactor`:
+
+```csharp
+using var passphrase = new Passphrase(characters) { MaxWorkFactor = 24 };
 ```
 
 ### ASCII armor
