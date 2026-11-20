@@ -41,35 +41,25 @@ internal static class AsciiArmor
         }
     }
 
+    /// <summary>
+    /// The bytes an armored input decodes to, read as the returned stream is read. The begin
+    /// marker is read here, so input that is not armor is refused at once.
+    /// </summary>
+    /// <exception cref="AgeArmorException">The input does not start like armor.</exception>
     public static Stream Dearmor(Stream input)
     {
-        // Bound the line length at the byte level so the reader below can keep
-        // splitting lines without risking an unbounded allocation.
-        // leaveOpen: true stops the dispose chain at the wrapper — `input` belongs to the caller.
-        // The StreamReader keeps leaveOpen: false so it still disposes the wrapper we created.
-        var bounded = new NewlineBoundedStream(input, AgeLimits.MaxArmorLineBytes, leaveOpen: true);
-        var reader = new ArmorLineReader(new StreamReader(bounded, Encoding.ASCII,
-            detectEncodingFromByteOrderMarks: false, bufferSize: 4096, leaveOpen: false));
+        var dearmored = new DearmorStream(input);
+        dearmored.ReadBegin();
+        return dearmored;
+    }
 
-        // Leading whitespace is allowed: skip blank lines, then TrimStart the marker line. Only
-        // the blank lines count against the allowance, as in go-age — not the marker line.
-        string? line;
-        var skippedWhitespace = 0;
-
-        while ((line = reader.ReadLine()) is not null && line.AsSpan().Trim().Length == 0)
-        {
-            if ((skippedWhitespace += line.Length + 1) > AgeLimits.MaxArmorWhitespaceBytes)
-                throw new AgeArmorException(
-                    $"more than {AgeLimits.MaxArmorWhitespaceBytes} bytes of whitespace before the armor header");
-        }
-
-        if (line == null)
-            throw new AgeArmorException("empty armored data");
-
-        if (line.TrimStart() != BeginMarker)
-            throw new AgeArmorException($"expected begin marker, got: {line}");
-
-        return new DearmorStream(reader);
+    /// <summary>The asynchronous <see cref="Dearmor"/>.</summary>
+    /// <exception cref="AgeArmorException">The input does not start like armor.</exception>
+    public static async ValueTask<Stream> DearmorAsync(Stream input, CancellationToken cancellationToken)
+    {
+        var dearmored = new DearmorStream(input);
+        await dearmored.ReadBeginAsync(cancellationToken).ConfigureAwait(false);
+        return dearmored;
     }
 
     public static void Armor(Stream input, Stream output)

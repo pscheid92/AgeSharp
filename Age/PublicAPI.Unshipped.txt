@@ -19,6 +19,7 @@
 *REMOVED*Age.Recipients.SshRsaRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
 *REMOVED*Age.Recipients.X25519Identity.Unwrap(Age.Format.Stanza! stanza) -> byte[]?
 *REMOVED*Age.Recipients.X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> Age.Format.Stanza!
+*REMOVED*const Age.AgeLimits.MaxArmorLineBytes = 65536 -> int
 *REMOVED*const Age.AgeLimits.MaxHeaderBytes = 16777216 -> int
 *REMOVED*const Age.AgeLimits.MaxHeaderLineBytes = 65536 -> int
 Age.Plugin.IPluginCallbacks.RequestSecret(string! prompt) -> char[]?
@@ -59,6 +60,7 @@ Age.Recipients.SshRsaIdentity.TryUnwrap(Age.Format.Stanza! stanza, System.Span<b
 Age.Recipients.SshRsaRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>!
 Age.Recipients.X25519Identity.TryUnwrap(Age.Format.Stanza! stanza, System.Span<byte> fileKey) -> bool
 Age.Recipients.X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<Age.Format.Stanza!>!
+const Age.AgeLimits.MaxArmorLineBytes = 1024 -> int
 const Age.AgeLimits.MaxHeaderBytes = 2097152 -> int
 const Age.AgeLimits.MaxHeaderLineBytes = 2097152 -> int
 const Age.AgeLimits.MaxRecipientStanzas = 1024 -> int

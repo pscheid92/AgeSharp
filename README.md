@@ -301,7 +301,7 @@ exhaust memory. The limits are exposed as constants on `AgeLimits`:
 | `AgeLimits.MaxHeaderBytes` | 2 MiB | The whole header (all stanzas) |
 | `AgeLimits.MaxRecipientStanzas` | 1024 | Recipient stanzas in a header |
 | `AgeLimits.MaxStanzaArguments` | 128 | Arguments on one stanza line |
-| `AgeLimits.MaxArmorLineBytes` | 64 KiB | A single ASCII-armor line |
+| `AgeLimits.MaxArmorLineBytes` | 1 KiB | A single ASCII-armor line |
 
 Exceeding a limit throws `AgeHeaderException` / `AgeArmorException`. The age
 [specification](https://github.com/C2SP/C2SP/blob/main/age.md) sets no such

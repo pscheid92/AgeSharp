@@ -1,205 +1,127 @@
-using System.Buffers;
-using System.Text;
-
 namespace Age.Format;
 
 /// <summary>
-/// A read-only stream that lazily decodes ASCII-armored (PEM-like) base64 data.
-/// Reads one line at a time from the underlying stream, decodes the base64,
-/// and serves decoded bytes on demand — avoiding full-file materialization.
+/// A read-only stream of the bytes an armored input decodes to, decoded a line at a time as they
+/// are read. The armor's rules are <see cref="ArmorDecoder"/>'s and its lines
+/// <see cref="ArmorLineFramer"/>'s; this only moves bytes between them, synchronously or
+/// asynchronously. Reading reaches the end of the input, after the end marker, to check what
+/// follows it.
 /// </summary>
-internal sealed class DearmorStream : Stream
+/// <remarks>Disposing does not dispose the input, which belongs to the caller.</remarks>
+internal sealed class DearmorStream(Stream input) : Stream
 {
-    private const int ColumnsPerLine = 64;
-    private const int MaxDecodedPerLine = 48; // 64 base64 chars = 48 bytes
-    private const string EndMarker = "-----END AGE ENCRYPTED FILE-----";
-
-    private static readonly SearchValues<char> Base64Chars =
-        SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=");
-
-    private readonly ArmorLineReader _reader;
-    private readonly byte[] _decodeBuffer = new byte[MaxDecodedPerLine];
-    private int _decodeOffset;
-    private int _decodeCount;
+    private readonly ArmorLineFramer _framer = new();
+    private readonly ArmorDecoder _decoder = new();
+    private readonly byte[] _read = new byte[4096];
+    private readonly byte[] _decoded = new byte[ArmorDecoder.MaxDecodedPerLine];
+    private int _readStart;
+    private int _readEnd;
+    private int _decodedStart;
+    private int _decodedEnd;
+    private bool _inputEnded;
     private bool _finished;
-    private bool _bodyEnded;
 
-    public DearmorStream(ArmorLineReader reader)
+    /// <summary>Reads up to and including the begin marker, which refuses input that is not armor.</summary>
+    /// <exception cref="AgeArmorException">The input does not start like armor.</exception>
+    public void ReadBegin()
     {
-        _reader = reader;
+        while (!Advance(untilBegun: true))
+            Fill();
     }
 
-    public override int Read(byte[] buffer, int offset, int count)
+    /// <summary>Reads up to and including the begin marker; see <see cref="ReadBegin"/>.</summary>
+    public async ValueTask ReadBeginAsync(CancellationToken cancellationToken)
     {
-        var totalRead = 0;
-
-        while (totalRead < count)
-        {
-            if (_decodeCount > 0)
-            {
-                var toCopy = Math.Min(count - totalRead, _decodeCount);
-                Buffer.BlockCopy(_decodeBuffer, _decodeOffset, buffer, offset + totalRead, toCopy);
-                _decodeOffset += toCopy;
-                _decodeCount -= toCopy;
-                totalRead += toCopy;
-                continue;
-            }
-
-            if (_finished)
-                break;
-
-            if (!DecodeNextLine())
-                break;
-        }
-
-        return totalRead;
+        while (!Advance(untilBegun: true))
+            await FillAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    public override int Read(byte[] buffer, int offset, int count) =>
+        Read(buffer.AsSpan(offset, count));
 
     public override int Read(Span<byte> buffer)
     {
-        var totalRead = 0;
+        if (buffer.IsEmpty)
+            return 0;
 
-        while (totalRead < buffer.Length)
+        while (!Advance(untilBegun: false))
+            Fill();
+
+        return Serve(buffer);
+    }
+
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+        ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+    public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        if (buffer.IsEmpty)
+            return 0;
+
+        while (!Advance(untilBegun: false))
+            await FillAsync(cancellationToken).ConfigureAwait(false);
+
+        return Serve(buffer.Span);
+    }
+
+    // Decodes from what has been read, without reading more. True when there is something to
+    // serve or nothing will ever be (or, with untilBegun, once the begin marker is read); false
+    // when more input is needed.
+    private bool Advance(bool untilBegun)
+    {
+        while (_decodedStart == _decodedEnd && !_finished && !(untilBegun && _decoder.HasBegun))
         {
-            if (_decodeCount > 0)
+            if (_readStart < _readEnd)
             {
-                var toCopy = Math.Min(buffer.Length - totalRead, _decodeCount);
-                _decodeBuffer.AsSpan(_decodeOffset, toCopy).CopyTo(buffer[totalRead..]);
-                _decodeOffset += toCopy;
-                _decodeCount -= toCopy;
-                totalRead += toCopy;
+                var pending = new ReadOnlySpan<byte>(_read, _readStart, _readEnd - _readStart);
+                var taken = _framer.TryTakeLine(ref pending, out var line);
+                _readStart = _readEnd - pending.Length;
+
+                if (taken)
+                    Decode(line);
+
                 continue;
             }
 
-            if (_finished)
-                break;
+            if (!_inputEnded)
+                return false;
 
-            if (!DecodeNextLine())
-                break;
-        }
+            if (_framer.FinishAtEnd() is { } last)
+                Decode(last);
 
-        return totalRead;
-    }
-
-    private bool DecodeNextLine()
-    {
-        var line = _reader.ReadLine()
-            ?? throw new AgeArmorException("unexpected end of armored data");
-
-        if (line == EndMarker)
-        {
+            _decoder.Finish();
             _finished = true;
-            ValidateTrailing();
-            return false;
         }
 
-        ValidateBodyLine(line);
-
-        if (!Convert.TryFromBase64Chars(line.AsSpan(), _decodeBuffer, out var bytesWritten))
-            throw new AgeArmorException("invalid base64 in armor");
-
-        // Padding may appear on a line of any width: a final chunk of 46 bytes encodes to a
-        // full 64 characters ending "==", and 47 bytes to 64 characters ending "=". Wherever it
-        // appears, the bits the padding covers must be zero. Runs after the decode above so a
-        // structurally malformed line fails there first.
-        ValidateCanonicalPadding(line.AsSpan());
-
-        _decodeOffset = 0;
-        _decodeCount = bytesWritten;
         return true;
     }
 
-    /// <summary>
-    /// After the footer only whitespace may follow, and less than go-age's allowance of it
-    /// (armor.go reads at most that much and rejects a full read).
-    /// </summary>
-    private void ValidateTrailing()
+    private void Decode(ArmorLine line)
     {
-        for (var trailing = 0; ; trailing++)
-        {
-            var ch = _reader.Read();
-
-            if (ch < 0)
-                break;
-
-            if (ch is not (' ' or '\t' or '\r' or '\n'))
-                throw new AgeArmorException("trailing data after end marker");
-
-            if (trailing + 1 >= AgeLimits.MaxArmorWhitespaceBytes)
-                throw new AgeArmorException(
-                    $"{AgeLimits.MaxArmorWhitespaceBytes} or more bytes of whitespace after the armor footer");
-        }
+        _decodedStart = 0;
+        _decodedEnd = _decoder.TakeLine(line, _decoded);
     }
 
-    private void ValidateBodyLine(string line)
+    private int Serve(Span<byte> buffer)
     {
-        if (line.Length == 0)
-            throw new AgeArmorException("empty line in armor body");
-
-        if (line[0] is ' ' or '\t' || line[^1] is ' ' or '\t')
-            throw new AgeArmorException("whitespace in armor body line");
-
-        if (line.Length > ColumnsPerLine)
-            throw new AgeArmorException($"armor body line exceeds {ColumnsPerLine} characters");
-
-        if (_bodyEnded)
-            throw new AgeArmorException("short line in armor body is not the last line");
-
-        // The body ends at the first line that cannot be followed by another: one shorter than
-        // the full column width, or a full-width line carrying base64 padding (46- and 47-byte
-        // final chunks encode to exactly 64 characters).
-        if (line.Length < ColumnsPerLine || line[^1] == '=')
-            _bodyEnded = true;
-
-        var invalid = line.AsSpan().IndexOfAnyExcept(Base64Chars);
-
-        if (invalid >= 0)
-            throw new AgeArmorException($"invalid character in armor body: '{line[invalid]}'");
+        var count = Math.Min(buffer.Length, _decodedEnd - _decodedStart);
+        _decoded.AsSpan(_decodedStart, count).CopyTo(buffer);
+        _decodedStart += count;
+        return count;
     }
 
-    private static void ValidateCanonicalPadding(ReadOnlySpan<char> line)
+    private void Fill()
     {
-        if (line.Length == 0)
-            return;
-
-        var padCount = 0;
-
-        if (line[^1] == '=')
-        {
-            padCount = 1;
-
-            if (line.Length > 1 && line[^2] == '=')
-                padCount = 2;
-        }
-
-        if (padCount == 0)
-            return;
-
-        var lastDataChar = line[^(padCount + 1)];
-        var value = Base64Value(lastDataChar);
-        var unusedBits = padCount == 1 ? 2 : 4;
-        var mask = (1 << unusedBits) - 1;
-
-        if ((value & mask) != 0)
-            throw new AgeArmorException("non-canonical base64 in armor");
+        _readStart = 0;
+        _readEnd = input.Read(_read);
+        _inputEnded = _readEnd == 0;
     }
 
-    private static int Base64Value(char c) => c switch
+    private async ValueTask FillAsync(CancellationToken cancellationToken)
     {
-        >= 'A' and <= 'Z' => c - 'A',
-        >= 'a' and <= 'z' => c - 'a' + 26,
-        >= '0' and <= '9' => c - '0' + 52,
-        '+' => 62,
-        '/' => 63,
-        _ => throw new AgeArmorException($"invalid base64 character: '{c}'"),
-    };
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-            _reader.Dispose();
-
-        base.Dispose(disposing);
+        _readStart = 0;
+        _readEnd = await input.ReadAsync(_read, cancellationToken).ConfigureAwait(false);
+        _inputEnded = _readEnd == 0;
     }
 
     public override bool CanRead => true;
