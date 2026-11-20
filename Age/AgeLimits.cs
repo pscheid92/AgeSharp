@@ -39,11 +39,10 @@ public static class AgeLimits
 
     /// <summary>
     /// Maximum length, in bytes, of a single ASCII-armor line. A spec-compliant
-    /// armor line is at most 64 characters; the ceiling is set high so it only
-    /// ever rejects a hostile unterminated line, never legitimate input.
-    /// Default: 64 KiB.
+    /// armor line is at most 64 characters, and longer body lines are refused anyway;
+    /// this bound only stops a hostile line that never ends. 1 KiB.
     /// </summary>
-    public const int MaxArmorLineBytes = 64 * 1024;
+    public const int MaxArmorLineBytes = 1024;
 
     // Whitespace is allowed around the armor, before BEGIN and after END; unbounded, a file of
     // nothing but newlines is read to its end. The same allowance at both ends, as go-age has.
