@@ -282,7 +282,7 @@ internal static class AgeUnderTest
         }
 
         if (passphrase is not null)
-            parsed.Add(new ScryptRecipient(passphrase));
+            parsed.Add(new Passphrase(passphrase));
 
         return parsed;
     }

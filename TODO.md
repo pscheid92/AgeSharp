@@ -47,9 +47,9 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 
 - [ ] Async entry points for encrypt and decrypt (design exists on `next-version`)
 - [x] Peeking armor detection, so armored input is recognised on non-seekable streams too (pipes, network streams) — rebuild step 3c: `PeekableStream`; `Decrypt`, `DecryptReader` and `AgeHeader.Parse` read ahead instead of seeking
-- [ ] `Passphrase` type instead of `string`, so it can be zeroed
+- [x] `Passphrase` type instead of `string`, so it can be zeroed — rebuild step 5a: `Passphrase` from a `string` or `ReadOnlySpan<char>`, keeping only UTF-8 that `Dispose` clears
 - [x] `IRecipient.Wrap` returning several stanzas and labels; make the multi-stanza interface public — rebuild step 1: `Wrap → IReadOnlyList<Stanza>`, `IRecipientWithLabels` with `LabelledStanzas`, `IIdentity.TryUnwrap(Stanza, Span<byte>)`, `IIdentityWithRecipient`
-- [ ] Split `ScryptRecipient` into recipient and identity; adjustable maximum work factor
+- [x] Adjustable maximum work factor — `Passphrase.MaxWorkFactor` (default 22), as go-age and rage set it; the passphrase stays one type for both roles, as decided for the rebuild
 - [ ] `NoIdentityMatchException` carrying per-identity errors and the stanza types seen
 - [ ] File-key extraction and injection (`ExtractHeader`, `DecryptHeader`, injected-file-key identity)
 - [x] Public armor reader and writer — `Armor.Encode` / `Armor.Decode` (rebuild step 4e)

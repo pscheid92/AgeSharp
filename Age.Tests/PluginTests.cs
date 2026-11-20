@@ -913,11 +913,11 @@ public class PluginTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        new Recipients(new ScryptRecipient(passphrase, 10)).Encrypt(encInput, encOutput);
+        new Recipients(new Passphrase(passphrase, 10)).Encrypt(encInput, encOutput);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        new Identities(new ScryptRecipient(passphrase)).Decrypt(encOutput, decOutput);
+        new Identities(new Passphrase(passphrase)).Decrypt(encOutput, decOutput);
         Assert.Equal(plaintext, decOutput.ToArray());
     }
 

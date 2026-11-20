@@ -46,7 +46,7 @@ AgeSharp builds the HPKE for both on BouncyCastle, so they also work in the brow
 | File-key extraction and injection | ✅ | ❌ | ❌ | Go `DecryptHeader`, `NewInjectedFileKeyIdentity` |
 | Header inspection | — | ❌ | ✅ | go-age's inspection is internal to its `age-inspect` command; its library exposes the raw header through `ExtractHeader` |
 | Standalone armor reader/writer | ✅ | ✅ | ✅ | `Armor.Encode` / `Armor.Decode`, sync and async |
-| Adjustable scrypt maximum work factor | ✅ | ✅ | ❌ | Fixed at 22 in AgeSharp |
+| Adjustable scrypt maximum work factor | ✅ | ✅ | ✅ | `Passphrase.MaxWorkFactor`, default 22 as in Go |
 | Per-identity errors on no match | ✅ | ❌ | ❌ | |
 | Async encrypt/decrypt | ❌ | ✅ | ✅ | `EncryptAsync`, `DecryptAsync`, `DecryptReaderAsync` and the detached forms, async all the way through; unwrapping for a plugin or encrypted SSH key is synchronous |
 | Browser / WebAssembly | — | ✅ | ✅ | rage's `age` crate builds for `wasm32-unknown-unknown`; AgeSharp runs under Blazor WebAssembly with a managed ChaCha20-Poly1305 backend, but of protected SSH keys only ed25519 with AES-GCM or ChaCha20-Poly1305. Not a stated target for Go |

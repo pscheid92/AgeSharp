@@ -42,7 +42,7 @@ public class IdentitiesTests
     public void ASetKeepsTheOrderItWasGiven()
     {
         using var alice = X25519Identity.Generate();
-        using var passphrase = new ScryptRecipient("pass", 10);
+        using var passphrase = new Passphrase("pass", 10);
 
         var set = new Identities(new List<IIdentity> { alice, passphrase });
 
