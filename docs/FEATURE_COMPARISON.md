@@ -29,7 +29,7 @@ AgeSharp builds the HPKE for both on BouncyCastle, so they also work in the brow
 | ASCII armor | ✅ | ✅ | ✅ | |
 | Streaming, bounded memory | ✅ | ✅ | ✅ | 64 KiB chunks |
 | Security labels (prevent mixing) | ✅ | ✅ | ✅ | A set of labels per recipient, compared unordered, as in Go |
-| Encrypted identity files | ✅ | ✅ | ✅ | |
+| Encrypted identity files | ✅ | ✅ | ✅ | Decrypted only when first needed, as Go's `EncryptedIdentity` is (`EncryptedIdentityFile`) |
 | Recipients files | ✅ | ✅ | ✅ | |
 | Header limits (2 MiB, 1024 stanzas, 128 arguments) | ✅ | ❌ | ✅ | Introduced by Go v1.3.2; not in the spec. Adjustable in AgeSharp through `AgeDecryptOptions`, with go-age's values as defaults |
 | Armor line length bound | ❌ | ❌ | ✅ | 1 KiB |

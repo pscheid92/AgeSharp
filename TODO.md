@@ -23,7 +23,7 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
   - Blazor WebAssembly (checked 2026-11-18, Release build): ssh-ed25519 keys with aes256-gcm or ChaCha20-Poly1305 decrypt. Every other protected key is refused before the passphrase prompt: SSH.NET uses the platform's AES, 3DES and RSA, and the browser has none of them
   - [x] Ask SSH.NET upstream to fall back to BouncyCastle (which it already depends on) where the platform has no AES, 3DES or RSA — sshnet/SSH.NET#1870
   - [ ] Once an SSH.NET release has those fallbacks, widen the browser allowlist (`ProtectedOpenSshKey.WhyItCannotBeDecryptedInTheBrowser`) to match, keeping 3des-cbc refused unless it is fixed too, and re-check in Blazor WebAssembly
-- [x] Passphrase-protected SSH keys in the legacy PEM format: `AgeKeygen.ParseSshIdentity(pemText, publicKey, passphrase)` with the `.pub` file, as go-age reads them; AES-128/192/256-CBC and 3DES, decrypted by SSH.NET. Single DES is refused before the passphrase is asked for (go-age reads it; SSH.NET does not), and encrypted PKCS#8 is refused as in go-age
+- [x] Passphrase-protected SSH keys in the legacy PEM format: `SshIdentity.Parse(pemText, publicKey, passphrase)` with the `.pub` file, as go-age reads them; AES-128/192/256-CBC and 3DES, decrypted by SSH.NET. Single DES is refused before the passphrase is asked for (go-age reads it; SSH.NET does not), and encrypted PKCS#8 is refused as in go-age
 - [x] Unprotected OpenSSH keys that BouncyCastle's reader refuses but OpenSSH and go-age read (8 or more bytes of padding, a comment ending in a byte 0x01–0x07, numbers with a redundant leading zero): SSH.NET now reads what BouncyCastle refuses, with the same checks after. In the browser the ed25519 ones work; an RSA one stays refused there, as before (SSH.NET needs the platform's RSA)
 - [x] Native tagged recipients: `age1tag1…` (p256tag) and `age1tagpq1…` (mlkem768p256tag), encryption only — HPKE on BouncyCastle, checked against RFC 9180 and draft-ietf-hpke-pq vectors and go-age's tag test identities
 - [ ] `PluginIdentity` as `IIdentityWithRecipient`: its recipient speaks recipient-v1 with `add-identity`, so a file can be encrypted to the identities in a key file, plugins included (recorded on `next-version`; deferred from rebuild step 1)
@@ -53,12 +53,12 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 - [ ] `NoIdentityMatchException` carrying per-identity errors and the stanza types seen
 - [ ] File-key extraction and injection (`ExtractHeader`, `DecryptHeader`, injected-file-key identity)
 - [x] Public armor reader and writer — `Armor.Encode` / `Armor.Decode` (rebuild step 4e)
-- [ ] Replace the `AgeEncrypt` / `AgeKeygen` static catch-alls with domain types
+- [x] Replace the `AgeEncrypt` / `AgeKeygen` static catch-alls with domain types
   - [x] Encrypting: `Recipients` (rebuild step 4b), with `Recipients.ParseOne` for a recipient of any type
   - [x] Decrypting: `Identities` (rebuild step 4c), with `Identities.ParseOne` for an identity of any type and the header limits as `AgeDecryptOptions`
   - [x] The writer forms: `EncryptWriter` and `DecryptWriter` (rebuild step 4d)
   - [x] The seekable reader (a seekable `DecryptReader` result in place of `AgeRandomAccess`), `AgeHeader.Read` / `ReadAsync`, and public armor (rebuild step 4e)
-  - [ ] `AgeKeygen`'s SSH and encrypted-identity-file members (step 5)
+  - [x] `AgeKeygen`'s SSH and encrypted-identity-file members: `SshIdentity` and a lazy `EncryptedIdentityFile` (rebuild step 5b); `AgeKeygen` is gone
 
 ## Internal (from the 2026-09-22 review)
 

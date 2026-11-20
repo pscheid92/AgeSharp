@@ -1441,7 +1441,7 @@ public class DecryptStreamTests
     }
 }
 
-public class AgeKeygenTests
+public class KeyGenerationTests
 {
     [Fact]
     public void Generate_Returns_Valid_Identity()

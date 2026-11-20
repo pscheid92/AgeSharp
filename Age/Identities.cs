@@ -135,14 +135,14 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
     /// <param name="plugins">Lets a plugin identity talk to the user; without it, it cannot prompt.</param>
     /// <exception cref="FormatException">
     /// The text is not an identity of a known type, or it is a passphrase-protected SSH key:
-    /// <see cref="AgeKeygen.ParseSshIdentity(string, Func{string})"/> reads those.
+    /// <see cref="SshIdentity.Parse(string, Func{string})"/> reads those.
     /// </exception>
     public static IIdentity ParseOne(string s, IPluginCallbacks? plugins = null)
     {
         ArgumentNullException.ThrowIfNull(s);
 
         return s.TrimStart().StartsWith("-----BEGIN", StringComparison.Ordinal)
-            ? AgeKeygen.ParseSshIdentity(s)
+            ? SshIdentity.Parse(s)
             : ParseLine(s, "identity", plugins);
     }
 

@@ -63,7 +63,7 @@ public class SshParsingErrorTests
     public void ParseSshIdentity_PassphraseProtected_SaysSo(string format, string pem)
     {
         _ = format;
-        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseSshIdentity(pem));
+        var ex = Assert.Throws<FormatException>(() => SshIdentity.Parse(pem));
         Assert.Contains("passphrase-protected", ex.Message);
     }
 
@@ -79,7 +79,7 @@ public class SshParsingErrorTests
     public void ParseSshIdentity_Malformed_ThrowsFormatException(string why, string pem)
     {
         _ = why;
-        Assert.Throws<FormatException>(() => AgeKeygen.ParseSshIdentity(pem));
+        Assert.Throws<FormatException>(() => SshIdentity.Parse(pem));
     }
 
     // The fields of an RSA private key, in the order the OpenSSH format states them.
@@ -119,7 +119,7 @@ public class SshParsingErrorTests
     public void ParseSshIdentity_RsaKeyThatCannotBeOne_ThrowsFormatException(string why, Func<System.Numerics.BigInteger[], System.Numerics.BigInteger[]> change)
     {
         _ = why;
-        Assert.Throws<FormatException>(() => AgeKeygen.ParseSshIdentity(RsaKey(change)));
+        Assert.Throws<FormatException>(() => SshIdentity.Parse(RsaKey(change)));
     }
 
     public static TheoryData<string, Func<System.Numerics.BigInteger[], System.Numerics.BigInteger[]>> RsaKeysWithStaleCrtValues => new()
@@ -138,13 +138,13 @@ public class SshParsingErrorTests
     public void ParseSshIdentity_RsaKeyWithAStaleCrtValue_StillDecrypts(string why, Func<System.Numerics.BigInteger[], System.Numerics.BigInteger[]> change)
     {
         _ = why;
-        var recipient = ((AgeSharp.SshRsaIdentity)AgeKeygen.ParseSshIdentity(SshFixture("rsa_plain"))).Recipient;
+        var recipient = ((AgeSharp.SshRsaIdentity)SshIdentity.Parse(SshFixture("rsa_plain"))).Recipient;
         using var encrypted = new MemoryStream();
         new Recipients(recipient).Encrypt(new MemoryStream("plaintext"u8.ToArray()), encrypted);
         encrypted.Position = 0;
         using var decrypted = new MemoryStream();
 
-        new Identities(AgeKeygen.ParseSshIdentity(RsaKey(change))).Decrypt(encrypted, decrypted);
+        new Identities(SshIdentity.Parse(RsaKey(change))).Decrypt(encrypted, decrypted);
 
         Assert.Equal("plaintext"u8.ToArray(), decrypted.ToArray());
     }
@@ -167,7 +167,7 @@ public class SshParsingErrorTests
     [Fact]
     public void ParseSshIdentity_Pkcs8RsaKeyWithAnExponentOver24Bits_Works()
     {
-        var identity = (AgeSharp.SshRsaIdentity)AgeKeygen.ParseSshIdentity(SshFixture("rsa_pkcs8_large_exponent"));
+        var identity = (AgeSharp.SshRsaIdentity)SshIdentity.Parse(SshFixture("rsa_pkcs8_large_exponent"));
         using var encrypted = new MemoryStream();
         new Recipients(identity.Recipient).Encrypt(new MemoryStream("plaintext"u8.ToArray()), encrypted);
         encrypted.Position = 0;

@@ -265,12 +265,12 @@ internal static class SshKeyParser
 
     private static FormatException PassphraseProtected() =>
         new("the SSH key is passphrase-protected; " +
-            "parse it with a passphrase source (AgeKeygen.ParseSshIdentity(pemText, passphrase))");
+            "parse it with a passphrase source (SshIdentity.Parse(pemText, passphrase))");
 
     // As in go-age, which reads these given the .pub file next to the key.
     private static FormatException LegacyPassphraseProtected() =>
         new("the SSH key is passphrase-protected in the legacy PEM format, which does not store its public key; " +
-            "parse it with its .pub file (AgeKeygen.ParseSshIdentity(pemText, publicKey, passphrase)), " +
+            "parse it with its .pub file (SshIdentity.Parse(pemText, publicKey, passphrase)), " +
             "or convert it to the OpenSSH format with ssh-keygen -p");
 
     // go-age does not read these either.
