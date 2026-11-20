@@ -56,7 +56,8 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 - [ ] Replace the `AgeEncrypt` / `AgeKeygen` static catch-alls with domain types
   - [x] Encrypting: `Recipients` (rebuild step 4b), with `Recipients.ParseOne` for a recipient of any type
   - [x] Decrypting: `Identities` (rebuild step 4c), with `Identities.ParseOne` for an identity of any type and the header limits as `AgeDecryptOptions`
-  - [ ] The writer forms (4d); the seekable reader, the header read and public armor (4e); `AgeKeygen`'s SSH and encrypted-identity-file members (step 5)
+  - [x] The writer forms: `EncryptWriter` and `DecryptWriter` (rebuild step 4d)
+  - [ ] The seekable reader, the header read and public armor (4e); `AgeKeygen`'s SSH and encrypted-identity-file members (step 5)
 
 ## Internal (from the 2026-09-22 review)
 

@@ -18,6 +18,9 @@ internal static class AsciiArmor
 
     private static readonly byte[] Marker = Encoding.ASCII.GetBytes(BeginMarker);
 
+    /// <summary>How far armor detection looks first: the length of the begin marker.</summary>
+    public static int InitialLookahead => Marker.Length;
+
     /// <summary>
     /// The input to read age's binary format from: the input itself, or what its armor decodes
     /// to. Detects armor by looking ahead, not by seeking, so it works on a pipe, and looks only
@@ -58,7 +61,7 @@ internal static class AsciiArmor
         return options.RequireArmor ? throw NotArmored() : (peekable, false);
     }
 
-    private static AgeArmorException NotArmored() =>
+    public static AgeArmorException NotArmored() =>
         new("input is not ASCII-armored, and armor is required");
 
     /// <summary>Whether a seekable stream holds armor at its position, which is left where it was.</summary>
@@ -87,7 +90,7 @@ internal static class AsciiArmor
     /// if the input ended, starts armor; or null, with <paramref name="lookahead"/> raised, if
     /// more must be read to tell.
     /// </summary>
-    private static bool? Decide(ReadOnlySpan<byte> prefix, ref int lookahead, AgeDecryptOptions options)
+    public static bool? Decide(ReadOnlySpan<byte> prefix, ref int lookahead, AgeDecryptOptions options)
     {
         var whitespace = prefix.IndexOfAnyExcept(" \t\r\n"u8);
         var inputEnded = prefix.Length < lookahead;

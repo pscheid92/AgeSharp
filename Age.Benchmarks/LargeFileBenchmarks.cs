@@ -3,9 +3,9 @@ using BenchmarkDotNet.Attributes;
 
 namespace Age.Benchmarks;
 
-// A 256 MiB file through every encrypt and decrypt path, written to Stream.Null: at this size an
-// output MemoryStream's growth would dominate both time and allocation, so the numbers here are
-// the pipeline alone. Allocation should not grow with the file (the README promises bounded
+// A 256 MiB file through every encrypt and decrypt path, pulled and pushed, written to
+// Stream.Null: at this size an output MemoryStream's growth would dominate both time and
+// allocation, so the numbers here are the pipeline alone. Allocation should not grow with the file (the README promises bounded
 // memory). Few iterations, because each one moves a quarter of a gigabyte or more.
 [MemoryDiagnoser]
 [SimpleJob(warmupCount: 1, iterationCount: 5)]
@@ -55,4 +55,27 @@ public class LargeFileBenchmarks
     [Benchmark]
     public void DecryptArmored256MiB() =>
         new Identities(_identity).Decrypt(new MemoryStream(_armoredCiphertext), Stream.Null);
+
+    // The push forms, fed by CopyTo in its default 80 KiB pieces, as a caller copying a file
+    // into them would.
+    [Benchmark]
+    public void EncryptWriter256MiB()
+    {
+        using var writer = new Recipients(_recipient).EncryptWriter(Stream.Null);
+        new MemoryStream(_plaintext).CopyTo(writer);
+    }
+
+    [Benchmark]
+    public void DecryptWriter256MiB()
+    {
+        using var writer = new Identities(_identity).DecryptWriter(Stream.Null);
+        new MemoryStream(_ciphertext).CopyTo(writer);
+    }
+
+    [Benchmark]
+    public void DecryptWriterArmored256MiB()
+    {
+        using var writer = new Identities(_identity).DecryptWriter(Stream.Null);
+        new MemoryStream(_armoredCiphertext).CopyTo(writer);
+    }
 }

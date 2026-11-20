@@ -40,6 +40,7 @@ AgeSharp builds the HPKE for both on BouncyCastle, so they also work in the brow
 | Feature | Go | Rust | AgeSharp | Notes |
 |---|:---:|:---:|:---:|---|
 | Pull-based streams (`EncryptReader`) | ✅ | ✅ | ✅ | |
+| Push-based streams (writers) | ✅ | ✅ | ✅ | Go's `Encrypt` and rage's `wrap_output` push encryption only; AgeSharp pushes decryption too (`DecryptWriter`) |
 | Random-access decryption | ✅ | ✅ | ✅ | Go `DecryptReaderAt`, rage `Seek` on its stream reader, `AgeRandomAccess` |
 | Detached headers | ✅ | ❌ | ✅ | |
 | File-key extraction and injection | ✅ | ❌ | ❌ | Go `DecryptHeader`, `NewInjectedFileKeyIdentity` |
