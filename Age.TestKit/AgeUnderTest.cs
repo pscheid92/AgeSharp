@@ -55,7 +55,10 @@ internal static class AgeUnderTest
         WriterAsync,
     }
 
-    /// <summary>How a file is read: from a seekable stream, from a pipe, or pushed into a writer.</summary>
+    /// <summary>
+    /// How a file is read: whole from a seekable stream, from a pipe, pushed into a writer, or
+    /// through the seekable reader a seekable binary file gets.
+    /// </summary>
     public enum Decryption
     {
         File,
@@ -63,6 +66,8 @@ internal static class AgeUnderTest
         PipeAsync,
         Writer,
         WriterAsync,
+        Seekable,
+        SeekableAsync,
     }
 
     /// <summary>Encrypts to recipient strings of any type.</summary>
@@ -117,6 +122,17 @@ internal static class AgeUnderTest
             writer.Write(data, at, Math.Min(piece, data.Length - at));
     }
 
+    // Through the async reader, read into a buffer rather than copied, so ReadAsync itself is used.
+    private static async Task ReadAsync(Identities with, Stream input, Stream output)
+    {
+        await using var reader = await with.DecryptReaderAsync(input);
+        var buffer = new byte[10_007];
+        int read;
+
+        while ((read = await reader.ReadAsync(buffer)) > 0)
+            output.Write(buffer, 0, read);
+    }
+
     private static async Task WriteInPiecesAsync(Stream writer, byte[] data, int piece)
     {
         await using (writer)
@@ -165,7 +181,9 @@ internal static class AgeUnderTest
         if (parsed.Count == 0)
             parsed.Add(X25519Identity.Generate());
 
-        using Stream input = way == Decryption.File ? new MemoryStream(ciphertext) : new Pipe(ciphertext);
+        using Stream input = way is Decryption.File or Decryption.Seekable or Decryption.SeekableAsync
+            ? new MemoryStream(ciphertext)
+            : new Pipe(ciphertext);
         using var output = new MemoryStream();
         var with = new Identities(parsed);
 
@@ -186,8 +204,17 @@ internal static class AgeUnderTest
                         WriteInPieces(writer, ciphertext, 4093);
                     break;
 
-                default:
+                case Decryption.WriterAsync:
                     WriteInPiecesAsync(with.DecryptWriter(output), ciphertext, 61).GetAwaiter().GetResult();
+                    break;
+
+                case Decryption.Seekable:
+                    using (var reader = with.DecryptReader(input))
+                        reader.CopyTo(output);
+                    break;
+
+                default:
+                    ReadAsync(with, input, output).GetAwaiter().GetResult();
                     break;
             }
 

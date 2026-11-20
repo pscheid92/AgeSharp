@@ -1,6 +1,15 @@
 #nullable enable
 *REMOVED*AgeSharp.AgeEncrypt
+*REMOVED*AgeSharp.AgeHeader.PayloadOffset.get -> long
+*REMOVED*AgeSharp.AgeHeader.RecipientCount.get -> int
+*REMOVED*AgeSharp.AgeHeader.Recipients.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 *REMOVED*AgeSharp.AgeLimits
+*REMOVED*AgeSharp.AgeRandomAccess
+*REMOVED*AgeSharp.AgeRandomAccess.AgeRandomAccess(System.IO.Stream! ciphertext, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
+*REMOVED*AgeSharp.AgeRandomAccess.Dispose() -> void
+*REMOVED*AgeSharp.AgeRandomAccess.GetStream(long plaintextOffset = 0) -> System.IO.Stream!
+*REMOVED*AgeSharp.AgeRandomAccess.PlaintextLength.get -> long
+*REMOVED*AgeSharp.AgeRandomAccess.ReadAt(long plaintextOffset, System.Span<byte> buffer) -> int
 *REMOVED*AgeSharp.IIdentity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
 *REMOVED*AgeSharp.IIdentity.Unwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas) -> byte[]?
 *REMOVED*AgeSharp.IPluginCallbacks.RequestValue(string! prompt, bool secret) -> string!
@@ -32,6 +41,7 @@
 *REMOVED*static AgeSharp.AgeEncrypt.EncryptDetached(System.IO.Stream! input, System.IO.Stream! headerOutput, System.IO.Stream! payloadOutput, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> void
 *REMOVED*static AgeSharp.AgeEncrypt.EncryptReader(System.IO.Stream! plaintext, bool armor, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
 *REMOVED*static AgeSharp.AgeEncrypt.EncryptReader(System.IO.Stream! plaintext, params System.ReadOnlySpan<AgeSharp.IRecipient!> recipients) -> System.IO.Stream!
+*REMOVED*static AgeSharp.AgeHeader.Parse(System.IO.Stream! input) -> AgeSharp.AgeHeader!
 *REMOVED*static AgeSharp.AgeKeygen.Generate() -> AgeSharp.X25519Identity!
 *REMOVED*static AgeSharp.AgeKeygen.GeneratePq() -> AgeSharp.MlKem768X25519Identity!
 *REMOVED*static AgeSharp.AgeKeygen.ParseIdentity(string! s) -> AgeSharp.X25519Identity!
@@ -57,6 +67,9 @@ AgeSharp.AgeEncryptOptions
 AgeSharp.AgeEncryptOptions.AgeEncryptOptions() -> void
 AgeSharp.AgeEncryptOptions.Armor.get -> bool
 AgeSharp.AgeEncryptOptions.Armor.init -> void
+AgeSharp.AgeHeader.PayloadOffset.get -> long?
+AgeSharp.AgeHeader.Stanzas.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+AgeSharp.Armor
 AgeSharp.EncryptedSshIdentity
 AgeSharp.EncryptedSshIdentity.Dispose() -> void
 AgeSharp.EncryptedSshIdentity.Recipient.get -> AgeSharp.IRecipient!
@@ -125,8 +138,14 @@ AgeSharp.X25519Identity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fil
 AgeSharp.X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 override AgeSharp.MlKem768P256TagRecipient.ToString() -> string!
 override AgeSharp.P256TagRecipient.ToString() -> string!
+static AgeSharp.AgeHeader.Read(System.IO.Stream! input, AgeSharp.AgeDecryptOptions? options = null) -> AgeSharp.AgeHeader!
+static AgeSharp.AgeHeader.ReadAsync(System.IO.Stream! input, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<AgeSharp.AgeHeader!>
 static AgeSharp.AgeKeygen.ParseSshIdentity(string! pemText, System.Func<string!>! passphrase) -> AgeSharp.IIdentity!
 static AgeSharp.AgeKeygen.ParseSshIdentity(string! pemText, string! publicKey, System.Func<string!>! passphrase) -> AgeSharp.IIdentity!
+static AgeSharp.Armor.Decode(System.IO.Stream! armored, System.IO.Stream! binary, AgeSharp.AgeDecryptOptions? options = null) -> void
+static AgeSharp.Armor.DecodeAsync(System.IO.Stream! armored, System.IO.Stream! binary, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+static AgeSharp.Armor.Encode(System.IO.Stream! binary, System.IO.Stream! armored) -> void
+static AgeSharp.Armor.EncodeAsync(System.IO.Stream! binary, System.IO.Stream! armored, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 static AgeSharp.Identities.Parse(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.Identities!
 static AgeSharp.Identities.ParseOne(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IIdentity!
 static AgeSharp.MlKem768P256TagRecipient.Parse(string! s) -> AgeSharp.MlKem768P256TagRecipient!

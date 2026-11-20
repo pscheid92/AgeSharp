@@ -35,8 +35,10 @@ and needs to raise its pin to 2.7.0.
   `Stream` for pipe-and-forget use cases, and push-based streaming
   (`EncryptWriter` / `DecryptWriter`) a writable one, as `GZipStream` does
 - Detached header APIs (`EncryptDetached` / `DecryptDetached`)
-- Random-access decryption (`AgeRandomAccess`) — seek into encrypted files
-- Header inspection without decryption (`AgeHeader.Parse`)
+- Random-access decryption: `DecryptReader` over a seekable binary file returns a seekable
+  stream
+- Header inspection without decryption (`AgeHeader.Read`)
+- Standalone armor conversion (`Armor.Encode` / `Armor.Decode`)
 - Encrypted identity files (passphrase-protected)
 - Recipients file parsing (`-R` style files with comments)
 - Fully interoperable — files produced by AgeSharp decrypt with `age`, `rage`, and vice versa
@@ -244,37 +246,51 @@ new Identities(identity).DecryptDetached(headerInput, payloadInput, output);
 
 ### Random-access decryption
 
-Seek into an encrypted file and decrypt individual chunks without reading
-the whole file — useful for encrypted archives, databases, and large files.
+When the file is binary and its stream can seek, `DecryptReader` returns a stream that can seek
+too: read from any position, and only the chunks a read touches are decrypted. Useful for
+encrypted archives, databases and large files.
 
 ```csharp
-using var ra = new AgeRandomAccess(ciphertext, identity);
+using var file = File.OpenRead("archive.age");
+using var plaintext = new Identities(identity).DecryptReader(file);
 
-Console.WriteLine($"Plaintext length: {ra.PlaintextLength}");
+Console.WriteLine($"Plaintext length: {plaintext.Length}");
 
-// Read 100 bytes at offset 50000
-var buf = new byte[100];
-ra.ReadAt(50000, buf);
-
-// Or get a seekable Stream
-using var stream = ra.GetStream();
-stream.Seek(50000, SeekOrigin.Begin);
-stream.Read(buf);
+plaintext.Seek(50_000, SeekOrigin.Begin);
+plaintext.ReadExactly(buffer);
 ```
+
+- Opening it decrypts the final chunk, so the length is authenticated and a truncated file is
+  refused at once.
+- A read that fails leaves the position where it was.
+- The reader moves the file stream's position, so use one reader per thread.
+- Armored files are read front to back, as is any stream that cannot seek: making armor
+  seekable would mean decoding the whole file into memory.
 
 ### Header inspection
 
-Parse the header of an encrypted file without decrypting it.
+Read the header of an encrypted file without decrypting it. Nothing in it is authenticated: that
+takes the file key, so an identity.
 
 ```csharp
-var header = AgeHeader.Parse(stream);
+var header = AgeHeader.Read(stream);    // or await AgeHeader.ReadAsync(stream)
 
-Console.WriteLine($"Recipients: {header.RecipientCount}");
+Console.WriteLine($"Stanzas: {header.Stanzas.Count}");
 Console.WriteLine($"Armored: {header.IsArmored}");
-Console.WriteLine($"Payload offset: {header.PayloadOffset}");
+Console.WriteLine($"Payload offset: {header.PayloadOffset}");   // null for an armored file
 
-foreach (var stanza in header.Recipients)
+foreach (var stanza in header.Stanzas)
     Console.WriteLine($"  {stanza.Type}: {stanza.Args[0]}");
+```
+
+### Armor on its own
+
+Convert an encrypted file to ASCII armor and back, with no key: armor only re-encodes the
+ciphertext.
+
+```csharp
+Armor.Encode(binaryFile, armoredFile);
+Armor.Decode(armoredFile, binaryFile);    // held to the rules decryption applies
 ```
 
 ### Parse existing keys

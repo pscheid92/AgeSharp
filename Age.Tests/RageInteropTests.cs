@@ -52,10 +52,10 @@ public class RageInteropTests
         Assert.Equal(plaintext, RageCli.Decrypt(identity.Identity + "\n", ciphertext));
     }
 
-    // Every other way of decrypting (async over a pipe, the two writers) on files rage wrote,
-    // at the chunk boundaries.
+    // Every other way of decrypting (async over a pipe, the two writers, the seekable reader)
+    // on files rage wrote, at the chunk boundaries.
     public static IEnumerable<object[]> DecryptionWays() =>
-        from way in new[] { "PipeAsync", "Writer", "WriterAsync" }
+        from way in new[] { "PipeAsync", "Writer", "WriterAsync", "Seekable", "SeekableAsync" }
         from size in new[] { 0, 65536, 65537 }
         from armored in new[] { false, true }
         select new object[] { way, size, armored };

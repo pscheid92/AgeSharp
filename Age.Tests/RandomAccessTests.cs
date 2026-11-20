@@ -20,9 +20,9 @@ public class RandomAccessTests
         new Identities(identity).Decrypt(ciphertext, fullDecOutput);
         var expected = fullDecOutput.ToArray();
 
-        // Sequential read via ReadAt
+        // Sequential reads at increasing positions
         ciphertext.Position = 0;
-        using var ra = new AgeRandomAccess(ciphertext, identity);
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
 
         var actual = new byte[plaintext.Length];
         int totalRead = 0;
@@ -44,7 +44,7 @@ public class RandomAccessTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
 
         // Read from middle of first chunk
         int offset = 32768;
@@ -62,7 +62,7 @@ public class RandomAccessTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
 
         // Read across chunk boundary (64 KiB = 65536)
         int offset = 65530;
@@ -79,7 +79,7 @@ public class RandomAccessTests
         var plaintext = "Hello, random access!"u8.ToArray();
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
 
         var buf = new byte[1];
         int read = ra.ReadAt(0, buf);
@@ -94,7 +94,7 @@ public class RandomAccessTests
         var plaintext = "Hello, random access!"u8.ToArray();
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
 
         var buf = new byte[1];
         int read = ra.ReadAt(plaintext.Length - 1, buf);
@@ -109,7 +109,7 @@ public class RandomAccessTests
         var plaintext = "short"u8.ToArray();
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
 
         var buf = new byte[10];
         int read = ra.ReadAt(plaintext.Length, buf);
@@ -125,7 +125,7 @@ public class RandomAccessTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
 
         // Read last byte of chunk 0
         var buf1 = new byte[1];
@@ -146,9 +146,9 @@ public class RandomAccessTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
 
-        using var stream = ra.GetStream();
+        using var stream = ra.From();
         Assert.True(stream.CanSeek);
         Assert.True(stream.CanRead);
 
@@ -171,9 +171,9 @@ public class RandomAccessTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
 
-        using var stream = ra.GetStream();
+        using var stream = ra.From();
         using var output = new MemoryStream();
         stream.CopyTo(output);
         Assert.Equal(plaintext, output.ToArray());
@@ -186,9 +186,9 @@ public class RandomAccessTests
         var plaintext = Array.Empty<byte>();
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
 
-        Assert.Equal(0, ra.PlaintextLength);
+        Assert.Equal(0, ra.Length);
 
         var buf = new byte[10];
         int read = ra.ReadAt(0, buf);
@@ -203,9 +203,9 @@ public class RandomAccessTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
 
-        Assert.Equal(plaintext.Length, ra.PlaintextLength);
+        Assert.Equal(plaintext.Length, ra.Length);
 
         // Read last byte
         var buf = new byte[1];
@@ -225,9 +225,9 @@ public class RandomAccessTests
             if (size > 0) new Random(42).NextBytes(plaintext);
 
             using var ciphertext = Encrypt(plaintext, identity.Recipient);
-            using var ra = new AgeRandomAccess(ciphertext, identity);
+            using var ra = new Identities(identity).DecryptReader(ciphertext);
 
-            Assert.Equal(size, ra.PlaintextLength);
+            Assert.Equal(size, ra.Length);
         }
     }
 
@@ -239,7 +239,7 @@ public class RandomAccessTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
 
         // Read a span that crosses 2 chunk boundaries
         int offset = 65000;
@@ -255,60 +255,62 @@ public class RandomAccessTests
         Assert.Equal(plaintext.AsSpan(offset, length).ToArray(), buf);
     }
 
+    // Armor is read front to back, in bounded memory, even from a stream that could seek:
+    // seeking it would mean decoding the whole file into memory first.
     [Fact]
-    public void Armored_RandomAccess()
+    public void Armored_IsReadInOrder()
     {
         using var identity = X25519Identity.Generate();
-        var plaintext = "armored random access test data!"u8.ToArray();
+        var plaintext = "armored data is read in order"u8.ToArray();
 
-        using var input = new MemoryStream(plaintext);
         var ciphertext = new MemoryStream();
-        new Recipients(identity.Recipient).Encrypt(input, ciphertext, new AgeEncryptOptions { Armor = true });
+        new Recipients(identity.Recipient).Encrypt(new MemoryStream(plaintext), ciphertext, new AgeEncryptOptions { Armor = true });
         ciphertext.Position = 0;
 
-        using var ra = new AgeRandomAccess(ciphertext, identity);
-        var buf = new byte[plaintext.Length];
-        var totalRead = 0;
-        while (totalRead < buf.Length)
-        {
-            var read = ra.ReadAt(totalRead, buf.AsSpan(totalRead));
-            Assert.True(read > 0);
-            totalRead += read;
-        }
+        using var reader = new Identities(identity).DecryptReader(ciphertext);
+        var output = new MemoryStream();
+        reader.CopyTo(output);
 
-        Assert.Equal(plaintext, buf);
+        Assert.False(reader.CanSeek);
+        Assert.Equal(plaintext, output.ToArray());
     }
 
-    // The constructor promises to rewind first. Armor detection used to run before the rewind, so
-    // armored input left at its end — where Encrypt leaves it — was read as binary and failed.
+    // The file is read from where the stream is, not rewound: it may follow other data.
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void StreamLeftAtItsEnd_IsRewound(bool armor)
+    public void TheFileIsReadFromTheStreamsPosition(bool armor)
     {
         using var identity = X25519Identity.Generate();
-        var plaintext = "random access from wherever the stream was left"u8.ToArray();
+        var plaintext = "random access from wherever the stream is"u8.ToArray();
 
         var ciphertext = new MemoryStream();
+        ciphertext.Write("some other data first"u8);
+        var start = ciphertext.Position;
         new Recipients(identity.Recipient).Encrypt(new MemoryStream(plaintext), ciphertext, new AgeEncryptOptions { Armor = armor });
+        ciphertext.Position = start;
 
-        using var ra = new AgeRandomAccess(ciphertext, identity);
-        var buf = new byte[plaintext.Length];
+        using var reader = new Identities(identity).DecryptReader(ciphertext);
+        var output = new MemoryStream();
+        reader.CopyTo(output);
 
-        Assert.Equal(plaintext.Length, ra.ReadAt(0, buf));
-        Assert.Equal(plaintext, buf);
+        Assert.Equal(!armor, reader.CanSeek);
+        Assert.Equal(plaintext, output.ToArray());
     }
 
     [Fact]
-    public void NonSeekableStream_Rejected()
+    public void NonSeekableStream_IsReadInOrder()
     {
         using var identity = X25519Identity.Generate();
         var plaintext = "test"u8.ToArray();
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var nonSeekable = new NonSeekableStream(ciphertext);
+        using var reader = new Identities(identity).DecryptReader(new NonSeekableStream(ciphertext));
+        var output = new MemoryStream();
+        reader.CopyTo(output);
 
-        Assert.Throws<ArgumentException>(() => new AgeRandomAccess(nonSeekable, identity));
+        Assert.False(reader.CanSeek);
+        Assert.Equal(plaintext, output.ToArray());
     }
 
     [Fact]
@@ -319,8 +321,8 @@ public class RandomAccessTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
-        using var stream = ra.GetStream();
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
+        using var stream = ra.From();
 
         // Seek to 10000 from begin, then +5000 from current
         stream.Seek(10000, SeekOrigin.Begin);
@@ -341,8 +343,8 @@ public class RandomAccessTests
         new Random(42).NextBytes(plaintext);
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
-        using var stream = ra.GetStream();
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
+        using var stream = ra.From();
 
         stream.Seek(-10, SeekOrigin.End);
         Assert.Equal(plaintext.Length - 10, stream.Position);
@@ -360,7 +362,7 @@ public class RandomAccessTests
         var plaintext = "test"u8.ToArray();
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
 
         var buf = new byte[10];
         var read = ra.ReadAt(-1, buf);
@@ -374,8 +376,8 @@ public class RandomAccessTests
         var plaintext = "short"u8.ToArray();
 
         using var ciphertext = Encrypt(plaintext, identity.Recipient);
-        using var ra = new AgeRandomAccess(ciphertext, identity);
-        using var stream = ra.GetStream();
+        using var ra = new Identities(identity).DecryptReader(ciphertext);
+        using var stream = ra.From();
 
         stream.Seek(1000, SeekOrigin.Begin);
         Assert.Equal(1000, stream.Position);

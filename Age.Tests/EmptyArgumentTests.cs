@@ -99,7 +99,7 @@ public class EmptyArgumentTests
         using var source = new MemoryStream(SomeCiphertext(identity));
 
         var ex = Assert.Throws<ArgumentException>(() =>
-            new AgeRandomAccess(source, ReadOnlySpan<IIdentity>.Empty));
+            new Identities(ReadOnlySpan<IIdentity>.Empty).DecryptReader(source));
 
         Assert.Equal("identities", ex.ParamName);
     }

@@ -43,13 +43,13 @@ public class ArmoredOnAPipeTests
         using var identity = X25519Identity.Generate();
         var file = Encrypt(identity, armor);
 
-        var fromFile = AgeHeader.Parse(new MemoryStream(file));
-        var fromPipe = AgeHeader.Parse(new Pipe(file));
+        var fromFile = AgeHeader.Read(new MemoryStream(file));
+        var fromPipe = AgeHeader.Read(new Pipe(file));
 
         Assert.Equal(armor, fromPipe.IsArmored);
         Assert.Equal(fromFile.IsArmored, fromPipe.IsArmored);
         Assert.Equal(fromFile.PayloadOffset, fromPipe.PayloadOffset);
-        Assert.Equal(fromFile.Recipients.Select(s => s.Type), fromPipe.Recipients.Select(s => s.Type));
+        Assert.Equal(fromFile.Stanzas.Select(s => s.Type), fromPipe.Stanzas.Select(s => s.Type));
     }
 
     // Detection may not swallow bytes that are not its business: after the header of a binary
@@ -61,7 +61,7 @@ public class ArmoredOnAPipeTests
         var file = Encrypt(identity, armor: false);
         var pipe = new Pipe(file);
 
-        var header = AgeHeader.Parse(pipe);
+        var header = AgeHeader.Read(pipe);
 
         Assert.Equal(file.Length - header.PayloadOffset, pipe.Remaining);
     }
@@ -98,7 +98,7 @@ public class ArmoredOnAPipeTests
     [Fact]
     public void OnlyWhitespace_IsNotArmor()
     {
-        var header = Assert.Throws<AgeHeaderException>(() => AgeHeader.Parse(new Pipe("\n \n\t\n"u8.ToArray())));
+        var header = Assert.Throws<AgeHeaderException>(() => AgeHeader.Read(new Pipe("\n \n\t\n"u8.ToArray())));
 
         Assert.DoesNotContain("armor", header.Message, StringComparison.OrdinalIgnoreCase);
     }

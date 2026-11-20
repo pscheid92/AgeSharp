@@ -279,7 +279,7 @@ public class WriterTests
         var armored = System.Text.Encoding.ASCII.GetString(new Recipients(alice.Recipient).Encrypt(Plaintext(2 * Chunk), new AgeEncryptOptions { Armor = true }));
 
         // The binary byte that fills the held chunk, and the armor line it is on.
-        var payloadStart = (int)AgeHeader.Parse(new MemoryStream(binary)).PayloadOffset + StreamEncryption.PayloadNonceSize;
+        var payloadStart = (int)AgeHeader.Read(new MemoryStream(binary)).PayloadOffset!.Value + StreamEncryption.PayloadNonceSize;
         var lines = armored.Split('\n');
         var line = 1 + (payloadStart + StreamEncryption.EncryptedChunkSize) / 48;
         var cut = System.Text.Encoding.ASCII.GetBytes(string.Join('\n', lines[..(line + 1)]));
@@ -330,7 +330,7 @@ public class WriterTests
     {
         using var alice = X25519Identity.Generate();
         var file = new Recipients(alice.Recipient).Encrypt(Plaintext(3 * Chunk));
-        var payloadStart = (int)AgeHeader.Parse(new MemoryStream(file)).PayloadOffset + StreamEncryption.PayloadNonceSize;
+        var payloadStart = (int)AgeHeader.Read(new MemoryStream(file)).PayloadOffset!.Value + StreamEncryption.PayloadNonceSize;
         file[payloadStart + 5] ^= 1;
         var output = new MemoryStream();
 

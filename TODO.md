@@ -52,12 +52,13 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 - [ ] Split `ScryptRecipient` into recipient and identity; adjustable maximum work factor
 - [ ] `NoIdentityMatchException` carrying per-identity errors and the stanza types seen
 - [ ] File-key extraction and injection (`ExtractHeader`, `DecryptHeader`, injected-file-key identity)
-- [ ] Public armor reader and writer
+- [x] Public armor reader and writer — `Armor.Encode` / `Armor.Decode` (rebuild step 4e)
 - [ ] Replace the `AgeEncrypt` / `AgeKeygen` static catch-alls with domain types
   - [x] Encrypting: `Recipients` (rebuild step 4b), with `Recipients.ParseOne` for a recipient of any type
   - [x] Decrypting: `Identities` (rebuild step 4c), with `Identities.ParseOne` for an identity of any type and the header limits as `AgeDecryptOptions`
   - [x] The writer forms: `EncryptWriter` and `DecryptWriter` (rebuild step 4d)
-  - [ ] The seekable reader, the header read and public armor (4e); `AgeKeygen`'s SSH and encrypted-identity-file members (step 5)
+  - [x] The seekable reader (a seekable `DecryptReader` result in place of `AgeRandomAccess`), `AgeHeader.Read` / `ReadAsync`, and public armor (rebuild step 4e)
+  - [ ] `AgeKeygen`'s SSH and encrypted-identity-file members (step 5)
 
 ## Internal (from the 2026-09-22 review)
 

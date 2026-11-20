@@ -140,7 +140,7 @@ public class ArmorDecodingTests
     private static string Armor(ReadOnlySpan<byte> bytes)
     {
         using var output = new MemoryStream();
-        AsciiArmor.Armor(new MemoryStream(bytes.ToArray()), output);
+        AgeSharp.Armor.Encode(new MemoryStream(bytes.ToArray()), output);
         return Encoding.ASCII.GetString(output.ToArray());
     }
 

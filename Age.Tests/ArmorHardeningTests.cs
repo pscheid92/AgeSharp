@@ -66,7 +66,7 @@ public class ArmorHardeningTests
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\n"
                    + string.Concat(Enumerable.Repeat(chunk, AgeLimits.MaxArmorLineBytes / 1000 + 10)) + "\n";
 
-        var ex = Assert.Throws<AgeArmorException>(() => AgeHeader.Parse(new MemoryStream(Encoding.ASCII.GetBytes(text))));
+        var ex = Assert.Throws<AgeArmorException>(() => AgeHeader.Read(new MemoryStream(Encoding.ASCII.GetBytes(text))));
 
         Assert.Contains($"exceeds {AgeLimits.MaxArmorLineBytes} bytes", ex.Message);
     }

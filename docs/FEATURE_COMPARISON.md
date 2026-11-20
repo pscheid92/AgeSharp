@@ -41,11 +41,11 @@ AgeSharp builds the HPKE for both on BouncyCastle, so they also work in the brow
 |---|:---:|:---:|:---:|---|
 | Pull-based streams (`EncryptReader`) | ✅ | ✅ | ✅ | |
 | Push-based streams (writers) | ✅ | ✅ | ✅ | Go's `Encrypt` and rage's `wrap_output` push encryption only; AgeSharp pushes decryption too (`DecryptWriter`) |
-| Random-access decryption | ✅ | ✅ | ✅ | Go `DecryptReaderAt`, rage `Seek` on its stream reader, `AgeRandomAccess` |
+| Random-access decryption | ✅ | ✅ | ✅ | Go `DecryptReaderAt`, rage `Seek` on its stream reader, AgeSharp a seekable `DecryptReader` result; binary files only in AgeSharp |
 | Detached headers | ✅ | ❌ | ✅ | |
 | File-key extraction and injection | ✅ | ❌ | ❌ | Go `DecryptHeader`, `NewInjectedFileKeyIdentity` |
 | Header inspection | — | ❌ | ✅ | go-age's inspection is internal to its `age-inspect` command; its library exposes the raw header through `ExtractHeader` |
-| Standalone armor reader/writer | ✅ | ✅ | ❌ | Internal in AgeSharp |
+| Standalone armor reader/writer | ✅ | ✅ | ✅ | `Armor.Encode` / `Armor.Decode`, sync and async |
 | Adjustable scrypt maximum work factor | ✅ | ✅ | ❌ | Fixed at 22 in AgeSharp |
 | Per-identity errors on no match | ✅ | ❌ | ❌ | |
 | Async encrypt/decrypt | ❌ | ✅ | ✅ | `EncryptAsync`, `DecryptAsync`, `DecryptReaderAsync` and the detached forms, async all the way through; unwrapping for a plugin or encrypted SSH key is synchronous |

@@ -1,65 +1,76 @@
-using AgeSharp;
-
 namespace AgeSharp;
 
 /// <summary>
-/// The parsed header of an age file: its recipient stanzas and layout facts.
-/// Obtained via <see cref="Parse"/> without decrypting (and without verifying
-/// the header MAC, which requires an identity).
+/// The header of an age file, read without decrypting it: its stanzas, whether it was armored,
+/// and where its payload starts.
 /// </summary>
+/// <remarks>
+/// Nothing here is authenticated. The header's MAC can only be checked with the file key, which
+/// takes an identity, so the stanzas are as the file presents them: fit for showing who a file
+/// is addressed to, not for trusting that it is.
+/// </remarks>
 public sealed class AgeHeader
 {
-    /// <summary>Number of recipient stanzas; equal to <c>Recipients.Count</c>.</summary>
-    public int RecipientCount { get; }
+    private AgeHeader(IReadOnlyList<Stanza> stanzas, bool isArmored, long? payloadOffset)
+    {
+        Stanzas = stanzas;
+        IsArmored = isArmored;
+        PayloadOffset = payloadOffset;
+    }
 
-    /// <summary>The recipient stanzas, in file order.</summary>
-    public IReadOnlyList<Stanza> Recipients { get; }
+    /// <summary>The recipient stanzas, in the order the file holds them.</summary>
+    public IReadOnlyList<Stanza> Stanzas { get; }
 
-    /// <summary>
-    /// Offset of the first payload byte (the payload nonce) in the <em>binary</em>
-    /// age encoding. For a binary file this is a file offset; when
-    /// <see cref="IsArmored"/> is true it refers to the dearmored byte stream,
-    /// not the armored file.
-    /// </summary>
-    public long PayloadOffset { get; }
-
-    /// <summary>Whether the input was wrapped in ASCII armor.</summary>
+    /// <summary>Whether the file is ASCII-armored.</summary>
     public bool IsArmored { get; }
 
-    private AgeHeader(IReadOnlyList<Stanza> recipients, long payloadOffset, bool isArmored)
-    {
-        RecipientCount = recipients.Count;
-        Recipients = recipients;
-        PayloadOffset = payloadOffset;
-        IsArmored = isArmored;
-    }
+    /// <summary>
+    /// Where the payload starts (its nonce), counted in bytes from where reading began. Null for
+    /// an armored file: the offset would count decoded bytes, which are no position in the file
+    /// as stored.
+    /// </summary>
+    public long? PayloadOffset { get; }
 
     /// <summary>
-    /// Parses the header of an age file, binary or armored, without decrypting it. Reads from
-    /// the current position. For a binary file, the stream is left where the header ends, at
-    /// the payload, on any stream; armor is read further, as far as its lines run.
+    /// Reads the header of an age file, binary or armored, from the stream's position, without
+    /// decrypting anything. A binary file's stream is left where the header ends, at the payload,
+    /// on any stream; armor is read as far as its lines run. The stream stays open.
     /// </summary>
-    /// <param name="input">The age-encrypted source.</param>
-    /// <exception cref="AgeHeaderException">The header is malformed or exceeds <see cref="AgeLimits"/>.</exception>
-    /// <exception cref="AgeArmorException">The input is armored and the armor is malformed.</exception>
-    public static AgeHeader Parse(Stream input)
+    /// <exception cref="AgeHeaderException">The header is malformed, or breaks a limit in <paramref name="options"/>.</exception>
+    /// <exception cref="AgeArmorException">The armor is malformed, or armor is required and absent.</exception>
+    public static AgeHeader Read(Stream input, AgeDecryptOptions? options = null)
     {
-        // The binary input is a look-ahead or a dearmoring wrapper: ours to dispose, and neither
-        // disposes the caller's stream.
-        var (binary, isArmored) = AsciiArmor.Open(input);
-        using var _ = binary;
-        var reader = new HeaderReader(binary);
+        ArgumentNullException.ThrowIfNull(input);
+        options ??= AgeDecryptOptions.Default;
 
-        Header header;
-        try
-        {
-            header = Header.Parse(reader);
-        }
-        catch (FormatException ex)
-        {
-            throw new AgeHeaderException($"header parse error: {ex.Message}", ex);
-        }
+        // A look-ahead or a dearmoring wrapper: ours to dispose, and neither disposes the caller's stream.
+        var (binary, isArmored) = AsciiArmor.Open(input, options);
 
-        return new AgeHeader(header.Stanzas.AsReadOnly(), reader.RawBytes.Length, isArmored);
+        using (binary)
+        {
+            var reader = new HeaderReader(binary, options);
+            return From(Identities.ParseHeader(reader), isArmored, reader);
+        }
     }
+
+    /// <summary>The asynchronous <see cref="Read"/>: every read of <paramref name="input"/> is asynchronous.</summary>
+    /// <exception cref="AgeHeaderException">The header is malformed, or breaks a limit in <paramref name="options"/>.</exception>
+    /// <exception cref="AgeArmorException">The armor is malformed, or armor is required and absent.</exception>
+    public static async ValueTask<AgeHeader> ReadAsync(Stream input, AgeDecryptOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        options ??= AgeDecryptOptions.Default;
+
+        var (binary, isArmored) = await AsciiArmor.OpenAsync(input, options, cancellationToken).ConfigureAwait(false);
+
+        await using (binary.ConfigureAwait(false))
+        {
+            var reader = new HeaderReader(binary, options);
+            await reader.PrefillAsync(cancellationToken).ConfigureAwait(false);
+            return From(Identities.ParseHeader(reader), isArmored, reader);
+        }
+    }
+
+    private static AgeHeader From(Header header, bool isArmored, HeaderReader reader) =>
+        new(header.Stanzas.AsReadOnly(), isArmored, isArmored ? null : reader.RawBytes.Length);
 }

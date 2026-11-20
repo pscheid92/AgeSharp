@@ -124,13 +124,20 @@ line: 861 MB of short-lived garbage for this file, and 751–800 ms.
 
 ### Random Access
 
+4 KiB reads from a 1 MB file through the seekable stream `DecryptReader` returns for a seekable
+binary file: 256 reads in order, then 256 at random positions (`RandomAccessBenchmarks`).
+Measured 2026-11-20, two runs each.
+
 | Operation | Time | Allocated |
 |---|---:|---:|
-| Sequential Read | 28.8 ms | 32.0 MB |
-| Random Read | 30.6 ms | 34.2 MB |
+| Sequential Read | 1.81 ms | 0 |
+| Random Read | 29.3–29.4 ms | 0 |
 
-Random reads are only ~6% slower than sequential thanks to the
-chunk-based design.
+`AgeRandomAccess`, which this replaced, took 29.2–29.4 ms and 31.0–31.1 ms in the same runs, and
+allocated 32 and 34 MB: it decrypted a whole 64 KiB chunk afresh for every 4 KiB read, into new
+arrays. The seekable stream keeps the chunk it last decrypted and reuses pooled buffers, so
+reading in order decrypts each chunk once, 16 times faster. A random read still decrypts one
+chunk for almost every read; it is about 5% faster for the buffers alone.
 
 ## Reproducing
 
