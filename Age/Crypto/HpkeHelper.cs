@@ -50,6 +50,25 @@ internal static class HpkeHelper
     /// secret, or returns null if it does not authenticate: RFC 9180's OpenBase after its Decap
     /// step, which the caller has done.
     /// </summary>
+    /// <summary>
+    /// The span form of <see cref="Open(ushort, byte[], byte[], byte[])"/>: decrypts into
+    /// <paramref name="plaintext"/>, which is left cleared if the ciphertext does not authenticate.
+    /// </summary>
+    public static bool Open(ushort kemId, byte[] sharedSecret, byte[] info, ReadOnlySpan<byte> ciphertext, Span<byte> plaintext)
+    {
+        var (key, nonce) = KeyScheduleBase(kemId, sharedSecret, info);
+
+        try
+        {
+            return CryptoHelper.ChaChaDecrypt(key, nonce, ciphertext, plaintext);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(key);
+            CryptographicOperations.ZeroMemory(nonce);
+        }
+    }
+
     public static byte[]? Open(ushort kemId, byte[] sharedSecret, byte[] info, byte[] ciphertext)
     {
         var (key, nonce) = KeyScheduleBase(kemId, sharedSecret, info);

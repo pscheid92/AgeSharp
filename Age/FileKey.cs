@@ -91,6 +91,14 @@ public sealed class FileKey : IDisposable
         return null;
     }
 
+    /// <summary>The buffer an identity writes a file key into must be <see cref="Size"/> bytes.</summary>
+    /// <exception cref="ArgumentException">It is not.</exception>
+    internal static void RequireBuffer(Span<byte> into)
+    {
+        if (into.Length != Size)
+            throw new ArgumentException($"the file key buffer must be {Size} bytes, got {into.Length}", nameof(into));
+    }
+
     /// <summary>
     /// Hands a key an identity recovered into its own array over to the caller's buffer, and
     /// zeroes the array. Returns false, writing nothing, when there is no key.
@@ -101,8 +109,7 @@ public sealed class FileKey : IDisposable
     {
         try
         {
-            if (into.Length != Size)
-                throw new ArgumentException($"the file key buffer must be {Size} bytes, got {into.Length}", nameof(into));
+            RequireBuffer(into);
 
             if (recovered is null)
                 return false;

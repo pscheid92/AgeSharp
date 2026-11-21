@@ -15,7 +15,7 @@ namespace AgeSharp;
 /// </remarks>
 public sealed class Stanza
 {
-    private const int ColumnsPerLine = 64;
+    internal const int ColumnsPerLine = 64;
 
     private readonly string[] _args;
     private readonly byte[] _body;

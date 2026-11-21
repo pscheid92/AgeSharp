@@ -118,6 +118,9 @@ internal static class CryptoHelper
         }
         catch (AuthenticationTagMismatchException)
         {
+            // The destination may be the caller's file-key buffer: nothing of a failed attempt
+            // is left in it, whatever the cipher backend did.
+            CryptographicOperations.ZeroMemory(plaintext[..plaintextLen]);
             return false;
         }
 
