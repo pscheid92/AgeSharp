@@ -42,10 +42,12 @@ internal static class MlKem768P256
 
     /// <summary>
     /// Encapsulates to a public key that <see cref="ValidatePublicKey"/> accepted. The ML-KEM
-    /// randomness is drawn from <paramref name="random"/> first, then the P-256 ephemeral key,
-    /// which is the order the known-answer vectors give them in.
+    /// randomness is drawn from <paramref name="random"/>. The P-256 ephemeral key is generated
+    /// by the backend, unless a <paramref name="p256ScalarSource"/> is given (see
+    /// <see cref="DhKemP256.DiffieHellman"/>); the known-answer vectors pass the same source for
+    /// both, which then gives the ML-KEM randomness first, as they order them.
     /// </summary>
-    public static (byte[] SharedSecret, byte[] Enc) Encapsulate(byte[] publicKey, SecureRandom random)
+    public static (byte[] SharedSecret, byte[] Enc) Encapsulate(byte[] publicKey, SecureRandom random, SecureRandom? p256ScalarSource = null, P256Backend? backend = null)
     {
         if (publicKey.Length != PublicKeySize)
             throw new ArgumentException($"public key must be {PublicKeySize} bytes, got {publicKey.Length}", nameof(publicKey));
@@ -56,7 +58,7 @@ internal static class MlKem768P256
 
         try
         {
-            (ssT, var ctT) = DhKemP256.DiffieHellman(pointT, random);
+            (ssT, var ctT) = DhKemP256.DiffieHellman(pointT, p256ScalarSource, backend ?? DhKemP256.DefaultBackend);
             return (HybridKem.CombineSharedSecrets(Label, ssPq, ssT, ctT, pointT), [.. ctPq, .. ctT]);
         }
         finally

@@ -79,8 +79,8 @@ that will be stored and not immediately turned into a recipient:
 | X25519 Unwrap | 85 us | 5.9 KB |
 | ML-KEM-768-X25519 Wrap | 131 us | 38.3 KB |
 | ML-KEM-768-X25519 Unwrap | 171 us | 58.1 KB |
-| Tagged P-256 Wrap (`age1tag1…`) | 254 us | 232 KB |
-| Tagged P-256 + ML-KEM-768 Wrap (`age1tagpq1…`) | 294 us | 261 KB |
+| Tagged P-256 Wrap (`age1tag1…`) | 486 us | 11.8 KB |
+| Tagged P-256 + ML-KEM-768 Wrap (`age1tagpq1…`) | 523 us | 40.3 KB |
 | Scrypt Wrap | 1,799 us | 1,035 KB |
 | Scrypt Unwrap | 1,793 us | 1,035 KB |
 
@@ -88,14 +88,22 @@ X25519 is the fastest at ~85 us. ML-KEM hybrid adds ~50-100% overhead
 (still under 200 us); it allocates ~17% less than in July. Scrypt is intentionally
 slow (~1.8 ms) due to the password-hashing work factor.
 
-The tagged recipients are encryption-only, so only Wrap is measured. They cost about
-3× an X25519 Wrap and allocate 35–40× as much. Nearly all of it (~97%) is the two P-256
-scalar multiplications in BouncyCastle's managed code: the ephemeral key (~90 us) and the
-exchange with the recipient's point (~160 us). Decoding the recipient key again on every
-Wrap costs about 2 us for the point and 3 us for the ML-KEM key, so caching it would save
-~3%. .NET's own P-256 is no faster on macOS (~465 us per exchange measured here). The cost is paid once
-per recipient per file: it dominates a small file (an X25519 encrypt of 1 KB takes
-~100 us in all) and disappears behind the payload from a few megabytes on.
+The tagged recipients are encryption-only, so only Wrap is measured (2026-11-21). Nearly all
+of a Wrap is one P-256 exchange: an ephemeral key and its ECDH with the recipient's point. It
+runs on the platform's `ECDiffieHellman`, which is constant-time, as go-age's P-256 is;
+BouncyCastle's managed P-256, which is not, is kept only for the browser. The platform's
+speed depends on the OS. Per exchange (`P256ExchangeBenchmarks`, GitHub's runners for Linux
+and Windows):
+
+| | BouncyCastle | Platform |
+|---|---:|---:|
+| macOS (this machine) | 254 us | 489 us |
+| Linux x64 (OpenSSL) | 278 us | 121 us |
+| Windows x64 (CNG) | 309 us | 1,547 us |
+
+So a tagged Wrap is about twice as slow as before on macOS, five times on Windows, and twice as
+fast on Linux, and allocates a twentieth as much. The cost is paid once per recipient per file:
+it dominates a small file and disappears behind the payload from a few megabytes on.
 
 ### Large files
 

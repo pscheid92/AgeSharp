@@ -53,5 +53,5 @@ public sealed class P256TagRecipient : IRecipient
 
     private Stanza WrapOne(ReadOnlySpan<byte> fileKey) =>
         TaggedStanza.Wrap(AgeProtocol.P256TagStanzaType, DhKemP256.KemId, AgeProtocol.P256TagHpkeInfo,
-            DhKemP256.Encapsulate(_point, new SecureRandom()), _compressedPoint, fileKey);
+            DhKemP256.Encapsulate(_point), _compressedPoint, fileKey);
 }
