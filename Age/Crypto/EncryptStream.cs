@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 
 namespace AgeSharp.Crypto;
 
-internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byte[] payloadKey, Stream plaintext) : Stream
+internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, PayloadKey payloadKey, Stream plaintext) : Stream
 {
     private const int PlaintextBufferSize = StreamEncryption.ChunkSize + 1;
     private const int CiphertextBufferSize = StreamEncryption.EncryptedChunkSize;
@@ -16,7 +16,7 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
 
     private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(PlaintextBufferSize);
     private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
-    private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
+    private readonly IAeadCipher _cipher = payloadKey.Cipher;
     private int _chunkLength;
     private int _chunkOffset;
     private long _counter;
@@ -178,8 +178,7 @@ internal sealed class EncryptStream(byte[] headerBytes, byte[] payloadNonce, byt
         if (disposing && !_disposed)
         {
             _disposed = true;
-            _cipher.Dispose();
-            CryptographicOperations.ZeroMemory(payloadKey);
+            payloadKey.Dispose();
             CryptographicOperations.ZeroMemory(_plaintextBuffer.AsSpan(0, PlaintextBufferSize));
             ArrayPool<byte>.Shared.Return(_plaintextBuffer);
             ArrayPool<byte>.Shared.Return(_ciphertextBuffer);

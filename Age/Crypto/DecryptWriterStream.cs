@@ -51,8 +51,7 @@ internal sealed class DecryptWriterStream(Stream destination, Identities identit
     private FileKey? _fileKey;
     private readonly byte[] _nonce = new byte[StreamEncryption.PayloadNonceSize];
     private int _nonceLength;
-    private byte[]? _payloadKey;
-    private IAeadCipher? _cipher;
+    private PayloadKey? _payloadKey;
     private byte[]? _hold;
     private int _holdLength;
     private byte[]? _plaintext;
@@ -279,11 +278,10 @@ internal sealed class DecryptWriterStream(Stream destination, Identities identit
 
     private void StartPayload()
     {
-        _payloadKey = Identities.PayloadKey(_fileKey!, _nonce, _nonceLength);
+        _payloadKey = Identities.DerivePayloadKey(_fileKey!, _nonce, _nonceLength);
         _fileKey!.Dispose();
         _fileKey = null;
 
-        _cipher = AeadCipher.Create(_payloadKey);
         _hold = ArrayPool<byte>.Shared.Rent(HoldSize);
         _plaintext = ArrayPool<byte>.Shared.Rent(StreamEncryption.ChunkSize);
         _stage = Stage.Payload;
@@ -298,7 +296,7 @@ internal sealed class DecryptWriterStream(Stream destination, Identities identit
             throw new AgeAuthenticationException("chunk too small for authentication tag");
 
         var previous = _plaintextLength;
-        StreamEncryption.DecryptChunk(_cipher!, _counter, isFinal, _hold.AsSpan(0, length), _plaintext);
+        StreamEncryption.DecryptChunk(_payloadKey!.Cipher, _counter, isFinal, _hold.AsSpan(0, length), _plaintext);
         _plaintextLength = length - StreamEncryption.TagSize;
         _counter++;
 
@@ -430,10 +428,7 @@ internal sealed class DecryptWriterStream(Stream destination, Identities identit
     private void Release()
     {
         _fileKey?.Dispose();
-        _cipher?.Dispose();
-
-        if (_payloadKey is not null)
-            CryptographicOperations.ZeroMemory(_payloadKey);
+        _payloadKey?.Dispose();
 
         if (_plaintext is not null)
         {

@@ -14,12 +14,12 @@ namespace AgeSharp.Crypto;
 /// writes nothing more. A failed write may have consumed plaintext the destination never received,
 /// so carrying on would produce a file without it.
 /// </remarks>
-internal sealed class EncryptWriterStream(byte[] headerBytes, byte[] payloadNonce, byte[] payloadKey, Stream destination, ArmorWriterStream? armor)
+internal sealed class EncryptWriterStream(byte[] headerBytes, byte[] payloadNonce, PayloadKey payloadKey, Stream destination, ArmorWriterStream? armor)
     : Stream
 {
     private readonly Stream _out = (Stream?)armor ?? destination;
     private readonly byte[] _preamble = [.. headerBytes, .. payloadNonce];
-    private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
+    private readonly IAeadCipher _cipher = payloadKey.Cipher;
     private readonly byte[] _plaintext = ArrayPool<byte>.Shared.Rent(StreamEncryption.ChunkSize);
     private readonly byte[] _ciphertext = ArrayPool<byte>.Shared.Rent(StreamEncryption.EncryptedChunkSize);
     private int _length;
@@ -175,8 +175,7 @@ internal sealed class EncryptWriterStream(byte[] headerBytes, byte[] payloadNonc
     private void Release()
     {
         armor?.Dispose();
-        _cipher.Dispose();
-        CryptographicOperations.ZeroMemory(payloadKey);
+        payloadKey.Dispose();
         CryptographicOperations.ZeroMemory(_plaintext.AsSpan(0, StreamEncryption.ChunkSize));
         ArrayPool<byte>.Shared.Return(_plaintext);
         ArrayPool<byte>.Shared.Return(_ciphertext);

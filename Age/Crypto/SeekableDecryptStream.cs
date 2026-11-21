@@ -23,8 +23,7 @@ namespace AgeSharp.Crypto;
 internal sealed class SeekableDecryptStream : Stream
 {
     private readonly Stream _ciphertext;
-    private readonly byte[] _payloadKey;
-    private readonly IAeadCipher _cipher;
+    private readonly PayloadKey _payloadKey;
     private readonly long _payloadStart;
     private readonly long _payloadLength;
     private readonly long _chunks;
@@ -36,19 +35,18 @@ internal sealed class SeekableDecryptStream : Stream
     private long _length;
     private bool _disposed;
 
-    private SeekableDecryptStream(byte[] payloadKey, Stream ciphertext, long payloadStart)
+    private SeekableDecryptStream(PayloadKey payloadKey, Stream ciphertext, long payloadStart)
     {
         _payloadKey = payloadKey;
         _ciphertext = ciphertext;
         _payloadStart = payloadStart;
         _payloadLength = ciphertext.Length - payloadStart;
         _chunks = Math.Max(1, (_payloadLength + StreamEncryption.EncryptedChunkSize - 1) / StreamEncryption.EncryptedChunkSize);
-        _cipher = AeadCipher.Create(payloadKey);
     }
 
     /// <summary>Opens the payload that starts at <paramref name="ciphertext"/>'s position, authenticating its final chunk.</summary>
     /// <exception cref="AgeAuthenticationException">The payload is empty, truncated, or its final chunk fails authentication.</exception>
-    public static SeekableDecryptStream Open(byte[] payloadKey, Stream ciphertext)
+    public static SeekableDecryptStream Open(PayloadKey payloadKey, Stream ciphertext)
     {
         var stream = new SeekableDecryptStream(payloadKey, ciphertext, ciphertext.Position);
 
@@ -67,7 +65,7 @@ internal sealed class SeekableDecryptStream : Stream
     }
 
     /// <summary>The asynchronous <see cref="Open"/>.</summary>
-    public static async ValueTask<SeekableDecryptStream> OpenAsync(byte[] payloadKey, Stream ciphertext, CancellationToken cancellationToken)
+    public static async ValueTask<SeekableDecryptStream> OpenAsync(PayloadKey payloadKey, Stream ciphertext, CancellationToken cancellationToken)
     {
         var stream = new SeekableDecryptStream(payloadKey, ciphertext, ciphertext.Position);
 
@@ -304,7 +302,7 @@ internal sealed class SeekableDecryptStream : Stream
     {
         ClearCache();
 
-        StreamEncryption.DecryptChunk(_cipher, chunk, chunk == _chunks - 1, _encrypted.AsSpan(0, length), _plaintext);
+        StreamEncryption.DecryptChunk(_payloadKey.Cipher, chunk, chunk == _chunks - 1, _encrypted.AsSpan(0, length), _plaintext);
 
         _cachedChunk = chunk;
         _cachedLength = length - StreamEncryption.TagSize;
@@ -315,8 +313,7 @@ internal sealed class SeekableDecryptStream : Stream
         if (!_disposed)
         {
             _disposed = true;
-            _cipher.Dispose();
-            CryptographicOperations.ZeroMemory(_payloadKey);
+            _payloadKey.Dispose();
             CryptographicOperations.ZeroMemory(_plaintext.AsSpan(0, StreamEncryption.ChunkSize));
             ArrayPool<byte>.Shared.Return(_plaintext);
             ArrayPool<byte>.Shared.Return(_encrypted);

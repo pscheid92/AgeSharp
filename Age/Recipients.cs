@@ -307,13 +307,13 @@ public sealed class Recipients : IReadOnlyList<IRecipient>
         }
     }
 
-    // A fresh nonce, and the payload key derived from it. The EncryptStream that is handed the
-    // key clears it when disposed.
-    private static (byte[] Nonce, byte[] Key) NewPayloadKey(FileKey fileKey)
+    // A fresh nonce, and the payload key derived from it. The stream that is handed the key owns
+    // it, and disposes it when disposed.
+    private static (byte[] Nonce, PayloadKey Key) NewPayloadKey(FileKey fileKey)
     {
         var nonce = new byte[StreamEncryption.PayloadNonceSize];
         RandomNumberGenerator.Fill(nonce);
-        return (nonce, CryptoHelper.HkdfDerive(fileKey.Bytes, nonce, "payload", StreamEncryption.PayloadKeySize));
+        return (nonce, PayloadKey.Derive(fileKey, nonce));
     }
 
     /// <summary>

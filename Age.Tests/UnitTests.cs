@@ -830,33 +830,74 @@ public class AsciiArmorTests
 
 public class StreamEncryptionTests
 {
-    // The whole-buffer helpers refuse a STREAM that ends in an empty chunk after others, one cut
-    // at a chunk boundary (its last chunk is then not marked final), and a chunk shorter than its tag.
+    // The payload is built here from a raw payload key and decrypted through DecryptStream, as
+    // the library reads it. Refused: a STREAM that ends in an empty chunk after others, one cut at
+    // a chunk boundary (its last chunk is then not marked final), and a chunk shorter than its tag.
     [Fact]
     public void Decrypt_RefusesABrokenSequence()
     {
         var payloadKey = MakePayloadKey();
-        byte[] fullNotFinal = StreamEncryption.EncryptChunk(payloadKey, 0, false, new byte[64 * 1024]);
-        byte[] emptyFinal = StreamEncryption.EncryptChunk(payloadKey, 1, true, []);
+        byte[] fullNotFinal = WholePayload.EncryptChunk(payloadKey, 0, false, new byte[64 * 1024]);
+        byte[] emptyFinal = WholePayload.EncryptChunk(payloadKey, 1, true, []);
 
         // Authentic, and forbidden.
         Assert.Contains("final STREAM chunk is empty", Refused(payloadKey, [.. fullNotFinal, .. emptyFinal]));
         Assert.Contains("authentication failed", Refused(payloadKey, fullNotFinal));
-        Assert.Throws<AgeAuthenticationException>(() => StreamEncryption.DecryptChunk(payloadKey, 0, true, new byte[5]));
+        Assert.Contains("too small", Refused(payloadKey, new byte[5]));
     }
 
     private static string Refused(byte[] payloadKey, byte[] ciphertext) =>
-        Assert.Throws<AgeAuthenticationException>(() => StreamEncryption.Decrypt(payloadKey, new MemoryStream(ciphertext), new MemoryStream())).Message;
+        Assert.Throws<AgeAuthenticationException>(() => Decrypt(new MemoryStream(ciphertext), new MemoryStream())).Message;
 
-    private static byte[] MakePayloadKey()
+    private static readonly byte[] FileKeyBytes = Seeded(42, 16);
+    private static readonly byte[] Nonce = Seeded(43, 16);
+
+    private static byte[] Seeded(int seed, int length)
     {
-        // Derive a valid payload key via HKDF like the real code does
-        var fileKey = new byte[16];
-        new Random(42).NextBytes(fileKey);
-        var nonce = new byte[16];
-        new Random(43).NextBytes(nonce);
+        var bytes = new byte[length];
+        new Random(seed).NextBytes(bytes);
+        return bytes;
+    }
 
-        return CryptoHelper.HkdfDerive(fileKey, nonce, "payload", 32);
+    // The raw key, for building payloads; decryption derives its own from the file key.
+    private static byte[] MakePayloadKey() =>
+        CryptoHelper.HkdfDerive(FileKeyBytes, Nonce, "payload", 32);
+
+    // Each payload stream owns the key it is handed and disposes it with itself. Only the native
+    // cipher shows it: the portable one has nothing to release, so its Dispose does nothing.
+    [Theory]
+    [InlineData("EncryptStream")]
+    [InlineData("EncryptWriterStream")]
+    [InlineData("DecryptStream")]
+    [InlineData("SeekableDecryptStream")]
+    public void APayloadStream_DisposesItsKey(string kind)
+    {
+        using var fileKey = FileKey.From(FileKeyBytes);
+        var payloadKey = PayloadKey.Derive(fileKey, Nonce);
+        var payload = new MemoryStream();
+        WholePayload.Encrypt(MakePayloadKey(), new MemoryStream("hello"u8.ToArray()), payload);
+        payload.Position = 0;
+
+        Stream stream = kind switch
+        {
+            "EncryptStream" => new EncryptStream([], Nonce, payloadKey, new MemoryStream()),
+            "EncryptWriterStream" => new EncryptWriterStream([], Nonce, payloadKey, new MemoryStream(), armor: null),
+            "DecryptStream" => new DecryptStream(payloadKey, payload, ownsStream: false),
+            _ => SeekableDecryptStream.Open(payloadKey, payload),
+        };
+
+        stream.Dispose();
+
+        if (payloadKey.Cipher is BclAeadCipher)
+            Assert.Throws<ObjectDisposedException>(() =>
+                payloadKey.Cipher.Encrypt(new byte[12], [], [], new byte[StreamEncryption.TagSize]));
+    }
+
+    private static void Decrypt(Stream input, Stream output)
+    {
+        using var fileKey = FileKey.From(FileKeyBytes);
+        using var plaintext = new DecryptStream(PayloadKey.Derive(fileKey, Nonce), input, ownsStream: false);
+        plaintext.CopyTo(output);
     }
 
     [Theory]
@@ -872,11 +913,11 @@ public class StreamEncryptionTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        StreamEncryption.Encrypt(payloadKey, encInput, encOutput);
+        WholePayload.Encrypt(payloadKey, encInput, encOutput);
 
         encOutput.Position = 0;
         using var decOutput = new MemoryStream();
-        StreamEncryption.Decrypt(payloadKey, encOutput, decOutput);
+        Decrypt(encOutput, decOutput);
 
         Assert.Equal(plaintext, decOutput.ToArray());
     }
@@ -887,7 +928,7 @@ public class StreamEncryptionTests
         var payloadKey = MakePayloadKey();
         using var input = new MemoryStream([]);
         using var output = new MemoryStream();
-        Assert.Throws<AgeAuthenticationException>(() => StreamEncryption.Decrypt(payloadKey, input, output));
+        Assert.Throws<AgeAuthenticationException>(() => Decrypt(input, output));
     }
 
     [Fact]
@@ -898,7 +939,7 @@ public class StreamEncryptionTests
         var data = new byte[10];
         using var input = new MemoryStream(data);
         using var output = new MemoryStream();
-        Assert.Throws<AgeAuthenticationException>(() => StreamEncryption.Decrypt(payloadKey, input, output));
+        Assert.Throws<AgeAuthenticationException>(() => Decrypt(input, output));
     }
 
     [Fact]
@@ -909,14 +950,14 @@ public class StreamEncryptionTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        StreamEncryption.Encrypt(payloadKey, encInput, encOutput);
+        WholePayload.Encrypt(payloadKey, encInput, encOutput);
 
         var ciphertext = encOutput.ToArray();
         ciphertext[0] ^= 0xFF; // Flip a bit
 
         using var decInput = new MemoryStream(ciphertext);
         using var decOutput = new MemoryStream();
-        Assert.Throws<AgeAuthenticationException>(() => StreamEncryption.Decrypt(payloadKey, decInput, decOutput));
+        Assert.Throws<AgeAuthenticationException>(() => Decrypt(decInput, decOutput));
     }
 
     [Fact]
@@ -929,7 +970,7 @@ public class StreamEncryptionTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        StreamEncryption.Encrypt(payloadKey, encInput, encOutput);
+        WholePayload.Encrypt(payloadKey, encInput, encOutput);
 
         // Append extra data after the valid final chunk
         var ciphertext = encOutput.ToArray();
@@ -939,7 +980,7 @@ public class StreamEncryptionTests
 
         using var decInput = new MemoryStream(extended);
         using var decOutput = new MemoryStream();
-        Assert.Throws<AgeAuthenticationException>(() => StreamEncryption.Decrypt(payloadKey, decInput, decOutput));
+        Assert.Throws<AgeAuthenticationException>(() => Decrypt(decInput, decOutput));
     }
 
     [Fact]
@@ -952,7 +993,7 @@ public class StreamEncryptionTests
 
         using var encInput = new MemoryStream(plaintext);
         using var encOutput = new MemoryStream();
-        StreamEncryption.Encrypt(payloadKey, encInput, encOutput);
+        WholePayload.Encrypt(payloadKey, encInput, encOutput);
 
         // Truncate in the middle of the first chunk — makes remaining > EncryptedChunkSize false
         // but chunkLen != EncryptedChunkSize. We need remaining > EncryptedChunkSize to be false
@@ -964,7 +1005,7 @@ public class StreamEncryptionTests
 
         using var decInput = new MemoryStream(badData);
         using var decOutput = new MemoryStream();
-        Assert.Throws<AgeAuthenticationException>(() => StreamEncryption.Decrypt(payloadKey, decInput, decOutput));
+        Assert.Throws<AgeAuthenticationException>(() => Decrypt(decInput, decOutput));
     }
 }
 
@@ -1308,7 +1349,7 @@ public class AgeEncryptTests
         var payloadNonce = new byte[16];
         ms.Write(payloadNonce);
         var payloadKey = CryptoHelper.HkdfDerive(fileKey, payloadNonce, "payload", 32);
-        StreamEncryption.Encrypt(payloadKey, new MemoryStream([]), ms);
+        WholePayload.Encrypt(payloadKey, new MemoryStream([]), ms);
 
         ms.Position = 0;
         using var output = new MemoryStream();
@@ -1358,7 +1399,7 @@ public class AgeEncryptTests
         // Append a payload nonce + minimal encrypted payload
         ms.Write(new byte[16]); // nonce
         var payloadKey = CryptoHelper.HkdfDerive(fileKey, new byte[16], "payload", 32);
-        StreamEncryption.Encrypt(payloadKey, new MemoryStream([]), ms);
+        WholePayload.Encrypt(payloadKey, new MemoryStream([]), ms);
 
         ms.Position = 0;
         using var output = new MemoryStream();
