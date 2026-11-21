@@ -337,7 +337,7 @@ public class SshEd25519RecipientIdentityTests
         using var identity = SshEd25519Identity.Parse(pemText);
 
         var stanza = new AgeSharp.Stanza("ssh-ed25519", ["onlyone"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -418,7 +418,7 @@ public class SshEd25519RecipientIdentityTests
 
         // Replace the ephemeral key arg with invalid base64
         var stanza = new AgeSharp.Stanza("ssh-ed25519", [goodStanza.Args[0], "@@invalid@@"], goodStanza.Body.ToArray());
-        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -435,7 +435,7 @@ public class SshEd25519RecipientIdentityTests
         // Replace ephemeral key with wrong length (16 bytes instead of 32)
         var shortKeyB64 = AgeSharp.Crypto.Base64Unpadded.Encode(new byte[16]);
         var stanza = new AgeSharp.Stanza("ssh-ed25519", [goodStanza.Args[0], shortKeyB64], goodStanza.Body.ToArray());
-        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -451,7 +451,7 @@ public class SshEd25519RecipientIdentityTests
 
         // Replace body with wrong length
         var stanza = new AgeSharp.Stanza("ssh-ed25519", [.. goodStanza.Args], new byte[16]);
-        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.UnwrapOrNull(stanza));
     }
 }
 
@@ -538,7 +538,7 @@ public class SshRsaRecipientIdentityTests
         using var identity = SshRsaIdentity.Parse(pemText);
 
         var stanza = new AgeSharp.Stanza("ssh-rsa", ["tag", "extra"], new byte[256]);
-        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]

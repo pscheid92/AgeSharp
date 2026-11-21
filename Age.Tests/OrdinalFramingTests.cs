@@ -45,7 +45,7 @@ public class OrdinalFramingTests
         // The observable difference is *how* the line is classified. With culture-sensitive
         // comparison it satisfied StartsWith("-> "), then line[3..] sliced off "-\x01\x01",
         // leaving ">" as the stanza type — an accepted stanza with a fabricated type.
-        var ex = Assert.Throws<AgeHeaderException>(() => ParseHeader(BuildHeader(line)));
+        var ex = Assert.Throws<AgeFormatException>(() => ParseHeader(BuildHeader(line)));
 
         Assert.Contains("unexpected line in header", ex.Message, StringComparison.Ordinal);
     }
@@ -90,7 +90,7 @@ public class OrdinalFramingTests
         var tooWide = new string('A', width);
         using var ms = new MemoryStream(System.Text.Encoding.ASCII.GetBytes($"-> test\n{tooWide}\n"));
 
-        var ex = Assert.Throws<AgeHeaderException>(() => Stanza.Parse(new HeaderReader(ms)));
+        var ex = Assert.Throws<AgeFormatException>(() => Stanza.Parse(new HeaderReader(ms)));
 
         Assert.Contains("exceeds 64 characters", ex.Message, StringComparison.Ordinal);
     }

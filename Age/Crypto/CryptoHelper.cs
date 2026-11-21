@@ -44,11 +44,11 @@ internal static class CryptoHelper
             }
             catch (InvalidOperationException ex)
             {
-                throw new AgeHeaderException("X25519 shared secret is all-zero (low-order or identity point)", ex);
+                throw new AgeFormatException("X25519 shared secret is all-zero (low-order or identity point)", ex);
             }
 
             if (buffer.All(b => b == 0))
-                throw new AgeHeaderException("X25519 shared secret is all-zero (low-order or identity point)");
+                throw new AgeFormatException("X25519 shared secret is all-zero (low-order or identity point)");
 
             buffer.CopyTo(sharedSecret);
         }

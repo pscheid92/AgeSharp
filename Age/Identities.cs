@@ -179,10 +179,8 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
     /// decrypt into a buffer or a temporary file.
     /// </remarks>
     /// <exception cref="NoIdentityMatchException">No identity opened any stanza.</exception>
-    /// <exception cref="AgeHeaderException">The header is malformed, or breaks a limit in <paramref name="options"/>.</exception>
-    /// <exception cref="AgeHmacException">The header failed authentication.</exception>
-    /// <exception cref="AgeArmorException">The armor is malformed, or armor is required and absent.</exception>
-    /// <exception cref="AgePayloadException">The payload is malformed, truncated, or failed authentication.</exception>
+    /// <exception cref="AgeFormatException">The header is malformed, or breaks a limit in <paramref name="options"/>; the armor is malformed, or armor is required and absent.</exception>
+    /// <exception cref="AgeAuthenticationException">The header failed authentication; the payload is malformed, truncated, or failed authentication.</exception>
     public void Decrypt(Stream ciphertext, Stream plaintext, AgeDecryptOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(plaintext);
@@ -487,14 +485,14 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
     /// header's MAC verified under it.
     /// </summary>
     /// <exception cref="NoIdentityMatchException">No identity opened any stanza.</exception>
-    /// <exception cref="AgeHmacException">The header failed authentication.</exception>
+    /// <exception cref="AgeAuthenticationException">The header failed authentication.</exception>
     internal FileKey Unlock(Header header) => Unlock(header, _tryOrder);
 
     /// <inheritdoc cref="Unlock(Header)"/>
     internal static FileKey Unlock(Header header, IIdentity[] tryOrder)
     {
         if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
-            throw new AgeHeaderException("scrypt stanza must be the only stanza in the header");
+            throw new AgeFormatException("scrypt stanza must be the only stanza in the header");
 
         var owned = FileKey.UnwrapFrom(header.Stanzas, tryOrder) ?? throw new NoIdentityMatchException();
 
@@ -520,7 +518,7 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
     internal static byte[] PayloadKey(FileKey fileKey, byte[] nonce, int nonceRead) =>
         nonceRead == nonce.Length
             ? CryptoHelper.HkdfDerive(fileKey.Bytes, nonce, "payload", StreamEncryption.PayloadKeySize)
-            : throw new AgeHeaderException($"expected {nonce.Length}-byte payload nonce, got {nonceRead} bytes");
+            : throw new AgeFormatException($"expected {nonce.Length}-byte payload nonce, got {nonceRead} bytes");
 
     internal static Header ParseHeader(HeaderReader reader)
     {
@@ -530,7 +528,7 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
         }
         catch (FormatException ex)
         {
-            throw new AgeHeaderException($"header parse error: {ex.Message}", ex);
+            throw new AgeFormatException($"header parse error: {ex.Message}", ex);
         }
     }
 }

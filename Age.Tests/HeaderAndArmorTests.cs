@@ -70,8 +70,8 @@ public class HeaderAndArmorTests
         var file = new Recipients(alice.Recipient, bob.Recipient).Encrypt(Plaintext);
         var options = new AgeDecryptOptions { MaxRecipientStanzas = 1 };
 
-        Assert.Throws<AgeHeaderException>(() => AgeHeader.Read(new MemoryStream(file), options));
-        await Assert.ThrowsAsync<AgeHeaderException>(async () => await AgeHeader.ReadAsync(new MemoryStream(file), options));
+        Assert.Throws<AgeFormatException>(() => AgeHeader.Read(new MemoryStream(file), options));
+        await Assert.ThrowsAsync<AgeFormatException>(async () => await AgeHeader.ReadAsync(new MemoryStream(file), options));
     }
 
     [Fact]
@@ -81,8 +81,8 @@ public class HeaderAndArmorTests
         var file = new Recipients(alice.Recipient).Encrypt(Plaintext);
         var options = new AgeDecryptOptions { RequireArmor = true };
 
-        Assert.Throws<AgeArmorException>(() => AgeHeader.Read(new MemoryStream(file), options));
-        await Assert.ThrowsAsync<AgeArmorException>(async () => await AgeHeader.ReadAsync(new MemoryStream(file), options));
+        Assert.Throws<AgeFormatException>(() => AgeHeader.Read(new MemoryStream(file), options));
+        await Assert.ThrowsAsync<AgeFormatException>(async () => await AgeHeader.ReadAsync(new MemoryStream(file), options));
     }
 
     [Fact]
@@ -90,8 +90,8 @@ public class HeaderAndArmorTests
     {
         var file = "age-encryption.org/v1\n-> X25519\n"u8.ToArray();
 
-        Assert.Throws<AgeHeaderException>(() => AgeHeader.Read(new MemoryStream(file)));
-        await Assert.ThrowsAsync<AgeHeaderException>(async () => await AgeHeader.ReadAsync(new MemoryStream(file)));
+        Assert.Throws<AgeFormatException>(() => AgeHeader.Read(new MemoryStream(file)));
+        await Assert.ThrowsAsync<AgeFormatException>(async () => await AgeHeader.ReadAsync(new MemoryStream(file)));
     }
 
     [Fact]
@@ -134,8 +134,8 @@ public class HeaderAndArmorTests
         using var alice = X25519Identity.Generate();
         var binary = new Recipients(alice.Recipient).Encrypt(Plaintext);
 
-        Assert.Throws<AgeArmorException>(() => Armor.Decode(new MemoryStream(binary), new MemoryStream()));
-        await Assert.ThrowsAsync<AgeArmorException>(() => Armor.DecodeAsync(new MemoryStream(binary), new MemoryStream()));
+        Assert.Throws<AgeFormatException>(() => Armor.Decode(new MemoryStream(binary), new MemoryStream()));
+        await Assert.ThrowsAsync<AgeFormatException>(() => Armor.DecodeAsync(new MemoryStream(binary), new MemoryStream()));
     }
 
     [Fact]
@@ -145,8 +145,8 @@ public class HeaderAndArmorTests
         Armor.Encode(new MemoryStream(Plaintext), armored);
         var options = new AgeDecryptOptions { MaxArmorLineBytes = 40 };
 
-        Assert.Throws<AgeArmorException>(() => Armor.Decode(new MemoryStream(armored.ToArray()), new MemoryStream(), options));
-        await Assert.ThrowsAsync<AgeArmorException>(() => Armor.DecodeAsync(new MemoryStream(armored.ToArray()), new MemoryStream(), options));
+        Assert.Throws<AgeFormatException>(() => Armor.Decode(new MemoryStream(armored.ToArray()), new MemoryStream(), options));
+        await Assert.ThrowsAsync<AgeFormatException>(() => Armor.DecodeAsync(new MemoryStream(armored.ToArray()), new MemoryStream(), options));
     }
 
     [Fact]

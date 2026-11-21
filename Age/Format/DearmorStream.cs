@@ -22,7 +22,7 @@ internal sealed class DearmorStream(Stream input, int maxLineBytes = AgeLimits.M
     private bool _finished;
 
     /// <summary>Reads up to and including the begin marker, which refuses input that is not armor.</summary>
-    /// <exception cref="AgeArmorException">The input does not start like armor.</exception>
+    /// <exception cref="AgeFormatException">The input does not start like armor.</exception>
     public void ReadBegin()
     {
         while (!Advance(untilBegun: true))

@@ -138,7 +138,7 @@ public class HeaderReaderTests
     {
         var stream = new MemoryStream("hello\r\n"u8.ToArray());
         var reader = new HeaderReader(stream);
-        Assert.Throws<AgeHeaderException>(() => reader.ReadLine());
+        Assert.Throws<AgeFormatException>(() => reader.ReadLine());
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class HeaderReaderTests
     {
         var stream = new MemoryStream([0x80, 0x0A]);
         var reader = new HeaderReader(stream);
-        Assert.Throws<AgeHeaderException>(() => reader.ReadLine());
+        Assert.Throws<AgeFormatException>(() => reader.ReadLine());
     }
 
     [Fact]
@@ -188,12 +188,20 @@ public class HeaderReaderTests
         // Partial line with no \n triggers "unexpected end of stream"
         var stream = new MemoryStream("hello"u8.ToArray());
         var reader = new HeaderReader(stream);
-        Assert.Throws<AgeHeaderException>(() => reader.ReadLine());
+        Assert.Throws<AgeFormatException>(() => reader.ReadLine());
     }
 }
 
 public class StanzaTests
 {
+    [Fact]
+    public void Parse_AtTheEndOfTheHeader_IsAFormatError()
+    {
+        var ex = Assert.Throws<AgeFormatException>(() => Stanza.Parse(new HeaderReader(new MemoryStream())));
+
+        Assert.Contains("unexpected end of header", ex.Message);
+    }
+
     [Fact]
     public void Parse_Valid_Stanza_With_Args_And_Body()
     {
@@ -240,7 +248,7 @@ public class StanzaTests
         var text = "X25519 abc\ndata\n\n";
         var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var reader = new HeaderReader(stream);
-        Assert.Throws<AgeHeaderException>(() => Stanza.Parse(reader));
+        Assert.Throws<AgeFormatException>(() => Stanza.Parse(reader));
     }
 
     [Fact]
@@ -250,7 +258,7 @@ public class StanzaTests
         var text = $"-> test\n{longLine}\n\n";
         var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var reader = new HeaderReader(stream);
-        Assert.Throws<AgeHeaderException>(() => Stanza.Parse(reader));
+        Assert.Throws<AgeFormatException>(() => Stanza.Parse(reader));
     }
 
     [Fact]
@@ -305,7 +313,7 @@ public class StanzaTests
         var text = "-> \n\n";
         var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var reader = new HeaderReader(stream);
-        Assert.Throws<AgeHeaderException>(() => Stanza.Parse(reader));
+        Assert.Throws<AgeFormatException>(() => Stanza.Parse(reader));
     }
 
     [Fact]
@@ -314,7 +322,7 @@ public class StanzaTests
         var text = "-> test\n";  // no body lines at all, EOF
         var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var reader = new HeaderReader(stream);
-        Assert.Throws<AgeHeaderException>(() => Stanza.Parse(reader));
+        Assert.Throws<AgeFormatException>(() => Stanza.Parse(reader));
     }
 
     [Fact]
@@ -323,7 +331,7 @@ public class StanzaTests
         var text = "-> te\x01st\n\n";
         var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var reader = new HeaderReader(stream);
-        Assert.Throws<AgeHeaderException>(() => Stanza.Parse(reader));
+        Assert.Throws<AgeFormatException>(() => Stanza.Parse(reader));
     }
 }
 
@@ -357,7 +365,7 @@ public class HeaderTests
         var text = "age-encryption.org/v2\n-> test\n\n--- AAAA\n";
         var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var reader = new HeaderReader(stream);
-        Assert.Throws<AgeHeaderException>(() => Header.Parse(reader));
+        Assert.Throws<AgeFormatException>(() => Header.Parse(reader));
     }
 
     [Fact]
@@ -369,7 +377,7 @@ public class HeaderTests
         var text = $"age-encryption.org/v1\n--- {macB64}\n";
         var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var reader = new HeaderReader(stream);
-        Assert.Throws<AgeHeaderException>(() => Header.Parse(reader));
+        Assert.Throws<AgeFormatException>(() => Header.Parse(reader));
     }
 
     [Fact]
@@ -412,7 +420,7 @@ public class HeaderTests
         var text = "age-encryption.org/v1\n-> test\n\n--- @@@invalid\n";
         var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var reader = new HeaderReader(stream);
-        Assert.Throws<AgeHeaderException>(() => Header.Parse(reader));
+        Assert.Throws<AgeFormatException>(() => Header.Parse(reader));
     }
 
     [Fact]
@@ -423,7 +431,7 @@ public class HeaderTests
         var text = $"age-encryption.org/v1\n-> test\n\n--- {shortMac}\n";
         var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var reader = new HeaderReader(stream);
-        Assert.Throws<AgeHeaderException>(() => Header.Parse(reader));
+        Assert.Throws<AgeFormatException>(() => Header.Parse(reader));
     }
 
     [Fact]
@@ -433,7 +441,7 @@ public class HeaderTests
         var text = "age-encryption.org/v1\n-> test\n\n---\n";
         var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var reader = new HeaderReader(stream);
-        Assert.Throws<AgeHeaderException>(() => Header.Parse(reader));
+        Assert.Throws<AgeFormatException>(() => Header.Parse(reader));
     }
 
     [Fact]
@@ -443,7 +451,7 @@ public class HeaderTests
         var text = $"age-encryption.org/v1\n-> test\n\nbogus line\n--- {macB64}\n";
         var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         var reader = new HeaderReader(stream);
-        Assert.Throws<AgeHeaderException>(() => Header.Parse(reader));
+        Assert.Throws<AgeFormatException>(() => Header.Parse(reader));
     }
 
     [Fact]
@@ -464,7 +472,7 @@ public class HeaderTests
 
         var wrongKey = new byte[16];
         new Random(99).NextBytes(wrongKey);
-        Assert.Throws<AgeHmacException>(() => parsed.VerifyMac(wrongKey));
+        Assert.Throws<AgeAuthenticationException>(() => parsed.VerifyMac(wrongKey));
     }
 }
 
@@ -517,7 +525,7 @@ public class AsciiArmorTests
     {
         var text = "not a marker\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => AsciiArmor.Dearmor(stream));
+        Assert.Throws<AgeFormatException>(() => AsciiArmor.Dearmor(stream));
     }
 
     [Fact]
@@ -525,7 +533,7 @@ public class AsciiArmorTests
     {
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\nAAAA\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -539,7 +547,7 @@ public class AsciiArmorTests
         // Append trailing non-whitespace
         armored.Write("extra"u8);
         armored.Position = 0;
-        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(armored); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(armored); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -547,7 +555,7 @@ public class AsciiArmorTests
     {
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\n\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -557,7 +565,7 @@ public class AsciiArmorTests
         // without buffering the whole (potentially unbounded) line into memory.
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\n" + new string('A', AgeLimits.MaxArmorLineBytes + 1000) + "\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        var ex = Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        var ex = Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
         Assert.Contains("exceeds", ex.Message);
     }
 
@@ -567,7 +575,7 @@ public class AsciiArmorTests
         // The bound must also protect the marker search before the armor body.
         var text = new string('x', AgeLimits.MaxArmorLineBytes + 1000);
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => AsciiArmor.Dearmor(stream));
+        Assert.Throws<AgeFormatException>(() => AsciiArmor.Dearmor(stream));
     }
 
     [Fact]
@@ -577,7 +585,7 @@ public class AsciiArmorTests
         // bound is the header's own 2 MiB, not a separate per-line limit.
         var text = "age-encryption.org/v1\n" + new string('a', AgeLimits.MaxHeaderBytes + 1000);
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        var ex = Assert.Throws<AgeHeaderException>(() => AgeHeader.Read(stream));
+        var ex = Assert.Throws<AgeFormatException>(() => AgeHeader.Read(stream));
         Assert.Contains("exceeds", ex.Message);
     }
 
@@ -591,7 +599,7 @@ public class AsciiArmorTests
         // lines: the total-bytes cap must stop it well before it reads forever.
         using var stream = new RepeatingLineStream(lineLength: 64);
         var reader = new HeaderReader(stream);
-        var ex = Assert.Throws<AgeHeaderException>(() =>
+        var ex = Assert.Throws<AgeFormatException>(() =>
         {
             while (reader.ReadLine() is not null) { }
         });
@@ -677,7 +685,7 @@ public class AsciiArmorTests
     {
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\n AAAA\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -686,7 +694,7 @@ public class AsciiArmorTests
         var longLine = new string('A', 68); // > 64
         var text = $"-----BEGIN AGE ENCRYPTED FILE-----\n{longLine}\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -695,7 +703,7 @@ public class AsciiArmorTests
         // Short line followed by another body line
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\nAA==\nAAAA\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -703,7 +711,7 @@ public class AsciiArmorTests
     {
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\n@@@@\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -717,7 +725,7 @@ public class AsciiArmorTests
         // Let's try: "AB==" → decodes to [0], canonical for [0] is "AA=="
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\nAB==\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
     }
 
     [Fact]
@@ -804,7 +812,7 @@ public class AsciiArmorTests
         Assert.Equal(64, body.Length);
         var text = $"-----BEGIN AGE ENCRYPTED FILE-----\n{body}\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        var ex = Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        var ex = Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
         Assert.Contains("non-canonical", ex.Message);
     }
 
@@ -815,13 +823,31 @@ public class AsciiArmorTests
         var padded = Convert.ToBase64String(new byte[46]);
         var text = $"-----BEGIN AGE ENCRYPTED FILE-----\n{padded}\n{new string('A', 64)}\n-----END AGE ENCRYPTED FILE-----\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
-        var ex = Assert.Throws<AgeArmorException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
+        var ex = Assert.Throws<AgeFormatException>(() => { using var s = AsciiArmor.Dearmor(stream); ReadAllBytes(s); });
         Assert.Contains("not the last line", ex.Message);
     }
 }
 
 public class StreamEncryptionTests
 {
+    // The whole-buffer helpers refuse a STREAM that ends in an empty chunk after others, one cut
+    // at a chunk boundary (its last chunk is then not marked final), and a chunk shorter than its tag.
+    [Fact]
+    public void Decrypt_RefusesABrokenSequence()
+    {
+        var payloadKey = MakePayloadKey();
+        byte[] fullNotFinal = StreamEncryption.EncryptChunk(payloadKey, 0, false, new byte[64 * 1024]);
+        byte[] emptyFinal = StreamEncryption.EncryptChunk(payloadKey, 1, true, []);
+
+        // Authentic, and forbidden.
+        Assert.Contains("final STREAM chunk is empty", Refused(payloadKey, [.. fullNotFinal, .. emptyFinal]));
+        Assert.Contains("authentication failed", Refused(payloadKey, fullNotFinal));
+        Assert.Throws<AgeAuthenticationException>(() => StreamEncryption.DecryptChunk(payloadKey, 0, true, new byte[5]));
+    }
+
+    private static string Refused(byte[] payloadKey, byte[] ciphertext) =>
+        Assert.Throws<AgeAuthenticationException>(() => StreamEncryption.Decrypt(payloadKey, new MemoryStream(ciphertext), new MemoryStream())).Message;
+
     private static byte[] MakePayloadKey()
     {
         // Derive a valid payload key via HKDF like the real code does
@@ -861,7 +887,7 @@ public class StreamEncryptionTests
         var payloadKey = MakePayloadKey();
         using var input = new MemoryStream([]);
         using var output = new MemoryStream();
-        Assert.Throws<AgePayloadException>(() => StreamEncryption.Decrypt(payloadKey, input, output));
+        Assert.Throws<AgeAuthenticationException>(() => StreamEncryption.Decrypt(payloadKey, input, output));
     }
 
     [Fact]
@@ -872,7 +898,7 @@ public class StreamEncryptionTests
         var data = new byte[10];
         using var input = new MemoryStream(data);
         using var output = new MemoryStream();
-        Assert.Throws<AgePayloadException>(() => StreamEncryption.Decrypt(payloadKey, input, output));
+        Assert.Throws<AgeAuthenticationException>(() => StreamEncryption.Decrypt(payloadKey, input, output));
     }
 
     [Fact]
@@ -890,7 +916,7 @@ public class StreamEncryptionTests
 
         using var decInput = new MemoryStream(ciphertext);
         using var decOutput = new MemoryStream();
-        Assert.Throws<AgePayloadException>(() => StreamEncryption.Decrypt(payloadKey, decInput, decOutput));
+        Assert.Throws<AgeAuthenticationException>(() => StreamEncryption.Decrypt(payloadKey, decInput, decOutput));
     }
 
     [Fact]
@@ -913,7 +939,7 @@ public class StreamEncryptionTests
 
         using var decInput = new MemoryStream(extended);
         using var decOutput = new MemoryStream();
-        Assert.Throws<AgePayloadException>(() => StreamEncryption.Decrypt(payloadKey, decInput, decOutput));
+        Assert.Throws<AgeAuthenticationException>(() => StreamEncryption.Decrypt(payloadKey, decInput, decOutput));
     }
 
     [Fact]
@@ -938,7 +964,7 @@ public class StreamEncryptionTests
 
         using var decInput = new MemoryStream(badData);
         using var decOutput = new MemoryStream();
-        Assert.Throws<AgePayloadException>(() => StreamEncryption.Decrypt(payloadKey, decInput, decOutput));
+        Assert.Throws<AgeAuthenticationException>(() => StreamEncryption.Decrypt(payloadKey, decInput, decOutput));
     }
 }
 
@@ -976,7 +1002,7 @@ public class PassphraseStanzaTests
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "23"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => recipient.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => recipient.UnwrapOrNull(stanza));
     }
 
     [Theory]
@@ -1008,7 +1034,7 @@ public class PassphraseStanzaTests
         var wrongSalt = new byte[10];
         var saltB64 = Base64Unpadded.Encode(wrongSalt);
         var stanza = new Stanza("scrypt", [saltB64, "10"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => recipient.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => recipient.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1018,7 +1044,7 @@ public class PassphraseStanzaTests
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "10"], new byte[16]);
-        Assert.Throws<AgeHeaderException>(() => recipient.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => recipient.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1026,7 +1052,7 @@ public class PassphraseStanzaTests
     {
         var recipient = new Passphrase("password");
         var stanza = new Stanza("scrypt", ["onlyone"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => recipient.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => recipient.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1034,7 +1060,7 @@ public class PassphraseStanzaTests
     {
         var recipient = new Passphrase("password");
         var stanza = new Stanza("scrypt", ["@@invalid@@", "10"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => recipient.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => recipient.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1044,7 +1070,7 @@ public class PassphraseStanzaTests
         var salt = new byte[16];
         var saltB64 = Base64Unpadded.Encode(salt);
         var stanza = new Stanza("scrypt", [saltB64, "abc"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => recipient.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => recipient.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1167,7 +1193,7 @@ public class X25519RecipientIdentityTests
     {
         using var identity = X25519Identity.Generate();
         var stanza = new Stanza("X25519", ["a", "b"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1175,7 +1201,7 @@ public class X25519RecipientIdentityTests
     {
         using var identity = X25519Identity.Generate();
         var stanza = new Stanza("X25519", ["@@invalid"], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1184,7 +1210,7 @@ public class X25519RecipientIdentityTests
         using var identity = X25519Identity.Generate();
         var shortKey = Base64Unpadded.Encode(new byte[16]);
         var stanza = new Stanza("X25519", [shortKey], new byte[32]);
-        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1193,7 +1219,7 @@ public class X25519RecipientIdentityTests
         using var identity = X25519Identity.Generate();
         var ephKey = Base64Unpadded.Encode(new byte[32]);
         var stanza = new Stanza("X25519", [ephKey], new byte[16]);
-        Assert.Throws<AgeHeaderException>(() => identity.UnwrapOrNull(stanza));
+        Assert.Throws<AgeFormatException>(() => identity.UnwrapOrNull(stanza));
     }
 
     [Fact]
@@ -1286,39 +1312,39 @@ public class AgeEncryptTests
 
         ms.Position = 0;
         using var output = new MemoryStream();
-        Assert.Throws<AgeHeaderException>(() => new Identities(scryptRecipient).Decrypt(ms, output));
+        Assert.Throws<AgeFormatException>(() => new Identities(scryptRecipient).Decrypt(ms, output));
     }
 
     [Fact]
     public void Decrypt_Wraps_FormatException_From_Header()
     {
-        // A FormatException during header parse should be wrapped in AgeHeaderException
+        // A FormatException during header parse should be wrapped in AgeFormatException
         // Produce a header with invalid base64 in a stanza body, which triggers FormatException
         // via Base64Unpadded.Decode inside Stanza.Parse
         var text = "age-encryption.org/v1\n-> test\n@@@@\n\n--- AAAA\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         using var output = new MemoryStream();
         using var id = X25519Identity.Generate();
-        var ex = Assert.Throws<AgeHeaderException>(() => new Identities(id).Decrypt(stream, output));
+        var ex = Assert.Throws<AgeFormatException>(() => new Identities(id).Decrypt(stream, output));
         Assert.Contains("header parse error", ex.Message);
     }
 
     [Fact]
     public void Decrypt_Rethrows_AgeHeaderException_From_Parse()
     {
-        // Wrong version triggers AgeHeaderException directly from Header.Parse
+        // Wrong version triggers AgeFormatException directly from Header.Parse
         var text = "age-encryption.org/v2\n-> test\n\n--- AAAA\n";
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes(text));
         using var output = new MemoryStream();
         using var id = X25519Identity.Generate();
-        Assert.Throws<AgeHeaderException>(() => new Identities(id).Decrypt(stream, output));
+        Assert.Throws<AgeFormatException>(() => new Identities(id).Decrypt(stream, output));
     }
 
     [Fact]
     public void Decrypt_Rethrows_AgeException_From_Unwrap()
     {
         // Build a valid header where X25519 stanza has wrong arg count,
-        // causing Unwrap to throw AgeHeaderException
+        // causing Unwrap to throw AgeFormatException
         var fileKey = new byte[16];
         new Random(42).NextBytes(fileKey);
 
@@ -1337,7 +1363,7 @@ public class AgeEncryptTests
         ms.Position = 0;
         using var output = new MemoryStream();
         using var id = X25519Identity.Generate();
-        Assert.Throws<AgeHeaderException>(() => new Identities(id).Decrypt(ms, output));
+        Assert.Throws<AgeFormatException>(() => new Identities(id).Decrypt(ms, output));
     }
 
     [Fact]
@@ -1359,7 +1385,7 @@ public class AgeEncryptTests
 
         ms.Position = 0;
         using var output = new MemoryStream();
-        Assert.Throws<AgeHeaderException>(() => new Identities(id).Decrypt(ms, output));
+        Assert.Throws<AgeFormatException>(() => new Identities(id).Decrypt(ms, output));
     }
 }
 
@@ -1394,12 +1420,12 @@ public class DecryptStreamTests
         // Read front to back, as on a pipe: a seekable reader refuses the file when opening it.
         using var truncatedStream = new NonSeekableStream(new MemoryStream(truncated));
         using var reader = new Identities(identity).DecryptReader(truncatedStream);
-        Assert.Throws<AgePayloadException>(() => new Identities(identity).DecryptReader(new MemoryStream(truncated)));
+        Assert.Throws<AgeAuthenticationException>(() => new Identities(identity).DecryptReader(new MemoryStream(truncated)));
 
         var buf = new byte[plaintext.Length];
         // Truncating removes the final chunk, so DecryptStream will detect
         // either an authentication failure or a missing final chunk
-        Assert.Throws<AgePayloadException>(() =>
+        Assert.Throws<AgeAuthenticationException>(() =>
         {
             var totalRead = 0;
             while (totalRead < buf.Length)
@@ -1434,10 +1460,10 @@ public class DecryptStreamTests
         // Read front to back, as on a pipe: a seekable reader refuses the file when opening it.
         using var truncatedStream = new NonSeekableStream(new MemoryStream(truncated));
         using var reader = new Identities(identity).DecryptReader(truncatedStream);
-        Assert.Throws<AgePayloadException>(() => new Identities(identity).DecryptReader(new MemoryStream(truncated)));
+        Assert.Throws<AgeAuthenticationException>(() => new Identities(identity).DecryptReader(new MemoryStream(truncated)));
 
         var buf = new byte[100];
-        Assert.Throws<AgePayloadException>(() => reader.Read(buf, 0, buf.Length));
+        Assert.Throws<AgeAuthenticationException>(() => reader.Read(buf, 0, buf.Length));
     }
 }
 

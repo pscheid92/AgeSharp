@@ -21,7 +21,7 @@ public class HeaderLimitsTests
     [Fact]
     public void RecipientStanzas_BeyondTheLimit_AreRejected()
     {
-        var ex = Assert.Throws<AgeHeaderException>(() => Parse(Stanzas(1025)));
+        var ex = Assert.Throws<AgeFormatException>(() => Parse(Stanzas(1025)));
         Assert.Contains("1024", ex.Message);
     }
 
@@ -31,7 +31,7 @@ public class HeaderLimitsTests
 
     [Fact]
     public void StanzaArguments_BeyondTheLimit_AreRejected() =>
-        Assert.Throws<AgeHeaderException>(() => Parse(Stanza(arguments: 129)));
+        Assert.Throws<AgeFormatException>(() => Parse(Stanza(arguments: 129)));
 
     // A single line may be as long as the header allows: go-age has no separate line limit.
     [Fact]
@@ -51,7 +51,7 @@ public class HeaderLimitsTests
         if (accepted)
             Assert.Equal(2 * 1024 * 1024, Parse(header).PayloadOffset);
         else
-            Assert.Throws<AgeHeaderException>(() => Parse(header));
+            Assert.Throws<AgeFormatException>(() => Parse(header));
     }
 
     private static AgeHeader Parse(string header) =>

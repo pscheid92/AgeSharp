@@ -151,7 +151,7 @@ public sealed class Passphrase : IRecipient, IIdentity
     /// Unwraps the file key from an scrypt stanza: false for a stanza of another type, or one
     /// wrapped under another passphrase.
     /// </summary>
-    /// <exception cref="AgeHeaderException">The stanza claims to be scrypt but is malformed, or asks for more than <see cref="MaxWorkFactor"/>.</exception>
+    /// <exception cref="AgeFormatException">The stanza claims to be scrypt but is malformed, or asks for more than <see cref="MaxWorkFactor"/>.</exception>
     /// <exception cref="ObjectDisposedException">The passphrase has been disposed.</exception>
     public bool TryUnwrap(Stanza stanza, Span<byte> fileKey) =>
         FileKey.Deliver(UnwrapToArray(stanza), fileKey);
@@ -164,7 +164,7 @@ public sealed class Passphrase : IRecipient, IIdentity
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (stanza.Args.Count != 2)
-            throw new AgeHeaderException($"scrypt stanza must have 2 arguments, got {stanza.Args.Count}");
+            throw new AgeFormatException($"scrypt stanza must have 2 arguments, got {stanza.Args.Count}");
 
         byte[] salt;
         try
@@ -173,21 +173,21 @@ public sealed class Passphrase : IRecipient, IIdentity
         }
         catch (FormatException ex)
         {
-            throw new AgeHeaderException($"invalid scrypt salt encoding: {ex.Message}", ex);
+            throw new AgeFormatException($"invalid scrypt salt encoding: {ex.Message}", ex);
         }
 
         if (salt.Length != SaltSize)
-            throw new AgeHeaderException($"scrypt salt must be {SaltSize} bytes, got {salt.Length}");
+            throw new AgeFormatException($"scrypt salt must be {SaltSize} bytes, got {salt.Length}");
 
         var wfStr = stanza.Args[1];
         if (!ValidateWorkFactor(wfStr, out var stanzaWorkFactor))
-            throw new AgeHeaderException($"invalid scrypt work factor: {wfStr}");
+            throw new AgeFormatException($"invalid scrypt work factor: {wfStr}");
 
         if (stanzaWorkFactor > _maxWorkFactor)
-            throw new AgeHeaderException($"scrypt work factor {stanzaWorkFactor} exceeds maximum {_maxWorkFactor}");
+            throw new AgeFormatException($"scrypt work factor {stanzaWorkFactor} exceeds maximum {_maxWorkFactor}");
 
         if (stanza.Body.Length != WrappedKeySize)
-            throw new AgeHeaderException($"scrypt stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
+            throw new AgeFormatException($"scrypt stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
 
         var wrapKey = DeriveWrapKey(salt, stanzaWorkFactor);
 

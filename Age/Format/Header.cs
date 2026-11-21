@@ -20,10 +20,10 @@ internal sealed class Header
     {
         var header = new Header();
 
-        var versionLine = reader.ReadLine() ?? throw new AgeHeaderException("empty header");
+        var versionLine = reader.ReadLine() ?? throw new AgeFormatException("empty header");
 
         if (versionLine != VersionLine)
-            throw new AgeHeaderException(
+            throw new AgeFormatException(
                 // Armor reaches here only where it is not expected, as a detached header, which is
                 // binary by definition. Reporting its BEGIN marker as an "unsupported version"
                 // would send people looking for a version problem that does not exist.
@@ -33,12 +33,12 @@ internal sealed class Header
 
         while (true)
         {
-            var line = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header");
+            var line = reader.ReadLine() ?? throw new AgeFormatException("unexpected end of header");
 
             if (line.StartsWith("-> ", StringComparison.Ordinal))
             {
                 if (header.Stanzas.Count == reader.Options.MaxRecipientStanzas)
-                    throw new AgeHeaderException($"header contains more than {reader.Options.MaxRecipientStanzas} recipient stanzas");
+                    throw new AgeFormatException($"header contains more than {reader.Options.MaxRecipientStanzas} recipient stanzas");
 
                 reader.PushBack(line);
                 header.Stanzas.Add(Stanza.Parse(reader));
@@ -50,19 +50,19 @@ internal sealed class Header
             }
             else
             {
-                throw new AgeHeaderException($"unexpected line in header: {line}");
+                throw new AgeFormatException($"unexpected line in header: {line}");
             }
         }
 
         return header.Stanzas.Count > 0
             ? header
-            : throw new AgeHeaderException("header contains no stanzas");
+            : throw new AgeFormatException("header contains no stanzas");
     }
 
     private static void ParseMacLine(Header header, string line, HeaderReader reader)
     {
         if (!line.StartsWith("--- ", StringComparison.Ordinal))
-            throw new AgeHeaderException($"expected MAC line starting with '--- ', got: {line}");
+            throw new AgeFormatException($"expected MAC line starting with '--- ', got: {line}");
 
         var macB64 = line[4..];
 
@@ -72,11 +72,11 @@ internal sealed class Header
         }
         catch (FormatException ex)
         {
-            throw new AgeHeaderException($"invalid MAC encoding: {ex.Message}", ex);
+            throw new AgeFormatException($"invalid MAC encoding: {ex.Message}", ex);
         }
 
         if (header.Mac.Length != 32)
-            throw new AgeHeaderException($"MAC must be 32 bytes, got {header.Mac.Length}");
+            throw new AgeFormatException($"MAC must be 32 bytes, got {header.Mac.Length}");
 
         // The Go reference computes MAC over everything through "---" (no trailing space).
         // The raw bytes include "--- <mac_b64>\n", so strip the suffix.
@@ -89,7 +89,7 @@ internal sealed class Header
     {
         var computedMac = ComputeMac(fileKey, HeaderBytesForMac);
         if (!CryptographicOperations.FixedTimeEquals(computedMac, Mac))
-            throw new AgeHmacException("header MAC verification failed");
+            throw new AgeAuthenticationException("header MAC verification failed");
     }
 
     public static byte[] ComputeMac(ReadOnlySpan<byte> fileKey, ReadOnlySpan<byte> headerBytes)

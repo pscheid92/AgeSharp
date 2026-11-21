@@ -153,7 +153,7 @@ public class IdentitiesTests
         var with = new Identities(alice);
         var options = new AgeDecryptOptions { RequireArmor = true };
 
-        var ex = Assert.Throws<AgeArmorException>(() => with.Decrypt(to.Encrypt(Plaintext), options));
+        var ex = Assert.Throws<AgeFormatException>(() => with.Decrypt(to.Encrypt(Plaintext), options));
         Assert.Contains("not ASCII-armored", ex.Message, StringComparison.Ordinal);
 
         Assert.Equal(Plaintext, with.Decrypt(to.Encrypt(Plaintext, new AgeEncryptOptions { Armor = true }), options));
@@ -165,7 +165,7 @@ public class IdentitiesTests
         using var alice = X25519Identity.Generate();
         var file = new Recipients(alice.Recipient).Encrypt(Plaintext);
 
-        await Assert.ThrowsAsync<AgeArmorException>(() =>
+        await Assert.ThrowsAsync<AgeFormatException>(() =>
             new Identities(alice).DecryptAsync(new MemoryStream(file), new MemoryStream(), new AgeDecryptOptions { RequireArmor = true }));
     }
 
@@ -211,7 +211,7 @@ public class IdentitiesTests
         var file = new Recipients(alice.Recipient, bob.Recipient).Encrypt(Plaintext);
         var with = new Identities(alice);
 
-        var ex = Assert.Throws<AgeHeaderException>(() => with.Decrypt(file, new AgeDecryptOptions { MaxRecipientStanzas = 1 }));
+        var ex = Assert.Throws<AgeFormatException>(() => with.Decrypt(file, new AgeDecryptOptions { MaxRecipientStanzas = 1 }));
         Assert.Contains("more than 1 recipient stanzas", ex.Message, StringComparison.Ordinal);
 
         Assert.Equal(Plaintext, with.Decrypt(file, new AgeDecryptOptions { MaxRecipientStanzas = 2 }));
@@ -223,7 +223,7 @@ public class IdentitiesTests
         using var alice = X25519Identity.Generate();
         var file = new Recipients(alice.Recipient).Encrypt(Plaintext);
 
-        var ex = Assert.Throws<AgeHeaderException>(() => new Identities(alice).Decrypt(file, new AgeDecryptOptions { MaxHeaderBytes = 50 }));
+        var ex = Assert.Throws<AgeFormatException>(() => new Identities(alice).Decrypt(file, new AgeDecryptOptions { MaxHeaderBytes = 50 }));
         Assert.Contains("header exceeds 50 bytes", ex.Message, StringComparison.Ordinal);
     }
 
@@ -236,7 +236,7 @@ public class IdentitiesTests
         var file = WithExtraStanza(new Recipients(alice.Recipient).Encrypt(Plaintext), arguments: 129);
         var with = new Identities(X25519Identity.Generate());
 
-        var ex = Assert.Throws<AgeHeaderException>(() => with.Decrypt(file));
+        var ex = Assert.Throws<AgeFormatException>(() => with.Decrypt(file));
         Assert.Contains("more than 128 arguments", ex.Message, StringComparison.Ordinal);
 
         Assert.Throws<NoIdentityMatchException>(() => with.Decrypt(file, new AgeDecryptOptions { MaxStanzaArguments = 200 }));
@@ -250,9 +250,9 @@ public class IdentitiesTests
         var with = new Identities(alice);
         var options = new AgeDecryptOptions { MaxArmorLineBytes = 40 };
 
-        Assert.Contains("exceeds 40 bytes", Assert.Throws<AgeArmorException>(() => with.Decrypt(file, options)).Message, StringComparison.Ordinal);
+        Assert.Contains("exceeds 40 bytes", Assert.Throws<AgeFormatException>(() => with.Decrypt(file, options)).Message, StringComparison.Ordinal);
 
-        var async = await Assert.ThrowsAsync<AgeArmorException>(() => with.DecryptAsync(new MemoryStream(file), new MemoryStream(), options));
+        var async = await Assert.ThrowsAsync<AgeFormatException>(() => with.DecryptAsync(new MemoryStream(file), new MemoryStream(), options));
         Assert.Contains("exceeds 40 bytes", async.Message, StringComparison.Ordinal);
     }
 
@@ -327,8 +327,8 @@ public class IdentitiesTests
         var truncated = file[..(headerLength + 5)];
         var with = new Identities(alice);
 
-        Assert.Contains("payload nonce", Assert.Throws<AgeHeaderException>(() => with.Decrypt(truncated)).Message, StringComparison.Ordinal);
-        var async = await Assert.ThrowsAsync<AgeHeaderException>(() => with.DecryptAsync(new MemoryStream(truncated), new MemoryStream()));
+        Assert.Contains("payload nonce", Assert.Throws<AgeFormatException>(() => with.Decrypt(truncated)).Message, StringComparison.Ordinal);
+        var async = await Assert.ThrowsAsync<AgeFormatException>(() => with.DecryptAsync(new MemoryStream(truncated), new MemoryStream()));
         Assert.Contains("payload nonce", async.Message, StringComparison.Ordinal);
     }
 

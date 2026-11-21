@@ -36,8 +36,7 @@ public sealed class AgeHeader
     /// decrypting anything. A binary file's stream is left where the header ends, at the payload,
     /// on any stream; armor is read as far as its lines run. The stream stays open.
     /// </summary>
-    /// <exception cref="AgeHeaderException">The header is malformed, or breaks a limit in <paramref name="options"/>.</exception>
-    /// <exception cref="AgeArmorException">The armor is malformed, or armor is required and absent.</exception>
+    /// <exception cref="AgeFormatException">The header is malformed, or breaks a limit in <paramref name="options"/>; the armor is malformed, or armor is required and absent.</exception>
     public static AgeHeader Read(Stream input, AgeDecryptOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -54,8 +53,7 @@ public sealed class AgeHeader
     }
 
     /// <summary>The asynchronous <see cref="Read"/>: every read of <paramref name="input"/> is asynchronous.</summary>
-    /// <exception cref="AgeHeaderException">The header is malformed, or breaks a limit in <paramref name="options"/>.</exception>
-    /// <exception cref="AgeArmorException">The armor is malformed, or armor is required and absent.</exception>
+    /// <exception cref="AgeFormatException">The header is malformed, or breaks a limit in <paramref name="options"/>; the armor is malformed, or armor is required and absent.</exception>
     public static async ValueTask<AgeHeader> ReadAsync(Stream input, AgeDecryptOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);

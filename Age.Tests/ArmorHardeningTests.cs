@@ -40,7 +40,7 @@ public class ArmorHardeningTests
 
         var tampered = Encoding.ASCII.GetBytes(string.Join('\n', lines));
 
-        Assert.Throws<AgeArmorException>(() => Decrypt(tampered, identity));
+        Assert.Throws<AgeFormatException>(() => Decrypt(tampered, identity));
     }
 
     // Lines end at LF, with one trailing CR allowed — go-age's rule. A lone CR is not a line
@@ -54,7 +54,7 @@ public class ArmorHardeningTests
 
         var crOnly = Encoding.ASCII.GetBytes(armored.Replace('\n', '\r'));
 
-        Assert.Throws<AgeArmorException>(() => Decrypt(crOnly, identity));
+        Assert.Throws<AgeFormatException>(() => Decrypt(crOnly, identity));
     }
 
     // The per-line memory bound must count lines the way the reader splits them. If it reset at a
@@ -66,7 +66,7 @@ public class ArmorHardeningTests
         var text = "-----BEGIN AGE ENCRYPTED FILE-----\n"
                    + string.Concat(Enumerable.Repeat(chunk, AgeLimits.MaxArmorLineBytes / 1000 + 10)) + "\n";
 
-        var ex = Assert.Throws<AgeArmorException>(() => AgeHeader.Read(new MemoryStream(Encoding.ASCII.GetBytes(text))));
+        var ex = Assert.Throws<AgeFormatException>(() => AgeHeader.Read(new MemoryStream(Encoding.ASCII.GetBytes(text))));
 
         Assert.Contains($"exceeds {AgeLimits.MaxArmorLineBytes} bytes", ex.Message);
     }
@@ -109,7 +109,7 @@ public class ArmorHardeningTests
             .. Armored(identity.Recipient, "hello armor"u8.ToArray()),
         ];
 
-        var ex = Assert.Throws<AgeArmorException>(() => Decrypt(flood, identity));
+        var ex = Assert.Throws<AgeFormatException>(() => Decrypt(flood, identity));
         Assert.Contains("whitespace", ex.Message, StringComparison.Ordinal);
     }
 
@@ -128,7 +128,7 @@ public class ArmorHardeningTests
         if (accepted)
             Assert.Equal(plaintext, Decrypt(padded, identity));
         else
-            Assert.Throws<AgeArmorException>(() => Decrypt(padded, identity));
+            Assert.Throws<AgeFormatException>(() => Decrypt(padded, identity));
     }
 
     // Bounded after the footer as well, as go-age bounds it: otherwise a file followed by
@@ -148,7 +148,7 @@ public class ArmorHardeningTests
         }
         else
         {
-            var ex = Assert.Throws<AgeArmorException>(() => Decrypt(padded, identity));
+            var ex = Assert.Throws<AgeFormatException>(() => Decrypt(padded, identity));
             Assert.Contains("whitespace", ex.Message, StringComparison.Ordinal);
         }
     }

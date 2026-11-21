@@ -378,6 +378,21 @@ tried before any other, whatever order they are passed in, as in the Go
 implementation. A custom, SSH or plugin identity, which may ask the user for a
 passphrase or a touch, is asked only if none of those opens the file.
 
+### Errors
+
+Everything this library throws while reading or writing a file is an `AgeException`:
+
+| Type | Means |
+| --- | --- |
+| `AgeFormatException` | The file does not parse: a malformed header, stanza or armor, or a parsing limit exceeded |
+| `AgeAuthenticationException` | A cryptographic check failed: the header MAC, a payload chunk, or a truncated or extended file. Tampered with or damaged |
+| `NoIdentityMatchException` | None of the identities opened any of the file's stanzas |
+| `AgePluginException` | A plugin failed to start, misbehaved, or reported an error |
+| `AgeException` itself | A caller's mistake found only mid-way, such as recipients with different security labels |
+
+Parsing a key, recipient or identity from text throws `FormatException`, as .NET's own
+`Parse` methods do.
+
 ### Parsing limits
 
 An age header must be buffered in full before its MAC can be verified, so
@@ -396,7 +411,7 @@ exhaust memory. The limits are options of `AgeDecryptOptions`:
 with.Decrypt(input, output, new AgeDecryptOptions { MaxRecipientStanzas = 4096 });
 ```
 
-Exceeding a limit throws `AgeHeaderException` / `AgeArmorException`. The age
+Exceeding a limit throws `AgeFormatException`. The age
 [specification](https://github.com/C2SP/C2SP/blob/main/age.md) sets no such
 bounds. The three header limits are the ones the Go implementation applies from
 v1.3.2 on, so both accept and reject the same files; the armor line limit is

@@ -175,7 +175,7 @@ public class ValidationTests
     {
         using var ms = new MemoryStream("-> ab\n\n"u8.ToArray());
 
-        Assert.Throws<AgeHeaderException>(() => Stanza.Parse(new HeaderReader(ms)));
+        Assert.Throws<AgeFormatException>(() => Stanza.Parse(new HeaderReader(ms)));
     }
 
     [Fact]

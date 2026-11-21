@@ -134,7 +134,7 @@ public class ArmorDecodingTests
         if (refusal is null)
             Assert.DoesNotContain("Exception", result);
         else
-            Assert.Equal($"AgeArmorException: {refusal}", result);
+            Assert.Equal($"AgeFormatException: {refusal}", result);
     }
 
     private static string Armor(ReadOnlySpan<byte> bytes)

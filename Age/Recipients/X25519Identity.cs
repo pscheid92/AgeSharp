@@ -114,7 +114,7 @@ public sealed class X25519Identity : IIdentityWithRecipient, IDisposable
     /// Attempts to unwrap the file key from an X25519 stanza. Returns null for
     /// stanzas of other types or wrapped for a different recipient.
     /// </summary>
-    /// <exception cref="AgeHeaderException">The stanza claims to be X25519 but is malformed.</exception>
+    /// <exception cref="AgeFormatException">The stanza claims to be X25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public bool TryUnwrap(Stanza stanza, Span<byte> fileKey) =>
         FileKey.Deliver(UnwrapToArray(stanza), fileKey);
@@ -126,7 +126,7 @@ public sealed class X25519Identity : IIdentityWithRecipient, IDisposable
         if (stanza.Type != AgeProtocol.X25519StanzaType) return null;
 
         if (stanza.Args.Count != 1)
-            throw new AgeHeaderException($"X25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");
+            throw new AgeFormatException($"X25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");
 
         byte[] ephPubBytes;
         try
@@ -135,14 +135,14 @@ public sealed class X25519Identity : IIdentityWithRecipient, IDisposable
         }
         catch (FormatException ex)
         {
-            throw new AgeHeaderException($"invalid X25519 ephemeral key encoding: {ex.Message}", ex);
+            throw new AgeFormatException($"invalid X25519 ephemeral key encoding: {ex.Message}", ex);
         }
 
         if (ephPubBytes.Length != KeySize)
-            throw new AgeHeaderException($"X25519 ephemeral key must be {KeySize} bytes, got {ephPubBytes.Length}");
+            throw new AgeFormatException($"X25519 ephemeral key must be {KeySize} bytes, got {ephPubBytes.Length}");
 
         if (stanza.Body.Length != WrappedKeySize)
-            throw new AgeHeaderException($"X25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
+            throw new AgeFormatException($"X25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
 
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
         var privateKeyParams = new X25519PrivateKeyParameters(_rawPrivateKey);

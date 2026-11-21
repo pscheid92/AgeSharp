@@ -86,17 +86,17 @@ public class CctvTestRunner
         }
     }
 
-    // What each expectation accepts. A header failure may also surface as a MAC failure, and an
-    // armor failure as a header failure: the vectors say which stage breaks, and AgeSharp's
-    // parsers sometimes notice one stage later.
+    // What each expectation accepts. A structure that does not parse is a format failure, a check
+    // that fails an authentication failure. A header failure may also surface as a MAC failure:
+    // the vectors say which stage breaks, and AgeSharp sometimes notices one stage later.
     private static Outcome[] Accepted(string expect) => expect switch
     {
         "success" => [Outcome.Success],
         "no match" => [Outcome.NoMatch],
-        "HMAC failure" => [Outcome.MacFailure],
-        "header failure" => [Outcome.HeaderFailure, Outcome.MacFailure],
-        "payload failure" => [Outcome.PayloadFailure],
-        "armor failure" => [Outcome.ArmorFailure, Outcome.HeaderFailure],
+        "HMAC failure" => [Outcome.AuthenticationFailure],
+        "header failure" => [Outcome.FormatFailure, Outcome.AuthenticationFailure],
+        "payload failure" => [Outcome.AuthenticationFailure],
+        "armor failure" => [Outcome.FormatFailure],
         _ => throw new InvalidOperationException($"unknown expect value: {expect}"),
     };
 

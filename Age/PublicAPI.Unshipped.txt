@@ -1,10 +1,20 @@
 #nullable enable
+*REMOVED*AgeSharp.AgeArmorException
+*REMOVED*AgeSharp.AgeArmorException.AgeArmorException(string! message) -> void
 *REMOVED*AgeSharp.AgeEncrypt
 *REMOVED*AgeSharp.AgeHeader.PayloadOffset.get -> long
 *REMOVED*AgeSharp.AgeHeader.RecipientCount.get -> int
 *REMOVED*AgeSharp.AgeHeader.Recipients.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+*REMOVED*AgeSharp.AgeHeaderException
+*REMOVED*AgeSharp.AgeHeaderException.AgeHeaderException(string! message) -> void
+*REMOVED*AgeSharp.AgeHeaderException.AgeHeaderException(string! message, System.Exception! inner) -> void
+*REMOVED*AgeSharp.AgeHmacException
+*REMOVED*AgeSharp.AgeHmacException.AgeHmacException(string! message) -> void
 *REMOVED*AgeSharp.AgeKeygen
 *REMOVED*AgeSharp.AgeLimits
+*REMOVED*AgeSharp.AgePayloadException
+*REMOVED*AgeSharp.AgePayloadException.AgePayloadException(string! message) -> void
+*REMOVED*AgeSharp.AgePayloadException.AgePayloadException(string! message, System.Exception! inner) -> void
 *REMOVED*AgeSharp.AgeRandomAccess
 *REMOVED*AgeSharp.AgeRandomAccess.AgeRandomAccess(System.IO.Stream! ciphertext, params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
 *REMOVED*AgeSharp.AgeRandomAccess.Dispose() -> void
@@ -57,6 +67,9 @@
 *REMOVED*static AgeSharp.AgeKeygen.ParseRecipientsFile(string! text, AgeSharp.IPluginCallbacks? callbacks = null) -> AgeSharp.IRecipient![]!
 *REMOVED*static AgeSharp.AgeKeygen.ParseSshIdentity(string! pemText) -> AgeSharp.IIdentity!
 *REMOVED*static AgeSharp.AgeKeygen.ParseSshRecipient(string! authorizedKeysLine) -> AgeSharp.IRecipient!
+AgeSharp.AgeAuthenticationException
+AgeSharp.AgeAuthenticationException.AgeAuthenticationException(string! message) -> void
+AgeSharp.AgeAuthenticationException.AgeAuthenticationException(string! message, System.Exception! inner) -> void
 AgeSharp.AgeDecryptOptions
 AgeSharp.AgeDecryptOptions.AgeDecryptOptions() -> void
 AgeSharp.AgeDecryptOptions.MaxArmorLineBytes.get -> int
@@ -73,6 +86,9 @@ AgeSharp.AgeEncryptOptions
 AgeSharp.AgeEncryptOptions.AgeEncryptOptions() -> void
 AgeSharp.AgeEncryptOptions.Armor.get -> bool
 AgeSharp.AgeEncryptOptions.Armor.init -> void
+AgeSharp.AgeFormatException
+AgeSharp.AgeFormatException.AgeFormatException(string! message) -> void
+AgeSharp.AgeFormatException.AgeFormatException(string! message, System.Exception! inner) -> void
 AgeSharp.AgeHeader.PayloadOffset.get -> long?
 AgeSharp.AgeHeader.Stanzas.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.Armor

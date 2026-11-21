@@ -36,14 +36,14 @@ internal sealed class ArmorLineFramer(int maxLineBytes = AgeLimits.MaxArmorLineB
     /// Takes bytes from the front of <paramref name="input"/> up to and including the next LF,
     /// and returns the line they complete. Without an LF, keeps them all and returns false.
     /// </summary>
-    /// <exception cref="AgeArmorException">The line exceeds its bound (<see cref="AgeDecryptOptions.MaxArmorLineBytes"/>).</exception>
+    /// <exception cref="AgeFormatException">The line exceeds its bound (<see cref="AgeDecryptOptions.MaxArmorLineBytes"/>).</exception>
     public bool TryTakeLine(ref ReadOnlySpan<byte> input, out ArmorLine line)
     {
         var lf = input.IndexOf((byte)'\n');
         var part = lf < 0 ? input : input[..lf];
 
         if (_pendingLength + part.Length > maxLineBytes)
-            throw new AgeArmorException($"armor line exceeds {maxLineBytes} bytes");
+            throw new AgeFormatException($"armor line exceeds {maxLineBytes} bytes");
 
         if (lf < 0)
         {

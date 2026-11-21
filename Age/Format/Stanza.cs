@@ -100,21 +100,21 @@ public sealed class Stanza
 
     internal static Stanza Parse(HeaderReader reader)
     {
-        var line = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header while reading stanza");
+        var line = reader.ReadLine() ?? throw new AgeFormatException("unexpected end of header while reading stanza");
 
         if (!line.StartsWith("-> ", StringComparison.Ordinal))
-            throw new AgeHeaderException($"expected stanza prefix '-> ', got: {line}");
+            throw new AgeFormatException($"expected stanza prefix '-> ', got: {line}");
 
         var parts = line[3..].Split(' ');
 
         if (parts.Length < 1 || string.IsNullOrEmpty(parts[0]))
-            throw new AgeHeaderException("stanza must have at least a type");
+            throw new AgeFormatException("stanza must have at least a type");
 
         var stanzaType = parts[0];
         var stanzaArgs = parts.Length > 1 ? parts[1..] : [];
 
         if (stanzaArgs.Length > reader.Options.MaxStanzaArguments)
-            throw new AgeHeaderException($"stanza has more than {reader.Options.MaxStanzaArguments} arguments");
+            throw new AgeFormatException($"stanza has more than {reader.Options.MaxStanzaArguments} arguments");
 
         ThrowIfMalformed(stanzaType);
 
@@ -147,11 +147,11 @@ public sealed class Stanza
     /// </summary>
     private static string ReadBodyLine(HeaderReader reader)
     {
-        var line = reader.ReadLine() ?? throw new AgeHeaderException("unexpected end of header while reading stanza body");
+        var line = reader.ReadLine() ?? throw new AgeFormatException("unexpected end of header while reading stanza body");
 
         return line.Length <= ColumnsPerLine
             ? line
-            : throw new AgeHeaderException($"stanza body line exceeds {ColumnsPerLine} characters");
+            : throw new AgeFormatException($"stanza body line exceeds {ColumnsPerLine} characters");
     }
 
     /// <summary>
@@ -207,7 +207,7 @@ public sealed class Stanza
     private static void ThrowIfMalformed(string s)
     {
         if (InvalidReason(s) is { } reason)
-            throw new AgeHeaderException(reason);
+            throw new AgeFormatException(reason);
     }
 
     /// <summary>The string came from the caller, so a bad one means they passed a bad argument.</summary>
