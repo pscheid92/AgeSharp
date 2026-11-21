@@ -29,7 +29,7 @@ public class LegacyPemSshKeyTests
     public void DecryptsWhatThePlainKeyWasEncryptedTo(string legacyKey)
     {
         var ciphertext = Encrypt(PlainRecipient());
-        using var identity = ParseEncrypted(legacyKey, "rsa_plain.pub", () => Passphrase);
+        using var identity = ParseEncrypted(legacyKey, "rsa_plain.pub", () => Passphrase.ToCharArray());
 
         Assert.Equal(Plaintext, Decrypt(ciphertext, identity));
     }
@@ -67,7 +67,7 @@ public class LegacyPemSshKeyTests
     public void AsksOnce_HoweverManyFilesItDecrypts()
     {
         var asked = 0;
-        using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_plain.pub", () => { asked++; return Passphrase; });
+        using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_plain.pub", () => { asked++; return Passphrase.ToCharArray(); });
         var ciphertext = Encrypt(identity.Recipient);
 
         Decrypt(ciphertext, identity);
@@ -80,7 +80,7 @@ public class LegacyPemSshKeyTests
     [MemberData(nameof(LegacyKeys))]
     public void AWrongPassphrase_IsReportedAsSuch_NotAsNoMatch(string legacyKey)
     {
-        using var identity = ParseEncrypted(legacyKey, "rsa_plain.pub", () => "hunter3");
+        using var identity = ParseEncrypted(legacyKey, "rsa_plain.pub", () => "hunter3".ToCharArray());
 
         var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(identity.Recipient), identity));
 
@@ -95,7 +95,7 @@ public class LegacyPemSshKeyTests
     public void EveryWrongPassphrase_IsAWrongPassphrase_EvenWhenThePaddingHappensToBeValid()
     {
         var attempt = 0;
-        using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_plain.pub", () => $"wrong {attempt++}");
+        using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_plain.pub", () => $"wrong {attempt++}".ToCharArray());
         var ciphertext = Encrypt(identity.Recipient);
 
         for (var i = 0; i < 1000; i++)
@@ -108,7 +108,7 @@ public class LegacyPemSshKeyTests
     [Fact]
     public void AnEmptyPassphrase_IsAWrongPassphrase()
     {
-        using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_plain.pub", () => "");
+        using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_plain.pub", () => "".ToCharArray());
 
         var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(identity.Recipient), identity));
 
@@ -119,7 +119,7 @@ public class LegacyPemSshKeyTests
     public void AfterAWrongPassphrase_ItAsksAgain()
     {
         var answers = new Queue<string>(["hunter3", Passphrase]);
-        using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_plain.pub", answers.Dequeue);
+        using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_plain.pub", () => answers.Dequeue().ToCharArray());
         var ciphertext = Encrypt(identity.Recipient);
 
         Assert.Throws<AgeException>(() => Decrypt(ciphertext, identity));
@@ -133,7 +133,7 @@ public class LegacyPemSshKeyTests
     [Fact]
     public void APublicKeyFileThatIsNotTheKeys_IsRefusedOnceUnlocked()
     {
-        using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_other.pub", () => Passphrase);
+        using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_other.pub", () => Passphrase.ToCharArray());
 
         var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(identity.Recipient), identity));
 
@@ -212,7 +212,7 @@ public class LegacyPemSshKeyTests
     {
         // Indistinguishable from a wrong passphrase: the format authenticates nothing.
         var pem = DamageBody(Key("rsa_legacy_pem"));
-        using var identity = Assert.IsType<EncryptedSshIdentity>(SshIdentity.Parse(pem, Key("rsa_plain.pub"), () => Passphrase));
+        using var identity = Assert.IsType<EncryptedSshIdentity>(SshIdentity.Parse(pem, Key("rsa_plain.pub"), () => Passphrase.ToCharArray()));
 
         var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(Recipients.ParseOne(Key("rsa_plain.pub"))), identity));
 
@@ -236,7 +236,7 @@ public class LegacyPemSshKeyTests
 
             try
             {
-                var identity = SshIdentity.Parse(Encoding.ASCII.GetString(text), Key("rsa_plain.pub"), () => Passphrase);
+                var identity = SshIdentity.Parse(Encoding.ASCII.GetString(text), Key("rsa_plain.pub"), () => Passphrase.ToCharArray());
                 Decrypt(ciphertext, identity);
                 (identity as IDisposable)?.Dispose();
             }
@@ -280,7 +280,7 @@ public class LegacyPemSshKeyTests
     [InlineData("rsa_plain")]
     public void AnOpenSshKeyFile_IsReadToo_AndItsPublicKeyFileMustMatchIt(string keyFile)
     {
-        var identity = Parse(keyFile, "rsa_plain.pub", () => Passphrase);
+        var identity = Parse(keyFile, "rsa_plain.pub", () => Passphrase.ToCharArray());
         Assert.Equal(Plaintext, Decrypt(Encrypt(PlainRecipient()), identity));
         (identity as IDisposable)?.Dispose();
 
@@ -308,18 +308,18 @@ public class LegacyPemSshKeyTests
     {
         Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
         var ciphertext = AgeCli.Encrypt(Plaintext, false, Key("rsa_plain.pub").Trim());
-        using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_plain.pub", () => Passphrase);
+        using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_plain.pub", () => Passphrase.ToCharArray());
 
         Assert.Equal(Plaintext, Decrypt(ciphertext, identity));
     }
 
-    private static IIdentity Parse(string keyFile, string publicKeyFile, Func<string> passphrase) =>
+    private static IIdentity Parse(string keyFile, string publicKeyFile, Func<char[]?> passphrase) =>
         SshIdentity.Parse(Key(keyFile), Key(publicKeyFile), passphrase);
 
-    private static EncryptedSshIdentity ParseEncrypted(string keyFile, string publicKeyFile, Func<string> passphrase) =>
+    private static EncryptedSshIdentity ParseEncrypted(string keyFile, string publicKeyFile, Func<char[]?> passphrase) =>
         Assert.IsType<EncryptedSshIdentity>(Parse(keyFile, publicKeyFile, passphrase));
 
-    private static string NeverAsked() => throw new InvalidOperationException("the passphrase was asked for");
+    private static char[]? NeverAsked() => throw new InvalidOperationException("the passphrase was asked for");
 
     private static string Key(string name) =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "EncryptedSsh", name));

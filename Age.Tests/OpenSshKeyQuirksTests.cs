@@ -109,7 +109,7 @@ public class OpenSshKeyQuirksTests
         Assert.Equal(Plaintext, Decrypt(ciphertext, SshIdentity.Parse(Key("rsa_plain_leading_zeros"))));
     }
 
-    private static string NeverAsked() => throw new InvalidOperationException("the passphrase was asked for");
+    private static char[]? NeverAsked() => throw new InvalidOperationException("the passphrase was asked for");
 
     private static string Key(string name) =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "EncryptedSsh", name));

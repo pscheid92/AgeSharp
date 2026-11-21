@@ -100,7 +100,7 @@ AgeSharp.AgeHeader.ToBytes() -> byte[]!
 AgeSharp.Armor
 AgeSharp.EncryptedIdentityFile
 AgeSharp.EncryptedIdentityFile.Dispose() -> void
-AgeSharp.EncryptedIdentityFile.EncryptedIdentityFile(System.ReadOnlySpan<byte> contents, System.Func<char[]!>! passphrase, AgeSharp.IPluginCallbacks? plugins = null) -> void
+AgeSharp.EncryptedIdentityFile.EncryptedIdentityFile(System.ReadOnlySpan<byte> contents, System.Func<char[]?>! passphrase, AgeSharp.IPluginCallbacks? plugins = null) -> void
 AgeSharp.EncryptedIdentityFile.GetRecipients() -> System.Collections.Generic.IReadOnlyList<AgeSharp.IRecipient!>!
 AgeSharp.EncryptedIdentityFile.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.EncryptedSshIdentity
@@ -223,5 +223,5 @@ static AgeSharp.PluginRecipient.Parse(string! s, AgeSharp.IPluginCallbacks? plug
 static AgeSharp.Recipients.Parse(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.Recipients!
 static AgeSharp.Recipients.ParseOne(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IRecipient!
 static AgeSharp.SshIdentity.Parse(string! pemText) -> AgeSharp.IIdentity!
-static AgeSharp.SshIdentity.Parse(string! pemText, System.Func<string!>! passphrase) -> AgeSharp.IIdentity!
-static AgeSharp.SshIdentity.Parse(string! pemText, string! publicKey, System.Func<string!>! passphrase) -> AgeSharp.IIdentity!
+static AgeSharp.SshIdentity.Parse(string! pemText, System.Func<char[]?>! passphrase) -> AgeSharp.IIdentity!
+static AgeSharp.SshIdentity.Parse(string! pemText, string! publicKey, System.Func<char[]?>! passphrase) -> AgeSharp.IIdentity!

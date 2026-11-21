@@ -101,8 +101,8 @@ public class NoIdentityMatchTests
         using var alice = X25519Identity.Generate();
         var file = new Recipients(alice.Recipient).Encrypt(Plaintext);
         var rsa = SshIdentity.Parse(SshKeys.RsaPem());
-        var protectedEd25519 = SshIdentity.Parse(Fixture("ed25519_aes256ctr"), () => "pw");
-        var protectedRsa = SshIdentity.Parse(Fixture("rsa_aes256ctr"), () => "pw");
+        var protectedEd25519 = SshIdentity.Parse(Fixture("ed25519_aes256ctr"), () => "pw".ToCharArray());
+        var protectedRsa = SshIdentity.Parse(Fixture("rsa_aes256ctr"), () => "pw".ToCharArray());
 
         var ex = Assert.Throws<NoIdentityMatchException>(() => new Identities(rsa, protectedEd25519, protectedRsa).Decrypt(file));
 

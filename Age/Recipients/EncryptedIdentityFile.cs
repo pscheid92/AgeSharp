@@ -23,7 +23,7 @@ namespace AgeSharp;
 public sealed class EncryptedIdentityFile : IIdentity
 {
     private readonly byte[] _contents;
-    private readonly Func<char[]> _passphrase;
+    private readonly Func<char[]?> _passphrase;
     private readonly IPluginCallbacks? _plugins;
     private Identities? _identities;
     private bool _disposed;
@@ -32,11 +32,11 @@ public sealed class EncryptedIdentityFile : IIdentity
     /// <param name="contents">The encrypted file, binary or armored. Ciphertext, so copied but not treated as secret.</param>
     /// <param name="passphrase">
     /// Asked once, when the file is first needed, and again only if that attempt failed. The
-    /// characters it returns are cleared once used, so return a fresh array.
+    /// characters it returns are cleared once used, so return a fresh array; null cancels.
     /// </param>
     /// <param name="plugins">Lets plugin identities in the file talk to the user.</param>
     /// <exception cref="ArgumentNullException"><paramref name="passphrase"/> is null.</exception>
-    public EncryptedIdentityFile(ReadOnlySpan<byte> contents, Func<char[]> passphrase, IPluginCallbacks? plugins = null)
+    public EncryptedIdentityFile(ReadOnlySpan<byte> contents, Func<char[]?> passphrase, IPluginCallbacks? plugins = null)
     {
         _contents = contents.ToArray();
         _passphrase = passphrase ?? throw new ArgumentNullException(nameof(passphrase));
@@ -55,7 +55,8 @@ public sealed class EncryptedIdentityFile : IIdentity
     /// Unwraps the file key with the identities in the file, decrypting it first if it has not
     /// been: false if none of them opens the stanza.
     /// </summary>
-    /// <exception cref="AgeException">The passphrase is wrong, or the file is not an identity file encrypted to one.</exception>
+    /// <exception cref="AgeException">The passphrase is wrong, was not given (the source returned null) or could not be obtained, or the file is not an identity file encrypted to one.</exception>
+    /// <exception cref="OperationCanceledException">The passphrase source threw it, to cancel.</exception>
     public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
     {
         foreach (var identity in Unlocked())
@@ -75,7 +76,7 @@ public sealed class EncryptedIdentityFile : IIdentity
 
     private Identities Decrypt()
     {
-        var characters = _passphrase() ?? throw new InvalidOperationException("the passphrase callback returned null");
+        var characters = PassphraseSource.Ask(_passphrase, "the identity file");
         byte[] plaintext;
 
         try

@@ -16,14 +16,14 @@ public sealed class EncryptedSshIdentity : IIdentityWithRecipient, IDisposable
 {
     private readonly Lock _lock = new();
     private readonly IProtectedSshKey _protectedKey;
-    private readonly Func<string> _passphrase;
+    private readonly Func<char[]?> _passphrase;
     private readonly string _keyType;
     private readonly string _tag;
     private IIdentity? _unlocked;
     private bool _unlocking;
     private bool _disposed;
 
-    internal EncryptedSshIdentity(IProtectedSshKey protectedKey, Func<string> passphrase)
+    internal EncryptedSshIdentity(IProtectedSshKey protectedKey, Func<char[]?> passphrase)
     {
         _protectedKey = protectedKey;
         _passphrase = passphrase;
@@ -47,7 +47,7 @@ public sealed class EncryptedSshIdentity : IIdentityWithRecipient, IDisposable
     /// refused by <see cref="TryUnwrap"/> once a file is addressed to it, before the passphrase
     /// is asked for.
     /// </exception>
-    internal static EncryptedSshIdentity Parse(string pemText, Func<string> passphrase)
+    internal static EncryptedSshIdentity Parse(string pemText, Func<char[]?> passphrase)
     {
         ArgumentNullException.ThrowIfNull(pemText);
         ArgumentNullException.ThrowIfNull(passphrase);
@@ -68,10 +68,11 @@ public sealed class EncryptedSshIdentity : IIdentityWithRecipient, IDisposable
     /// <exception cref="AgeFormatException">The stanza is addressed to this key but is malformed.</exception>
     /// <exception cref="AgeException">
     /// The key cannot be decrypted here (its cipher, KDF or round count, or a browser
-    /// limitation; said before the passphrase is asked for), the passphrase is wrong or could
-    /// not be obtained, or the key file's public and private keys do not belong together.
+    /// limitation; said before the passphrase is asked for), the passphrase is wrong, was not
+    /// given (the source returned null) or could not be obtained, or the key file's public and
+    /// private keys do not belong together.
     /// </exception>
-    /// <exception cref="OperationCanceledException">The passphrase source was cancelled.</exception>
+    /// <exception cref="OperationCanceledException">The passphrase source threw it, to cancel.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     /// <remarks>
     /// The identity stays locked while the passphrase source runs: other threads using it wait,
@@ -140,22 +141,15 @@ public sealed class EncryptedSshIdentity : IIdentityWithRecipient, IDisposable
         if (_protectedKey.WhyItCannotBeDecryptedHere() is { } reason)
             throw new AgeException($"failed to decrypt the SSH key: {reason}");
 
-        string passphrase;
-
-        try
-        {
-            passphrase = _passphrase();
-        }
-        catch (Exception ex) when (ex is not AgeException and not OperationCanceledException)
-        {
-            throw new AgeException($"failed to obtain the passphrase for the SSH key: {ex.Message}", ex);
-        }
+        var passphrase = PassphraseSource.Ask(_passphrase, "the SSH key");
 
         (string keyType, byte[] publicWireBytes, Org.BouncyCastle.Crypto.AsymmetricKeyParameter privateKey) key;
 
         try
         {
-            key = _protectedKey.Unprotect(passphrase ?? "");
+            // SSH.NET, which decrypts the key, takes a string, which nothing can clear; the
+            // characters it is made from are cleared at once.
+            key = _protectedKey.Unprotect(new string(passphrase));
         }
         catch (CryptographicException ex)
         {
@@ -164,6 +158,10 @@ public sealed class EncryptedSshIdentity : IIdentityWithRecipient, IDisposable
         catch (FormatException ex)
         {
             throw new AgeException($"failed to decrypt the SSH key: {ex.Message}", ex);
+        }
+        finally
+        {
+            Array.Clear(passphrase);
         }
 
         // The recipient and the stanza match came from the public key read without the

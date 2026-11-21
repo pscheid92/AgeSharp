@@ -78,13 +78,15 @@ public class EncryptedIdentityFileLazinessTests
         Assert.Throws<AgeException>(() => identityFile.GetRecipients());
     }
 
+    // As every passphrase source in the library: null cancels.
     [Fact]
-    public void ACallbackReturningNull_IsAnError()
+    public void ACallbackReturningNull_Cancels()
     {
         using var key = X25519Identity.Generate();
-        using var identityFile = new EncryptedIdentityFile(Protect(key.ToSecretString()), () => null!);
+        using var identityFile = new EncryptedIdentityFile(Protect(key.ToSecretString()), () => null);
 
-        Assert.Throws<InvalidOperationException>(() => identityFile.GetRecipients());
+        var ex = Assert.Throws<AgeException>(() => identityFile.GetRecipients());
+        Assert.Contains("no passphrase was given for the identity file", ex.Message);
     }
 
     [Fact]
