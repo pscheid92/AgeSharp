@@ -160,7 +160,8 @@ new Identities(identity).Decrypt(encrypted, decrypted);
 
 A passphrase-protected key (OpenSSH format) needs somewhere to get its passphrase
 from. It is asked for only when a file addressed to the key is decrypted, and
-never for encrypting to the key:
+never for encrypting to the key. Like every passphrase source in AgeSharp, the callback
+returns a `char[]`, cleared once used, or null to cancel:
 
 ```csharp
 var identity = SshIdentity.Parse(

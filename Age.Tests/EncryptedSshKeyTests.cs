@@ -36,7 +36,7 @@ public class EncryptedSshKeyTests
     public void DecryptsWhatThePlainKeyWasEncryptedTo(string protectedKey, string plainKey)
     {
         var ciphertext = Encrypt(RecipientOf(SshIdentity.Parse(Key(plainKey))));
-        using var identity = EncryptedSshIdentity.Parse(Key(protectedKey), () => Passphrase);
+        using var identity = EncryptedSshIdentity.Parse(Key(protectedKey), () => Passphrase.ToCharArray());
 
         Assert.Equal(Plaintext, Decrypt(ciphertext, identity));
     }
@@ -51,7 +51,7 @@ public class EncryptedSshKeyTests
     [InlineData("ed25519_comment_ends_in_01")]
     public void ReadsWhatOpenSshReads_ThoughSshKeygenWouldNotWriteIt(string protectedKey)
     {
-        using var identity = EncryptedSshIdentity.Parse(Key(protectedKey), () => Passphrase);
+        using var identity = EncryptedSshIdentity.Parse(Key(protectedKey), () => Passphrase.ToCharArray());
 
         Assert.Equal(Plaintext, Decrypt(Encrypt(identity.Recipient), identity));
     }
@@ -71,7 +71,7 @@ public class EncryptedSshKeyTests
     public void AsksOnce_HoweverManyFilesItDecrypts()
     {
         var asked = 0;
-        using var identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () => { asked++; return Passphrase; });
+        using var identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () => { asked++; return Passphrase.ToCharArray(); });
         var ciphertext = Encrypt(identity.Recipient);
 
         Decrypt(ciphertext, identity);
@@ -107,7 +107,7 @@ public class EncryptedSshKeyTests
     [InlineData("rsa_aes256ctr")]
     public void AWrongPassphrase_IsReportedAsSuch_NotAsNoMatch(string protectedKey)
     {
-        using var identity = EncryptedSshIdentity.Parse(Key(protectedKey), () => "hunter3");
+        using var identity = EncryptedSshIdentity.Parse(Key(protectedKey), () => "hunter3".ToCharArray());
         var ciphertext = Encrypt(identity.Recipient);
 
         var ex = Assert.Throws<AgeException>(() => Decrypt(ciphertext, identity));
@@ -119,7 +119,7 @@ public class EncryptedSshKeyTests
     [Fact]
     public void AnEmptyPassphrase_IsAWrongPassphrase()
     {
-        using var identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () => "");
+        using var identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () => "".ToCharArray());
 
         var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(identity.Recipient), identity));
 
@@ -130,7 +130,7 @@ public class EncryptedSshKeyTests
     public void AfterAWrongPassphrase_ItAsksAgain()
     {
         var answers = new Queue<string>(["hunter3", Passphrase]);
-        using var identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), answers.Dequeue);
+        using var identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () => answers.Dequeue().ToCharArray());
         var ciphertext = Encrypt(identity.Recipient);
 
         Assert.Throws<AgeException>(() => Decrypt(ciphertext, identity));
@@ -148,7 +148,7 @@ public class EncryptedSshKeyTests
     public void ParseSshIdentity_GivenAPassphraseSource_ReadsBothKinds()
     {
         var plain = SshIdentity.Parse(Key("ed25519_plain"), NeverAsked);
-        var protectedKey = SshIdentity.Parse(Key("ed25519_aes256ctr"), () => Passphrase);
+        var protectedKey = SshIdentity.Parse(Key("ed25519_aes256ctr"), () => Passphrase.ToCharArray());
 
         Assert.IsType<SshEd25519Identity>(plain);
         Assert.IsType<EncryptedSshIdentity>(protectedKey);
@@ -178,7 +178,7 @@ public class EncryptedSshKeyTests
             {
                 // Cut inside the encrypted section, the container still parses: the damage shows
                 // only once the passphrase is used, and then as a failed decryption.
-                using var identity = EncryptedSshIdentity.Parse(pem, () => Passphrase);
+                using var identity = EncryptedSshIdentity.Parse(pem, () => Passphrase.ToCharArray());
                 Decrypt(ciphertext, identity);
                 Assert.Fail($"a key file cut at {length} of {blob.Length} bytes decrypted");
             }
@@ -196,7 +196,7 @@ public class EncryptedSshKeyTests
         var blob = BlobOf(Key("ed25519_aes256ctr"));
         blob[^60] ^= 0x01;
         using var intact = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), NeverAsked);
-        using var damaged = EncryptedSshIdentity.Parse(Pem(blob), () => Passphrase);
+        using var damaged = EncryptedSshIdentity.Parse(Pem(blob), () => Passphrase.ToCharArray());
 
         var ex = Record.Exception(() => Decrypt(Encrypt(intact.Recipient), damaged));
 
@@ -214,7 +214,7 @@ public class EncryptedSshKeyTests
         plain[^40] ^= 0x01;
         var protectedBlob = BlobOf(Key("rsa_aes256ctr"));
         protectedBlob[^40] ^= 0x01;
-        using var damaged = EncryptedSshIdentity.Parse(Pem(protectedBlob), () => Passphrase);
+        using var damaged = EncryptedSshIdentity.Parse(Pem(protectedBlob), () => Passphrase.ToCharArray());
 
         var whenPlain = Assert.Throws<FormatException>(() => SshIdentity.Parse(Pem(plain)));
         var whenProtected = Assert.Throws<AgeException>(() => Decrypt(Encrypt(damaged.Recipient), damaged));
@@ -243,7 +243,7 @@ public class EncryptedSshKeyTests
         var sectionStart = offset + 4;
         var lastByteOfExponent = sectionStart + 8 + (4 + "ssh-rsa".Length) + (4 + modulusLength) + (4 + exponentLength) - 1;
         blob[lastByteOfExponent] ^= 0x01;
-        using var damaged = EncryptedSshIdentity.Parse(Pem(blob), () => Passphrase);
+        using var damaged = EncryptedSshIdentity.Parse(Pem(blob), () => Passphrase.ToCharArray());
 
         var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(damaged.Recipient), damaged));
 
@@ -257,7 +257,7 @@ public class EncryptedSshKeyTests
         identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () =>
         {
             identity!.Dispose();
-            return Passphrase;
+            return Passphrase.ToCharArray();
         });
         var ciphertext = Encrypt(identity.Recipient);
 
@@ -289,7 +289,7 @@ public class EncryptedSshKeyTests
 
             try
             {
-                using var identity = EncryptedSshIdentity.Parse(Pem(blob), () => Passphrase);
+                using var identity = EncryptedSshIdentity.Parse(Pem(blob), () => Passphrase.ToCharArray());
                 Decrypt(ciphertext, identity);
             }
             catch (Exception ex) when (ex is FormatException or AgeException)
@@ -307,7 +307,7 @@ public class EncryptedSshKeyTests
         var ecdsa = BlobOf(Key("ecdsa_aes256ctr"));
         var ed25519 = BlobOf(Key("ed25519_aes256ctr"));
         var spliced = ReplacePublicKey(ecdsa, PublicKeyField(ed25519));
-        using var identity = EncryptedSshIdentity.Parse(Pem(spliced), () => Passphrase);
+        using var identity = EncryptedSshIdentity.Parse(Pem(spliced), () => Passphrase.ToCharArray());
 
         var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(identity.Recipient), identity));
 
@@ -322,7 +322,7 @@ public class EncryptedSshKeyTests
         var ed25519 = BlobOf(Key("ed25519_aes256ctr"));
         var other = BlobOf(Key("ed25519_plain_other"));
         var swapped = SwapPublicKey(ed25519, other);
-        using var identity = EncryptedSshIdentity.Parse(Pem(swapped), () => Passphrase);
+        using var identity = EncryptedSshIdentity.Parse(Pem(swapped), () => Passphrase.ToCharArray());
 
         var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(identity.Recipient), identity));
 
@@ -350,7 +350,7 @@ public class EncryptedSshKeyTests
         identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () =>
         {
             inner = Record.Exception(() => Decrypt(ciphertext!, identity!));
-            return Passphrase;
+            return Passphrase.ToCharArray();
         });
         ciphertext = Encrypt(identity.Recipient);
 
@@ -373,7 +373,7 @@ public class EncryptedSshKeyTests
     [Fact]
     public void OnceDisposed_ItNoLongerUnwraps()
     {
-        var identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () => Passphrase);
+        var identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () => Passphrase.ToCharArray());
         var ciphertext = Encrypt(identity.Recipient);
         Decrypt(ciphertext, identity);
 
@@ -462,12 +462,12 @@ public class EncryptedSshKeyTests
     {
         Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
         var ciphertext = AgeCli.Encrypt(Plaintext, false, Key("ed25519_plain.pub").Trim());
-        using var identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () => Passphrase);
+        using var identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () => Passphrase.ToCharArray());
 
         Assert.Equal(Plaintext, Decrypt(ciphertext, identity));
     }
 
-    private static string NeverAsked() => throw new InvalidOperationException("the passphrase was asked for");
+    private static char[]? NeverAsked() => throw new InvalidOperationException("the passphrase was asked for");
 
     private static string Key(string name) =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "EncryptedSsh", name));

@@ -71,7 +71,7 @@ public class HostileInputTests(ITestOutputHelper output)
                          ("Recipients.Parse", s => Recipients.Parse(s)),
                          ("Identities.Parse", s => Identities.Parse(s)),
                          ("SshIdentity.Parse", s => SshIdentity.Parse(s)),
-                         ("SshIdentity.Parse with a passphrase", s => SshIdentity.Parse(s, () => "pw")),
+                         ("SshIdentity.Parse with a passphrase", s => SshIdentity.Parse(s, () => "pw".ToCharArray())),
                      })
             {
                 try

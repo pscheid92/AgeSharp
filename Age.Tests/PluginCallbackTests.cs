@@ -185,10 +185,18 @@ public class PluginCallbackTests
             return true;
         }
 
+        // Recorded before the signal, which releases the slow read: the test looks at Calls as
+        // soon as it is released. Signalled even when recording throws, for the test that throws.
         public void Waiting(string plugin)
         {
-            Waited.Set();
-            Record($"{plugin}: waiting");
+            try
+            {
+                Record($"{plugin}: waiting");
+            }
+            finally
+            {
+                Waited.Set();
+            }
         }
 
         private void Record(string call)

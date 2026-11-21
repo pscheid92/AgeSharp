@@ -10,8 +10,10 @@ namespace AgeSharp;
 /// the key is decrypted.
 /// </summary>
 /// <remarks>
-/// The passphrase is asked for as a <see cref="string"/>: the key is decrypted by SSH.NET, which
-/// takes one. <see cref="Identities.ParseOne"/> reads unprotected keys too.
+/// The passphrase is asked for as characters, which are cleared once used, or null to cancel, as
+/// every passphrase in this library is. SSH.NET, which decrypts the key, takes it as a
+/// <see cref="string"/>, which nothing can clear; that string lives only as long as the
+/// decryption. <see cref="Identities.ParseOne"/> reads unprotected keys too.
 /// </remarks>
 public static class SshIdentity
 {
@@ -21,7 +23,7 @@ public static class SshIdentity
     /// </summary>
     /// <exception cref="FormatException">
     /// The key is malformed or of another type, or it is passphrase-protected: use
-    /// <see cref="Parse(string, Func{string})"/> for a key that may be.
+    /// <see cref="Parse(string, Func{char[]})"/> for a key that may be.
     /// </exception>
     public static IIdentity Parse(string pemText)
     {
@@ -43,12 +45,12 @@ public static class SshIdentity
     /// </summary>
     /// <exception cref="FormatException">
     /// The key is malformed, of another type, or protected in the legacy PEM way, which does
-    /// not store its public key: use <see cref="Parse(string, string, Func{string})"/>
+    /// not store its public key: use <see cref="Parse(string, string, Func{char[]})"/>
     /// with its <c>.pub</c> file for that. A key protected with a cipher or KDF this library
     /// does not read is accepted, and refused once a file is addressed to it, before the
     /// passphrase is asked for.
     /// </exception>
-    public static IIdentity Parse(string pemText, Func<string> passphrase)
+    public static IIdentity Parse(string pemText, Func<char[]?> passphrase)
     {
         ArgumentNullException.ThrowIfNull(pemText);
         ArgumentNullException.ThrowIfNull(passphrase);
@@ -65,7 +67,7 @@ public static class SshIdentity
     /// store their public key, as go-age does: the public key decides which files are for
     /// the key, <paramref name="passphrase"/> is asked only once one is decrypted, and the
     /// decrypted key must then match the public key. Other keys are read as by
-    /// <see cref="Parse(string, Func{string})"/>, and must match the public key.
+    /// <see cref="Parse(string, Func{char[]})"/>, and must match the public key.
     /// </summary>
     /// <param name="pemText">The private key file.</param>
     /// <param name="publicKey">The public key file's text: an authorized_keys line.</param>
@@ -76,7 +78,7 @@ public static class SshIdentity
     /// in go-age). A key protected with a cipher this library does not decrypt is accepted,
     /// and refused once a file is addressed to it, before the passphrase is asked for.
     /// </exception>
-    public static IIdentity Parse(string pemText, string publicKey, Func<string> passphrase)
+    public static IIdentity Parse(string pemText, string publicKey, Func<char[]?> passphrase)
     {
         ArgumentNullException.ThrowIfNull(pemText);
         ArgumentNullException.ThrowIfNull(publicKey);
