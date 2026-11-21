@@ -11,12 +11,19 @@ namespace AgeSharp;
 /// </remarks>
 public sealed class AgeHeader
 {
-    private AgeHeader(IReadOnlyList<Stanza> stanzas, bool isArmored, long? payloadOffset)
+    private readonly byte[] _bytes;
+
+    private AgeHeader(Header parsed, byte[] bytes, bool isArmored)
     {
-        Stanzas = stanzas;
+        Parsed = parsed;
+        _bytes = bytes;
+        Stanzas = parsed.Stanzas.AsReadOnly();
         IsArmored = isArmored;
-        PayloadOffset = payloadOffset;
+        PayloadOffset = isArmored ? null : bytes.Length;
     }
+
+    /// <summary>The header as parsed, for unwrapping the file key and checking the MAC.</summary>
+    internal Header Parsed { get; }
 
     /// <summary>The recipient stanzas, in the order the file holds them.</summary>
     public IReadOnlyList<Stanza> Stanzas { get; }
@@ -69,6 +76,13 @@ public sealed class AgeHeader
         }
     }
 
+    /// <summary>
+    /// The header in age's binary encoding, up to and including the MAC line: a detached header,
+    /// which <see cref="Identities.DecryptDetached"/> reads and <see cref="Read"/> reads back. For
+    /// an armored file, the header as the armor decodes to. go-age calls this <c>ExtractHeader</c>.
+    /// </summary>
+    public byte[] ToBytes() => _bytes.ToArray();
+
     private static AgeHeader From(Header header, bool isArmored, HeaderReader reader) =>
-        new(header.Stanzas.AsReadOnly(), isArmored, isArmored ? null : reader.RawBytes.Length);
+        new(header, reader.RawBytes.ToArray(), isArmored);
 }

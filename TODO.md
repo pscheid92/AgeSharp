@@ -52,7 +52,7 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 - [x] Adjustable maximum work factor — `Passphrase.MaxWorkFactor` (default 22), as go-age and rage set it; the passphrase stays one type for both roles, as decided for the rebuild
 - [x] Exceptions split by what went wrong: `AgeFormatException` and `AgeAuthenticationException` replace the header, armor, HMAC and payload exceptions (rebuild step 6a)
 - [x] `NoIdentityMatchException` carrying per-identity errors and the stanza types seen: `StanzaTypes` and `Mismatches` (rebuild step 6b)
-- [ ] File-key extraction and injection (`ExtractHeader`, `DecryptHeader`, injected-file-key identity)
+- [x] File-key extraction and injection (`ExtractHeader`, `DecryptHeader`, injected-file-key identity): `AgeHeader.ToBytes`, `Identities.UnwrapFileKey`, `FileKeyIdentity` (rebuild step 7)
 - [x] Public armor reader and writer — `Armor.Encode` / `Armor.Decode` (rebuild step 4e)
 - [x] Replace the `AgeEncrypt` / `AgeKeygen` static catch-alls with domain types
   - [x] Encrypting: `Recipients` (rebuild step 4b), with `Recipients.ParseOne` for a recipient of any type

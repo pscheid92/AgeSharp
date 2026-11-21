@@ -375,6 +375,27 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
     }
 
     /// <summary>
+    /// The file key of the file whose <paramref name="header"/> this is, unwrapped by the first
+    /// identity that can, with the header's MAC verified under it. go-age calls this
+    /// <c>DecryptHeader</c>. Decrypt the payload with it elsewhere through a
+    /// <see cref="FileKeyIdentity"/>.
+    /// </summary>
+    /// <remarks>
+    /// A low-level operation most users do not need: see the remarks on <see cref="FileKey"/>.
+    /// Dispose the key once it has been used.
+    /// </remarks>
+    /// <exception cref="NoIdentityMatchException">No identity opened any stanza.</exception>
+    /// <exception cref="AgeAuthenticationException">The header failed authentication.</exception>
+    /// <exception cref="AgeFormatException">A stanza an identity opens is malformed.</exception>
+    public FileKey UnwrapFileKey(AgeHeader header)
+    {
+        ArgumentNullException.ThrowIfNull(header);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        return Unlock(header.Parsed);
+    }
+
+    /// <summary>
     /// A stream that decrypts the age file written to it, binary or armored, writing the
     /// plaintext to <paramref name="plaintext"/> a chunk at a time as each authenticates, in the
     /// manner of <c>GZipStream</c>. Creating it reads nothing; the header is parsed and the file
