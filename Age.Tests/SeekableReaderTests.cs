@@ -91,7 +91,7 @@ public class SeekableReaderTests
         var file = new Recipients(alice.Recipient).Encrypt(Plaintext);
         file[^1] ^= 1;
 
-        Assert.Throws<AgePayloadException>(() => new Identities(alice).DecryptReader(new MemoryStream(file)));
+        Assert.Throws<AgeAuthenticationException>(() => new Identities(alice).DecryptReader(new MemoryStream(file)));
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public class SeekableReaderTests
         var file = new Recipients(alice.Recipient).Encrypt(Plaintext);
         file[^1] ^= 1;
 
-        await Assert.ThrowsAsync<AgePayloadException>(async () => await new Identities(alice).DecryptReaderAsync(new MemoryStream(file)));
+        await Assert.ThrowsAsync<AgeAuthenticationException>(async () => await new Identities(alice).DecryptReaderAsync(new MemoryStream(file)));
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class SeekableReaderTests
         var file = new Recipients(alice.Recipient).Encrypt(Plaintext);
         var headerAndNonce = (int)AgeHeader.Read(new MemoryStream(file)).PayloadOffset!.Value + StreamEncryption.PayloadNonceSize;
 
-        var ex = Assert.Throws<AgePayloadException>(() => new Identities(alice).DecryptReader(new MemoryStream(file[..headerAndNonce])));
+        var ex = Assert.Throws<AgeAuthenticationException>(() => new Identities(alice).DecryptReader(new MemoryStream(file[..headerAndNonce])));
         Assert.Contains("payload is empty", ex.Message, StringComparison.Ordinal);
     }
 
@@ -128,9 +128,9 @@ public class SeekableReaderTests
         using var reader = new Identities(alice).DecryptReader(new MemoryStream(file));
         reader.Position = Chunk - 10;
 
-        Assert.Throws<AgePayloadException>(() => reader.Read(new byte[100]));
+        Assert.Throws<AgeAuthenticationException>(() => reader.Read(new byte[100]));
         Assert.Equal(Chunk - 10, reader.Position);
-        Assert.Throws<AgePayloadException>(() => reader.Read(new byte[100]));
+        Assert.Throws<AgeAuthenticationException>(() => reader.Read(new byte[100]));
 
         reader.Position = 2 * Chunk;
         Assert.Equal(100, reader.Read(new byte[100]));
@@ -147,7 +147,7 @@ public class SeekableReaderTests
         using var reader = new Identities(alice).DecryptReader(new MemoryStream(file));
         reader.Position = 7;
 
-        await Assert.ThrowsAsync<AgePayloadException>(async () => await reader.ReadAtLeastAsync(new byte[100], 100));
+        await Assert.ThrowsAsync<AgeAuthenticationException>(async () => await reader.ReadAtLeastAsync(new byte[100], 100));
         Assert.Equal(7, reader.Position);
     }
 
@@ -164,7 +164,7 @@ public class SeekableReaderTests
         stream.SetLength(stream.Length - StreamEncryption.EncryptedChunkSize);
         reader.Position = 2 * Chunk;
 
-        Assert.Throws<AgePayloadException>(() => reader.Read(new byte[10]));
+        Assert.Throws<AgeAuthenticationException>(() => reader.Read(new byte[10]));
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public class SeekableReaderTests
         stream.SetLength(stream.Length - StreamEncryption.EncryptedChunkSize);
         reader.Position = 2 * Chunk;
 
-        await Assert.ThrowsAsync<AgePayloadException>(async () => await reader.ReadAtLeastAsync(new byte[10], 10));
+        await Assert.ThrowsAsync<AgeAuthenticationException>(async () => await reader.ReadAtLeastAsync(new byte[10], 10));
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public class SeekableReaderTests
         var file = new Recipients(alice.Recipient).Encrypt(Plaintext);
         var options = new AgeDecryptOptions { RequireArmor = true };
 
-        Assert.Throws<AgeArmorException>(() => new Identities(alice).DecryptReader(new MemoryStream(file), options));
+        Assert.Throws<AgeFormatException>(() => new Identities(alice).DecryptReader(new MemoryStream(file), options));
     }
 
     [Fact]
@@ -200,7 +200,7 @@ public class SeekableReaderTests
         var file = new Recipients(alice.Recipient).Encrypt(Plaintext);
         var options = new AgeDecryptOptions { RequireArmor = true };
 
-        await Assert.ThrowsAsync<AgeArmorException>(async () => await new Identities(alice).DecryptReaderAsync(new MemoryStream(file), options));
+        await Assert.ThrowsAsync<AgeFormatException>(async () => await new Identities(alice).DecryptReaderAsync(new MemoryStream(file), options));
     }
 
     [Fact]

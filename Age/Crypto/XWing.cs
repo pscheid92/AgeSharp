@@ -62,7 +62,7 @@ internal static class XWing
     }
 
     /// <summary>Encapsulates to a public key, with randomness from <paramref name="random"/>.</summary>
-    /// <exception cref="AgeHeaderException">
+    /// <exception cref="AgeFormatException">
     /// The ML-KEM-768 half is malformed. This is reachable without going through
     /// <see cref="ValidatePublicKey"/>, so it checks again rather than trusting the caller.
     /// </exception>
@@ -80,7 +80,7 @@ internal static class XWing
         }
         catch (FormatException ex)
         {
-            throw new AgeHeaderException(ex.Message, ex);
+            throw new AgeFormatException(ex.Message, ex);
         }
 
         var (ctM, ssM) = mlKemKey.Encapsulate(random);

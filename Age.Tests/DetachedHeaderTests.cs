@@ -217,7 +217,7 @@ public class DetachedHeaderTests
         var text = "age-encryption.org/v1\n-> test\n@@@@\n\n--- AAAA\n";
         using var stream = new MemoryStream(System.Text.Encoding.ASCII.GetBytes(text));
 
-        var ex = Assert.Throws<AgeHeaderException>(() => AgeHeader.Read(stream));
+        var ex = Assert.Throws<AgeFormatException>(() => AgeHeader.Read(stream));
         Assert.Contains("header parse error", ex.Message);
     }
 

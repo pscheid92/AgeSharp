@@ -42,7 +42,7 @@ internal sealed class ArmorDecoder
     /// <param name="line">The line. Nothing of it is kept.</param>
     /// <param name="decoded">At least <see cref="MaxDecodedPerLine"/> bytes.</param>
     /// <returns>How many bytes the line decoded to: zero for anything but a body line.</returns>
-    /// <exception cref="AgeArmorException">The line breaks the armor's rules.</exception>
+    /// <exception cref="AgeFormatException">The line breaks the armor's rules.</exception>
     public int TakeLine(ArmorLine line, Span<byte> decoded)
     {
         switch (_stage)
@@ -65,15 +65,15 @@ internal sealed class ArmorDecoder
     }
 
     /// <summary>Ends the input.</summary>
-    /// <exception cref="AgeArmorException">The input ended before the begin marker or inside the body.</exception>
+    /// <exception cref="AgeFormatException">The input ended before the begin marker or inside the body.</exception>
     public void Finish()
     {
         switch (_stage)
         {
             case Stage.BeforeBegin:
-                throw new AgeArmorException("empty armored data");
+                throw new AgeFormatException("empty armored data");
             case Stage.Body:
-                throw new AgeArmorException("unexpected end of armored data");
+                throw new AgeFormatException("unexpected end of armored data");
         }
     }
 
@@ -84,14 +84,14 @@ internal sealed class ArmorDecoder
         if (line.AsSpan().Trim().Length == 0)
         {
             if ((_leadingWhitespace += line.Length + 1) > AgeLimits.MaxArmorWhitespaceBytes)
-                throw new AgeArmorException(
+                throw new AgeFormatException(
                     $"more than {AgeLimits.MaxArmorWhitespaceBytes} bytes of whitespace before the armor header");
 
             return;
         }
 
         if (line.TrimStart() != BeginMarker)
-            throw new AgeArmorException($"expected begin marker, got: {line}");
+            throw new AgeFormatException($"expected begin marker, got: {line}");
 
         _stage = Stage.Body;
     }
@@ -108,7 +108,7 @@ internal sealed class ArmorDecoder
         // zero (padding may appear on a line of any width: a final chunk of 46 or 47 bytes
         // encodes to a full 64 characters). A line of whole quads with '=' only as its last one
         // or two characters can only have failed for those bits, so it is named for them.
-        throw new AgeArmorException(HasWellFormedPadding(line)
+        throw new AgeFormatException(HasWellFormedPadding(line)
             ? "non-canonical base64 in armor"
             : "invalid base64 in armor");
     }
@@ -137,26 +137,26 @@ internal sealed class ArmorDecoder
     private void TakeTrailing(char c)
     {
         if (c is not (' ' or '\t' or '\r' or '\n'))
-            throw new AgeArmorException("trailing data after end marker");
+            throw new AgeFormatException("trailing data after end marker");
 
         if (++_trailingWhitespace >= AgeLimits.MaxArmorWhitespaceBytes)
-            throw new AgeArmorException(
+            throw new AgeFormatException(
                 $"{AgeLimits.MaxArmorWhitespaceBytes} or more bytes of whitespace after the armor footer");
     }
 
     private void ValidateBodyLine(ReadOnlySpan<byte> line)
     {
         if (line.Length == 0)
-            throw new AgeArmorException("empty line in armor body");
+            throw new AgeFormatException("empty line in armor body");
 
         if (line[0] is (byte)' ' or (byte)'\t' || line[^1] is (byte)' ' or (byte)'\t')
-            throw new AgeArmorException("whitespace in armor body line");
+            throw new AgeFormatException("whitespace in armor body line");
 
         if (line.Length > ColumnsPerLine)
-            throw new AgeArmorException($"armor body line exceeds {ColumnsPerLine} characters");
+            throw new AgeFormatException($"armor body line exceeds {ColumnsPerLine} characters");
 
         if (_bodyEnded)
-            throw new AgeArmorException("short line in armor body is not the last line");
+            throw new AgeFormatException("short line in armor body is not the last line");
 
         // The body ends at the first line that cannot be followed by another: one shorter than
         // the full column width, or a full-width line carrying base64 padding (46- and 47-byte
@@ -166,7 +166,7 @@ internal sealed class ArmorDecoder
 
         var invalid = line.IndexOfAnyExcept(Base64Bytes);
         if (invalid >= 0)
-            throw new AgeArmorException($"invalid character in armor body: '{Text(line.Slice(invalid, 1))}'");
+            throw new AgeFormatException($"invalid character in armor body: '{Text(line.Slice(invalid, 1))}'");
     }
 
     // The text of a line that is not on the hot path, or the part of one an error names. A byte

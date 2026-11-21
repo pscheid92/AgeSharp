@@ -199,19 +199,16 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
     {
         var prevPlaintextLength = _plaintextLength;
 
-        switch (bytesRead)
-        {
-            case 0 when _counter == 0:
-                throw new AgePayloadException("payload is empty (no chunks)");
-            case 0 when _counter > 0:
-                throw new AgePayloadException("payload ended without a final chunk");
-        }
+        // Only the first read can come back empty: after a chunk that is not the last, the byte
+        // held back from it starts the next read. Were one ever to, the tag check below refuses it.
+        if (bytesRead == 0 && _counter == 0)
+            throw new AgeAuthenticationException("payload is empty (no chunks)");
 
         var isFinal = bytesRead <= StreamEncryption.EncryptedChunkSize;
         var chunkLen = Math.Min(bytesRead, StreamEncryption.EncryptedChunkSize);
 
         if (chunkLen < StreamEncryption.TagSize)
-            throw new AgePayloadException("chunk too small for authentication tag");
+            throw new AgeAuthenticationException("chunk too small for authentication tag");
 
         // Save the look-ahead byte before decryption (it sits just past the chunk in the buffer)
         byte savedByte = 0;
@@ -244,7 +241,7 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
 
         // The final chunk can be empty ONLY if it's the first (and only) chunk
         if (_plaintextLength == 0 && _counter > 1)
-            throw new AgePayloadException("final STREAM chunk is empty but there were preceding chunks");
+            throw new AgeAuthenticationException("final STREAM chunk is empty but there were preceding chunks");
 
         _state = State.Done;
     }

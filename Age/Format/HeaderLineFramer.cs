@@ -18,14 +18,14 @@ internal sealed class HeaderLineFramer(int maxHeaderBytes = AgeLimits.MaxHeaderB
         _raw.GetBuffer().AsSpan(0, (int)_raw.Length);
 
     /// <summary>Takes the next byte, and returns the line it completes, without its LF, or null.</summary>
-    /// <exception cref="AgeHeaderException">
+    /// <exception cref="AgeFormatException">
     /// The byte is a CR or not ASCII, or the header would exceed its bound (<see cref="AgeDecryptOptions.MaxHeaderBytes"/>).
     /// As in go-age, a line has no bound of its own beyond the header's.
     /// </exception>
     public string? Feed(byte b)
     {
         if (_raw.Length >= maxHeaderBytes)
-            throw new AgeHeaderException($"header exceeds {maxHeaderBytes} bytes");
+            throw new AgeFormatException($"header exceeds {maxHeaderBytes} bytes");
 
         _raw.WriteByte(b);
 
@@ -39,9 +39,9 @@ internal sealed class HeaderLineFramer(int maxHeaderBytes = AgeLimits.MaxHeaderB
         switch (b)
         {
             case (byte)'\r':
-                throw new AgeHeaderException("CR characters are not allowed in age headers");
+                throw new AgeFormatException("CR characters are not allowed in age headers");
             case > 127:
-                throw new AgeHeaderException($"non-ASCII byte 0x{b:X2} in header");
+                throw new AgeFormatException($"non-ASCII byte 0x{b:X2} in header");
         }
 
         _line.Add(b);
@@ -49,7 +49,7 @@ internal sealed class HeaderLineFramer(int maxHeaderBytes = AgeLimits.MaxHeaderB
     }
 
     /// <summary>Ends the input: null at a line boundary.</summary>
-    /// <exception cref="AgeHeaderException">The input ended partway through a line.</exception>
+    /// <exception cref="AgeFormatException">The input ended partway through a line.</exception>
     public string? FinishAtEnd() =>
-        _line.Count == 0 ? null : throw new AgeHeaderException("unexpected end of stream (no trailing newline)");
+        _line.Count == 0 ? null : throw new AgeFormatException("unexpected end of stream (no trailing newline)");
 }

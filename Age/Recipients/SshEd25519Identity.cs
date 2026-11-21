@@ -78,7 +78,7 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
     /// Attempts to unwrap the file key from an <c>ssh-ed25519</c> stanza. Returns
     /// null for stanzas of other types or addressed to a different SSH key (tag mismatch).
     /// </summary>
-    /// <exception cref="AgeHeaderException">The stanza claims to be ssh-ed25519 but is malformed.</exception>
+    /// <exception cref="AgeFormatException">The stanza claims to be ssh-ed25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public bool TryUnwrap(Stanza stanza, Span<byte> fileKey) =>
         FileKey.Deliver(UnwrapToArray(stanza), fileKey);
@@ -91,7 +91,7 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
             return null;
 
         if (stanza.Args.Count != 2)
-            throw new AgeHeaderException($"ssh-ed25519 stanza must have exactly 2 arguments, got {stanza.Args.Count}");
+            throw new AgeFormatException($"ssh-ed25519 stanza must have exactly 2 arguments, got {stanza.Args.Count}");
 
         var stanzaTag = stanza.Args[0];
         if (stanzaTag != _tag)
@@ -104,14 +104,14 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
         }
         catch (FormatException ex)
         {
-            throw new AgeHeaderException($"invalid ssh-ed25519 ephemeral key encoding: {ex.Message}", ex);
+            throw new AgeFormatException($"invalid ssh-ed25519 ephemeral key encoding: {ex.Message}", ex);
         }
 
         if (ephPubBytes.Length != KeySize)
-            throw new AgeHeaderException($"ssh-ed25519 ephemeral key must be {KeySize} bytes, got {ephPubBytes.Length}");
+            throw new AgeFormatException($"ssh-ed25519 ephemeral key must be {KeySize} bytes, got {ephPubBytes.Length}");
 
         if (stanza.Body.Length != WrappedKeySize)
-            throw new AgeHeaderException($"ssh-ed25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
+            throw new AgeFormatException($"ssh-ed25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
 
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
         var privateKey = new X25519PrivateKeyParameters(_x25519PrivateKey);

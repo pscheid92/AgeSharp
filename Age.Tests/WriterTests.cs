@@ -200,7 +200,7 @@ public class WriterTests
         var encrypting = new Recipients(alice.Recipient).EncryptWriter(new MemoryStream());
         var decrypting = new Identities(alice).DecryptWriter(new MemoryStream());
         encrypting.Dispose();
-        await Assert.ThrowsAsync<AgeHeaderException>(async () => await decrypting.DisposeAsync());
+        await Assert.ThrowsAsync<AgeFormatException>(async () => await decrypting.DisposeAsync());
 
         foreach (var writer in new[] { encrypting, decrypting })
         {
@@ -254,7 +254,7 @@ public class WriterTests
         var writer = new Identities(stranger).DecryptWriter(output);
 
         Assert.Equal(0, output.Length);
-        Assert.Throws<AgeHeaderException>(writer.Dispose);
+        Assert.Throws<AgeFormatException>(writer.Dispose);
     }
 
     [Fact]
@@ -309,7 +309,7 @@ public class WriterTests
         var writer = new Identities(alice).DecryptWriter(output);
         writer.Write(file.AsSpan(0, file.Length - 20));
 
-        Assert.Throws<AgePayloadException>(writer.Dispose);
+        Assert.Throws<AgeAuthenticationException>(writer.Dispose);
     }
 
     [Fact]
@@ -321,7 +321,7 @@ public class WriterTests
         var writer = new Identities(alice).DecryptWriter(new MemoryStream());
         await writer.WriteAsync(file.AsMemory(0, file.Length / 2));
 
-        await Assert.ThrowsAsync<AgeArmorException>(async () => await writer.DisposeAsync());
+        await Assert.ThrowsAsync<AgeFormatException>(async () => await writer.DisposeAsync());
     }
 
     // After a chunk fails, the next chunk boundary is unknown: nothing more is taken or finished.
@@ -335,8 +335,8 @@ public class WriterTests
         var output = new MemoryStream();
 
         var writer = new Identities(alice).DecryptWriter(output);
-        var first = Assert.Throws<AgePayloadException>(() => writer.Write(file));
-        var retry = Assert.Throws<AgePayloadException>(() => writer.Write([1]));
+        var first = Assert.Throws<AgeAuthenticationException>(() => writer.Write(file));
+        var retry = Assert.Throws<AgeAuthenticationException>(() => writer.Write([1]));
         Assert.Same(first, retry);
 
         writer.Dispose();
@@ -355,7 +355,7 @@ public class WriterTests
         var writer = new Identities(alice).DecryptWriter(output);
         await writer.WriteAsync(file);
 
-        await Assert.ThrowsAsync<AgePayloadException>(async () => await writer.DisposeAsync());
+        await Assert.ThrowsAsync<AgeAuthenticationException>(async () => await writer.DisposeAsync());
         Assert.Equal(2 * Chunk, output.Length);
     }
 
@@ -395,7 +395,7 @@ public class WriterTests
         var file = new Recipients(alice.Recipient).Encrypt(Plaintext(10));
         var writer = new Identities(alice).DecryptWriter(new MemoryStream(), new AgeDecryptOptions { RequireArmor = true });
 
-        Assert.Throws<AgeArmorException>(() => writer.Write(file));
+        Assert.Throws<AgeFormatException>(() => writer.Write(file));
     }
 
     [Fact]

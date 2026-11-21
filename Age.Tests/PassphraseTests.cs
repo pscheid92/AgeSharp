@@ -61,7 +61,7 @@ public class PassphraseTests
         var file = new Recipients(encrypting).Encrypt(Plaintext);
 
         using var bounded = new Passphrase("pw") { MaxWorkFactor = 11 };
-        var ex = Assert.Throws<AgeHeaderException>(() => new Identities(bounded).Decrypt(file));
+        var ex = Assert.Throws<AgeFormatException>(() => new Identities(bounded).Decrypt(file));
         Assert.Contains("work factor 12 exceeds maximum 11", ex.Message, StringComparison.Ordinal);
 
         using var enough = new Passphrase("pw") { MaxWorkFactor = 12 };
@@ -119,7 +119,7 @@ public class PassphraseTests
         using var passphrase = new Passphrase("pw");
         var stanza = new Stanza("scrypt", ["AAAAAAAAAAAAAAAAAAAAAA", workFactor], new byte[32]);
 
-        var ex = Assert.Throws<AgeHeaderException>(() => passphrase.TryUnwrap(stanza, new byte[16]));
+        var ex = Assert.Throws<AgeFormatException>(() => passphrase.TryUnwrap(stanza, new byte[16]));
         Assert.Contains("invalid scrypt work factor", ex.Message, StringComparison.Ordinal);
     }
 

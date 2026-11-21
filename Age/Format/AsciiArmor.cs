@@ -24,7 +24,7 @@ internal static class AsciiArmor
     /// to. Detects armor by looking ahead, not by seeking, so it works on a pipe, and looks only
     /// as far as it needs: past leading whitespace and the length of the begin marker.
     /// </summary>
-    /// <exception cref="AgeArmorException">
+    /// <exception cref="AgeFormatException">
     /// The input is armored and its begin marker is malformed, or armor is required and the
     /// input is not armored.
     /// </exception>
@@ -44,7 +44,7 @@ internal static class AsciiArmor
     }
 
     /// <summary>The asynchronous <see cref="Open"/>.</summary>
-    /// <exception cref="AgeArmorException">As for <see cref="Open"/>.</exception>
+    /// <exception cref="AgeFormatException">As for <see cref="Open"/>.</exception>
     public static async ValueTask<(Stream Binary, bool IsArmored)> OpenAsync(Stream input, AgeDecryptOptions options, CancellationToken cancellationToken)
     {
         var peekable = new PeekableStream(input);
@@ -59,7 +59,7 @@ internal static class AsciiArmor
         return options.RequireArmor ? throw NotArmored() : (peekable, false);
     }
 
-    public static AgeArmorException NotArmored() =>
+    public static AgeFormatException NotArmored() =>
         new("input is not ASCII-armored, and armor is required");
 
     /// <summary>Whether a seekable stream holds armor at its position, which is left where it was.</summary>
@@ -144,7 +144,7 @@ internal static class AsciiArmor
     /// The bytes an armored input decodes to, read as the returned stream is read. The begin
     /// marker is read here, so input that is not armor is refused at once.
     /// </summary>
-    /// <exception cref="AgeArmorException">The input does not start like armor.</exception>
+    /// <exception cref="AgeFormatException">The input does not start like armor.</exception>
     public static Stream Dearmor(Stream input, AgeDecryptOptions? options = null)
     {
         var dearmored = new DearmorStream(input, (options ?? AgeDecryptOptions.Default).MaxArmorLineBytes);
@@ -153,7 +153,7 @@ internal static class AsciiArmor
     }
 
     /// <summary>The asynchronous <see cref="Dearmor"/>.</summary>
-    /// <exception cref="AgeArmorException">The input does not start like armor.</exception>
+    /// <exception cref="AgeFormatException">The input does not start like armor.</exception>
     public static async ValueTask<Stream> DearmorAsync(Stream input, CancellationToken cancellationToken, AgeDecryptOptions? options = null)
     {
         var dearmored = new DearmorStream(input, (options ?? AgeDecryptOptions.Default).MaxArmorLineBytes);

@@ -295,7 +295,7 @@ internal sealed class DecryptWriterStream(Stream destination, Identities identit
         var length = isFinal ? _holdLength : StreamEncryption.EncryptedChunkSize;
 
         if (length < StreamEncryption.TagSize)
-            throw new AgePayloadException("chunk too small for authentication tag");
+            throw new AgeAuthenticationException("chunk too small for authentication tag");
 
         var previous = _plaintextLength;
         StreamEncryption.DecryptChunk(_cipher!, _counter, isFinal, _hold.AsSpan(0, length), _plaintext);
@@ -311,7 +311,7 @@ internal sealed class DecryptWriterStream(Stream destination, Identities identit
             _holdLength = 0;
 
             if (_plaintextLength == 0 && _counter > 1)
-                throw new AgePayloadException("final STREAM chunk is empty but there were preceding chunks");
+                throw new AgeAuthenticationException("final STREAM chunk is empty but there were preceding chunks");
         }
         else
         {
@@ -373,7 +373,7 @@ internal sealed class DecryptWriterStream(Stream destination, Identities identit
             StartPayload();
 
         if (_holdLength == 0 && _counter == 0)
-            throw new AgePayloadException("payload is empty (no chunks)");
+            throw new AgeAuthenticationException("payload is empty (no chunks)");
 
         DecryptChunk(isFinal: true);
     }

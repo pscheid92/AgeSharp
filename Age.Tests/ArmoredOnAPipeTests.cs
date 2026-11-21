@@ -88,8 +88,8 @@ public class ArmoredOnAPipeTests
         using var identity = X25519Identity.Generate();
         byte[] file = [.. Enumerable.Repeat((byte)'\n', newlines), .. Encrypt(identity, armor: true)];
 
-        var fromFile = Assert.Throws<AgeArmorException>(() => new Identities(identity).Decrypt(new MemoryStream(file), new MemoryStream()));
-        var fromPipe = Assert.Throws<AgeArmorException>(() => new Identities(identity).Decrypt(new Pipe(file), new MemoryStream()));
+        var fromFile = Assert.Throws<AgeFormatException>(() => new Identities(identity).Decrypt(new MemoryStream(file), new MemoryStream()));
+        var fromPipe = Assert.Throws<AgeFormatException>(() => new Identities(identity).Decrypt(new Pipe(file), new MemoryStream()));
 
         Assert.Equal(fromFile.Message, fromPipe.Message);
     }
@@ -98,7 +98,7 @@ public class ArmoredOnAPipeTests
     [Fact]
     public void OnlyWhitespace_IsNotArmor()
     {
-        var header = Assert.Throws<AgeHeaderException>(() => AgeHeader.Read(new Pipe("\n \n\t\n"u8.ToArray())));
+        var header = Assert.Throws<AgeFormatException>(() => AgeHeader.Read(new Pipe("\n \n\t\n"u8.ToArray())));
 
         Assert.DoesNotContain("armor", header.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -110,7 +110,7 @@ public class ArmoredOnAPipeTests
         using var identity = X25519Identity.Generate();
         var file = System.Text.Encoding.ASCII.GetBytes("age-encryption.org/v2\n--- AAAA\n");
 
-        var ex = Assert.Throws<AgeHeaderException>(() => new Identities(identity).Decrypt(new Pipe(file), new MemoryStream()));
+        var ex = Assert.Throws<AgeFormatException>(() => new Identities(identity).Decrypt(new Pipe(file), new MemoryStream()));
 
         Assert.Contains("unsupported version", ex.Message, StringComparison.Ordinal);
     }
@@ -122,7 +122,7 @@ public class ArmoredOnAPipeTests
         using var identity = X25519Identity.Generate();
         var armored = Encrypt(identity, armor: true);
 
-        var ex = Assert.Throws<AgeHeaderException>(() =>
+        var ex = Assert.Throws<AgeFormatException>(() =>
             new Identities(identity).DecryptDetached(new MemoryStream(armored), new MemoryStream(), new MemoryStream()));
 
         Assert.Contains("ASCII-armored", ex.Message, StringComparison.Ordinal);

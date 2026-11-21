@@ -44,7 +44,7 @@ public static class Armor
     /// <param name="armored">The armored file.</param>
     /// <param name="binary">Where the binary file is written.</param>
     /// <param name="options">The armor line bound (<see cref="AgeDecryptOptions.MaxArmorLineBytes"/>); the other options do not apply.</param>
-    /// <exception cref="AgeArmorException">The input is not armor, or breaks its rules.</exception>
+    /// <exception cref="AgeFormatException">The input is not armor, or breaks its rules.</exception>
     public static void Decode(Stream armored, Stream binary, AgeDecryptOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(armored);
@@ -55,7 +55,7 @@ public static class Armor
     }
 
     /// <summary>The asynchronous <see cref="Decode"/>.</summary>
-    /// <exception cref="AgeArmorException">The input is not armor, or breaks its rules.</exception>
+    /// <exception cref="AgeFormatException">The input is not armor, or breaks its rules.</exception>
     public static async Task DecodeAsync(Stream armored, Stream binary, AgeDecryptOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(armored);

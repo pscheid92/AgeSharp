@@ -22,10 +22,8 @@ internal static class AgeUnderTest
     {
         Success,
         NoMatch,
-        MacFailure,
-        HeaderFailure,
-        PayloadFailure,
-        ArmorFailure,
+        FormatFailure,
+        AuthenticationFailure,
     }
 
     /// <summary>A decryption's outcome, its plaintext on success, and the error's message otherwise.</summary>
@@ -235,10 +233,8 @@ internal static class AgeUnderTest
     private static Outcome OutcomeOf(AgeException ex) => ex switch
     {
         NoIdentityMatchException => Outcome.NoMatch,
-        AgeHmacException => Outcome.MacFailure,
-        AgeHeaderException => Outcome.HeaderFailure,
-        AgePayloadException => Outcome.PayloadFailure,
-        AgeArmorException => Outcome.ArmorFailure,
+        AgeFormatException => Outcome.FormatFailure,
+        AgeAuthenticationException => Outcome.AuthenticationFailure,
         _ => throw new InvalidOperationException($"no outcome for {ex.GetType().Name}: {ex.Message}", ex),
     };
 

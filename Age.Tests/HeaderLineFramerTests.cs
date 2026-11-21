@@ -26,13 +26,13 @@ public class HeaderLineFramerTests
     [Fact]
     public void ACrIsRefused()
     {
-        Assert.Throws<AgeHeaderException>(() => Feed(new HeaderLineFramer(), "line\r\n"u8));
+        Assert.Throws<AgeFormatException>(() => Feed(new HeaderLineFramer(), "line\r\n"u8));
     }
 
     [Fact]
     public void ANonAsciiByteIsRefused()
     {
-        Assert.Throws<AgeHeaderException>(() => Feed(new HeaderLineFramer(), [0x80, 0x0A]));
+        Assert.Throws<AgeFormatException>(() => Feed(new HeaderLineFramer(), [0x80, 0x0A]));
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class HeaderLineFramerTests
         var line = Feed(framer, [.. Enumerable.Repeat((byte)'a', AgeLimits.MaxHeaderBytes - 1), (byte)'\n']);
         Assert.Single(line);
 
-        var ex = Assert.Throws<AgeHeaderException>(() => framer.Feed((byte)'a'));
+        var ex = Assert.Throws<AgeFormatException>(() => framer.Feed((byte)'a'));
         Assert.Contains($"{AgeLimits.MaxHeaderBytes}", ex.Message);
     }
 
@@ -56,7 +56,7 @@ public class HeaderLineFramerTests
 
         var cut = new HeaderLineFramer();
         Feed(cut, "cut"u8);
-        Assert.Throws<AgeHeaderException>(() => cut.FinishAtEnd());
+        Assert.Throws<AgeFormatException>(() => cut.FinishAtEnd());
     }
 
     // The prefill must not drop a cut-off last line silently: the parse would then report a
@@ -66,7 +66,7 @@ public class HeaderLineFramerTests
     {
         var reader = new HeaderReader(new MemoryStream("age-encryption.org/v1\n-> X25519 ab"u8.ToArray()));
 
-        var ex = await Assert.ThrowsAsync<AgeHeaderException>(() => reader.PrefillAsync(CancellationToken.None).AsTask());
+        var ex = await Assert.ThrowsAsync<AgeFormatException>(() => reader.PrefillAsync(CancellationToken.None).AsTask());
 
         Assert.Contains("no trailing newline", ex.Message);
     }
@@ -81,7 +81,7 @@ public class HeaderLineFramerTests
 
         await reader.PrefillAsync(CancellationToken.None);
 
-        var ex = Assert.Throws<AgeHeaderException>(() => Header.Parse(reader));
+        var ex = Assert.Throws<AgeFormatException>(() => Header.Parse(reader));
         Assert.Contains("unexpected end of header", ex.Message);
         Assert.Equal(bytes, reader.RawBytes.ToArray());
     }
@@ -129,7 +129,7 @@ public class HeaderLineFramerTests
         catch (Exception ex) when (ex is AgeException or FormatException)
         {
             // Decryption reports a FormatException from the parse as a header failure.
-            return (ex is FormatException ? nameof(AgeHeaderException) : ex.GetType().Name, null);
+            return (ex is FormatException ? nameof(AgeFormatException) : ex.GetType().Name, null);
         }
     }
 
@@ -145,7 +145,7 @@ public class HeaderLineFramerTests
         catch (Exception ex) when (ex is AgeException or FormatException)
         {
             // Decryption reports a FormatException from the parse as a header failure.
-            return (ex is FormatException ? nameof(AgeHeaderException) : ex.GetType().Name, null);
+            return (ex is FormatException ? nameof(AgeFormatException) : ex.GetType().Name, null);
         }
     }
 

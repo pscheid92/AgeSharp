@@ -47,7 +47,7 @@ internal sealed class SeekableDecryptStream : Stream
     }
 
     /// <summary>Opens the payload that starts at <paramref name="ciphertext"/>'s position, authenticating its final chunk.</summary>
-    /// <exception cref="AgePayloadException">The payload is empty, truncated, or its final chunk fails authentication.</exception>
+    /// <exception cref="AgeAuthenticationException">The payload is empty, truncated, or its final chunk fails authentication.</exception>
     public static SeekableDecryptStream Open(byte[] payloadKey, Stream ciphertext)
     {
         var stream = new SeekableDecryptStream(payloadKey, ciphertext, ciphertext.Position);
@@ -89,15 +89,15 @@ internal sealed class SeekableDecryptStream : Stream
     private void CheckLayout()
     {
         if (_payloadLength == 0)
-            throw new AgePayloadException("payload is empty (no chunks)");
+            throw new AgeAuthenticationException("payload is empty (no chunks)");
 
         if (ChunkLength(_chunks - 1) < StreamEncryption.TagSize)
-            throw new AgePayloadException("chunk too small for authentication tag");
+            throw new AgeAuthenticationException("chunk too small for authentication tag");
     }
 
     private long LengthFromFinalChunk() =>
         _cachedLength == 0 && _chunks > 1
-            ? throw new AgePayloadException("final STREAM chunk is empty but there were preceding chunks")
+            ? throw new AgeAuthenticationException("final STREAM chunk is empty but there were preceding chunks")
             : (_chunks - 1) * StreamEncryption.ChunkSize + _cachedLength;
 
     public override bool CanRead => !_disposed;
@@ -296,7 +296,7 @@ internal sealed class SeekableDecryptStream : Stream
     private int Check(long chunk, int read, int length) =>
         read == length
             ? length
-            : throw new AgePayloadException($"could not read full chunk at offset {_payloadStart + chunk * StreamEncryption.EncryptedChunkSize}");
+            : throw new AgeAuthenticationException($"could not read full chunk at offset {_payloadStart + chunk * StreamEncryption.EncryptedChunkSize}");
 
     // Decrypts a chunk into the cache, replacing what was there, which is cleared first, so a
     // failure leaves nothing decrypted behind.

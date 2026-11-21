@@ -29,7 +29,7 @@ internal sealed class HeaderReader(Stream stream, AgeDecryptOptions? options = n
         _pushedBack = line;
 
     /// <summary>The next header line without its LF, or null at the end.</summary>
-    /// <exception cref="AgeHeaderException">The line breaks the header's rules.</exception>
+    /// <exception cref="AgeFormatException">The line breaks the header's rules.</exception>
     public string? ReadLine()
     {
         if (_pushedBack is { } pushed)
@@ -54,7 +54,7 @@ internal sealed class HeaderReader(Stream stream, AgeDecryptOptions? options = n
     }
 
     /// <summary>Reads the header asynchronously, up to and including the MAC line.</summary>
-    /// <exception cref="AgeHeaderException">A line breaks the header's rules.</exception>
+    /// <exception cref="AgeFormatException">A line breaks the header's rules.</exception>
     public async ValueTask PrefillAsync(CancellationToken cancellationToken)
     {
         var lines = new Queue<string>();

@@ -37,7 +37,7 @@ public class AgreementGuardTests
         var point = new X25519PublicKeyParameters(Convert.FromHexString(pointHex));
         var sharedSecret = new byte[CryptoHelper.X25519SharedSecretSize];
 
-        var ex = Assert.Throws<AgeHeaderException>(
+        var ex = Assert.Throws<AgeFormatException>(
             () => CryptoHelper.X25519Agree(privateKey, point, sharedSecret));
 
         Assert.Contains("all-zero", ex.Message, StringComparison.Ordinal);

@@ -79,7 +79,7 @@ public class RandomAccessTruncationTests
         var truncated = Truncate(Encrypt(196608, identity.Recipient), 5);
 
         using var input = new MemoryStream(truncated);
-        Assert.Throws<AgePayloadException>(() => new Identities(identity).DecryptReader(input));
+        Assert.Throws<AgeAuthenticationException>(() => new Identities(identity).DecryptReader(input));
     }
 
     [Fact]
@@ -128,17 +128,17 @@ public class RandomAccessTruncationTests
         // Armor is read in order, so the missing chunk is found where reading reaches it.
         using var input = new MemoryStream(bytes);
         using var reader = new Identities(identity).DecryptReader(input);
-        Assert.Throws<AgePayloadException>(() => reader.CopyTo(Stream.Null));
+        Assert.Throws<AgeAuthenticationException>(() => reader.CopyTo(Stream.Null));
     }
 
     private static void AssertBothPathsReject(byte[] ciphertext, IIdentity identity)
     {
         using var forwardInput = new MemoryStream(ciphertext);
         using var sink = new MemoryStream();
-        Assert.Throws<AgePayloadException>(() => new Identities(identity).Decrypt(forwardInput, sink));
+        Assert.Throws<AgeAuthenticationException>(() => new Identities(identity).Decrypt(forwardInput, sink));
 
         using var seekInput = new MemoryStream(ciphertext);
-        Assert.Throws<AgePayloadException>(() => new Identities(identity).DecryptReader(seekInput));
+        Assert.Throws<AgeAuthenticationException>(() => new Identities(identity).DecryptReader(seekInput));
     }
 
     private static long EncryptedLength(long plaintextLength)

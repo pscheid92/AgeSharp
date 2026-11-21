@@ -72,7 +72,7 @@ internal sealed class FileKey : IDisposable
     /// zeroes the array. Returns false, writing nothing, when there is no key.
     /// </summary>
     /// <exception cref="ArgumentException">The buffer is not <see cref="Size"/> bytes.</exception>
-    /// <exception cref="AgeHeaderException">The recovered key is not <see cref="Size"/> bytes.</exception>
+    /// <exception cref="AgeFormatException">The recovered key is not <see cref="Size"/> bytes.</exception>
     public static bool Deliver(byte[]? recovered, Span<byte> into)
     {
         try
@@ -84,7 +84,7 @@ internal sealed class FileKey : IDisposable
                 return false;
 
             if (recovered.Length != Size)
-                throw new AgeHeaderException($"file key must be {Size} bytes, got {recovered.Length}");
+                throw new AgeFormatException($"file key must be {Size} bytes, got {recovered.Length}");
 
             recovered.CopyTo(into);
             return true;

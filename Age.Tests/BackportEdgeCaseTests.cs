@@ -116,7 +116,7 @@ public class BackportEdgeCaseTests
         using var source = new MemoryStream(encrypted.ToArray());
         using var output = new MemoryStream();
 
-        Assert.Throws<AgeHmacException>(
+        Assert.Throws<AgeAuthenticationException>(
             () => new Identities(new PartialKeyIdentity()).Decrypt(source, output));
         Assert.Equal(0, output.Length);
     }
@@ -197,7 +197,7 @@ public class BackportEdgeCaseTests
         var headerEnd = FindPayloadStart(file);
         var truncated = file[..(headerEnd + 16)];
 
-        Assert.Throws<AgePayloadException>(() =>
+        Assert.Throws<AgeAuthenticationException>(() =>
         {
             using var source = new MemoryStream(truncated);
             using var reader = new Identities(identity).DecryptReader(source);
@@ -214,7 +214,7 @@ public class BackportEdgeCaseTests
         var headerEnd = FindPayloadStart(file);
         var truncated = file[..(headerEnd + 16 + 8)];
 
-        Assert.Throws<AgePayloadException>(() =>
+        Assert.Throws<AgeAuthenticationException>(() =>
         {
             using var source = new MemoryStream(truncated);
             using var reader = new Identities(identity).DecryptReader(source);

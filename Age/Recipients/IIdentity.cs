@@ -40,7 +40,7 @@ public interface IIdentity : IDisposable
     /// addressed to this identity and is malformed.
     /// </para>
     /// </remarks>
-    /// <exception cref="AgeHeaderException">The stanza is addressed to this identity but is malformed.</exception>
+    /// <exception cref="AgeFormatException">The stanza is addressed to this identity but is malformed.</exception>
     bool TryUnwrap(Stanza stanza, Span<byte> fileKey);
 
     /// <summary>

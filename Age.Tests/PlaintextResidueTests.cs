@@ -94,8 +94,8 @@ public class PlaintextResidueTests
 
         using var decrypted = new Identities(identity).DecryptReader(new NonSeekableStream(new MemoryStream(ciphertext)));
 
-        var first = Assert.Throws<AgePayloadException>(() => decrypted.ReadByte());
-        var copy = await Assert.ThrowsAsync<AgePayloadException>(() => Copy(decrypted, new RecordingStream(), async));
+        var first = Assert.Throws<AgeAuthenticationException>(() => decrypted.ReadByte());
+        var copy = await Assert.ThrowsAsync<AgeAuthenticationException>(() => Copy(decrypted, new RecordingStream(), async));
 
         Assert.Same(first, copy);
     }

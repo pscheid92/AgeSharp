@@ -50,8 +50,8 @@ public class FailStopStreamTests
 
         using var decrypted = new Identities(identity).DecryptReader(new NonSeekableStream(new MemoryStream(tampered)));
 
-        var first = Assert.Throws<AgePayloadException>(() => Drain(decrypted));
-        var retry = Assert.Throws<AgePayloadException>(() => Drain(decrypted));
+        var first = Assert.Throws<AgeAuthenticationException>(() => Drain(decrypted));
+        var retry = Assert.Throws<AgeAuthenticationException>(() => Drain(decrypted));
 
         Assert.Same(first, retry);
     }
@@ -89,9 +89,9 @@ public class FailStopStreamTests
         using var decrypted = new Identities(identity).DecryptReader(new NonSeekableStream(new MemoryStream(ciphertext)));
 
         var first = async
-            ? await Assert.ThrowsAsync<AgePayloadException>(() => decrypted.CopyToAsync(Stream.Null))
-            : Assert.Throws<AgePayloadException>(() => decrypted.CopyTo(Stream.Null));
-        var retry = Assert.Throws<AgePayloadException>(() => Drain(decrypted));
+            ? await Assert.ThrowsAsync<AgeAuthenticationException>(() => decrypted.CopyToAsync(Stream.Null))
+            : Assert.Throws<AgeAuthenticationException>(() => decrypted.CopyTo(Stream.Null));
+        var retry = Assert.Throws<AgeAuthenticationException>(() => Drain(decrypted));
 
         Assert.Same(first, retry);
     }

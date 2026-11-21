@@ -65,7 +65,7 @@ public sealed class EncryptedSshIdentity : IIdentityWithRecipient, IDisposable
     /// Tries to unwrap the file key from an SSH stanza. Returns false, without asking for the
     /// passphrase, for stanzas of other types or addressed to a different SSH key.
     /// </summary>
-    /// <exception cref="AgeHeaderException">The stanza is addressed to this key but is malformed.</exception>
+    /// <exception cref="AgeFormatException">The stanza is addressed to this key but is malformed.</exception>
     /// <exception cref="AgeException">
     /// The key cannot be decrypted here (its cipher, KDF or round count, or a browser
     /// limitation; said before the passphrase is asked for), the passphrase is wrong or could
