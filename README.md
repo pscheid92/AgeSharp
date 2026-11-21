@@ -341,6 +341,29 @@ using var passphrase = new Passphrase(characters);
 var protectedKeys = new Recipients(passphrase).Encrypt(Encoding.UTF8.GetBytes(identityFileText));
 ```
 
+### File keys
+
+Each file's payload is sealed under a file key the header wraps for every recipient. The header
+can be unwrapped in one place and the payload decrypted in another, without the ciphertext
+or the identity changing hands, as go-age's `ExtractHeader`, `DecryptHeader` and
+`NewInjectedFileKeyIdentity` allow:
+
+```csharp
+// Where the identity is: from the header alone, the file key
+var header = AgeHeader.Read(file);             // header.ToBytes() is the detached header
+using var fileKey = new Identities(identity).UnwrapFileKey(header);
+byte[] carried = fileKey.Bytes.ToArray();
+
+// Where the ciphertext is: decrypt with the key
+using var known = new FileKeyIdentity(FileKey.From(carried));
+new Identities(known).Decrypt(ciphertext, plaintext);
+```
+
+This is low-level: whoever holds a file key can read that one file, so keeping track of which
+file a key belongs to, and using it for nothing else, is yours to do. The header's MAC is still
+checked, so a key that isn't the file's fails as an `AgeAuthenticationException`. `FileKey` and
+`FileKeyIdentity` clear their copy of the key when disposed.
+
 ### Custom recipients and identities
 
 Implement `IRecipient` and `IIdentity` to integrate custom key types,

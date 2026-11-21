@@ -92,6 +92,7 @@ AgeSharp.AgeFormatException.AgeFormatException(string! message) -> void
 AgeSharp.AgeFormatException.AgeFormatException(string! message, System.Exception! inner) -> void
 AgeSharp.AgeHeader.PayloadOffset.get -> long?
 AgeSharp.AgeHeader.Stanzas.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+AgeSharp.AgeHeader.ToBytes() -> byte[]!
 AgeSharp.Armor
 AgeSharp.EncryptedIdentityFile
 AgeSharp.EncryptedIdentityFile.Dispose() -> void
@@ -102,6 +103,13 @@ AgeSharp.EncryptedSshIdentity
 AgeSharp.EncryptedSshIdentity.Dispose() -> void
 AgeSharp.EncryptedSshIdentity.Recipient.get -> AgeSharp.IRecipient!
 AgeSharp.EncryptedSshIdentity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
+AgeSharp.FileKey
+AgeSharp.FileKey.Bytes.get -> System.ReadOnlySpan<byte>
+AgeSharp.FileKey.Dispose() -> void
+AgeSharp.FileKeyIdentity
+AgeSharp.FileKeyIdentity.Dispose() -> void
+AgeSharp.FileKeyIdentity.FileKeyIdentity(AgeSharp.FileKey! fileKey) -> void
+AgeSharp.FileKeyIdentity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.IIdentity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.IIdentity.TryUnwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas, System.Span<byte> fileKey) -> bool
 AgeSharp.IIdentityWithRecipient
@@ -125,6 +133,7 @@ AgeSharp.Identities.Dispose() -> void
 AgeSharp.Identities.GetEnumerator() -> System.Collections.Generic.IEnumerator<AgeSharp.IIdentity!>!
 AgeSharp.Identities.Identities(System.Collections.Generic.IEnumerable<AgeSharp.IIdentity!>! identities) -> void
 AgeSharp.Identities.Identities(params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
+AgeSharp.Identities.UnwrapFileKey(AgeSharp.AgeHeader! header) -> AgeSharp.FileKey!
 AgeSharp.Identities.this[int index].get -> AgeSharp.IIdentity!
 AgeSharp.IdentityMismatch
 AgeSharp.IdentityMismatch.<Clone>$() -> AgeSharp.IdentityMismatch!
@@ -192,6 +201,7 @@ AgeSharp.SshRsaIdentity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fil
 AgeSharp.SshRsaRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.X25519Identity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+const AgeSharp.FileKey.Size = 16 -> int
 override AgeSharp.IdentityMismatch.Equals(object? obj) -> bool
 override AgeSharp.IdentityMismatch.GetHashCode() -> int
 override AgeSharp.IdentityMismatch.ToString() -> string!
@@ -205,6 +215,7 @@ static AgeSharp.Armor.Decode(System.IO.Stream! armored, System.IO.Stream! binary
 static AgeSharp.Armor.DecodeAsync(System.IO.Stream! armored, System.IO.Stream! binary, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 static AgeSharp.Armor.Encode(System.IO.Stream! binary, System.IO.Stream! armored) -> void
 static AgeSharp.Armor.EncodeAsync(System.IO.Stream! binary, System.IO.Stream! armored, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+static AgeSharp.FileKey.From(System.ReadOnlySpan<byte> bytes) -> AgeSharp.FileKey!
 static AgeSharp.Identities.Parse(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.Identities!
 static AgeSharp.Identities.ParseOne(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IIdentity!
 static AgeSharp.IdentityMismatch.operator !=(AgeSharp.IdentityMismatch? left, AgeSharp.IdentityMismatch? right) -> bool
