@@ -124,7 +124,7 @@ public class IdentitiesTests
         using var a = Identities.ParseOne(x25519.ToSecretString());
         using var b = Identities.ParseOne(pq.ToSecretString());
         using var c = Identities.ParseOne(AgeSharp.Crypto.Bech32.Encode("age-plugin-example-", [1, 2, 3]).ToUpperInvariant());
-        using var d = Identities.ParseOne(Ed25519Pem());
+        using var d = Identities.ParseOne(SshKeys.Ed25519Pem());
 
         Assert.IsType<X25519Identity>(a);
         Assert.IsType<MlKem768X25519Identity>(b);
@@ -363,19 +363,5 @@ public class IdentitiesTests
         var stanza = Encoding.ASCII.GetBytes("-> extra " + string.Join(' ', Enumerable.Repeat("a", arguments)) + "\n\n");
 
         return [.. file[..mac], .. stanza, .. file[mac..]];
-    }
-
-    // An unprotected OpenSSH Ed25519 private key.
-    private static string Ed25519Pem()
-    {
-        var key = new Org.BouncyCastle.Crypto.Parameters.Ed25519PrivateKeyParameters(new byte[32]);
-        var blob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(key);
-        var b64 = Convert.ToBase64String(blob);
-
-        var pem = new StringBuilder("-----BEGIN OPENSSH PRIVATE KEY-----\n");
-        for (var i = 0; i < b64.Length; i += 70)
-            pem.Append(b64.AsSpan(i, Math.Min(70, b64.Length - i))).Append('\n');
-
-        return pem.Append("-----END OPENSSH PRIVATE KEY-----\n").ToString();
     }
 }

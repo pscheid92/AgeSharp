@@ -393,6 +393,17 @@ Everything this library throws while reading or writing a file is an `AgeExcepti
 Parsing a key, recipient or identity from text throws `FormatException`, as .NET's own
 `Parse` methods do.
 
+When no identity opens a file, `NoIdentityMatchException` says what the file holds
+(`StanzaTypes`) and why each identity, in the order tried, did not open it (`Mismatches`).
+AgeSharp's own identities tell "the file has no stanza of my type" from "it has some, none for
+me"; a custom or plugin identity just did not match. It holds only text, never the identities:
+
+```
+no identity matched any recipient stanza; the file has X25519; X25519Identity (age1q7f3k2m9x0vw…):
+the file's X25519 stanzas are not for it; MlKem768X25519Identity (age1pq1zq5n8tlc…): the file
+has no mlkem768x25519 stanza
+```
+
 ### Parsing limits
 
 An age header must be buffered in full before its MAC can be verified, so
