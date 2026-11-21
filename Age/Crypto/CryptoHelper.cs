@@ -60,6 +60,14 @@ internal static class CryptoHelper
 
     public static byte[] HkdfDerive(ReadOnlySpan<byte> ikm, ReadOnlySpan<byte> salt, string info, int length)
     {
+        var result = new byte[length];
+        HkdfDerive(ikm, salt, info, result);
+        return result;
+    }
+
+    /// <summary>HKDF-SHA256 into <paramref name="output"/>, which may be on the stack.</summary>
+    public static void HkdfDerive(ReadOnlySpan<byte> ikm, ReadOnlySpan<byte> salt, string info, Span<byte> output)
+    {
         // BouncyCastle rather than HKDF.DeriveKey: the latter uses OpenSSL on Linux, which
         // rejects the empty IKM the spec's SSH-Ed25519 tweak derivation needs. The copy
         // BouncyCastle requires is key material, so it is cleared rather than left to the GC.
@@ -69,9 +77,7 @@ internal static class CryptoHelper
         {
             var hkdf = new HkdfBytesGenerator(new Sha256Digest());
             hkdf.Init(new HkdfParameters(ikmCopy, salt.ToArray(), Encoding.ASCII.GetBytes(info)));
-            var result = new byte[length];
-            hkdf.GenerateBytes(result, 0, length);
-            return result;
+            hkdf.GenerateBytes(output);
         }
         finally
         {

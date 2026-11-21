@@ -15,112 +15,12 @@ internal static class StreamEncryption
     internal const int PayloadKeySize = 32;
     private const int NonceSize = 12;
 
-    /// <summary>
-    ///     TEST HELPER ONLY — do not call from library code.
-    /// </summary>
-    /// <remarks>
-    ///     This buffers the entire input into a <see cref="MemoryStream" /> before doing any work,
-    ///     which contradicts the library's memory-bounded guarantee: a 1 GiB file would cost 1 GiB
-    ///     of working set rather than two 64 KiB chunk buffers. Production encryption goes through
-    ///     <c>EncryptStream</c>, which streams chunk by chunk. Kept because the chunk-sequencing
-    ///     tests are written against this simpler shape.
-    /// </remarks>
-    public static void Encrypt(ReadOnlySpan<byte> payloadKey, Stream input, Stream output)
-    {
-        using var inputMs = new MemoryStream();
-        input.CopyTo(inputMs);
-        var inputData = inputMs.GetBuffer().AsSpan(0, (int)inputMs.Length);
-
-        var counter = 0L;
-        var offset = 0;
-
-        while (true)
-        {
-            var remaining = inputData.Length - offset;
-            var chunkLen = Math.Min(ChunkSize, remaining);
-            var isFinal = offset + chunkLen >= inputData.Length;
-
-            var plaintext = inputData.Slice(offset, chunkLen);
-            var ciphertext = EncryptChunk(payloadKey, counter, isFinal, plaintext);
-            output.Write(ciphertext);
-
-            offset += chunkLen;
-            counter++;
-
-            if (isFinal)
-                break;
-        }
-    }
-
-    /// <summary>
-    ///     TEST HELPER ONLY — do not call from library code. See <see cref="Encrypt" />: this
-    ///     buffers the whole payload. Production decryption goes through <c>DecryptStream</c>.
-    /// </summary>
-    public static void Decrypt(ReadOnlySpan<byte> payloadKey, Stream input, Stream output)
-    {
-        using var inputMs = new MemoryStream();
-        input.CopyTo(inputMs);
-        var inputData = inputMs.GetBuffer().AsSpan(0, (int)inputMs.Length);
-
-        if (inputData.Length == 0)
-            throw new AgeAuthenticationException("payload is empty (no chunks)");
-
-        long counter = 0;
-        var offset = 0;
-
-        // Chunks are laid out by length, so the last is always taken as the final one: nothing
-        // can follow it, and the sequence cannot end without it.
-        while (true)
-        {
-            var (chunkLen, isFinal) = NextChunk(inputData, offset);
-            var ciphertext = inputData.Slice(offset, chunkLen);
-            var plaintext = DecryptChunk(payloadKey, counter, isFinal, ciphertext);
-
-            if (isFinal && plaintext.Length == 0 && counter > 0)
-                throw new AgeAuthenticationException("final STREAM chunk is empty but there were preceding chunks");
-
-            output.Write(plaintext);
-            offset += chunkLen;
-            counter++;
-
-            if (isFinal)
-                return;
-        }
-    }
-
-    private static (int ChunkLen, bool IsFinal) NextChunk(ReadOnlySpan<byte> data, int offset)
-    {
-        var remaining = data.Length - offset;
-
-        var isFinal = remaining <= EncryptedChunkSize;
-        var chunkLen = isFinal ? remaining : EncryptedChunkSize;
-
-        return chunkLen >= TagSize
-            ? (chunkLen, isFinal)
-            : throw new AgeAuthenticationException("chunk too small for authentication tag");
-    }
-
     internal static void EncryptChunk(IAeadCipher cipher, long counter, bool isFinal,
                                        ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
     {
         Span<byte> nonce = stackalloc byte[NonceSize];
         MakeNonce(counter, isFinal, nonce);
         CryptoHelper.ChaChaEncrypt(cipher, nonce, plaintext, ciphertextWithTag);
-    }
-
-    internal static void EncryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal,
-                                       ReadOnlySpan<byte> plaintext, Span<byte> ciphertextWithTag)
-    {
-        Span<byte> nonce = stackalloc byte[NonceSize];
-        MakeNonce(counter, isFinal, nonce);
-        CryptoHelper.ChaChaEncrypt(payloadKey, nonce, plaintext, ciphertextWithTag);
-    }
-
-    internal static byte[] EncryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal, ReadOnlySpan<byte> plaintext)
-    {
-        var output = new byte[plaintext.Length + TagSize];
-        EncryptChunk(payloadKey, counter, isFinal, plaintext, output);
-        return output;
     }
 
     internal static void DecryptChunk(IAeadCipher cipher, long counter, bool isFinal,
@@ -131,26 +31,6 @@ internal static class StreamEncryption
 
         if (!CryptoHelper.ChaChaDecrypt(cipher, nonce, ciphertext, plaintext))
             throw new AgeAuthenticationException($"chunk {counter} authentication failed (final={isFinal})");
-    }
-
-    internal static void DecryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal,
-                                       ReadOnlySpan<byte> ciphertext, Span<byte> plaintext)
-    {
-        Span<byte> nonce = stackalloc byte[NonceSize];
-        MakeNonce(counter, isFinal, nonce);
-
-        if (!CryptoHelper.ChaChaDecrypt(payloadKey, nonce, ciphertext, plaintext))
-            throw new AgeAuthenticationException($"chunk {counter} authentication failed (final={isFinal})");
-    }
-
-    internal static byte[] DecryptChunk(ReadOnlySpan<byte> payloadKey, long counter, bool isFinal, ReadOnlySpan<byte> ciphertext)
-    {
-        if (ciphertext.Length < TagSize)
-            throw new AgeAuthenticationException($"chunk {counter} authentication failed (final={isFinal})");
-
-        var plaintext = new byte[ciphertext.Length - TagSize];
-        DecryptChunk(payloadKey, counter, isFinal, ciphertext, plaintext);
-        return plaintext;
     }
 
     private static void MakeNonce(long counter, bool isFinal, Span<byte> nonce)

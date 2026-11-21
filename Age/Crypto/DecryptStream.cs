@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 
 namespace AgeSharp.Crypto;
 
-internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool ownsStream) : Stream
+internal sealed class DecryptStream(PayloadKey payloadKey, Stream ciphertext, bool ownsStream) : Stream
 {
     private enum State
     {
@@ -23,7 +23,7 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
 
     private readonly byte[] _ciphertextBuffer = ArrayPool<byte>.Shared.Rent(CiphertextBufferSize);
     private readonly byte[] _plaintextBuffer = ArrayPool<byte>.Shared.Rent(PlaintextBufferSize);
-    private readonly IAeadCipher _cipher = AeadCipher.Create(payloadKey);
+    private readonly IAeadCipher _cipher = payloadKey.Cipher;
     private int _plaintextLength;
     private int _plaintextOffset;
     private long _counter;
@@ -278,8 +278,7 @@ internal sealed class DecryptStream(byte[] payloadKey, Stream ciphertext, bool o
         if (disposing && !_disposed)
         {
             _disposed = true;
-            _cipher.Dispose();
-            CryptographicOperations.ZeroMemory(payloadKey);
+            payloadKey.Dispose();
             CryptographicOperations.ZeroMemory(_plaintextBuffer.AsSpan(0, PlaintextBufferSize));
             ArrayPool<byte>.Shared.Return(_ciphertextBuffer);
             ArrayPool<byte>.Shared.Return(_plaintextBuffer);

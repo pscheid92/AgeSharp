@@ -67,6 +67,6 @@ the whole surface, and any change to it from here is a breaking change.
 
 ## Internal (from the 2026-09-22 review)
 
-- [ ] `PayloadKey` type
+- [x] `PayloadKey` type — `AgeSharp.Crypto.PayloadKey`: derived on the stack into the cipher that the payload stream owns and disposes, so AgeSharp keeps no payload-key array of its own (the portable backend's BouncyCastle cipher still holds a copy it cannot clear, as before)
 - [x] Shared plugin prompt handler — `AgeSharp.PluginPrompts`, used by `PluginRecipient` and `PluginIdentity`
-- [ ] Remove test-only code from the production assembly (the KEMs' scalar overloads are gone; the plugin connection seams `PluginRecipient.WrapWithConnection` and `PluginIdentity.UnwrapWithConnection`, the whole-buffer `StreamEncryption` helpers and others remain)
+- [x] Remove test-only code from the production assembly: the KEMs' scalar overloads, and the whole-buffer `StreamEncryption` helpers with the key-taking chunk overloads (now `WholePayload` in the tests). The plugin connection seams stay by design: `WrapWithConnection` and `UnwrapWithConnection` are what the library itself calls, and `PluginConnection(TextReader, TextWriter)` is how the protocol is tested without a process

@@ -286,7 +286,7 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
             using var fileKey = Unlock(ParseHeader(reader));
 
             var nonce = new byte[StreamEncryption.PayloadNonceSize];
-            return new DecryptStream(PayloadKey(fileKey, nonce, reader.ReadPayloadBytes(nonce)), binary, ownsStream: true);
+            return new DecryptStream(DerivePayloadKey(fileKey, nonce, reader.ReadPayloadBytes(nonce)), binary, ownsStream: true);
         }
         catch
         {
@@ -303,11 +303,11 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
 
         var reader = new HeaderReader(ciphertext, options);
 
-        byte[] payloadKey;
+        PayloadKey payloadKey;
         using (var fileKey = Unlock(ParseHeader(reader)))
         {
             var nonce = new byte[StreamEncryption.PayloadNonceSize];
-            payloadKey = PayloadKey(fileKey, nonce, reader.ReadPayloadBytes(nonce));
+            payloadKey = DerivePayloadKey(fileKey, nonce, reader.ReadPayloadBytes(nonce));
         }
 
         return SeekableDecryptStream.Open(payloadKey, ciphertext);
@@ -336,7 +336,7 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
             await reader.PrefillAsync(cancellationToken).ConfigureAwait(false);
 
             var nonce = new byte[StreamEncryption.PayloadNonceSize];
-            byte[] payloadKey;
+            PayloadKey payloadKey;
 
             // The file key is cleared before the nonce is awaited, so no continuation holds it;
             // the payload key it derives is needed only once the nonce is in.
@@ -344,7 +344,7 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
             var nonceRead = await reader.ReadPayloadBytesAsync(nonce, cancellationToken).ConfigureAwait(false);
 
             using (var fileKey = Unlock(header))
-                payloadKey = PayloadKey(fileKey, nonce, nonceRead);
+                payloadKey = DerivePayloadKey(fileKey, nonce, nonceRead);
 
             return new DecryptStream(payloadKey, binary, ownsStream: true);
         }
@@ -367,9 +367,9 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
         var nonce = new byte[StreamEncryption.PayloadNonceSize];
         var nonceRead = await reader.ReadPayloadBytesAsync(nonce, cancellationToken).ConfigureAwait(false);
 
-        byte[] payloadKey;
+        PayloadKey payloadKey;
         using (var fileKey = Unlock(header))
-            payloadKey = PayloadKey(fileKey, nonce, nonceRead);
+            payloadKey = DerivePayloadKey(fileKey, nonce, nonceRead);
 
         return await SeekableDecryptStream.OpenAsync(payloadKey, ciphertext, cancellationToken).ConfigureAwait(false);
     }
@@ -439,7 +439,7 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
         var nonce = new byte[StreamEncryption.PayloadNonceSize];
         var nonceRead = payload.ReadAtLeast(nonce, nonce.Length, throwOnEndOfStream: false);
 
-        using var stream = new DecryptStream(PayloadKey(fileKey, nonce, nonceRead), payload, ownsStream: false);
+        using var stream = new DecryptStream(DerivePayloadKey(fileKey, nonce, nonceRead), payload, ownsStream: false);
         stream.CopyTo(plaintext);
         plaintext.EnsureMaterialized();
     }
@@ -459,9 +459,9 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
         var nonce = new byte[StreamEncryption.PayloadNonceSize];
         var nonceRead = await payload.ReadAtLeastAsync(nonce, nonce.Length, throwOnEndOfStream: false, cancellationToken).ConfigureAwait(false);
 
-        byte[] payloadKey;
+        PayloadKey payloadKey;
         using (var fileKey = Unlock(parsed))
-            payloadKey = PayloadKey(fileKey, nonce, nonceRead);
+            payloadKey = DerivePayloadKey(fileKey, nonce, nonceRead);
 
         var stream = new DecryptStream(payloadKey, payload, ownsStream: false);
 
@@ -536,9 +536,9 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
         new Identities(identities)._tryOrder;
 
     /// <summary>The payload key, from the file key and the payload nonce, once all of it was read.</summary>
-    internal static byte[] PayloadKey(FileKey fileKey, byte[] nonce, int nonceRead) =>
+    internal static PayloadKey DerivePayloadKey(FileKey fileKey, byte[] nonce, int nonceRead) =>
         nonceRead == nonce.Length
-            ? CryptoHelper.HkdfDerive(fileKey.Bytes, nonce, "payload", StreamEncryption.PayloadKeySize)
+            ? Crypto.PayloadKey.Derive(fileKey, nonce)
             : throw new AgeFormatException($"expected {nonce.Length}-byte payload nonce, got {nonceRead} bytes");
 
     internal static Header ParseHeader(HeaderReader reader)
