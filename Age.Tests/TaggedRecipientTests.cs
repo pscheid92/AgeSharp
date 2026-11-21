@@ -21,12 +21,32 @@ public class TaggedRecipientTests
 {
     // --- HPKE: known-answer vectors ---------------------------------------------------------
 
+    // Each vector runs on both P-256 backends: the platform's ECDH, constant-time, and
+    // BouncyCastle's, for the browser, which has none. P256Backend is internal, so the theories
+    // take a bool.
+    public static TheoryData<bool> Backends => new() { false, true };
+
+    private static P256Backend Backend(bool portable) => portable ? P256Backend.Portable : P256Backend.Platform;
+
+    // Recipients use the platform's constant-time ECDH, unless the build forces the browser's
+    // managed crypto (as the portable CI job does).
     [Fact]
-    public void DhKemP256_AndTheHpkeKeySchedule_MatchRfc9180()
+    public void TheDefaultBackend_MatchesTheBuildConfiguration()
+    {
+#if FORCE_PORTABLE_AEAD
+        Assert.Equal(P256Backend.Portable, DhKemP256.DefaultBackend);
+#else
+        Assert.Equal(P256Backend.Platform, DhKemP256.DefaultBackend);
+#endif
+    }
+
+    [Theory]
+    [MemberData(nameof(Backends))]
+    public void DhKemP256_AndTheHpkeKeySchedule_MatchRfc9180(bool portable)
     {
         var v = Vector("p256-hkdfsha256-chacha20poly1305.json");
 
-        var (sharedSecret, enc) = DhKemP256.Encapsulate(Hex(v, "pkRm"), new FixedRandom(Hex(v, "skEm")));
+        var (sharedSecret, enc) = DhKemP256.Encapsulate(Hex(v, "pkRm"), new FixedRandom(Hex(v, "skEm")), Backend(portable));
         var (key, baseNonce) = HpkeHelper.KeyScheduleBase(DhKemP256.KemId, sharedSecret, Hex(v, "info"));
 
         Assert.Equal(Hex(v, "enc"), enc);
@@ -55,15 +75,17 @@ public class TaggedRecipientTests
         Assert.Equal(expected, ciphertext);
     }
 
-    [Fact]
-    public void MlKem768P256_MatchesTheHpkePqVector()
+    [Theory]
+    [MemberData(nameof(Backends))]
+    public void MlKem768P256_MatchesTheHpkePqVector(bool portable)
     {
         var v = Vector("mlkem768p256.json");
         var ikmE = Hex(v, "ikmE");
 
         // ikmE[0:32] is the ML-KEM-768 encapsulation randomness, ikmE[32:64] the P-256 scalar,
         // which is the order the KEM draws them in.
-        var (sharedSecret, enc) = MlKem768P256.Encapsulate(Hex(v, "pkRm"), new FixedRandom(ikmE[..64]));
+        var random = new FixedRandom(ikmE[..64]);
+        var (sharedSecret, enc) = MlKem768P256.Encapsulate(Hex(v, "pkRm"), random, random, Backend(portable));
 
         Assert.Equal(Hex(v, "enc"), enc);
         Assert.Equal(Hex(v, "shared_secret"), sharedSecret);
@@ -153,17 +175,76 @@ public class TaggedRecipientTests
     // n or more is not a scalar. Random bytes that are neither are drawn again, so these, followed
     // by the vector's scalar, give the vector's result.
     [Theory]
-    [InlineData(0x00)]
-    [InlineData(0xff)]
-    public void AnEphemeralScalarOutOfRange_IsDrawnAgain(byte filler)
+    [InlineData(0x00, false)]
+    [InlineData(0xff, false)]
+    [InlineData(0x00, true)]
+    [InlineData(0xff, true)]
+    public void AnEphemeralScalarOutOfRange_IsDrawnAgain(byte filler, bool portable)
     {
         var v = Vector("p256-hkdfsha256-chacha20poly1305.json");
         byte[] random = [.. Enumerable.Repeat(filler, 32), .. Hex(v, "skEm")];
 
-        var (sharedSecret, enc) = DhKemP256.Encapsulate(Hex(v, "pkRm"), new FixedRandom(random));
+        var (sharedSecret, enc) = DhKemP256.Encapsulate(Hex(v, "pkRm"), new FixedRandom(random), Backend(portable));
 
         Assert.Equal(Hex(v, "enc"), enc);
         Assert.Equal(Hex(v, "shared_secret"), sharedSecret);
+    }
+
+    // Without a scalar source, as recipients encapsulate, the backend generates the ephemeral key
+    // itself (the platform in constant time): a fresh one each time, that the recipient's private
+    // key opens.
+    [Theory]
+    [MemberData(nameof(Backends))]
+    public void AGeneratedEphemeralKey_IsFresh_AndOpensWithTheRecipientsPrivateKey(bool portable)
+    {
+        var (privateKey, point) = NewP256Key();
+
+        var (sharedSecret, enc) = DhKemP256.Encapsulate(point, scalarSource: null, Backend(portable));
+        var (_, otherEnc) = DhKemP256.Encapsulate(point, scalarSource: null, Backend(portable));
+
+        Assert.Equal(DhKemSharedSecret(EcdhX(privateKey, enc), enc, point), sharedSecret);
+        Assert.NotEqual(enc, otherEnc);
+    }
+
+    // The platform backend really is the platform's: BouncyCastle's managed multiplications
+    // allocate about a hundred times as much (~220 KB an exchange, against ~2 KB).
+    [Fact]
+    public void ThePlatformBackend_DoesNotMultiplyInBouncyCastle()
+    {
+        var (_, point) = NewP256Key();
+        DhKemP256.Encapsulate(point, scalarSource: null, P256Backend.Platform);
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        DhKemP256.Encapsulate(point, scalarSource: null, P256Backend.Platform);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.InRange(allocated, 0, 32 * 1024);
+    }
+
+    // The exchange checks the point itself, whichever backend runs it, rather than trust that a
+    // caller did.
+    [Theory]
+    [MemberData(nameof(Backends))]
+    public void APointNotOnTheCurve_IsRefusedByTheExchange(bool portable)
+    {
+        byte[] point = [0x04, .. new byte[63], 1];
+
+        Assert.Throws<FormatException>(() => DhKemP256.Encapsulate(point, scalarSource: null, Backend(portable)));
+    }
+
+    [Theory]
+    [MemberData(nameof(Backends))]
+    public void TheHybridsGeneratedP256Key_OpensWithTheRecipientsPrivateKey(bool portable)
+    {
+        var (privateKey, point) = NewP256Key();
+        var publicKey = HybridKey(point);
+
+        var (_, enc) = MlKem768P256.Encapsulate(publicKey, new SecureRandom(), p256ScalarSource: null, Backend(portable));
+
+        // The P-256 half of enc is the ephemeral point, on the curve and the recipient's to use.
+        var ephemeral = enc[1088..];
+        Assert.Equal(32, EcdhX(privateKey, ephemeral).Length);
+        DhKemP256.ValidateUncompressed(ephemeral);
     }
 
     // --- Stanzas ------------------------------------------------------------------------------
@@ -408,6 +489,9 @@ public class TaggedRecipientTests
     }
 
     private static byte[] HybridKey() => Bech32.Decode(GoAgeRecipients().Hybrid).Data;
+
+    // go-age's test hybrid key with its P-256 half replaced by the given point.
+    private static byte[] HybridKey(byte[] point) => [.. HybridKey()[..MlKem768P256.PointOffset], .. point];
 
     // A compressed encoding whose x has no y on P-256: about half of all x do. The first such x
     // counting up from 1 keeps the case fixed.
