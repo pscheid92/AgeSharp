@@ -108,13 +108,15 @@ public class EncryptedIdentityFileLazinessTests
     }
 
     [Fact]
-    public void ItCanHoldIdentitiesWithoutARecipient()
+    public void ItsPluginIdentities_GiveRecipientsToo()
     {
         using var key = X25519Identity.Generate();
         var plugin = AgeSharp.Crypto.Bech32.Encode("age-plugin-example-", [1, 2, 3]).ToUpperInvariant();
         using var identityFile = new EncryptedIdentityFile(Protect($"{key.ToSecretString()}\n{plugin}\n"), () => "pw".ToCharArray());
 
-        Assert.Equal(key.Recipient.ToString(), Assert.Single(identityFile.GetRecipients()).ToString());
+        Assert.Equal(
+            [key.Recipient.ToString(), "PluginRecipient(example, from identity)"],
+            identityFile.GetRecipients().Select(r => r.ToString()));
     }
 
     [Fact]
