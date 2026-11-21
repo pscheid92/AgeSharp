@@ -3,15 +3,19 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Text;
 using AgeSharp.Crypto;
-using AgeSharp;
 
 namespace AgeSharp;
 
 internal sealed class PluginConnection : IDisposable
 {
     private readonly TextReader _reader;
-    private readonly TextWriter _writer;
+    // To a plugin process, stanzas go to stdin's stream as bytes this connection clears; never
+    // through Process.StandardInput, a StreamWriter whose buffers keep the last text written, a
+    // file key or a secret, until something overwrites it. The writer is the test seam's.
+    private readonly Stream? _stdin;
+    private readonly TextWriter? _writer;
     private readonly Process? _process;
 
     /// <summary>
@@ -55,7 +59,7 @@ internal sealed class PluginConnection : IDisposable
         }
 
         _reader = _process.StandardOutput;
-        _writer = _process.StandardInput;
+        _stdin = _process.StandardInput.BaseStream;
 
         // Drained off-thread: an undrained stderr pipe deadlocks once the plugin writes past the
         // OS buffer (65536 bytes on macOS and Linux). The tail is kept for error messages.
@@ -140,33 +144,74 @@ internal sealed class PluginConnection : IDisposable
 
     private void WriteStanzaCore(string type, string[] args, byte[] body)
     {
-        _writer.Write("-> ");
-        _writer.Write(type);
-
-        foreach (var arg in args)
-        {
-            _writer.Write(' ');
-            _writer.Write(arg);
-        }
-
-        _writer.Write('\n');
-
-        // The body carries the file key, so it is encoded into a clearable buffer rather than an
-        // immutable string.
-        var encoded = ArrayPool<char>.Shared.Rent(Base64Unpadded.MaxEncodedLength(body.Length));
+        // The whole stanza, laid out as the wire has it, in buffers that are cleared once it is
+        // written: the body may be a file key, or a secret the user typed.
+        var encodedLength = Base64Unpadded.MaxEncodedLength(body.Length);
+        var encoded = ArrayPool<char>.Shared.Rent(encodedLength);
+        var line = ArrayPool<byte>.Shared.Rent(StanzaLength(type, args, encodedLength));
 
         try
         {
             var length = Base64Unpadded.Encode(body, encoded);
+            var written = Lay(type, args, encoded.AsSpan(0, length), line);
 
-            Stanza.WriteBody(_writer, encoded.AsSpan(0, length));
-            _writer.Flush();
+            if (_stdin is not null)
+            {
+                _stdin.Write(line, 0, written);
+                _stdin.Flush();
+            }
+            else
+            {
+                _writer!.Write(Encoding.ASCII.GetString(line, 0, written));
+                _writer.Flush();
+            }
         }
         finally
         {
             CryptographicOperations.ZeroMemory(MemoryMarshal.AsBytes(encoded.AsSpan()));
+            CryptographicOperations.ZeroMemory(line);
             ArrayPool<char>.Shared.Return(encoded);
+            ArrayPool<byte>.Shared.Return(line);
         }
+    }
+
+    // "-> type args\n", then the body in 64-column lines, the last shorter (empty for a body
+    // that fills its lines), each ended by a newline.
+    private static int StanzaLength(string type, string[] args, int encodedLength) =>
+        3 + type.Length + args.Sum(a => 1 + a.Length) + 1 + encodedLength + encodedLength / Stanza.ColumnsPerLine + 1;
+
+    private static int Lay(string type, string[] args, ReadOnlySpan<char> encoded, Span<byte> into)
+    {
+        var at = Ascii("-> ", into);
+        at += Ascii(type, into[at..]);
+
+        foreach (var arg in args)
+        {
+            into[at++] = (byte)' ';
+            at += Ascii(arg, into[at..]);
+        }
+
+        into[at++] = (byte)'\n';
+
+        while (encoded.Length >= Stanza.ColumnsPerLine)
+        {
+            at += Ascii(encoded[..Stanza.ColumnsPerLine], into[at..]);
+            into[at++] = (byte)'\n';
+            encoded = encoded[Stanza.ColumnsPerLine..];
+        }
+
+        at += Ascii(encoded, into[at..]);
+        into[at++] = (byte)'\n';
+        return at;
+    }
+
+    // Types, arguments and base64 are ASCII by the stanza rules, so a character is a byte.
+    private static int Ascii(ReadOnlySpan<char> text, Span<byte> into)
+    {
+        for (var i = 0; i < text.Length; i++)
+            into[i] = (byte)text[i];
+
+        return text.Length;
     }
 
     /// <summary>The plugin's next command; the plugin ending here instead is a failure.</summary>

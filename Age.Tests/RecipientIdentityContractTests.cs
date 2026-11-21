@@ -125,6 +125,54 @@ public class RecipientIdentityContractTests
         Assert.All(buffer, b => Assert.Equal(0xAA, b));
     }
 
+    // Every identity that decrypts on the stack declines a stanza of its own type that is not for
+    // it without touching the buffer: the key is copied out only once it has authenticated.
+    [Theory]
+    [InlineData("X25519")]
+    [InlineData("mlkem768x25519")]
+    [InlineData("scrypt")]
+    [InlineData("ssh-ed25519")]
+    public void EveryIdentity_ThatDeclinesItsOwnType_LeavesTheBufferAlone(string type)
+    {
+        var (identity, otherRecipient) = type switch
+        {
+            "X25519" => ((IIdentity)X25519Identity.Generate(), (IRecipient)X25519Identity.Generate().Recipient),
+            "mlkem768x25519" => (MlKem768X25519Identity.Generate(), MlKem768X25519Identity.Generate().Recipient),
+            "scrypt" => (new Passphrase("mine", 10), new Passphrase("theirs", 10)),
+            _ => (SshIdentity.Parse(SshKeys.Ed25519Pem()), SshEd25519Recipient.Parse(
+                "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGJQGjgPbMDwrhAEaWNKLdSIHAxiKJDtMCmLj7Zeg844")),
+        };
+
+        using (identity)
+        {
+            var stanza = Assert.Single(otherRecipient.Wrap(new byte[FileKeySize]));
+            var buffer = Enumerable.Repeat((byte)0xAA, FileKeySize).ToArray();
+
+            if (type == "ssh-ed25519")
+                stanza = new Stanza(stanza.Type, [Tag(identity), .. stanza.Args.Skip(1)], stanza.Body.ToArray());
+
+            Assert.False(identity.TryUnwrap(stanza, buffer));
+            Assert.All(buffer, b => Assert.Equal(0xAA, b));
+        }
+    }
+
+    [Fact]
+    public void EveryIdentity_RefusesABufferThatIsNotAFileKeysSize()
+    {
+        using var x25519 = X25519Identity.Generate();
+        using var pq = MlKem768X25519Identity.Generate();
+        using var passphrase = new Passphrase("pw", 10);
+        using var ssh = SshIdentity.Parse(SshKeys.Ed25519Pem());
+        var stanza = new Stanza("any", [], []);
+
+        foreach (var identity in new IIdentity[] { x25519, pq, passphrase, ssh })
+            Assert.Throws<ArgumentException>(() => identity.TryUnwrap(stanza, new byte[FileKeySize - 1]));
+    }
+
+    // An SSH stanza is only tried by the key its tag names; this gives another key's stanza ours.
+    private static string Tag(IIdentity sshIdentity) =>
+        Assert.Single(((IIdentityWithRecipient)sshIdentity).Recipient.Wrap(new byte[FileKeySize])).Args[0];
+
     // Most identities implement only the single-stanza TryUnwrap; the list overload's default
     // tries each stanza, so decryption finds the one that is theirs.
     [Fact]

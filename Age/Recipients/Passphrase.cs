@@ -154,12 +154,15 @@ public sealed class Passphrase : IRecipient, IIdentity
     /// <exception cref="AgeFormatException">The stanza claims to be scrypt but is malformed, or asks for more than <see cref="MaxWorkFactor"/>.</exception>
     /// <exception cref="ObjectDisposedException">The passphrase has been disposed.</exception>
     public bool TryUnwrap(Stanza stanza, Span<byte> fileKey) =>
-        FileKey.Deliver(UnwrapToArray(stanza), fileKey);
+        UnwrapInto(stanza, fileKey);
 
-    private byte[]? UnwrapToArray(Stanza stanza)
+    // The file key is never in an array of ours: it is decrypted on the stack.
+    private bool UnwrapInto(Stanza stanza, Span<byte> fileKey)
     {
+        FileKey.RequireBuffer(fileKey);
+
         if (stanza.Type != StanzaType)
-            return null;
+            return false;
 
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -194,7 +197,22 @@ public sealed class Passphrase : IRecipient, IIdentity
         try
         {
             // An authentication failure is a different passphrase: no match.
-            return CryptoHelper.ChaChaDecrypt(wrapKey, new byte[NonceSize], stanza.Body.Span);
+            // On the stack, not in an array: the key reaches the caller's buffer only if it
+            // authenticates, so an identity that declines leaves the buffer as it was.
+            Span<byte> candidate = stackalloc byte[FileKey.Size];
+
+            try
+            {
+                if (!CryptoHelper.ChaChaDecrypt(wrapKey, new byte[NonceSize], stanza.Body.Span, candidate))
+                    return false;
+
+                candidate.CopyTo(fileKey);
+                return true;
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(candidate);
+            }
         }
         finally
         {

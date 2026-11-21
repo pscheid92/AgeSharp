@@ -81,21 +81,24 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
     /// <exception cref="AgeFormatException">The stanza claims to be ssh-ed25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public bool TryUnwrap(Stanza stanza, Span<byte> fileKey) =>
-        FileKey.Deliver(UnwrapToArray(stanza), fileKey);
+        UnwrapInto(stanza, fileKey);
 
-    private byte[]? UnwrapToArray(Stanza stanza)
+    // The file key is never in an array of ours: it is decrypted on the stack.
+    private bool UnwrapInto(Stanza stanza, Span<byte> fileKey)
     {
+        FileKey.RequireBuffer(fileKey);
+
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (stanza.Type != AgeProtocol.SshEd25519StanzaType)
-            return null;
+            return false;
 
         if (stanza.Args.Count != 2)
             throw new AgeFormatException($"ssh-ed25519 stanza must have exactly 2 arguments, got {stanza.Args.Count}");
 
         var stanzaTag = stanza.Args[0];
         if (stanzaTag != _tag)
-            return null;
+            return false;
 
         byte[] ephPubBytes;
         try
@@ -138,7 +141,23 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
         try
         {
             var zeroNonce = new byte[12];
-            return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span);
+
+            // On the stack, not in an array: the key reaches the caller's buffer only if it
+            // authenticates, so an identity that declines leaves the buffer as it was.
+            Span<byte> candidate = stackalloc byte[FileKey.Size];
+
+            try
+            {
+                if (!CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span, candidate))
+                    return false;
+
+                candidate.CopyTo(fileKey);
+                return true;
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(candidate);
+            }
         }
         finally
         {

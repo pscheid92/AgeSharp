@@ -118,6 +118,9 @@ internal static class CryptoHelper
         }
         catch (AuthenticationTagMismatchException)
         {
+            // The destination may be the caller's file-key buffer: nothing of a failed attempt
+            // is left in it, whatever the cipher backend did.
+            CryptographicOperations.ZeroMemory(plaintext[..plaintextLen]);
             return false;
         }
 
@@ -129,15 +132,6 @@ internal static class CryptoHelper
     {
         using var cipher = AeadCipher.Create(key);
         return ChaChaDecrypt(cipher, nonce, ciphertextWithTag, plaintext);
-    }
-
-    public static byte[]? ChaChaDecrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> ciphertext)
-    {
-        if (ciphertext.Length < ChaChaTagSize)
-            return null;
-
-        var plaintext = new byte[ciphertext.Length - ChaChaTagSize];
-        return ChaChaDecrypt(key, nonce, ciphertext, plaintext) ? plaintext : null;
     }
 
     public static byte[] HmacSha256(ReadOnlySpan<byte> key, ReadOnlySpan<byte> data)

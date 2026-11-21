@@ -117,13 +117,16 @@ public sealed class X25519Identity : IIdentityWithRecipient, IDisposable
     /// <exception cref="AgeFormatException">The stanza claims to be X25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
     public bool TryUnwrap(Stanza stanza, Span<byte> fileKey) =>
-        FileKey.Deliver(UnwrapToArray(stanza), fileKey);
+        UnwrapInto(stanza, fileKey);
 
-    private byte[]? UnwrapToArray(Stanza stanza)
+    // The file key is never in an array of ours: it is decrypted on the stack.
+    private bool UnwrapInto(Stanza stanza, Span<byte> fileKey)
     {
+        FileKey.RequireBuffer(fileKey);
+
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (stanza.Type != AgeProtocol.X25519StanzaType) return null;
+        if (stanza.Type != AgeProtocol.X25519StanzaType) return false;
 
         if (stanza.Args.Count != 1)
             throw new AgeFormatException($"X25519 stanza must have exactly 1 argument, got {stanza.Args.Count}");
@@ -164,7 +167,23 @@ public sealed class X25519Identity : IIdentityWithRecipient, IDisposable
 
             // Decrypt file key. An AEAD failure means a wrong recipient, not our stanza.
             var zeroNonce = new byte[12];
-            return CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span);
+
+            // On the stack, not in an array: the key reaches the caller's buffer only if it
+            // authenticates, so an identity that declines leaves the buffer as it was.
+            Span<byte> candidate = stackalloc byte[FileKey.Size];
+
+            try
+            {
+                if (!CryptoHelper.ChaChaDecrypt(wrapKey, zeroNonce, stanza.Body.Span, candidate))
+                    return false;
+
+                candidate.CopyTo(fileKey);
+                return true;
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(candidate);
+            }
         }
         finally
         {
