@@ -178,11 +178,11 @@ public class SshParsingErrorTests
         Assert.Equal("plaintext"u8.ToArray(), decrypted.ToArray());
     }
 
-    public static TheoryData<string, uint> ForbiddenRsaPublicExponents => new()
+    public static TheoryData<string, uint, string> ForbiddenRsaPublicExponents => new()
     {
-        { "exponent 1", 1 },
-        { "exponent even", 65538 },
-        { "exponent over 24 bits", (1u << 24) + 1 },
+        { "exponent 1", 1, "incorrect public exponent" },
+        { "exponent even", 65538, "incorrect public exponent" },
+        { "exponent over 24 bits", (1u << 24) + 1, "public exponent too large" },
     };
 
     /// <summary>
@@ -191,7 +191,7 @@ public class SshParsingErrorTests
     /// </summary>
     [Theory]
     [MemberData(nameof(ForbiddenRsaPublicExponents))]
-    public void ParseSshRecipient_RsaWithAForbiddenExponent_ThrowsFormatException(string why, uint exponent)
+    public void ParseSshRecipient_RsaWithAForbiddenExponent_ThrowsFormatException(string why, uint exponent, string message)
     {
         _ = why;
         var modulus = ((RsaKeyParameters)Rsa2048.Public).Modulus.ToByteArray();
@@ -199,7 +199,72 @@ public class SshParsingErrorTests
 
         var ex = Assert.Throws<FormatException>(() => Recipients.ParseOne($"ssh-rsa {Convert.ToBase64String(wire)}"));
 
-        Assert.Contains("exponent", ex.Message);
+        // Go's words, not BouncyCastle's ("RSA publicExponent is even"), which got there first once.
+        Assert.Contains(message, ex.Message);
+    }
+
+    // PKCS#1 and PKCS#8 keys, which BouncyCastle's PEM reader turns into key parameters itself.
+    [Theory]
+    [InlineData("RSA PRIVATE KEY")]
+    [InlineData("PRIVATE KEY")]
+    public void ParseSshIdentity_PemRsaWithAnEvenExponent_SaysSo(string pemType)
+    {
+        var key = (RsaPrivateCrtKeyParameters)Rsa1024.Private;
+        var rsa = new Org.BouncyCastle.Asn1.Pkcs.RsaPrivateKeyStructure(
+            key.Modulus, Org.BouncyCastle.Math.BigInteger.ValueOf(65538), key.Exponent,
+            key.P, key.Q, key.DP, key.DQ, key.QInv);
+        var der = pemType == "PRIVATE KEY"
+            ? new Org.BouncyCastle.Asn1.Pkcs.PrivateKeyInfo(
+                new Org.BouncyCastle.Asn1.X509.AlgorithmIdentifier(Org.BouncyCastle.Asn1.Pkcs.PkcsObjectIdentifiers.RsaEncryption, Org.BouncyCastle.Asn1.DerNull.Instance),
+                rsa).GetDerEncoded()
+            : rsa.GetDerEncoded();
+        var pem = $"-----BEGIN {pemType}-----\n{Convert.ToBase64String(der, Base64FormattingOptions.InsertLineBreaks)}\n-----END {pemType}-----\n";
+
+        var ex = Assert.Throws<FormatException>(() => SshIdentity.Parse(pem));
+
+        Assert.Contains("incorrect public exponent", ex.Message);
+    }
+
+    // What Go's checks do not cover keeps BouncyCastle's own error: here an even modulus.
+    [Fact]
+    public void ParseSshIdentity_Pkcs1RsaWithAnEvenModulus_KeepsBouncyCastlesError()
+    {
+        var key = (RsaPrivateCrtKeyParameters)Rsa1024.Private;
+        var der = new Org.BouncyCastle.Asn1.Pkcs.RsaPrivateKeyStructure(
+            key.Modulus.Add(Org.BouncyCastle.Math.BigInteger.One), key.PublicExponent, key.Exponent,
+            key.P, key.Q, key.DP, key.DQ, key.QInv).GetDerEncoded();
+        var pem = $"-----BEGIN RSA PRIVATE KEY-----\n{Convert.ToBase64String(der, Base64FormattingOptions.InsertLineBreaks)}\n-----END RSA PRIVATE KEY-----\n";
+
+        var ex = Assert.Throws<FormatException>(() => SshIdentity.Parse(pem));
+
+        Assert.StartsWith("invalid PEM private key", ex.Message);
+    }
+
+    // An ssh-rsa key cut off in a length field or in the number after it, or with an empty
+    // exponent, is refused as BouncyCastle reports it.
+    [Theory]
+    [InlineData(new byte[] { 0, 0 })]
+    [InlineData(new byte[] { 0, 0, 0, 9, 1 })]
+    [InlineData(new byte[] { 0, 0, 0, 0, 0, 0, 0, 1, 1 })]
+    public void ParseSshRecipient_RsaCutOff_KeepsBouncyCastlesError(byte[] after)
+    {
+        byte[] wire = [.. Field("ssh-rsa"u8.ToArray()), .. after];
+
+        var ex = Assert.Throws<FormatException>(() => Recipients.ParseOne($"ssh-rsa {Convert.ToBase64String(wire)}"));
+
+        Assert.StartsWith("invalid ssh-rsa public key", ex.Message);
+    }
+
+    // In a private key, an exponent RSA cannot have is refused in Go's words as well.
+    [Theory]
+    [InlineData(2)]
+    [InlineData(65538)]
+    [InlineData(1)]
+    public void ParseSshIdentity_RsaWithAForbiddenExponent_SaysSo(int exponent)
+    {
+        var ex = Assert.Throws<FormatException>(() => SshIdentity.Parse(RsaKey(key => With(key, E, exponent))));
+
+        Assert.Contains("incorrect public exponent", ex.Message);
     }
 
     private static System.Numerics.BigInteger[] With(System.Numerics.BigInteger[] key, int field, System.Numerics.BigInteger value)

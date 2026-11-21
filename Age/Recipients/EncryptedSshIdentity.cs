@@ -65,7 +65,7 @@ public sealed class EncryptedSshIdentity : IIdentityWithRecipient, IDisposable
     /// Tries to unwrap the file key from an SSH stanza. Returns false, without asking for the
     /// passphrase, for stanzas of other types or addressed to a different SSH key.
     /// </summary>
-    /// <exception cref="AgeFormatException">The stanza is addressed to this key but is malformed.</exception>
+    /// <exception cref="AgeFormatException">The stanza is of this key's type but has no arguments, or is addressed to this key but is malformed.</exception>
     /// <exception cref="AgeException">
     /// The key cannot be decrypted here (its cipher, KDF or round count, or a browser
     /// limitation; said before the passphrase is asked for), the passphrase is wrong, was not
@@ -86,7 +86,15 @@ public sealed class EncryptedSshIdentity : IIdentityWithRecipient, IDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
 
-            if (stanza.Type != _keyType || stanza.Args.Count < 1 || stanza.Args[0] != _tag)
+            if (stanza.Type != _keyType)
+                return false;
+
+            // Malformed, as go-age and the unlocked key say, not someone else's stanza; the
+            // unlocked key checks the rest of its shape.
+            if (stanza.Args.Count < 1)
+                throw new AgeFormatException($"{_keyType} stanza has no arguments");
+
+            if (stanza.Args[0] != _tag)
                 return false;
 
             if (_unlocked is null)
