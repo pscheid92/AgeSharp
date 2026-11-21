@@ -105,8 +105,8 @@ public sealed class MlKem768X25519Identity : IIdentityWithRecipient, IDisposable
         Recipient;
 
     /// <summary>
-    /// Attempts to unwrap the file key from an <c>mlkem768x25519</c> stanza.
-    /// Returns null for stanzas of other types or wrapped for a different recipient.
+    /// Unwraps the file key from an <c>mlkem768x25519</c> stanza into <paramref name="fileKey"/>:
+    /// false for stanzas of other types or wrapped for a different recipient.
     /// </summary>
     /// <exception cref="AgeFormatException">The stanza claims to be mlkem768x25519 but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>

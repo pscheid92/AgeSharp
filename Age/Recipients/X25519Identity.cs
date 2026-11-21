@@ -111,7 +111,7 @@ public sealed class X25519Identity : IIdentityWithRecipient, IDisposable
         Recipient;
 
     /// <summary>
-    /// Attempts to unwrap the file key from an X25519 stanza. Returns null for
+    /// Unwraps the file key from an X25519 stanza into <paramref name="fileKey"/>: false for
     /// stanzas of other types or wrapped for a different recipient.
     /// </summary>
     /// <exception cref="AgeFormatException">The stanza claims to be X25519 but is malformed.</exception>

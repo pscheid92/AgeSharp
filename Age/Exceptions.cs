@@ -69,6 +69,7 @@ public class AgeAuthenticationException : AgeException
 public class NoIdentityMatchException : AgeException
 {
     /// <summary>A no-match, with the file's stanza types and why each identity did not match.</summary>
+    /// <remarks>Public so that code decrypting by other means can report a no-match the same way.</remarks>
     /// <param name="stanzaTypes">The type of each stanza in the file, in order, as go-age reports them.</param>
     /// <param name="mismatches">Why each identity did not match, in the order they were tried.</param>
     public NoIdentityMatchException(IReadOnlyList<string> stanzaTypes, IReadOnlyList<IdentityMismatch> mismatches)
@@ -90,7 +91,7 @@ public class NoIdentityMatchException : AgeException
         ArgumentNullException.ThrowIfNull(mismatches);
 
         var has = stanzaTypes.Count == 0 ? "no stanzas" : string.Join(", ", stanzaTypes.Distinct(StringComparer.Ordinal));
-        var why = mismatches.Select(m => $"{m.Identity}: {m.Explanation}");
+        var why = mismatches.Select(m => $"{m.Description}: {m.Explanation}");
 
         return string.Join("; ", ["no identity matched any recipient stanza", $"the file has {has}", .. why]);
     }
@@ -110,11 +111,24 @@ public enum IdentityMismatchReason
 }
 
 /// <summary>One identity that did not open a file, and why.</summary>
-/// <param name="Identity">Which identity: its type, and the start of its recipient where it has one. Nothing secret.</param>
-/// <param name="Reason">Why it did not match.</param>
-/// <param name="StanzaType">The stanza type the identity opens, where it says.</param>
-public sealed record IdentityMismatch(string Identity, IdentityMismatchReason Reason, string? StanzaType)
+public sealed class IdentityMismatch
 {
+    internal IdentityMismatch(string description, IdentityMismatchReason reason, string? stanzaType)
+    {
+        Description = description;
+        Reason = reason;
+        StanzaType = stanzaType;
+    }
+
+    /// <summary>Which identity: its type, and its public recipient, shortened, where it has one. Nothing secret.</summary>
+    public string Description { get; }
+
+    /// <summary>Why it did not match.</summary>
+    public IdentityMismatchReason Reason { get; }
+
+    /// <summary>The stanza type the identity opens, where it says.</summary>
+    public string? StanzaType { get; }
+
     /// <summary>The reason in words.</summary>
     public string Explanation => Reason switch
     {

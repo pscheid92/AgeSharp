@@ -12,13 +12,14 @@ namespace AgeSharp;
 /// <code>
 /// using var fileKey = identities.UnwrapFileKey(AgeHeader.Read(headerStream));
 /// // ... fileKey.Bytes travels to where the payload is ...
-/// using var known = new FileKeyIdentity(FileKey.From(bytes));
+/// using var carried = FileKey.From(bytes);
+/// using var known = new FileKeyIdentity(carried);
 /// new Identities(known).Decrypt(file, plaintext);
 /// </code>
 /// </example>
 /// <remarks>
 /// A bare <c>byte[]</c> cannot carry that guarantee — every site had to remember a
-/// <c>try/finally</c>, and the ones that forgot were the S9 defects. Recipients and identities
+/// <c>try/finally</c>, and the ones that forgot leaked keys. Recipients and identities
 /// see the key only as a span: <see cref="IRecipient.Wrap"/> reads it, and
 /// <see cref="IIdentity.TryUnwrap(Stanza, Span{byte})"/> writes it into the
 /// buffer this owns.
