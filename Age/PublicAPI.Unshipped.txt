@@ -23,6 +23,8 @@
 *REMOVED*AgeSharp.AgeRandomAccess.ReadAt(long plaintextOffset, System.Span<byte> buffer) -> int
 *REMOVED*AgeSharp.IIdentity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
 *REMOVED*AgeSharp.IIdentity.Unwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas) -> byte[]?
+*REMOVED*AgeSharp.IPluginCallbacks.Confirm(string! message, string! yes, string? no) -> bool
+*REMOVED*AgeSharp.IPluginCallbacks.DisplayMessage(string! message) -> void
 *REMOVED*AgeSharp.IPluginCallbacks.RequestValue(string! prompt, bool secret) -> string!
 *REMOVED*AgeSharp.IRecipient.Label.get -> string?
 *REMOVED*AgeSharp.IRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
@@ -30,9 +32,11 @@
 *REMOVED*AgeSharp.MlKem768X25519Recipient.Label.get -> string!
 *REMOVED*AgeSharp.MlKem768X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
 *REMOVED*AgeSharp.NoIdentityMatchException.NoIdentityMatchException() -> void
+*REMOVED*AgeSharp.PluginIdentity.PluginIdentity(string! identity, AgeSharp.IPluginCallbacks? callbacks = null) -> void
 *REMOVED*AgeSharp.PluginIdentity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
 *REMOVED*AgeSharp.PluginIdentity.Unwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas) -> byte[]?
 *REMOVED*AgeSharp.PluginRecipient.Label.get -> string?
+*REMOVED*AgeSharp.PluginRecipient.PluginRecipient(string! recipient, AgeSharp.IPluginCallbacks? callbacks = null) -> void
 *REMOVED*AgeSharp.PluginRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
 *REMOVED*AgeSharp.ScryptRecipient
 *REMOVED*AgeSharp.ScryptRecipient.ScryptRecipient(string! passphrase, int workFactor = 18) -> void
@@ -114,8 +118,11 @@ AgeSharp.IIdentity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey)
 AgeSharp.IIdentity.TryUnwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas, System.Span<byte> fileKey) -> bool
 AgeSharp.IIdentityWithRecipient
 AgeSharp.IIdentityWithRecipient.Recipient.get -> AgeSharp.IRecipient!
-AgeSharp.IPluginCallbacks.RequestSecret(string! prompt) -> char[]?
-AgeSharp.IPluginCallbacks.RequestValue(string! prompt) -> string!
+AgeSharp.IPluginCallbacks.Confirm(string! plugin, string! message, string! yes, string? no) -> bool
+AgeSharp.IPluginCallbacks.DisplayMessage(string! plugin, string! message) -> void
+AgeSharp.IPluginCallbacks.RequestSecret(string! plugin, string! prompt) -> char[]?
+AgeSharp.IPluginCallbacks.RequestValue(string! plugin, string! prompt) -> string?
+AgeSharp.IPluginCallbacks.Waiting(string! plugin) -> void
 AgeSharp.IRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.IRecipientWithLabels
 AgeSharp.IRecipientWithLabels.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.LabelledStanzas
@@ -174,6 +181,7 @@ AgeSharp.Passphrase.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collection
 AgeSharp.PluginIdentity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.PluginIdentity.TryUnwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas, System.Span<byte> fileKey) -> bool
 AgeSharp.PluginRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+AgeSharp.PluginRecipient.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.LabelledStanzas
 AgeSharp.Recipients
 AgeSharp.Recipients.Count.get -> int
 AgeSharp.Recipients.Encrypt(System.IO.Stream! plaintext, System.IO.Stream! ciphertext, AgeSharp.AgeEncryptOptions? options = null) -> void
@@ -210,6 +218,8 @@ static AgeSharp.Identities.Parse(string! text, AgeSharp.IPluginCallbacks? plugin
 static AgeSharp.Identities.ParseOne(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IIdentity!
 static AgeSharp.MlKem768P256TagRecipient.Parse(string! s) -> AgeSharp.MlKem768P256TagRecipient!
 static AgeSharp.P256TagRecipient.Parse(string! s) -> AgeSharp.P256TagRecipient!
+static AgeSharp.PluginIdentity.Parse(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.PluginIdentity!
+static AgeSharp.PluginRecipient.Parse(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.PluginRecipient!
 static AgeSharp.Recipients.Parse(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.Recipients!
 static AgeSharp.Recipients.ParseOne(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IRecipient!
 static AgeSharp.SshIdentity.Parse(string! pemText) -> AgeSharp.IIdentity!

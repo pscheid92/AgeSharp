@@ -70,8 +70,8 @@ public class PluginSecretPromptTests
         plugin.WriteStanza("done", [], []);
 
         var sent = new StringWriter();
-        var recipient = new PluginRecipient(Bech32.Encode("age1test", [0x01, 0x02, 0x03]), callbacks);
-        recipient.WrapAllWithConnection(new PluginConnection(new StringReader(script.ToString()), sent), new byte[16]);
+        var recipient = PluginRecipient.Parse(Bech32.Encode("age1test", [0x01, 0x02, 0x03]), callbacks);
+        recipient.WrapWithConnection(new PluginConnection(new StringReader(script.ToString()), sent), new byte[16]);
 
         // What the recipient sent: the add-recipient phase, then its answer to the request.
         var reader = new PluginConnection(new StringReader(sent.ToString()), new StringWriter());
@@ -92,20 +92,20 @@ public class PluginSecretPromptTests
         public List<string> SecretPrompts { get; } = [];
         public List<string> PublicPrompts { get; } = [];
 
-        public void DisplayMessage(string message) { }
+        public void DisplayMessage(string plugin, string message) { }
 
-        public string RequestValue(string prompt)
+        public string? RequestValue(string plugin, string prompt)
         {
             PublicPrompts.Add(prompt);
             return Value;
         }
 
-        public char[] RequestSecret(string prompt)
+        public char[]? RequestSecret(string plugin, string prompt)
         {
             SecretPrompts.Add(prompt);
             return Secret!;
         }
 
-        public bool Confirm(string message, string yes, string? no) => true;
+        public bool Confirm(string plugin, string message, string yes, string? no) => true;
     }
 }

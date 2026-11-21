@@ -1,7 +1,5 @@
 using System.Text;
 using AgeSharp.Crypto;
-using AgeSharp;
-
 namespace AgeSharp;
 
 /// <summary>
@@ -9,15 +7,32 @@ namespace AgeSharp;
 /// spawns the plugin named in the identity's HRP (e.g. <c>AGE-PLUGIN-YUBIKEY-1…</c>
 /// runs <c>age-plugin-yubikey</c>) and drives the identity-v1 protocol.
 /// </summary>
-/// <param name="identity">The plugin identity string (<c>AGE-PLUGIN-&lt;NAME&gt;-1…</c>).</param>
-/// <param name="callbacks">
-/// Optional UI callbacks for interactive plugins (PIN prompts, touch
-/// confirmation); when null, interactive requests are answered with failure.
-/// </param>
-public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks = null) : IIdentity
+public sealed class PluginIdentity : IIdentity
 {
-    internal string PluginName { get; } =
-        ExtractPluginName(identity);
+    private readonly string _identity;
+    private readonly IPluginCallbacks? _plugins;
+
+    internal PluginIdentity(string identity, IPluginCallbacks? plugins = null)
+    {
+        _identity = identity;
+        _plugins = plugins;
+        PluginName = ExtractPluginName(identity);
+    }
+
+    /// <summary>Parses a plugin identity, <c>AGE-PLUGIN-&lt;NAME&gt;-1…</c>.</summary>
+    /// <param name="s">The identity string.</param>
+    /// <param name="plugins">
+    /// Lets the plugin talk to the user (a PIN, a touch); without it, its requests are answered
+    /// as failures, as the plugin protocol specifies.
+    /// </param>
+    /// <exception cref="FormatException">The string is not a plugin identity, or names no valid plugin.</exception>
+    public static PluginIdentity Parse(string s, IPluginCallbacks? plugins = null)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        return new PluginIdentity(s, plugins);
+    }
+
+    internal string PluginName { get; }
 
     /// <summary>Tries to unwrap a single stanza by running the plugin binary.</summary>
     /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an internal error.</exception>
@@ -43,7 +58,7 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
 
     private void SendUnwrapRequest(PluginConnection conn, IReadOnlyList<Stanza> stanzas)
     {
-        conn.WriteStanza("add-identity", [identity], []);
+        conn.WriteStanza("add-identity", [_identity], []);
 
         // FILE_INDEX identifies the file, not the stanza: "Duplicate file indices indicate stanzas
         // that are from the same file header, and wrap the same file key." One file, so all carry 0.
@@ -62,7 +77,7 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
 
         while (true)
         {
-            var (type, args, body) = conn.ReadNextStanza();
+            var (type, args, body) = PluginPrompts.Read(conn, _plugins, PluginName);
 
             switch (type)
             {
@@ -88,7 +103,7 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
                     return result;
 
                 default:
-                    PluginPrompts.Answer(conn, callbacks, type, args, body);
+                    PluginPrompts.Answer(conn, _plugins, PluginName, type, args, body);
                     break;
             }
         }
@@ -130,7 +145,7 @@ public sealed class PluginIdentity(string identity, IPluginCallbacks? callbacks 
     /// key material rather than just a hardware handle.
     /// </summary>
     public string ToSecretString() =>
-        identity;
+        _identity;
 
     /// <summary>
     /// Returns a redacted representation naming only the plugin, so accidental

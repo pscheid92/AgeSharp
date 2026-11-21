@@ -29,7 +29,7 @@ public class PluginProtocolConformanceTests
     [Fact]
     public void RecipientStanzaForAFileWeNeverSent_IsRejected()
     {
-        var recipient = new PluginRecipient(MakePluginRecipient("weird"));
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("weird"));
         var response = Transcript(c =>
         {
             c.WriteStanza("recipient-stanza", ["7", "weird"], [0x01]);
@@ -38,14 +38,14 @@ public class PluginProtocolConformanceTests
 
         var conn = new PluginConnection(new StringReader(response), new StringWriter());
 
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
         Assert.Contains("unexpected file index", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void FileKeyForAPhantomIndex_IsRejected()
     {
-        var identity = new PluginIdentity(MakePluginIdentity("weird"));
+        var identity = PluginIdentity.Parse(MakePluginIdentity("weird"));
         var response = Transcript(c =>
         {
             c.WriteStanza("file-key", ["42"], new byte[16]);
@@ -63,7 +63,7 @@ public class PluginProtocolConformanceTests
     [Fact]
     public void DuplicateFileKey_IsRejectedRatherThanReplacingSilently()
     {
-        var identity = new PluginIdentity(MakePluginIdentity("weird"));
+        var identity = PluginIdentity.Parse(MakePluginIdentity("weird"));
         var response = Transcript(c =>
         {
             c.WriteStanza("file-key", ["0"], new byte[16]);
@@ -87,9 +87,9 @@ public class PluginProtocolConformanceTests
             c.WriteStanza("done", [], []);
         });
 
-        var recipient = new PluginRecipient(MakePluginRecipient("conf"), new RecordingCallbacks());
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("conf"), new RecordingCallbacks());
         var recipientConn = new PluginConnection(new StringReader(recipientResponse), new StringWriter());
-        Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(recipientConn, new byte[16]));
+        Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(recipientConn, new byte[16]));
 
         var identityResponse = Transcript(c =>
         {
@@ -98,7 +98,7 @@ public class PluginProtocolConformanceTests
             c.WriteStanza("done", [], []);
         });
 
-        var identity = new PluginIdentity(MakePluginIdentity("conf"), new RecordingCallbacks());
+        var identity = PluginIdentity.Parse(MakePluginIdentity("conf"), new RecordingCallbacks());
         var identityConn = new PluginConnection(new StringReader(identityResponse), new StringWriter());
         Assert.Throws<AgePluginException>(() => identity.UnwrapWithConnection(identityConn, OneStanza()));
     }
@@ -108,7 +108,7 @@ public class PluginProtocolConformanceTests
     public void ConfirmWithLabels_StillReachesTheCallback()
     {
         var callbacks = new RecordingCallbacks();
-        var recipient = new PluginRecipient(MakePluginRecipient("conf"), callbacks);
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("conf"), callbacks);
 
         var response = Transcript(c =>
         {
@@ -119,7 +119,7 @@ public class PluginProtocolConformanceTests
         });
 
         var conn = new PluginConnection(new StringReader(response), new StringWriter());
-        recipient.WrapAllWithConnection(conn, new byte[16]);
+        recipient.WrapWithConnection(conn, new byte[16]);
 
         Assert.Single(callbacks.Confirmations);
         Assert.Equal("Touch", callbacks.Confirmations[0].Yes);
@@ -130,13 +130,13 @@ public class PluginProtocolConformanceTests
     {
         public List<(string Message, string Yes, string? No)> Confirmations { get; } = [];
 
-        public void DisplayMessage(string message) { }
+        public void DisplayMessage(string plugin, string message) { }
 
-        public string RequestValue(string prompt) => "";
+        public string? RequestValue(string plugin, string prompt) => "";
 
-        public char[] RequestSecret(string prompt) => [];
+        public char[]? RequestSecret(string plugin, string prompt) => [];
 
-        public bool Confirm(string message, string yes, string? no)
+        public bool Confirm(string plugin, string message, string yes, string? no)
         {
             Confirmations.Add((message, yes, no));
             return true;

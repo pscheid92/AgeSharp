@@ -22,21 +22,21 @@ public class PluginTests
         public List<(string Message, string Yes, string? No)> Confirmations { get; } = new();
         public bool ConfirmResponse { get; set; } = true;
 
-        public void DisplayMessage(string message) => Messages.Add(message);
+        public void DisplayMessage(string plugin, string message) => Messages.Add(message);
 
-        public string RequestValue(string prompt)
+        public string? RequestValue(string plugin, string prompt)
         {
             SecretRequests.Add((prompt, false));
             return SecretResponse ?? "";
         }
 
-        public char[] RequestSecret(string prompt)
+        public char[]? RequestSecret(string plugin, string prompt)
         {
             SecretRequests.Add((prompt, true));
             return (SecretResponse ?? "").ToCharArray();
         }
 
-        public bool Confirm(string message, string yes, string? no)
+        public bool Confirm(string plugin, string message, string yes, string? no)
         {
             Confirmations.Add((message, yes, no));
             return ConfirmResponse;
@@ -76,29 +76,29 @@ public class PluginTests
     [Fact]
     public void PluginRecipient_Constructor_StoresPluginName()
     {
-        var recipient = new PluginRecipient(MakePluginRecipient("yubikey"));
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("yubikey"));
         Assert.Equal("yubikey", recipient.PluginName);
     }
 
     [Fact]
     public void PluginIdentity_Constructor_StoresPluginName()
     {
-        var identity = new PluginIdentity(MakePluginIdentity("yubikey"));
+        var identity = PluginIdentity.Parse(MakePluginIdentity("yubikey"));
         Assert.Equal("yubikey", identity.PluginName);
     }
 
     [Fact]
-    public void PluginRecipient_CarriesNoLabels()
+    public void PluginRecipient_PassesLabelsOn()
     {
-        var recipient = new PluginRecipient(MakePluginRecipient("yubikey"));
-        Assert.IsNotAssignableFrom<IRecipientWithLabels>(recipient);
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("yubikey"));
+        Assert.IsAssignableFrom<IRecipientWithLabels>(recipient);
     }
 
     [Fact]
     public void PluginRecipient_ToString_ReturnsOriginalString()
     {
         var str = MakePluginRecipient("yubikey");
-        var recipient = new PluginRecipient(str);
+        var recipient = PluginRecipient.Parse(str);
         Assert.Equal(str, recipient.ToString());
     }
 
@@ -106,7 +106,7 @@ public class PluginTests
     public void PluginIdentity_ToSecretString_ReturnsOriginalString()
     {
         var str = MakePluginIdentity("yubikey");
-        var identity = new PluginIdentity(str);
+        var identity = PluginIdentity.Parse(str);
         Assert.Equal(str, identity.ToSecretString());
     }
 
@@ -114,7 +114,7 @@ public class PluginTests
     public void PluginIdentity_ToString_IsRedacted()
     {
         var str = MakePluginIdentity("yubikey");
-        var identity = new PluginIdentity(str);
+        var identity = PluginIdentity.Parse(str);
         Assert.Equal("PluginIdentity(yubikey)", identity.ToString());
     }
 
@@ -146,7 +146,7 @@ public class PluginTests
     public void PluginRecipient_Constructor_PathSeparatorName_Throws()
     {
         // The separator must be rejected at construction, before any Process.Start can run.
-        Assert.Throws<FormatException>(() => new PluginRecipient(MakePluginRecipient("pwn/pwn")));
+        Assert.Throws<FormatException>(() => PluginRecipient.Parse(MakePluginRecipient("pwn/pwn")));
     }
 
     [Theory]
@@ -285,7 +285,7 @@ public class PluginTests
     public void PluginRecipient_Wrap_BasicProtocol()
     {
         var recipientStr = MakePluginRecipient("test");
-        var recipient = new PluginRecipient(recipientStr);
+        var recipient = PluginRecipient.Parse(recipientStr);
         var fileKey = new byte[16];
         for (int i = 0; i < 16; i++) fileKey[i] = (byte)i;
 
@@ -303,7 +303,7 @@ public class PluginTests
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
 
-        var result = Assert.Single(recipient.WrapAllWithConnection(conn, fileKey));
+        var result = Assert.Single(recipient.WrapWithConnection(conn, fileKey).Stanzas);
 
         Assert.Equal("X25519", result.Type);
         Assert.Equal(["ephemeral-key-b64"], result.Args);
@@ -315,39 +315,72 @@ public class PluginTests
         Assert.Contains("-> wrap-file-key", sent);
         Assert.Contains("-> done", sent);
 
-        // S6: we must NOT advertise extension-labels. Doing so promises the
-        // client will enforce the plugin's label set across all stanzas
-        // wrapping the file key, which this API shape cannot do — the reply
-        // was answered "unsupported" and the constraint silently dropped.
-        Assert.DoesNotContain("-> extension-labels", sent);
+        // Advertised, because the labels the plugin replies with are passed on and enforced
+        // across every recipient of the file (once, S6, they were dropped silently instead).
+        Assert.Contains("-> extension-labels", sent);
     }
 
     [Fact]
-    public void PluginRecipient_Wrap_DoesNotAdvertiseExtensionLabels()
+    public void PluginRecipient_Wrap_PassesTheLabelsThePluginDeclares()
     {
-        var recipient = new PluginRecipient(MakePluginRecipient("lbl"));
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("lbl"));
+
+        var pluginOutput = new StringWriter();
+        var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
+        mockConn.WriteStanza("labels", ["postquantum", "acme"], []);
+        mockConn.WriteStanza("recipient-stanza", ["0", "lbl", "arg"], [0x01]);
+        mockConn.WriteStanza("done", [], []);
+
+        var capturedOutput = new StringWriter();
+        var conn = new PluginConnection(new StringReader(pluginOutput.ToString()), capturedOutput);
+        var (stanzas, labels) = recipient.WrapWithConnection(conn, new byte[16]);
+
+        Assert.Single(stanzas);
+        Assert.Equal(["postquantum", "acme"], labels);
+
+        // Both the labels and the stanza acknowledged, nothing refused as unsupported.
+        var sent = capturedOutput.ToString();
+        Assert.Contains("-> extension-labels", sent);
+        Assert.DoesNotContain("-> unsupported", sent);
+    }
+
+    // As age-plugin.md says: no labels reply means the empty set.
+    [Fact]
+    public void PluginRecipient_Wrap_WithoutALabelsReply_HasNoLabels()
+    {
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("lbl"));
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
         mockConn.WriteStanza("recipient-stanza", ["0", "lbl", "arg"], [0x01]);
         mockConn.WriteStanza("done", [], []);
 
-        var capturedOutput = new StringWriter();
-        var conn = new PluginConnection(new StringReader(pluginOutput.ToString()), capturedOutput);
-        recipient.WrapAllWithConnection(conn, new byte[16]);
+        var conn = new PluginConnection(new StringReader(pluginOutput.ToString()), new StringWriter());
 
-        var sent = capturedOutput.ToString();
-        Assert.DoesNotContain("extension-labels", sent);
-        // …and we never answer a labels command with "unsupported", because a
-        // conforming plugin will not send one.
-        Assert.DoesNotContain("-> unsupported", sent);
+        Assert.Empty(recipient.WrapWithConnection(conn, new byte[16]).Labels);
+    }
+
+    [Fact]
+    public void PluginRecipient_Wrap_LabelsDeclaredTwice_IsAProtocolError()
+    {
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("lbl"));
+
+        var pluginOutput = new StringWriter();
+        var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
+        mockConn.WriteStanza("labels", ["a"], []);
+        mockConn.WriteStanza("labels", ["b"], []);
+
+        var conn = new PluginConnection(new StringReader(pluginOutput.ToString()), new StringWriter());
+
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
+        Assert.Contains("labels twice", ex.Message);
     }
 
     [Fact]
     public void PluginRecipient_Wrap_ErrorStanza_Throws()
     {
         var recipientStr = MakePluginRecipient("test");
-        var recipient = new PluginRecipient(recipientStr);
+        var recipient = PluginRecipient.Parse(recipientStr);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -356,7 +389,7 @@ public class PluginTests
 
         var clientOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), clientOutput);
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
         Assert.Contains("something went wrong", ex.Message);
 
         // Acknowledged before failing, as the spec requires and go-age does.
@@ -367,7 +400,7 @@ public class PluginTests
     public void PluginRecipient_Wrap_UnknownStanza_RespondsUnsupported()
     {
         var recipientStr = MakePluginRecipient("test");
-        var recipient = new PluginRecipient(recipientStr);
+        var recipient = PluginRecipient.Parse(recipientStr);
 
         var wrappedBody = new byte[] { 0x01 };
         var pluginOutput = new StringWriter();
@@ -379,7 +412,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        var result = Assert.Single(recipient.WrapAllWithConnection(conn, new byte[16]));
+        var result = Assert.Single(recipient.WrapWithConnection(conn, new byte[16]).Stanzas);
 
         Assert.Equal("X25519", result.Type);
         // Should have sent "unsupported" for the grease stanza
@@ -391,7 +424,7 @@ public class PluginTests
     {
         var recipientStr = MakePluginRecipient("test");
         var callbacks = new TestCallbacks();
-        var recipient = new PluginRecipient(recipientStr, callbacks);
+        var recipient = PluginRecipient.Parse(recipientStr, callbacks);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -401,7 +434,7 @@ public class PluginTests
         var pluginResponse = pluginOutput.ToString();
 
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        recipient.WrapAllWithConnection(conn, new byte[16]);
+        recipient.WrapWithConnection(conn, new byte[16]);
 
         Assert.Single(callbacks.Messages);
         Assert.Equal("Touch your YubiKey", callbacks.Messages[0]);
@@ -412,7 +445,7 @@ public class PluginTests
     {
         var recipientStr = MakePluginRecipient("test");
         var callbacks = new TestCallbacks { SecretResponse = "my-pin-1234" };
-        var recipient = new PluginRecipient(recipientStr, callbacks);
+        var recipient = PluginRecipient.Parse(recipientStr, callbacks);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -423,7 +456,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapAllWithConnection(conn, new byte[16]);
+        recipient.WrapWithConnection(conn, new byte[16]);
 
         Assert.Single(callbacks.SecretRequests);
         Assert.Equal("Enter PIN:", callbacks.SecretRequests[0].Prompt);
@@ -436,7 +469,7 @@ public class PluginTests
     public void PluginRecipient_Wrap_RequestSecret_NoCallbacks_SendsFail()
     {
         var recipientStr = MakePluginRecipient("test");
-        var recipient = new PluginRecipient(recipientStr); // no callbacks
+        var recipient = PluginRecipient.Parse(recipientStr); // no callbacks
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -447,7 +480,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapAllWithConnection(conn, new byte[16]);
+        recipient.WrapWithConnection(conn, new byte[16]);
 
         Assert.Contains("-> fail", capturedOutput.ToString());
     }
@@ -457,7 +490,7 @@ public class PluginTests
     {
         var recipientStr = MakePluginRecipient("test");
         var callbacks = new TestCallbacks { SecretResponse = "user@example.com" };
-        var recipient = new PluginRecipient(recipientStr, callbacks);
+        var recipient = PluginRecipient.Parse(recipientStr, callbacks);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -468,7 +501,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapAllWithConnection(conn, new byte[16]);
+        recipient.WrapWithConnection(conn, new byte[16]);
 
         Assert.Single(callbacks.SecretRequests);
         Assert.Equal("Enter your name:", callbacks.SecretRequests[0].Prompt);
@@ -480,7 +513,7 @@ public class PluginTests
     public void PluginRecipient_Wrap_RequestPublic_NoCallbacks_SendsFail()
     {
         var recipientStr = MakePluginRecipient("test");
-        var recipient = new PluginRecipient(recipientStr); // no callbacks
+        var recipient = PluginRecipient.Parse(recipientStr); // no callbacks
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -491,7 +524,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapAllWithConnection(conn, new byte[16]);
+        recipient.WrapWithConnection(conn, new byte[16]);
 
         Assert.Contains("-> fail", capturedOutput.ToString());
     }
@@ -500,7 +533,7 @@ public class PluginTests
     public void PluginRecipient_Wrap_DoneWithoutStanza_Throws()
     {
         var recipientStr = MakePluginRecipient("test");
-        var recipient = new PluginRecipient(recipientStr);
+        var recipient = PluginRecipient.Parse(recipientStr);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -508,7 +541,7 @@ public class PluginTests
         var pluginResponse = pluginOutput.ToString();
 
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
         Assert.Contains("without producing a recipient stanza", ex.Message);
     }
 
@@ -518,7 +551,7 @@ public class PluginTests
     public void PluginIdentity_Unwrap_BasicProtocol()
     {
         var identityStr = MakePluginIdentity("test");
-        var identity = new PluginIdentity(identityStr);
+        var identity = PluginIdentity.Parse(identityStr);
         var fileKey = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
                                    0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10 };
 
@@ -551,7 +584,7 @@ public class PluginTests
     public void PluginIdentity_Unwrap_MultipleStanzas()
     {
         var identityStr = MakePluginIdentity("test");
-        var identity = new PluginIdentity(identityStr);
+        var identity = PluginIdentity.Parse(identityStr);
         var fileKey = new byte[16];
 
         var pluginOutput = new StringWriter();
@@ -585,7 +618,7 @@ public class PluginTests
     public void PluginIdentity_Unwrap_NoMatch_ReturnsNull()
     {
         var identityStr = MakePluginIdentity("test");
-        var identity = new PluginIdentity(identityStr);
+        var identity = PluginIdentity.Parse(identityStr);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -603,7 +636,7 @@ public class PluginTests
     public void PluginIdentity_Unwrap_InternalError_Throws()
     {
         var identityStr = MakePluginIdentity("test");
-        var identity = new PluginIdentity(identityStr);
+        var identity = PluginIdentity.Parse(identityStr);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -626,7 +659,7 @@ public class PluginTests
     [InlineData("internal", "")]
     public void PluginIdentity_Unwrap_AnyError_AcknowledgesThenFailsWithTheMessage(string kind, string indices)
     {
-        var identity = new PluginIdentity(MakePluginIdentity("test"));
+        var identity = PluginIdentity.Parse(MakePluginIdentity("test"));
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -647,7 +680,7 @@ public class PluginTests
     public void PluginIdentity_Unwrap_UnknownStanza_RespondsUnsupported()
     {
         var identityStr = MakePluginIdentity("test");
-        var identity = new PluginIdentity(identityStr);
+        var identity = PluginIdentity.Parse(identityStr);
         var fileKey = new byte[16];
 
         var pluginOutput = new StringWriter();
@@ -670,7 +703,7 @@ public class PluginTests
     {
         var identityStr = MakePluginIdentity("test");
         var callbacks = new TestCallbacks { SecretResponse = "my-pin" };
-        var identity = new PluginIdentity(identityStr, callbacks);
+        var identity = PluginIdentity.Parse(identityStr, callbacks);
         var fileKey = new byte[16];
 
         var pluginOutput = new StringWriter();
@@ -693,7 +726,7 @@ public class PluginTests
     {
         var identityStr = MakePluginIdentity("test");
         var callbacks = new TestCallbacks { SecretResponse = "user@example.com" };
-        var identity = new PluginIdentity(identityStr, callbacks);
+        var identity = PluginIdentity.Parse(identityStr, callbacks);
         var fileKey = new byte[16];
 
         var pluginOutput = new StringWriter();
@@ -717,7 +750,7 @@ public class PluginTests
     {
         var identityStr = MakePluginIdentity("test");
         var callbacks = new TestCallbacks();
-        var identity = new PluginIdentity(identityStr, callbacks);
+        var identity = PluginIdentity.Parse(identityStr, callbacks);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -739,7 +772,7 @@ public class PluginTests
     {
         var identityStr = MakePluginIdentity("test");
         var callbacks = new TestCallbacks { ConfirmResponse = true };
-        var identity = new PluginIdentity(identityStr, callbacks);
+        var identity = PluginIdentity.Parse(identityStr, callbacks);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -928,7 +961,7 @@ public class PluginTests
     {
         var recipientStr = MakePluginRecipient("test");
         var callbacks = new TestCallbacks { ConfirmResponse = true };
-        var recipient = new PluginRecipient(recipientStr, callbacks);
+        var recipient = PluginRecipient.Parse(recipientStr, callbacks);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -939,7 +972,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapAllWithConnection(conn, new byte[16]);
+        recipient.WrapWithConnection(conn, new byte[16]);
 
         Assert.Single(callbacks.Confirmations);
         Assert.Equal("Allow access?", callbacks.Confirmations[0].Message);
@@ -953,7 +986,7 @@ public class PluginTests
     {
         var recipientStr = MakePluginRecipient("test");
         var callbacks = new TestCallbacks { ConfirmResponse = false };
-        var recipient = new PluginRecipient(recipientStr, callbacks);
+        var recipient = PluginRecipient.Parse(recipientStr, callbacks);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -964,7 +997,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapAllWithConnection(conn, new byte[16]);
+        recipient.WrapWithConnection(conn, new byte[16]);
 
         Assert.Contains("-> ok no", capturedOutput.ToString());
         Assert.DoesNotContain("-> fail", capturedOutput.ToString());
@@ -980,7 +1013,7 @@ public class PluginTests
     {
         var recipientStr = MakePluginRecipient("test");
         var callbacks = new TestCallbacks { ConfirmResponse = true };
-        var recipient = new PluginRecipient(recipientStr, callbacks);
+        var recipient = PluginRecipient.Parse(recipientStr, callbacks);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -991,7 +1024,7 @@ public class PluginTests
 
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
 
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
         Assert.Contains("malformed confirm stanza", ex.Message);
         Assert.Empty(callbacks.Confirmations);
     }
@@ -1001,7 +1034,7 @@ public class PluginTests
     {
         var recipientStr = MakePluginRecipient("test");
         var callbacks = new TestCallbacks { ConfirmResponse = true };
-        var recipient = new PluginRecipient(recipientStr, callbacks);
+        var recipient = PluginRecipient.Parse(recipientStr, callbacks);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -1009,7 +1042,7 @@ public class PluginTests
         var pluginResponse = pluginOutput.ToString();
 
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
         Assert.Contains("not valid unpadded base64", ex.Message);
     }
 
@@ -1017,7 +1050,7 @@ public class PluginTests
     public void PluginRecipient_Wrap_ConfirmNoCallbacks_SendsFail()
     {
         var recipientStr = MakePluginRecipient("test");
-        var recipient = new PluginRecipient(recipientStr); // no callbacks
+        var recipient = PluginRecipient.Parse(recipientStr); // no callbacks
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -1028,7 +1061,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        recipient.WrapAllWithConnection(conn, new byte[16]);
+        recipient.WrapWithConnection(conn, new byte[16]);
 
         Assert.Contains("-> fail", capturedOutput.ToString());
     }
@@ -1094,7 +1127,7 @@ public class PluginTests
     public void PluginRecipient_Wrap_RecipientStanzaMissingArgs_Throws()
     {
         var recipientStr = MakePluginRecipient("test");
-        var recipient = new PluginRecipient(recipientStr);
+        var recipient = PluginRecipient.Parse(recipientStr);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -1103,7 +1136,7 @@ public class PluginTests
         var pluginResponse = pluginOutput.ToString();
 
         var conn = new PluginConnection(new StringReader(pluginResponse), new StringWriter());
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
         Assert.Contains("missing file index or type", ex.Message);
     }
 
@@ -1111,18 +1144,18 @@ public class PluginTests
     public void PluginRecipient_Wrap_UnexpectedEof_Throws()
     {
         var recipientStr = MakePluginRecipient("test");
-        var recipient = new PluginRecipient(recipientStr);
+        var recipient = PluginRecipient.Parse(recipientStr);
 
         // Empty plugin output — EOF immediately
         var conn = new PluginConnection(new StringReader(""), new StringWriter());
-        Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
+        Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
     }
 
     [Fact]
     public void PluginRecipient_Wrap_MsgWithoutCallbacks_SendsFailAndContinues()
     {
         var recipientStr = MakePluginRecipient("test");
-        var recipient = new PluginRecipient(recipientStr); // no callbacks
+        var recipient = PluginRecipient.Parse(recipientStr); // no callbacks
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -1133,7 +1166,7 @@ public class PluginTests
 
         var capturedOutput = new StringWriter();
         var conn = new PluginConnection(new StringReader(pluginResponse), capturedOutput);
-        var result = Assert.Single(recipient.WrapAllWithConnection(conn, new byte[16]));
+        var result = Assert.Single(recipient.WrapWithConnection(conn, new byte[16]).Stanzas);
 
         Assert.Equal("X25519", result.Type);
         Assert.Contains("-> fail", capturedOutput.ToString());
@@ -1153,7 +1186,7 @@ public class PluginTests
     public void PluginIdentity_Unwrap_MsgWithoutCallbacks_SendsFailAndContinues()
     {
         var identityStr = MakePluginIdentity("test");
-        var identity = new PluginIdentity(identityStr); // no callbacks
+        var identity = PluginIdentity.Parse(identityStr); // no callbacks
         var fileKey = new byte[16];
 
         var pluginOutput = new StringWriter();
@@ -1176,7 +1209,7 @@ public class PluginTests
     public void PluginIdentity_Unwrap_RequestSecretNoCallbacks_SendsFail()
     {
         var identityStr = MakePluginIdentity("test");
-        var identity = new PluginIdentity(identityStr); // no callbacks
+        var identity = PluginIdentity.Parse(identityStr); // no callbacks
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -1198,7 +1231,7 @@ public class PluginTests
     public void PluginIdentity_Unwrap_ConfirmNoCallbacks_SendsFail()
     {
         var identityStr = MakePluginIdentity("test");
-        var identity = new PluginIdentity(identityStr); // no callbacks
+        var identity = PluginIdentity.Parse(identityStr); // no callbacks
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -1221,7 +1254,7 @@ public class PluginTests
     {
         var identityStr = MakePluginIdentity("test");
         var callbacks = new TestCallbacks { ConfirmResponse = true };
-        var identity = new PluginIdentity(identityStr, callbacks);
+        var identity = PluginIdentity.Parse(identityStr, callbacks);
         var fileKey = new byte[16];
 
         var pluginOutput = new StringWriter();
@@ -1248,7 +1281,7 @@ public class PluginTests
     public void PluginIdentity_Unwrap_FileKeyMissingIndex_Throws()
     {
         var identityStr = MakePluginIdentity("test");
-        var identity = new PluginIdentity(identityStr);
+        var identity = PluginIdentity.Parse(identityStr);
 
         var pluginOutput = new StringWriter();
         var mockConn = new PluginConnection(new StringReader(""), pluginOutput);
@@ -1265,7 +1298,7 @@ public class PluginTests
     public void PluginIdentity_Unwrap_UnexpectedEof_Throws()
     {
         var identityStr = MakePluginIdentity("test");
-        var identity = new PluginIdentity(identityStr);
+        var identity = PluginIdentity.Parse(identityStr);
 
         var stanzas = new List<Stanza> { new("X25519", [], new byte[] { 0x01 }) };
         var conn = new PluginConnection(new StringReader(""), new StringWriter());

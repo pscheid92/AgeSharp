@@ -22,40 +22,40 @@ public class PluginRobustnessTests
     [Fact]
     public void BodyThatIsNotBase64_IsAPluginException()
     {
-        var recipient = new PluginRecipient(MakePluginRecipient("bad"));
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("bad"));
         var conn = Scripted("-> recipient-stanza 0 bad\n!!!!not base64!!!!\n");
 
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
         Assert.Contains("invalid stanza body", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void PaddedBody_IsAPluginException()
     {
-        var recipient = new PluginRecipient(MakePluginRecipient("bad"));
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("bad"));
         var conn = Scripted("-> recipient-stanza 0 bad\nQUFB=\n");
 
-        Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
+        Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
     }
 
     // Two consecutive spaces are enough — no exotic bytes required.
     [Fact]
     public void EmptyStanzaArgument_IsAPluginException()
     {
-        var recipient = new PluginRecipient(MakePluginRecipient("bad"));
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("bad"));
         var conn = Scripted("-> recipient-stanza 0 X25519  extra\nQUFBQQ\n");
 
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
         Assert.Contains("empty stanza", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void ControlCharacterInStanzaType_IsAPluginException()
     {
-        var recipient = new PluginRecipient(MakePluginRecipient("bad"));
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("bad"));
         var conn = Scripted("-> recipient-stanza 0 X25519 aaa\nQUFBQQ\n");
 
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
         Assert.Contains("invalid character", ex.Message, StringComparison.Ordinal);
     }
 
@@ -67,10 +67,10 @@ public class PluginRobustnessTests
     [Fact]
     public void WriteToADeadPlugin_IsAPluginException()
     {
-        var recipient = new PluginRecipient(MakePluginRecipient("dead"));
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("dead"));
         var conn = new PluginConnection(new StringReader(""), new BrokenPipeWriter());
 
-        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapAllWithConnection(conn, new byte[16]));
+        var ex = Assert.Throws<AgePluginException>(() => recipient.WrapWithConnection(conn, new byte[16]));
 
         Assert.Contains("exited before the request could be sent", ex.Message, StringComparison.Ordinal);
         Assert.IsType<IOException>(ex.InnerException);
@@ -96,10 +96,10 @@ public class PluginRobustnessTests
                      "-> recipient-stanza 0 ab\nQUFBQQ\n",
                  })
         {
-            var recipient = new PluginRecipient(MakePluginRecipient("bad"));
+            var recipient = PluginRecipient.Parse(MakePluginRecipient("bad"));
             var conn = Scripted(transcript);
 
-            var ex = Record.Exception(() => recipient.WrapAllWithConnection(conn, new byte[16]));
+            var ex = Record.Exception(() => recipient.WrapWithConnection(conn, new byte[16]));
 
             Assert.NotNull(ex);
             Assert.IsAssignableFrom<AgeException>(ex);

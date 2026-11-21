@@ -29,7 +29,7 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 - [ ] `PluginIdentity` as `IIdentityWithRecipient`: its recipient speaks recipient-v1 with `add-identity`, so a file can be encrypted to the identities in a key file, plugins included (recorded on `next-version`; deferred from rebuild step 1)
 - [ ] AgeSharp's own identities derive the file key straight into the caller's buffer, instead of recovering it into an array and handing that over zeroed (`FileKey.Deliver`)
 - [ ] Plugin connection: write stanzas to the plugin's stdin as bytes, not through a `StreamWriter`, whose internal buffer keeps a copy of the last body written (a file key, or a secret since rebuild step 2) until it is overwritten
-- [ ] Plugin recipients: advertise `extension-labels` and pass a plugin's labels on through `IRecipientWithLabels` (possible since rebuild step 1; today a plugin is told nothing and sends none)
+- [x] Plugin recipients: advertise `extension-labels` and pass a plugin's labels on through `IRecipientWithLabels` (rebuild step 8b)
 - [ ] Plugin authoring: the server side of the plugin protocol
 - [ ] Small differences from go-age (low priority): a matching stanza without arguments is an error in go-age and skipped here; an even RSA exponent is refused with BouncyCastle's own message
 
@@ -65,4 +65,4 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 
 - [ ] `PayloadKey` type
 - [x] Shared plugin prompt handler — `AgeSharp.PluginPrompts`, used by `PluginRecipient` and `PluginIdentity`
-- [ ] Remove test-only code from the production assembly (the KEMs' scalar overloads and `PluginRecipient.WrapWithConnection` are gone; `PluginIdentity.UnwrapWithConnection` and others remain)
+- [ ] Remove test-only code from the production assembly (the KEMs' scalar overloads are gone; the plugin connection seams `PluginRecipient.WrapWithConnection` and `PluginIdentity.UnwrapWithConnection`, the whole-buffer `StreamEncryption` helpers and others remain)

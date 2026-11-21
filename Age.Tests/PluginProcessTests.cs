@@ -56,7 +56,7 @@ public class PluginProcessTests
     /// the application directory and the working directory by documented design, so skipping the
     /// process tests there would leave the more dangerous platform unverified end to end.
     /// </remarks>
-    private static string PlantFakePlugin(string directory, string pluginName, string stanzaType, string evidence)
+    private static string PlantFakePlugin(string directory, string pluginName, string stanzaType, string evidence, string? labels = null)
     {
         if (OperatingSystem.IsWindows())
         {
@@ -66,6 +66,7 @@ public class PluginProcessTests
                 "@echo off\r\n" +
                 $"echo ran>\"{evidence}\"\r\n" +
                 "for /L %%i in (1,1,200) do echo plugin diagnostic noise 1>&2\r\n" +
+                (labels is null ? "" : $"echo -^> labels {labels}\r\necho.\r\n") +
                 $"echo -^> recipient-stanza 0 {stanzaType}\r\n" +
                 "echo QUFBQQ\r\n" +
                 "echo -^> done\r\n" +
@@ -79,6 +80,7 @@ public class PluginProcessTests
             "i=0; while [ $i -lt 200 ]; do echo 'plugin diagnostic noise' >&2; i=$((i+1)); done\n" +
             // A body ends at the first line under 64 characters, so the 6-char body needs no
             // terminator; an empty body is a multiple of 64 and does, hence the blank after done.
+            (labels is null ? "" : $"printf '\\055> labels {labels}\\n\\n'\n") +
             $"printf '\\055> recipient-stanza 0 {stanzaType}\\nQUFBQQ\\n\\055> done\\n\\n'\n" +
             // Foreground: POSIX sh redirects a background job's stdin from /dev/null, so a
             // backgrounded drain would take EOF at once and the script would exit under the
@@ -223,7 +225,7 @@ public class PluginProcessTests
         {
             Environment.SetEnvironmentVariable("PATH", $"{dir}{Path.PathSeparator}{originalPath}");
 
-            var recipient = new PluginRecipient(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
+            var recipient = PluginRecipient.Parse(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
 
             using var input = new MemoryStream("through the facade"u8.ToArray());
             using var output = new MemoryStream();
@@ -234,6 +236,38 @@ public class PluginProcessTests
             var text = System.Text.Encoding.ASCII.GetString(output.ToArray());
             Assert.Contains("-> plugin-stanza", text, StringComparison.Ordinal);
             Assert.StartsWith("age-encryption.org/v1\n", text, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", originalPath);
+            TryDeleteTempDir(dir);
+        }
+    }
+
+    // The labels a plugin declares reach the label check across a file's recipients: a plugin
+    // that says its stanzas are post-quantum goes with an ML-KEM recipient, not with X25519.
+    [Fact]
+    public void APluginsLabels_DecideWhatItMixesWith()
+    {
+        var dir = NewTempDir();
+        var originalPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+        var name = "labels" + Guid.NewGuid().ToString("N")[..8];
+
+        PlantFakePlugin(dir, name, "plugin-stanza", Path.Combine(dir, "RAN"), labels: "postquantum");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("PATH", $"{dir}{Path.PathSeparator}{originalPath}");
+
+            var plugin = PluginRecipient.Parse(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
+            using var classical = X25519Identity.Generate();
+            using var postQuantum = MlKem768X25519Identity.Generate();
+
+            var ex = Assert.Throws<AgeException>(() => new Recipients(plugin, classical.Recipient).Encrypt("x"u8));
+            Assert.Contains("post-quantum", ex.Message, StringComparison.Ordinal);
+
+            var file = new Recipients(plugin, postQuantum.Recipient).Encrypt("x"u8);
+            Assert.Equal("x"u8.ToArray(), new Identities(postQuantum).Decrypt(file));
         }
         finally
         {
@@ -274,7 +308,7 @@ public class PluginProcessTests
         {
             Environment.SetEnvironmentVariable("PATH", $"{dir}{Path.PathSeparator}{originalPath}");
 
-            var recipient = new PluginRecipient(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
+            var recipient = PluginRecipient.Parse(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
 
             var started = DateTime.UtcNow;
             var stanza = recipient.WrapSingle(new byte[16]);
@@ -317,7 +351,7 @@ public class PluginProcessTests
         {
             Environment.SetEnvironmentVariable("PATH", $"{dir}{Path.PathSeparator}{originalPath}");
 
-            var recipient = new PluginRecipient(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
+            var recipient = PluginRecipient.Parse(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
             // Which side notices the death is a timing accident — the client writes its whole
             // request before reading, so a fast exit breaks the write and a slow one breaks the
             // read. Both must report as AgePluginException, with the stderr attached.
@@ -349,7 +383,7 @@ public class PluginProcessTests
             // plugin able to run but unable to do anything, which fails in a confusing way.
             Environment.SetEnvironmentVariable("PATH", $"{dir}{Path.PathSeparator}{originalPath}");
 
-            var recipient = new PluginRecipient(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
+            var recipient = PluginRecipient.Parse(Bech32.Encode($"age1{name}", [0x01, 0x02, 0x03]));
             var stanza = recipient.WrapSingle(new byte[16]);
 
             Assert.Equal("onpath-type", stanza.Type);
@@ -396,7 +430,7 @@ public class PluginProcessTests
         {
             Environment.SetEnvironmentVariable("PATH", $"{dir}{Path.PathSeparator}{originalPath}");
 
-            var identity = new PluginIdentity(Bech32.Encode($"age-plugin-{name}-", [0x01, 0x02, 0x03]).ToUpperInvariant());
+            var identity = PluginIdentity.Parse(Bech32.Encode($"age-plugin-{name}-", [0x01, 0x02, 0x03]).ToUpperInvariant());
             var stanza = new Stanza(name, [], [0x01]);
             var buffer = new byte[16];
 
