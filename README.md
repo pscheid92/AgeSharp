@@ -39,7 +39,7 @@ and needs to raise its pin to 2.7.0.
   stream
 - Header inspection without decryption (`AgeHeader.Read`)
 - Standalone armor conversion (`Armor.Encode` / `Armor.Decode`)
-- Encrypted identity files (passphrase-protected)
+- Encrypted identity files (passphrase-protected), asked for their passphrase only when needed
 - Recipients file parsing (`-R` style files with comments)
 - Fully interoperable — files produced by AgeSharp decrypt with `age`, `rage`, and vice versa
 - **Runs in Blazor WebAssembly** — automatically uses a managed
@@ -157,7 +157,7 @@ from. It is asked for only when a file addressed to the key is decrypted, and
 never for encrypting to the key:
 
 ```csharp
-var identity = AgeKeygen.ParseSshIdentity(
+var identity = SshIdentity.Parse(
     File.ReadAllText("/path/to/id_ed25519"),
     passphrase: () => PromptForPassphrase());
 ```
@@ -168,7 +168,7 @@ An ssh-rsa key protected in the older PEM format (`BEGIN RSA PRIVATE KEY` with
 too. The decrypted key must match it:
 
 ```csharp
-var identity = AgeKeygen.ParseSshIdentity(
+var identity = SshIdentity.Parse(
     File.ReadAllText("/path/to/id_rsa"),
     File.ReadAllText("/path/to/id_rsa.pub"),
     passphrase: () => PromptForPassphrase());
@@ -315,10 +315,31 @@ using var keys = Identities.Parse(File.ReadAllText("keys.txt")); // an identity 
 `Recipients.ParseOne` reads a recipient of any type: `age1…`, `age1pq1…`, `age1tag1…`,
 `age1tagpq1…`, a plugin's `age1name1…`, or an SSH public key. `Identities.ParseOne` reads
 `AGE-SECRET-KEY-1…`, `AGE-SECRET-KEY-PQ-1…`, a plugin's `AGE-PLUGIN-…`, or an SSH private
-key that has no passphrase; `AgeKeygen.ParseSshIdentity` reads one that has.
+key that has no passphrase; `SshIdentity.Parse` reads one that has.
 
 An `Identities` set parsed from a file owns its keys: disposing it clears them.
 Identities you build a set from stay yours to dispose.
+
+### Passphrase-protected identity files
+
+An identity file encrypted to a passphrase, as `age -p` writes one, is an identity in its own
+right. It asks for its passphrase only when a file is tried against it, and AgeSharp's own
+identities are tried first, so of several such files only the one that opens the file asks:
+
+```csharp
+using var keys = new EncryptedIdentityFile(File.ReadAllBytes("keys.age"), () => PromptForPassphrase());
+new Identities(keys).Decrypt(input, output);
+
+IReadOnlyList<IRecipient> mine = keys.Recipients;   // for encrypting to your own keys
+```
+
+The characters the callback returns are cleared once used. To write such a file, encrypt the
+identity file to a `Passphrase`:
+
+```csharp
+using var passphrase = new Passphrase(characters);
+var protectedKeys = new Recipients(passphrase).Encrypt(Encoding.UTF8.GetBytes(identityFileText));
+```
 
 ### Custom recipients and identities
 

@@ -165,9 +165,9 @@ public class RecipientIdentityContractTests
     {
         "X25519" => X25519Identity.Generate(),
         "ML-KEM-768-X25519" => MlKem768X25519Identity.Generate(),
-        "SSH Ed25519" => AgeKeygen.ParseSshIdentity(SshKey("ed25519_plain")),
-        "SSH RSA" => AgeKeygen.ParseSshIdentity(SshKey("rsa_plain")),
-        "protected SSH" => AgeKeygen.ParseSshIdentity(SshKey("ed25519_aes256gcm"), () => "hunter2"),
+        "SSH Ed25519" => SshIdentity.Parse(SshKey("ed25519_plain")),
+        "SSH RSA" => SshIdentity.Parse(SshKey("rsa_plain")),
+        "protected SSH" => SshIdentity.Parse(SshKey("ed25519_aes256gcm"), () => "hunter2"),
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 

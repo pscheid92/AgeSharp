@@ -1,15 +1,19 @@
-using System.Security.Cryptography;
-using System.Text;
 using AgeSharp.Crypto;
+
 namespace AgeSharp;
 
 /// <summary>
-/// SSH private keys, including passphrase-protected ones, and passphrase-protected identity
-/// files. Recipients and identities of every other kind parse through <see cref="Recipients"/>,
-/// <see cref="Identities"/> and the key types themselves.
+/// An SSH private key as an age identity: ssh-ed25519 or ssh-rsa, unprotected or protected by a
+/// passphrase. Each method returns the identity the key file calls for: an
+/// <see cref="SshEd25519Identity"/>, an <see cref="SshRsaIdentity"/>, or, for a protected key, an
+/// <see cref="EncryptedSshIdentity"/> that asks for the passphrase only once a file addressed to
+/// the key is decrypted.
 /// </summary>
-/// <remarks>What is left here moves to the key types themselves with the key-material rework.</remarks>
-public static class AgeKeygen
+/// <remarks>
+/// The passphrase is asked for as a <see cref="string"/>: the key is decrypted by SSH.NET, which
+/// takes one. <see cref="Identities.ParseOne"/> reads unprotected keys too.
+/// </remarks>
+public static class SshIdentity
 {
     /// <summary>
     /// Parses an SSH private key from PEM text and returns the appropriate identity.
@@ -17,9 +21,9 @@ public static class AgeKeygen
     /// </summary>
     /// <exception cref="FormatException">
     /// The key is malformed or of another type, or it is passphrase-protected: use
-    /// <see cref="ParseSshIdentity(string, Func{string})"/> for a key that may be.
+    /// <see cref="Parse(string, Func{string})"/> for a key that may be.
     /// </exception>
-    public static IIdentity ParseSshIdentity(string pemText)
+    public static IIdentity Parse(string pemText)
     {
         var (keyType, publicWireBytes, privateKey) = SshKeyParser.ParsePrivateKey(pemText);
 
@@ -35,23 +39,23 @@ public static class AgeKeygen
     /// Parses an SSH private key that may be passphrase-protected. A protected key (OpenSSH
     /// format) becomes an <see cref="EncryptedSshIdentity"/>, which asks
     /// <paramref name="passphrase"/> only once a file addressed to the key is decrypted; an
-    /// unprotected key is parsed as by <see cref="ParseSshIdentity(string)"/> and never asks.
+    /// unprotected key is parsed as by <see cref="Parse(string)"/> and never asks.
     /// </summary>
     /// <exception cref="FormatException">
     /// The key is malformed, of another type, or protected in the legacy PEM way, which does
-    /// not store its public key: use <see cref="ParseSshIdentity(string, string, Func{string})"/>
+    /// not store its public key: use <see cref="Parse(string, string, Func{string})"/>
     /// with its <c>.pub</c> file for that. A key protected with a cipher or KDF this library
     /// does not read is accepted, and refused once a file is addressed to it, before the
     /// passphrase is asked for.
     /// </exception>
-    public static IIdentity ParseSshIdentity(string pemText, Func<string> passphrase)
+    public static IIdentity Parse(string pemText, Func<string> passphrase)
     {
         ArgumentNullException.ThrowIfNull(pemText);
         ArgumentNullException.ThrowIfNull(passphrase);
 
         return SshKeyParser.ParseProtectedKey(pemText) is { } protectedKey
             ? new EncryptedSshIdentity(protectedKey, passphrase)
-            : ParseSshIdentity(pemText);
+            : Parse(pemText);
     }
 
     /// <summary>
@@ -61,7 +65,7 @@ public static class AgeKeygen
     /// store their public key, as go-age does: the public key decides which files are for
     /// the key, <paramref name="passphrase"/> is asked only once one is decrypted, and the
     /// decrypted key must then match the public key. Other keys are read as by
-    /// <see cref="ParseSshIdentity(string, Func{string})"/>, and must match the public key.
+    /// <see cref="Parse(string, Func{string})"/>, and must match the public key.
     /// </summary>
     /// <param name="pemText">The private key file.</param>
     /// <param name="publicKey">The public key file's text: an authorized_keys line.</param>
@@ -72,7 +76,7 @@ public static class AgeKeygen
     /// in go-age). A key protected with a cipher this library does not decrypt is accepted,
     /// and refused once a file is addressed to it, before the passphrase is asked for.
     /// </exception>
-    public static IIdentity ParseSshIdentity(string pemText, string publicKey, Func<string> passphrase)
+    public static IIdentity Parse(string pemText, string publicKey, Func<string> passphrase)
     {
         ArgumentNullException.ThrowIfNull(pemText);
         ArgumentNullException.ThrowIfNull(publicKey);
@@ -109,67 +113,5 @@ public static class AgeKeygen
     {
         if (!ownPublicKey.AsSpan().SequenceEqual(given))
             throw new FormatException("the public key does not belong to the SSH private key");
-    }
-
-    /// <summary>
-    /// Decrypts an encrypted (passphrase-protected) identity file and parses the contained identities.
-    /// </summary>
-    /// <remarks>
-    ///     The decrypted file contains <c>AGE-SECRET-KEY-1…</c> lines in the clear. The byte
-    ///     copies are cleared here; the <see cref="string" /> they are decoded into cannot be,
-    ///     because <see cref="Identities.Parse" /> takes a string.
-    ///     Treat this as reducing the exposure rather than eliminating it.
-    /// </remarks>
-    public static IIdentity[] DecryptIdentityFile(byte[] data, string passphrase)
-    {
-        using var input = new MemoryStream(data);
-
-        // Sized up front: the plaintext is always shorter than the file, so the buffer never
-        // grows. A growing MemoryStream abandons each outgrown buffer with a copy of the private
-        // keys in it, where the clearing below cannot reach.
-        using var output = new MemoryStream(data.Length);
-
-        using var passphraseIdentity = new Passphrase(passphrase);
-        new Identities(passphraseIdentity).Decrypt(input, output);
-
-        // ToArray copies out, and the MemoryStream's own buffer keeps the plaintext too —
-        // Dispose does not clear it. Both are private keys in the clear.
-        var plaintextBytes = output.ToArray();
-
-        try
-        {
-            // The set is not disposed: the identities are handed to the caller, who owns them.
-            return [.. Identities.Parse(Encoding.UTF8.GetString(plaintextBytes))];
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(plaintextBytes);
-            CryptographicOperations.ZeroMemory(output.GetBuffer());
-        }
-    }
-
-    /// <summary>
-    /// Encrypts an identity file with a passphrase using scrypt.
-    /// </summary>
-    /// <remarks>
-    ///     <paramref name="identityFileText" /> holds private keys in the clear. The UTF-8 copy
-    ///     made here is cleared; the caller's string cannot be.
-    /// </remarks>
-    public static byte[] EncryptIdentityFile(string identityFileText, string passphrase, bool armor = false, int workFactor = 18)
-    {
-        var plaintextBytes = Encoding.UTF8.GetBytes(identityFileText);
-
-        try
-        {
-            using var input = new MemoryStream(plaintextBytes);
-            using var output = new MemoryStream();
-
-            new Recipients(new Passphrase(passphrase, workFactor)).Encrypt(input, output, new AgeEncryptOptions { Armor = armor });
-            return output.ToArray();
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(plaintextBytes);
-        }
     }
 }

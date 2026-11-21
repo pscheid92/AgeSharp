@@ -27,28 +27,28 @@ public class OpenSshKeyQuirksTests
     [MemberData(nameof(Quirky))]
     public void DecryptsWhatThePlainKeyWasEncryptedTo(string quirky, string plain)
     {
-        var ciphertext = Encrypt(RecipientOf(AgeKeygen.ParseSshIdentity(Key(plain))));
+        var ciphertext = Encrypt(RecipientOf(SshIdentity.Parse(Key(plain))));
 
-        Assert.Equal(Plaintext, Decrypt(ciphertext, AgeKeygen.ParseSshIdentity(Key(quirky))));
+        Assert.Equal(Plaintext, Decrypt(ciphertext, SshIdentity.Parse(Key(quirky))));
     }
 
     [Theory]
     [MemberData(nameof(Quirky))]
     public void ItsRecipientIsThePlainKeys(string quirky, string plain)
     {
-        var ciphertext = Encrypt(RecipientOf(AgeKeygen.ParseSshIdentity(Key(quirky))));
+        var ciphertext = Encrypt(RecipientOf(SshIdentity.Parse(Key(quirky))));
 
-        Assert.Equal(Plaintext, Decrypt(ciphertext, AgeKeygen.ParseSshIdentity(Key(plain))));
+        Assert.Equal(Plaintext, Decrypt(ciphertext, SshIdentity.Parse(Key(plain))));
     }
 
     [Theory]
     [MemberData(nameof(Quirky))]
     public void ThePassphraseOverloads_ReadItToo_WithoutAsking(string quirky, string plain)
     {
-        var ciphertext = Encrypt(RecipientOf(AgeKeygen.ParseSshIdentity(Key(plain))));
+        var ciphertext = Encrypt(RecipientOf(SshIdentity.Parse(Key(plain))));
 
-        Assert.Equal(Plaintext, Decrypt(ciphertext, AgeKeygen.ParseSshIdentity(Key(quirky), NeverAsked)));
-        Assert.Equal(Plaintext, Decrypt(ciphertext, AgeKeygen.ParseSshIdentity(Key(quirky), Key(plain + ".pub"), NeverAsked)));
+        Assert.Equal(Plaintext, Decrypt(ciphertext, SshIdentity.Parse(Key(quirky), NeverAsked)));
+        Assert.Equal(Plaintext, Decrypt(ciphertext, SshIdentity.Parse(Key(quirky), Key(plain + ".pub"), NeverAsked)));
     }
 
     // What OpenSSH refuses stays refused: SSH.NET is only asked about what BouncyCastle
@@ -59,7 +59,7 @@ public class OpenSshKeyQuirksTests
     [InlineData("ed25519_plain_two_keys", "multiple keys")]
     public void AKeyOpenSshRefuses_IsRefused(string key, string because)
     {
-        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseSshIdentity(Key(key)));
+        var ex = Assert.Throws<FormatException>(() => SshIdentity.Parse(Key(key)));
 
         Assert.Contains(because, ex.Message);
     }
@@ -71,7 +71,7 @@ public class OpenSshKeyQuirksTests
     [Fact]
     public void AKeyOnlySshNetReads_StillGetsTheRsaChecks()
     {
-        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseSshIdentity(Key("rsa_plain_leading_zeros_unsound")));
+        var ex = Assert.Throws<FormatException>(() => SshIdentity.Parse(Key("rsa_plain_leading_zeros_unsound")));
 
         Assert.True(ex.Message.Contains("do not belong together") || ex.Message.Contains("Unnecessary leading bytes"), ex.Message);
     }
@@ -92,7 +92,7 @@ public class OpenSshKeyQuirksTests
 
             try
             {
-                AgeKeygen.ParseSshIdentity(Pem(blob));
+                SshIdentity.Parse(Pem(blob));
             }
             catch (FormatException)
             {
@@ -106,7 +106,7 @@ public class OpenSshKeyQuirksTests
         Skip.IfNot(AgeCli.Available, "age CLI not found on PATH");
         var ciphertext = AgeCli.Encrypt(Plaintext, false, Key("rsa_plain.pub").Trim());
 
-        Assert.Equal(Plaintext, Decrypt(ciphertext, AgeKeygen.ParseSshIdentity(Key("rsa_plain_leading_zeros"))));
+        Assert.Equal(Plaintext, Decrypt(ciphertext, SshIdentity.Parse(Key("rsa_plain_leading_zeros"))));
     }
 
     private static string NeverAsked() => throw new InvalidOperationException("the passphrase was asked for");

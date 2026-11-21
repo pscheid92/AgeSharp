@@ -35,7 +35,7 @@ public class EncryptedSshKeyTests
     [MemberData(nameof(ProtectedKeys))]
     public void DecryptsWhatThePlainKeyWasEncryptedTo(string protectedKey, string plainKey)
     {
-        var ciphertext = Encrypt(RecipientOf(AgeKeygen.ParseSshIdentity(Key(plainKey))));
+        var ciphertext = Encrypt(RecipientOf(SshIdentity.Parse(Key(plainKey))));
         using var identity = EncryptedSshIdentity.Parse(Key(protectedKey), () => Passphrase);
 
         Assert.Equal(Plaintext, Decrypt(ciphertext, identity));
@@ -64,7 +64,7 @@ public class EncryptedSshKeyTests
 
         var ciphertext = Encrypt(identity.Recipient);
 
-        Assert.Equal(Plaintext, Decrypt(ciphertext, AgeKeygen.ParseSshIdentity(Key(plainKey))));
+        Assert.Equal(Plaintext, Decrypt(ciphertext, SshIdentity.Parse(Key(plainKey))));
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class EncryptedSshKeyTests
     [Fact]
     public void DoesNotAsk_WhenTheFileIsForAnotherSshKey()
     {
-        var ciphertext = Encrypt(RecipientOf(AgeKeygen.ParseSshIdentity(Key("rsa_plain"))));
+        var ciphertext = Encrypt(RecipientOf(SshIdentity.Parse(Key("rsa_plain"))));
         using var identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), NeverAsked);
 
         Assert.Throws<NoIdentityMatchException>(() => Decrypt(ciphertext, identity));
@@ -147,8 +147,8 @@ public class EncryptedSshKeyTests
     [Fact]
     public void ParseSshIdentity_GivenAPassphraseSource_ReadsBothKinds()
     {
-        var plain = AgeKeygen.ParseSshIdentity(Key("ed25519_plain"), NeverAsked);
-        var protectedKey = AgeKeygen.ParseSshIdentity(Key("ed25519_aes256ctr"), () => Passphrase);
+        var plain = SshIdentity.Parse(Key("ed25519_plain"), NeverAsked);
+        var protectedKey = SshIdentity.Parse(Key("ed25519_aes256ctr"), () => Passphrase);
 
         Assert.IsType<SshEd25519Identity>(plain);
         Assert.IsType<EncryptedSshIdentity>(protectedKey);
@@ -158,7 +158,7 @@ public class EncryptedSshKeyTests
     [Fact]
     public void ParseSshIdentity_WithoutAPassphraseSource_PointsAtTheOverload()
     {
-        var ex = Assert.Throws<FormatException>(() => AgeKeygen.ParseSshIdentity(Key("ed25519_aes256ctr")));
+        var ex = Assert.Throws<FormatException>(() => SshIdentity.Parse(Key("ed25519_aes256ctr")));
 
         Assert.Contains("passphrase", ex.Message);
     }
@@ -216,7 +216,7 @@ public class EncryptedSshKeyTests
         protectedBlob[^40] ^= 0x01;
         using var damaged = EncryptedSshIdentity.Parse(Pem(protectedBlob), () => Passphrase);
 
-        var whenPlain = Assert.Throws<FormatException>(() => AgeKeygen.ParseSshIdentity(Pem(plain)));
+        var whenPlain = Assert.Throws<FormatException>(() => SshIdentity.Parse(Pem(plain)));
         var whenProtected = Assert.Throws<AgeException>(() => Decrypt(Encrypt(damaged.Recipient), damaged));
 
         Assert.Contains("do not belong together", whenPlain.Message);

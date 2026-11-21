@@ -772,7 +772,7 @@ public class SshRoundTripTests
     }
 
     [Fact]
-    public void AgeKeygen_ParseSshRecipient_Ed25519()
+    public void RecipientsParseOne_SshEd25519()
     {
         var seed = new byte[32];
         RandomNumberGenerator.Fill(seed);
@@ -786,7 +786,7 @@ public class SshRoundTripTests
     }
 
     [Fact]
-    public void AgeKeygen_ParseSshRecipient_Rsa()
+    public void RecipientsParseOne_SshRsa()
     {
         var rsaGen = new RsaKeyPairGenerator();
         rsaGen.Init(new Org.BouncyCastle.Crypto.KeyGenerationParameters(new SecureRandom(), 2048));
@@ -799,7 +799,7 @@ public class SshRoundTripTests
     }
 
     [Fact]
-    public void AgeKeygen_ParseSshIdentity_Ed25519()
+    public void SshIdentityParse_Ed25519()
     {
         var seed = new byte[32];
         RandomNumberGenerator.Fill(seed);
@@ -807,12 +807,12 @@ public class SshRoundTripTests
         var privBlob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(priv);
         var pemText = BuildOpenSshPem(privBlob);
 
-        var identity = AgeKeygen.ParseSshIdentity(pemText);
+        var identity = SshIdentity.Parse(pemText);
         Assert.IsType<SshEd25519Identity>(identity);
     }
 
     [Fact]
-    public void AgeKeygen_ParseSshIdentity_Rsa()
+    public void SshIdentityParse_Rsa()
     {
         var rsaGen = new RsaKeyPairGenerator();
         rsaGen.Init(new Org.BouncyCastle.Crypto.KeyGenerationParameters(new SecureRandom(), 2048));
@@ -820,7 +820,7 @@ public class SshRoundTripTests
         var privBlob = Org.BouncyCastle.Crypto.Utilities.OpenSshPrivateKeyUtilities.EncodePrivateKey(kp.Private);
         var pemText = BuildOpenSshPem(privBlob);
 
-        var identity = AgeKeygen.ParseSshIdentity(pemText);
+        var identity = SshIdentity.Parse(pemText);
         Assert.IsType<SshRsaIdentity>(identity);
     }
 
