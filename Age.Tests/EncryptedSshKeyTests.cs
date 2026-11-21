@@ -99,6 +99,20 @@ public class EncryptedSshKeyTests
         Assert.Throws<NoIdentityMatchException>(() => Decrypt(ciphertext, identity));
     }
 
+    // A stanza of its key type without the tag is malformed, as it is to the unlocked key and to
+    // go-age, not someone else's; it is refused before the passphrase is asked for.
+    [Theory]
+    [InlineData("ed25519_aes256ctr", "ssh-ed25519")]
+    [InlineData("rsa_aes256ctr", "ssh-rsa")]
+    public void AStanzaOfItsTypeWithoutArguments_IsMalformed_AndNothingIsAsked(string protectedKey, string type)
+    {
+        using var identity = EncryptedSshIdentity.Parse(Key(protectedKey), NeverAsked);
+
+        var ex = Assert.Throws<AgeFormatException>(() => identity.TryUnwrap(new Stanza(type, [], new byte[32]), new byte[FileKey.Size]));
+
+        Assert.Contains(type, ex.Message);
+    }
+
     [Theory]
     [InlineData("ed25519_aes256ctr")]
     [InlineData("ed25519_aes256cbc")]

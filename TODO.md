@@ -31,7 +31,7 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 - [x] Plugin connection: write stanzas to the plugin's stdin as bytes, not through a `StreamWriter`, whose internal buffer keeps a copy of the last body written (a file key, or a secret since rebuild step 2) until it is overwritten: stanzas are laid out as bytes in cleared buffers and written to stdin's stream, never through `Process.StandardInput`
 - [x] Plugin recipients: advertise `extension-labels` and pass a plugin's labels on through `IRecipientWithLabels` (rebuild step 8b)
 - [ ] Plugin authoring: the server side of the plugin protocol
-- [ ] Small differences from go-age (low priority): a matching stanza without arguments is an error in go-age and skipped here; an even RSA exponent is refused with BouncyCastle's own message
+- [x] Small differences from go-age: a stanza of a protected SSH key's type without arguments is malformed, as in go-age, not skipped; an even RSA exponent in a public key or a PKCS#1 key is refused in Go's words ("incorrect public exponent"), not BouncyCastle's
 
 ## Tagged recipients, later (from the #104 review)
 

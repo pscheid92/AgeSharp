@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Utilities;
@@ -38,7 +40,19 @@ internal static class SshKeyParser
             throw new FormatException("invalid base64 in authorized_keys line", ex);
         }
 
-        var publicKey = FromBouncyCastle(() => OpenSshPublicKeyUtilities.ParsePublicKey(wireBytes), $"invalid {keyType} public key");
+        AsymmetricKeyParameter publicKey;
+
+        try
+        {
+            publicKey = FromBouncyCastle(() => OpenSshPublicKeyUtilities.ParsePublicKey(wireBytes), $"invalid {keyType} public key");
+        }
+        catch (FormatException) when (RsaNumbersInWire(wireBytes) is { } numbers)
+        {
+            // BouncyCastle refuses some exponents (an even one) before AgeSharp's checks see
+            // them; they say why in Go's words, and anything else keeps BouncyCastle's error.
+            CheckRsaPublicNumbers(numbers.N, numbers.E);
+            throw;
+        }
 
         // The line names its type twice, in the first field and inside the key data. Callers
         // dispatch on the first and cast what the second produced, so they must agree.
@@ -85,6 +99,12 @@ internal static class SshKeyParser
         {
             // PKCS#1 with Proc-Type: 4,ENCRYPTED.
             throw LegacyPassphraseProtected();
+        }
+        catch (FormatException) when (RsaNumbersInPem(pemText) is { } numbers)
+        {
+            // As for a public key: BouncyCastle refuses an even exponent in PKCS#1 in words of its own.
+            CheckRsaPublicNumbers(numbers.N, numbers.E, limitExponentSize: false);
+            throw;
         }
 
         return Describe(openSshFormat: false, privateKey: obj switch
@@ -277,6 +297,60 @@ internal static class SshKeyParser
     private static FormatException EncryptedPkcs8() =>
         new("passphrase-protected SSH keys in encrypted PKCS#8 are not supported; " +
             "convert the key to the OpenSSH format with ssh-keygen -p");
+
+    // The public numbers of an ssh-rsa key in SSH wire format (its type, e, then n), or null
+    // when it is not one or cannot be read that far.
+    private static (BigInteger N, BigInteger E)? RsaNumbersInWire(byte[] wire)
+    {
+        ReadOnlySpan<byte> rest = wire;
+
+        return TryReadString(ref rest, out var type) && type.SequenceEqual("ssh-rsa"u8)
+               && TryReadString(ref rest, out var e) && TryReadString(ref rest, out var n)
+            ? (new BigInteger(n.ToArray()), new BigInteger(e.ToArray()))
+            : null;
+    }
+
+    private static bool TryReadString(ref ReadOnlySpan<byte> rest, out ReadOnlySpan<byte> value)
+    {
+        value = default;
+
+        if (rest.Length < 4)
+            return false;
+
+        var length = BinaryPrimitives.ReadUInt32BigEndian(rest);
+
+        if (length == 0 || length > rest.Length - 4)
+            return false;
+
+        value = rest.Slice(4, (int)length);
+        rest = rest[(4 + (int)length)..];
+        return true;
+    }
+
+    // The public numbers of an unencrypted PKCS#1 RSA private key, or null when the PEM is
+    // anything else or cannot be read that far. (BouncyCastle reads PKCS#8 without refusing
+    // the exponent, so AgeSharp's own checks see it.)
+    private static (BigInteger N, BigInteger E)? RsaNumbersInPem(string pemText)
+    {
+        try
+        {
+            var pem = new PemReader(new StringReader(pemText)).ReadPemObject();
+
+            var key = pem switch
+            {
+                { Headers.Count: > 0 } => null,
+                { Type: "RSA PRIVATE KEY" } => RsaPrivateKeyStructure.GetInstance(pem.Content),
+                _ => null,
+            };
+
+            return key is null ? null : (key.Modulus, key.PublicExponent);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException
+                                       or InvalidCastException or Asn1Exception)
+        {
+            return null;
+        }
+    }
 
     /// <summary>
     /// Runs a BouncyCastle parse over untrusted input and reports its failures as
