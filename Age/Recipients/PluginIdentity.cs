@@ -7,7 +7,7 @@ namespace AgeSharp;
 /// spawns the plugin named in the identity's HRP (e.g. <c>AGE-PLUGIN-YUBIKEY-1…</c>
 /// runs <c>age-plugin-yubikey</c>) and drives the identity-v1 protocol.
 /// </summary>
-public sealed class PluginIdentity : IIdentity
+public sealed class PluginIdentity : IIdentityWithRecipient
 {
     private readonly string _identity;
     private readonly IPluginCallbacks? _plugins;
@@ -33,6 +33,21 @@ public sealed class PluginIdentity : IIdentity
     }
 
     internal string PluginName { get; }
+
+    /// <summary>
+    /// The recipient that encrypts to this identity: wrapping hands the plugin the identity
+    /// (recipient-v1 with <c>add-identity</c>), as go-age's <c>Identity.Recipient</c> does. The
+    /// plugin talks to the user through the callbacks this identity was parsed with.
+    /// </summary>
+    /// <remarks>
+    /// Whether the plugin can encrypt to its identities is the plugin's to say: one that cannot
+    /// fails the wrap.
+    /// </remarks>
+    public PluginRecipient Recipient =>
+        PluginRecipient.ForIdentity(_identity, PluginName, _plugins);
+
+    IRecipient IIdentityWithRecipient.Recipient =>
+        Recipient;
 
     /// <summary>Tries to unwrap a single stanza by running the plugin binary.</summary>
     /// <exception cref="AgePluginException">The plugin failed, misbehaved, or reported an internal error.</exception>

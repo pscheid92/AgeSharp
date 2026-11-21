@@ -42,6 +42,10 @@ internal static class IdentityMismatches
     {
         var name = identity.GetType().Name;
 
+        // Its recipient names no key, and its own ToString names only the plugin.
+        if (identity is PluginIdentity plugin)
+            return plugin.ToString();
+
         try
         {
             if (identity is IIdentityWithRecipient { Recipient: { } recipient })

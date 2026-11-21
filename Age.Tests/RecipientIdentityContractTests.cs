@@ -196,8 +196,8 @@ public class RecipientIdentityContractTests
     }
 
     // AgeSharp's identities that hold their key say so, and their recipient is one they can
-    // decrypt for. A plugin identity does not yet: it would need a recipient that speaks
-    // recipient-v1 with add-identity (see TODO.md).
+    // decrypt for. A plugin identity's recipient is the plugin's to honour; PluginIdentityRecipientTests
+    // checks it against go-age's age-plugin-batchpass.
     public static TheoryData<string> IdentitiesWithRecipients => new() { "X25519", "ML-KEM-768-X25519", "SSH Ed25519", "SSH RSA", "protected SSH" };
 
     [Theory]

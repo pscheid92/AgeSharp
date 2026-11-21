@@ -9,21 +9,41 @@ namespace AgeSharp;
 /// runs <c>age-plugin-yubikey</c>) and drives the recipient-v1 protocol.
 /// </summary>
 /// <remarks>
+/// <para>
+/// A plugin identity's <see cref="PluginIdentity.Recipient"/> is one too: it hands the plugin the
+/// identity instead (<c>add-identity</c>), for plugins that can encrypt to their identities.
+/// </para>
+/// <para>
 /// The plugin may declare security labels for what it wraps, such as <c>postquantum</c>; they
 /// are passed on, so a file never mixes recipients that declare different ones (see
 /// <see cref="IRecipientWithLabels"/>). A plugin that declares none has none.
+/// </para>
 /// </remarks>
 public sealed class PluginRecipient : IRecipientWithLabels
 {
-    private readonly string _recipient;
+    // A recipient string, or for an identity's recipient the identity string, which is secret.
+    private readonly string _encoding;
+    private readonly bool _fromIdentity;
     private readonly IPluginCallbacks? _plugins;
 
     internal PluginRecipient(string recipient, IPluginCallbacks? plugins = null)
     {
-        _recipient = recipient;
+        _encoding = recipient;
         _plugins = plugins;
         PluginName = ExtractPluginName(recipient);
     }
+
+    private PluginRecipient(string identity, string pluginName, IPluginCallbacks? plugins)
+    {
+        _encoding = identity;
+        _fromIdentity = true;
+        _plugins = plugins;
+        PluginName = pluginName;
+    }
+
+    // go-age's Identity.Recipient: the plugin is handed the identity, and wraps to it.
+    internal static PluginRecipient ForIdentity(string identity, string pluginName, IPluginCallbacks? plugins) =>
+        new(identity, pluginName, plugins);
 
     /// <summary>Parses a plugin recipient, <c>age1&lt;name&gt;1…</c>.</summary>
     /// <param name="s">The recipient string.</param>
@@ -64,7 +84,7 @@ public sealed class PluginRecipient : IRecipientWithLabels
 
     private void SendWrapRequest(PluginConnection conn, ReadOnlySpan<byte> fileKey)
     {
-        conn.WriteStanza("add-recipient", [_recipient], []);
+        conn.WriteStanza(_fromIdentity ? "add-identity" : "add-recipient", [_encoding], []);
 
         // Named, not inlined: an argument-position ToArray() leaves no reference to clear it by.
         var fileKeyCopy = fileKey.ToArray();
@@ -154,7 +174,11 @@ public sealed class PluginRecipient : IRecipientWithLabels
         return PluginNameValidator.Validate(name);
     }
 
-    /// <summary>Returns the plugin recipient string (public data).</summary>
+    /// <summary>
+    /// Returns the plugin recipient string (public data). A plugin identity's recipient has none,
+    /// and its identity string may be a secret, so it renders as
+    /// <c>PluginRecipient(&lt;plugin&gt;, from identity)</c>.
+    /// </summary>
     public override string ToString() =>
-        _recipient;
+        _fromIdentity ? $"PluginRecipient({PluginName}, from identity)" : _encoding;
 }
