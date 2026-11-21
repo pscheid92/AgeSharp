@@ -47,12 +47,8 @@ internal static class HpkeHelper
 
     /// <summary>
     /// Opens the first message of a base-mode recipient context set up from the KEM's shared
-    /// secret, or returns null if it does not authenticate: RFC 9180's OpenBase after its Decap
-    /// step, which the caller has done.
-    /// </summary>
-    /// <summary>
-    /// The span form of <see cref="Open(ushort, byte[], byte[], byte[])"/>: decrypts into
-    /// <paramref name="plaintext"/>, which is left cleared if the ciphertext does not authenticate.
+    /// secret, into <paramref name="plaintext"/>: false, with it cleared, if it does not
+    /// authenticate. RFC 9180's OpenBase after its Decap step, which the caller has done.
     /// </summary>
     public static bool Open(ushort kemId, byte[] sharedSecret, byte[] info, ReadOnlySpan<byte> ciphertext, Span<byte> plaintext)
     {
@@ -61,21 +57,6 @@ internal static class HpkeHelper
         try
         {
             return CryptoHelper.ChaChaDecrypt(key, nonce, ciphertext, plaintext);
-        }
-        finally
-        {
-            CryptographicOperations.ZeroMemory(key);
-            CryptographicOperations.ZeroMemory(nonce);
-        }
-    }
-
-    public static byte[]? Open(ushort kemId, byte[] sharedSecret, byte[] info, byte[] ciphertext)
-    {
-        var (key, nonce) = KeyScheduleBase(kemId, sharedSecret, info);
-
-        try
-        {
-            return CryptoHelper.ChaChaDecrypt(key, nonce, ciphertext);
         }
         finally
         {

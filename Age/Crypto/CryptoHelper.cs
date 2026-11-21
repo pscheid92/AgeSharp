@@ -134,15 +134,6 @@ internal static class CryptoHelper
         return ChaChaDecrypt(cipher, nonce, ciphertextWithTag, plaintext);
     }
 
-    public static byte[]? ChaChaDecrypt(ReadOnlySpan<byte> key, ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> ciphertext)
-    {
-        if (ciphertext.Length < ChaChaTagSize)
-            return null;
-
-        var plaintext = new byte[ciphertext.Length - ChaChaTagSize];
-        return ChaChaDecrypt(key, nonce, ciphertext, plaintext) ? plaintext : null;
-    }
-
     public static byte[] HmacSha256(ReadOnlySpan<byte> key, ReadOnlySpan<byte> data)
     {
         var result = new byte[Sha256Size];
