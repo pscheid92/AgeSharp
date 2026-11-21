@@ -370,6 +370,30 @@ file a key belongs to, and using it for nothing else, is yours to do. The header
 checked, so a key that isn't the file's fails as an `AgeAuthenticationException`. `FileKey` and
 `FileKeyIdentity` clear their copy of the key when disposed.
 
+### Plugins
+
+Recipients and identities of a plugin's type (`age1yubikey1…`, `AGE-PLUGIN-YUBIKEY-1…`) run the
+matching `age-plugin-*` binary from `PATH`. A plugin talks to the user through
+`IPluginCallbacks`, which is told which plugin asks:
+
+```csharp
+class Prompts : IPluginCallbacks
+{
+    public void DisplayMessage(string plugin, string message) => Console.WriteLine($"{plugin}: {message}");
+    public string? RequestValue(string plugin, string prompt) => Console.ReadLine();   // null declines
+    public char[]? RequestSecret(string plugin, string prompt) => ReadPin(prompt);   // cleared once sent
+    public bool Confirm(string plugin, string message, string yes, string? no) => Ask(message, yes, no);
+    public void Waiting(string plugin) => Console.WriteLine($"{plugin}: touch your key");
+}
+
+using var keys = Identities.Parse(File.ReadAllText("keys.txt"), new Prompts());
+```
+
+Without callbacks, every request is answered as a failure, as the plugin protocol says for a
+client with no user interface; so is a callback that throws. `Waiting` is called once a plugin
+has kept the operation waiting five seconds, usually for a touch. A plugin's security labels
+(`postquantum`, say) are passed on, so its stanzas mix only with recipients that declare the same.
+
 ### Custom recipients and identities
 
 Implement `IRecipient` and `IIdentity` to integrate custom key types,

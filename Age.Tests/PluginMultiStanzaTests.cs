@@ -41,10 +41,10 @@ public class PluginMultiStanzaTests
     [Fact]
     public void WrapAll_KeepsEveryStanzaThePluginProduced()
     {
-        var recipient = new PluginRecipient(MakePluginRecipient("multi"));
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("multi"));
         var conn = new PluginConnection(new StringReader(TwoStanzaResponse()), new StringWriter());
 
-        var stanzas = recipient.WrapAllWithConnection(conn, new byte[16]);
+        var stanzas = recipient.WrapWithConnection(conn, new byte[16]).Stanzas;
 
         Assert.Equal(2, stanzas.Count);
         Assert.Equal("multi-a", stanzas[0].Type);
@@ -56,7 +56,7 @@ public class PluginMultiStanzaTests
     [Fact]
     public void Wrap_StillReturnsTheStanzaForASingleStanzaPlugin()
     {
-        var recipient = new PluginRecipient(MakePluginRecipient("solo"));
+        var recipient = PluginRecipient.Parse(MakePluginRecipient("solo"));
         var response = Transcript(c =>
         {
             c.WriteStanza("recipient-stanza", ["0", "solo-type", "arg1"], [0x01]);
@@ -64,7 +64,7 @@ public class PluginMultiStanzaTests
         });
 
         var conn = new PluginConnection(new StringReader(response), new StringWriter());
-        var stanza = Assert.Single(recipient.WrapAllWithConnection(conn, new byte[16]));
+        var stanza = Assert.Single(recipient.WrapWithConnection(conn, new byte[16]).Stanzas);
 
         Assert.Equal("solo-type", stanza.Type);
         Assert.Equal("arg1", stanza.Args[0]);
@@ -73,7 +73,7 @@ public class PluginMultiStanzaTests
     [Fact]
     public void Unwrap_SendsEveryStanzaOfOneHeaderUnderFileIndexZero()
     {
-        var identity = new PluginIdentity(MakePluginIdentity("multi"));
+        var identity = PluginIdentity.Parse(MakePluginIdentity("multi"));
         var response = Transcript(c =>
         {
             c.WriteStanza("file-key", ["0"], new byte[16]);

@@ -1,8 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using AgeSharp.Crypto;
-using AgeSharp;
-
 namespace AgeSharp;
 
 /// <summary>
@@ -10,29 +8,55 @@ namespace AgeSharp;
 /// the plugin found on <c>PATH</c> for the recipient's HRP (e.g. <c>age1yubikey1…</c>
 /// runs <c>age-plugin-yubikey</c>) and drives the recipient-v1 protocol.
 /// </summary>
-/// <param name="recipient">The plugin recipient string (<c>age1&lt;name&gt;1…</c>).</param>
-/// <param name="callbacks">
-/// Optional UI callbacks for interactive plugins; when null, interactive
-/// requests are answered with failure per the plugin protocol.
-/// </param>
-public sealed class PluginRecipient(string recipient, IPluginCallbacks? callbacks = null)
-    : IRecipient
+/// <remarks>
+/// The plugin may declare security labels for what it wraps, such as <c>postquantum</c>; they
+/// are passed on, so a file never mixes recipients that declare different ones (see
+/// <see cref="IRecipientWithLabels"/>). A plugin that declares none has none.
+/// </remarks>
+public sealed class PluginRecipient : IRecipientWithLabels
 {
-    internal string PluginName { get; } =
-        ExtractPluginName(recipient);
+    private readonly string _recipient;
+    private readonly IPluginCallbacks? _plugins;
+
+    internal PluginRecipient(string recipient, IPluginCallbacks? plugins = null)
+    {
+        _recipient = recipient;
+        _plugins = plugins;
+        PluginName = ExtractPluginName(recipient);
+    }
+
+    /// <summary>Parses a plugin recipient, <c>age1&lt;name&gt;1…</c>.</summary>
+    /// <param name="s">The recipient string.</param>
+    /// <param name="plugins">
+    /// Lets the plugin talk to the user; without it, its requests are answered as failures, as
+    /// the plugin protocol specifies.
+    /// </param>
+    /// <exception cref="FormatException">The string is not a plugin recipient, or names no valid plugin.</exception>
+    public static PluginRecipient Parse(string s, IPluginCallbacks? plugins = null)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        return new PluginRecipient(s, plugins);
+    }
+
+    internal string PluginName { get; }
 
     /// <summary>
     /// Wraps the file key by running the plugin binary (recipient-v1 protocol). A plugin may
     /// answer with several stanzas; every one is returned.
     /// </summary>
     /// <exception cref="AgePluginException">The plugin failed.</exception>
-    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey)
+    public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey) =>
+        WrapWithLabels(fileKey).Stanzas;
+
+    /// <summary>Wraps the file key, with the labels the plugin declares for its stanzas.</summary>
+    /// <exception cref="AgePluginException">The plugin failed, or declared its labels twice.</exception>
+    public LabelledStanzas WrapWithLabels(ReadOnlySpan<byte> fileKey)
     {
         using var conn = new PluginConnection(PluginName, "recipient-v1");
-        return WrapAllWithConnection(conn, fileKey);
+        return WrapWithConnection(conn, fileKey);
     }
 
-    internal IReadOnlyList<Stanza> WrapAllWithConnection(PluginConnection conn, ReadOnlySpan<byte> fileKey)
+    internal LabelledStanzas WrapWithConnection(PluginConnection conn, ReadOnlySpan<byte> fileKey)
     {
         SendWrapRequest(conn, fileKey);
         return ReadWrapResponse(conn);
@@ -40,7 +64,7 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
     private void SendWrapRequest(PluginConnection conn, ReadOnlySpan<byte> fileKey)
     {
-        conn.WriteStanza("add-recipient", [recipient], []);
+        conn.WriteStanza("add-recipient", [_recipient], []);
 
         // Named, not inlined: an argument-position ToArray() leaves no reference to clear it by.
         var fileKeyCopy = fileKey.ToArray();
@@ -54,27 +78,34 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
             CryptographicOperations.ZeroMemory(fileKeyCopy);
         }
 
-        // No "extension-labels": advertising it promises we act on the plugin's "labels" reply,
-        // and this recipient does not pass labels on yet (IRecipientWithLabels could). Staying
-        // silent stops a conforming plugin from sending them, rather than having us discard a
-        // constraint it relies on.
+        // Promises to act on the plugin's labels, which WrapWithLabels does.
+        conn.WriteStanza("extension-labels", [], []);
         conn.WriteStanza("done", [], []);
     }
 
-    private List<Stanza> ReadWrapResponse(PluginConnection conn)
+    private LabelledStanzas ReadWrapResponse(PluginConnection conn)
     {
         // Accumulate rather than replace: the spec's recipient-v1 example has one plugin emit two
         // stanzas for a single file index, and a share-splitting plugin needs all of them.
         var result = new List<Stanza>();
 
+        // No labels reply means the empty set (age-plugin.md: "MUST treat ... as having an empty
+        // label set").
+        string[]? labels = null;
+
         while (true)
         {
-            var (type, args, body) = conn.ReadNextStanza();
+            var (type, args, body) = PluginPrompts.Read(conn, _plugins, PluginName);
 
             switch (type)
             {
                 case "recipient-stanza":
                     result.Add(ParseRecipientStanza(args, body));
+                    conn.WriteStanza("ok", [], []);
+                    break;
+
+                case "labels":
+                    labels = labels is null ? args : throw new AgePluginException("plugin declared its labels twice");
                     conn.WriteStanza("ok", [], []);
                     break;
 
@@ -85,11 +116,11 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
                 case "done":
                     return result.Count > 0
-                        ? result
+                        ? new LabelledStanzas(result, labels ?? [])
                         : throw new AgePluginException("plugin completed without producing a recipient stanza");
 
                 default:
-                    PluginPrompts.Answer(conn, callbacks, type, args, body);
+                    PluginPrompts.Answer(conn, _plugins, PluginName, type, args, body);
                     break;
             }
         }
@@ -125,5 +156,5 @@ public sealed class PluginRecipient(string recipient, IPluginCallbacks? callback
 
     /// <summary>Returns the plugin recipient string (public data).</summary>
     public override string ToString() =>
-        recipient;
+        _recipient;
 }
