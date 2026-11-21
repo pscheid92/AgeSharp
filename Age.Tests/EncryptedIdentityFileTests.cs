@@ -123,7 +123,7 @@ public class EncryptedIdentityFileTests
         var encrypted = EncryptIdentityFile(text);
         using var parsed = Open(encrypted);
 
-        Assert.Equal(identity.Recipient.ToString(), Assert.Single(parsed.Recipients).ToString());
+        Assert.Equal(identity.Recipient.ToString(), Assert.Single(parsed.GetRecipients()).ToString());
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public class EncryptedIdentityFileTests
         Assert.StartsWith("-----BEGIN AGE ENCRYPTED FILE-----", armoredText);
 
         using var parsed = Open(encrypted);
-        Assert.Equal(identity.Recipient.ToString(), Assert.Single(parsed.Recipients).ToString());
+        Assert.Equal(identity.Recipient.ToString(), Assert.Single(parsed.GetRecipients()).ToString());
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class EncryptedIdentityFileTests
         var encrypted = EncryptIdentityFile(text);
 
         using var wrong = new EncryptedIdentityFile(encrypted, () => "wrong passphrase".ToCharArray());
-        Assert.Throws<AgeException>(() => wrong.Recipients);
+        Assert.Throws<AgeException>(() => wrong.GetRecipients());
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public class EncryptedIdentityFileTests
         var encrypted = EncryptIdentityFile(text);
         using var parsed = Open(encrypted);
 
-        Assert.Equal(identity.Recipient.ToString(), Assert.Single(parsed.Recipients).ToString());
+        Assert.Equal(identity.Recipient.ToString(), Assert.Single(parsed.GetRecipients()).ToString());
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class EncryptedIdentityFileTests
         var encrypted = EncryptIdentityFile(text);
         using var parsed = Open(encrypted);
 
-        Assert.Equal([x25519.Recipient.ToString(), pq.Recipient.ToString()], parsed.Recipients.Select(r => r.ToString()));
+        Assert.Equal([x25519.Recipient.ToString(), pq.Recipient.ToString()], parsed.GetRecipients().Select(r => r.ToString()));
     }
 
     [SkippableFact]
@@ -213,7 +213,7 @@ public class EncryptedIdentityFileTests
             // Roundtrip: encrypt with AgeSharp, decrypt with AgeSharp
             var encrypted = EncryptIdentityFile(keyText);
             using var decrypted = Open(encrypted);
-            Assert.Equal(((X25519Identity)parsed[0]).Recipient.ToString(), Assert.Single(decrypted.Recipients).ToString());
+            Assert.Equal(((X25519Identity)parsed[0]).Recipient.ToString(), Assert.Single(decrypted.GetRecipients()).ToString());
         }
         finally
         {

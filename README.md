@@ -31,6 +31,8 @@ and needs to raise its pin to 2.7.0.
 - Streaming encryption and decryption across all APIs — memory is bounded
   by a single 64 KiB chunk buffer regardless of input size (1 GiB file uses
   the same working set as a 1 MB file)
+- Async throughout: `EncryptAsync`, `DecryptAsync`, `DecryptReaderAsync`, the detached forms
+  and the writers read and write the caller's streams asynchronously
 - Pull-based streaming (`EncryptReader` / `DecryptReader`) returns a readable
   `Stream` for pipe-and-forget use cases, and push-based streaming
   (`EncryptWriter` / `DecryptWriter`) a writable one, as `GZipStream` does
@@ -41,6 +43,10 @@ and needs to raise its pin to 2.7.0.
 - Standalone armor conversion (`Armor.Encode` / `Armor.Decode`)
 - Encrypted identity files (passphrase-protected), asked for their passphrase only when needed
 - Recipients file parsing (`-R` style files with comments)
+- File-key extraction and injection (`AgeHeader.ToBytes`, `Identities.UnwrapFileKey`,
+  `FileKeyIdentity`), as go-age's `ExtractHeader` and `DecryptHeader`
+- Errors that say what went wrong: format or authentication, and, when nothing matched, why
+  each identity didn't
 - Fully interoperable — files produced by AgeSharp decrypt with `age`, `rage`, and vice versa
 - **Runs in Blazor WebAssembly** — automatically uses a managed
   ChaCha20-Poly1305 backend in the browser, where the platform cipher is
@@ -76,7 +82,7 @@ new Identities(identity).Decrypt(encrypted, decrypted);
 ### Passphrase encryption
 
 ```csharp
-var passphrase = new Passphrase("correct-horse-battery-staple");
+using var passphrase = new Passphrase("correct-horse-battery-staple");
 
 using var input = new MemoryStream("Hello, age!"u8.ToArray());
 using var encrypted = new MemoryStream();
@@ -330,7 +336,7 @@ identities are tried first, so of several such files only the one that opens the
 using var keys = new EncryptedIdentityFile(File.ReadAllBytes("keys.age"), () => PromptForPassphrase());
 new Identities(keys).Decrypt(input, output);
 
-IReadOnlyList<IRecipient> mine = keys.Recipients;   // for encrypting to your own keys
+IReadOnlyList<IRecipient> mine = keys.GetRecipients();   // for encrypting to your own keys
 ```
 
 The characters the callback returns are cleared once used. To write such a file, encrypt the
@@ -422,9 +428,9 @@ AgeSharp's own identities tell "the file has no stanza of my type" from "it has 
 me"; a custom or plugin identity just did not match. It holds only text, never the identities:
 
 ```
-no identity matched any recipient stanza; the file has X25519; X25519Identity (age1q7f3k2m9x0vw…):
-the file's X25519 stanzas are not for it; MlKem768X25519Identity (age1pq1zq5n8tlc…): the file
-has no mlkem768x25519 stanza
+no identity matched any recipient stanza; the file has X25519; X25519Identity
+(age1q7f3k2m9x0vwlc…p4ft2hzq): the file's X25519 stanzas are not for it;
+MlKem768X25519Identity (age1pq1zq5n8tlcd…8w6sk9ve): the file has no mlkem768x25519 stanza
 ```
 
 ### Parsing limits

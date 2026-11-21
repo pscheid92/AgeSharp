@@ -49,7 +49,7 @@ public class EncryptedIdentityFileLazinessTests
         var given = "pw".ToCharArray();
         using var identityFile = new EncryptedIdentityFile(Protect(key.ToSecretString()), () => given);
 
-        Assert.Single(identityFile.Recipients);
+        Assert.Single(identityFile.GetRecipients());
         Assert.All(given, c => Assert.Equal('\0', c));
     }
 
@@ -75,7 +75,7 @@ public class EncryptedIdentityFileLazinessTests
         var notPassphraseProtected = new Recipients(key.Recipient).Encrypt(Encoding.UTF8.GetBytes(key.ToSecretString()));
         using var identityFile = new EncryptedIdentityFile(notPassphraseProtected, () => "pw".ToCharArray());
 
-        Assert.Throws<AgeException>(() => identityFile.Recipients);
+        Assert.Throws<AgeException>(() => identityFile.GetRecipients());
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class EncryptedIdentityFileLazinessTests
         using var key = X25519Identity.Generate();
         using var identityFile = new EncryptedIdentityFile(Protect(key.ToSecretString()), () => null!);
 
-        Assert.Throws<InvalidOperationException>(() => identityFile.Recipients);
+        Assert.Throws<InvalidOperationException>(() => identityFile.GetRecipients());
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public class EncryptedIdentityFileLazinessTests
         using var identityFile = new EncryptedIdentityFile(contents, () => "pw".ToCharArray());
         Array.Clear(contents);
 
-        Assert.Equal(key.Recipient.ToString(), Assert.Single(identityFile.Recipients).ToString());
+        Assert.Equal(key.Recipient.ToString(), Assert.Single(identityFile.GetRecipients()).ToString());
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class EncryptedIdentityFileLazinessTests
         var plugin = AgeSharp.Crypto.Bech32.Encode("age-plugin-example-", [1, 2, 3]).ToUpperInvariant();
         using var identityFile = new EncryptedIdentityFile(Protect($"{key.ToSecretString()}\n{plugin}\n"), () => "pw".ToCharArray());
 
-        Assert.Equal(key.Recipient.ToString(), Assert.Single(identityFile.Recipients).ToString());
+        Assert.Equal(key.Recipient.ToString(), Assert.Single(identityFile.GetRecipients()).ToString());
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class EncryptedIdentityFileLazinessTests
 
         Assert.Throws<ObjectDisposedException>(() => inner.ToSecretString());
         Assert.Throws<ObjectDisposedException>(() => identityFile.TryUnwrap(stanza, new byte[16]));
-        Assert.Throws<ObjectDisposedException>(() => identityFile.Recipients);
+        Assert.Throws<ObjectDisposedException>(() => identityFile.GetRecipients());
     }
 
     [Fact]

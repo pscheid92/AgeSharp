@@ -12,7 +12,7 @@ namespace AgeSharp;
 /// <remarks>
 /// <para>
 /// Not an <see cref="IIdentityWithRecipient"/>: one file can hold several identities, and that
-/// interface's single recipient could name only one. <see cref="Recipients"/> names them all.
+/// interface's single recipient could name only one. <see cref="GetRecipients"/> names them all.
 /// </para>
 /// <para>
 /// AgeSharp's own identities are tried before this one (see <see cref="Identities"/>), so a file
@@ -48,7 +48,7 @@ public sealed class EncryptedIdentityFile : IIdentity
     /// the file if it has not been, asking for the passphrase.
     /// </summary>
     /// <exception cref="AgeException">The passphrase is wrong, or the file is not an identity file encrypted to one.</exception>
-    public IReadOnlyList<IRecipient> Recipients =>
+    public IReadOnlyList<IRecipient> GetRecipients() =>
         [.. Unlocked().OfType<IIdentityWithRecipient>().Select(i => i.Recipient)];
 
     /// <summary>

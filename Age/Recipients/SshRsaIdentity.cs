@@ -50,8 +50,8 @@ public sealed class SshRsaIdentity : IIdentityWithRecipient, IDisposable
         Recipient;
 
     /// <summary>
-    /// Attempts to unwrap the file key from an <c>ssh-rsa</c> stanza. Returns null
-    /// for stanzas of other types or addressed to a different SSH key (tag mismatch).
+    /// Unwraps the file key from an <c>ssh-rsa</c> stanza into <paramref name="fileKey"/>:
+    /// false for stanzas of other types or addressed to a different SSH key (tag mismatch).
     /// </summary>
     /// <exception cref="AgeFormatException">The stanza claims to be ssh-rsa but is malformed.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>

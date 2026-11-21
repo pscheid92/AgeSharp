@@ -26,26 +26,26 @@ public class NoIdentityMatchTests
         Assert.Collection(ex.Mismatches,
             m =>
             {
-                Assert.StartsWith("X25519Identity (age1", m.Identity);
+                Assert.StartsWith("X25519Identity (age1", m.Description);
                 Assert.Equal(IdentityMismatchReason.NoStanzaForIt, m.Reason);
                 Assert.Equal("X25519", m.StanzaType);
             },
             m =>
             {
-                Assert.StartsWith("MlKem768X25519Identity (age1pq1", m.Identity);
+                Assert.StartsWith("MlKem768X25519Identity (age1pq1", m.Description);
                 Assert.Equal(IdentityMismatchReason.NoStanzaOfItsType, m.Reason);
                 Assert.Equal("mlkem768x25519", m.StanzaType);
             },
             m =>
             {
-                Assert.Equal(nameof(CustomIdentity), m.Identity);
+                Assert.Equal(nameof(CustomIdentity), m.Description);
                 Assert.Equal(IdentityMismatchReason.DidNotMatch, m.Reason);
                 Assert.Null(m.StanzaType);
             });
 
         Assert.Equal(
-            $"no identity matched any recipient stanza; the file has X25519; {ex.Mismatches[0].Identity}: the file's X25519 stanzas are not for it; "
-            + $"{ex.Mismatches[1].Identity}: the file has no mlkem768x25519 stanza; CustomIdentity: it opened none of the stanzas",
+            $"no identity matched any recipient stanza; the file has X25519; {ex.Mismatches[0].Description}: the file's X25519 stanzas are not for it; "
+            + $"{ex.Mismatches[1].Description}: the file has no mlkem768x25519 stanza; CustomIdentity: it opened none of the stanzas",
             ex.Message);
     }
 
@@ -74,7 +74,7 @@ public class NoIdentityMatchTests
         var ex = Assert.Throws<NoIdentityMatchException>(() => new Identities(wrong).Decrypt(file));
 
         var mismatch = Assert.Single(ex.Mismatches);
-        Assert.Equal(nameof(Passphrase), mismatch.Identity);
+        Assert.Equal(nameof(Passphrase), mismatch.Description);
         Assert.Equal(IdentityMismatchReason.NoStanzaForIt, mismatch.Reason);
         Assert.Equal("scrypt", mismatch.StanzaType);
     }
@@ -89,7 +89,8 @@ public class NoIdentityMatchTests
         var ex = Assert.Throws<NoIdentityMatchException>(() => new Identities(ed25519).Decrypt(file));
 
         var mismatch = Assert.Single(ex.Mismatches);
-        Assert.StartsWith("SshEd25519Identity (ssh-ed25519 ", mismatch.Identity);
+        Assert.StartsWith("SshEd25519Identity (ssh-ed25519 AAAA…", mismatch.Description);
+        Assert.EndsWith(SshIdentityTail(ed25519) + ")", mismatch.Description);
         Assert.Equal("ssh-ed25519", mismatch.StanzaType);
         Assert.Equal(IdentityMismatchReason.NoStanzaOfItsType, mismatch.Reason);
     }
@@ -107,7 +108,7 @@ public class NoIdentityMatchTests
 
         Assert.Equal(["ssh-rsa", "ssh-ed25519", "ssh-rsa"], ex.Mismatches.Select(m => m.StanzaType));
         Assert.All(ex.Mismatches, m => Assert.Equal(IdentityMismatchReason.NoStanzaOfItsType, m.Reason));
-        Assert.StartsWith("EncryptedSshIdentity (ssh-ed25519 ", ex.Mismatches[1].Identity);
+        Assert.StartsWith("EncryptedSshIdentity (ssh-ed25519 ", ex.Mismatches[1].Description);
     }
 
     // A short recipient is shown whole; one with no text not at all.
@@ -122,8 +123,12 @@ public class NoIdentityMatchTests
 
         var ex = Assert.Throws<NoIdentityMatchException>(() => new Identities(new Named(text)).Decrypt(file));
 
-        Assert.Equal(expected, Assert.Single(ex.Mismatches).Identity);
+        Assert.Equal(expected, Assert.Single(ex.Mismatches).Description);
     }
+
+    // The last 8 characters of the key's authorized_keys line: what tells two Ed25519 keys apart.
+    private static string SshIdentityTail(IIdentity identity) =>
+        ((IIdentityWithRecipient)identity).Recipient.ToString()![^8..];
 
     private static string Fixture(string name) =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "EncryptedSsh", name));
@@ -168,7 +173,7 @@ public class NoIdentityMatchTests
 
         var ex = Assert.Throws<NoIdentityMatchException>(() => new Identities(new ThrowingRecipientIdentity()).Decrypt(file));
 
-        Assert.Equal(nameof(ThrowingRecipientIdentity), Assert.Single(ex.Mismatches).Identity);
+        Assert.Equal(nameof(ThrowingRecipientIdentity), Assert.Single(ex.Mismatches).Description);
     }
 
     // So an SSH recipient can be shown, and listed in a recipients file.

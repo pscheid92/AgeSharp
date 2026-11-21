@@ -36,7 +36,7 @@ internal static class IdentityMismatches
         _ => null,
     };
 
-    // The identity's type and the start of its recipient: public, and enough to tell keys apart.
+    // The identity's type and its recipient, shortened: public, and enough to tell keys apart.
     // Never ToString: a custom identity's may print its secret.
     private static string Describe(IIdentity identity)
     {
@@ -47,7 +47,7 @@ internal static class IdentityMismatches
             if (identity is IIdentityWithRecipient { Recipient: { } recipient })
             {
                 var text = recipient.ToString() ?? "";
-                return text.Length == 0 ? name : $"{name} ({(text.Length > 16 ? text[..16] + "…" : text)})";
+                return text.Length == 0 ? name : $"{name} ({Shortened(text)})";
             }
         }
         catch (Exception)
@@ -58,4 +58,9 @@ internal static class IdentityMismatches
 
         return name;
     }
+
+    // The start says what kind of key it is; the end tells keys of one kind apart, which the
+    // start alone does not for SSH keys ("ssh-ed25519 AAAAC3Nz" is every Ed25519 key's).
+    private static string Shortened(string recipient) =>
+        recipient.Length > 28 ? $"{recipient[..16]}…{recipient[^8..]}" : recipient;
 }
