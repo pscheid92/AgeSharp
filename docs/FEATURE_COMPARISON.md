@@ -1,6 +1,6 @@
 # Feature comparison: AgeSharp vs Go (age) vs Rust (rage)
 
-Compared on 2026-11-17: AgeSharp `main`, [age](https://github.com/FiloSottile/age) v1.3.2
+Compared on 2026-11-21: AgeSharp `main`, after the API rebuild, [age](https://github.com/FiloSottile/age) v1.3.2
 and [rage](https://github.com/str4d/rage) 0.12.1, read from their source. The published
 AgeSharp package may lag `main`; check the release notes for what a given version carries.
 
