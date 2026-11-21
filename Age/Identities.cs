@@ -494,7 +494,7 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
         if (header.Stanzas.Count > 1 && header.Stanzas.Any(s => s.Type == "scrypt"))
             throw new AgeFormatException("scrypt stanza must be the only stanza in the header");
 
-        var owned = FileKey.UnwrapFrom(header.Stanzas, tryOrder) ?? throw new NoIdentityMatchException();
+        var owned = FileKey.UnwrapFrom(header.Stanzas, tryOrder) ?? throw IdentityMismatches.For(header.Stanzas, tryOrder);
 
         // From here a throw disposes the key rather than abandons it. VerifyMac failing is
         // routine: a tampered or corrupted header.

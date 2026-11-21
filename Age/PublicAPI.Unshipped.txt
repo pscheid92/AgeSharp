@@ -29,6 +29,7 @@
 *REMOVED*AgeSharp.MlKem768X25519Identity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
 *REMOVED*AgeSharp.MlKem768X25519Recipient.Label.get -> string!
 *REMOVED*AgeSharp.MlKem768X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.Stanza!
+*REMOVED*AgeSharp.NoIdentityMatchException.NoIdentityMatchException() -> void
 *REMOVED*AgeSharp.PluginIdentity.Unwrap(AgeSharp.Stanza! stanza) -> byte[]?
 *REMOVED*AgeSharp.PluginIdentity.Unwrap(System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas) -> byte[]?
 *REMOVED*AgeSharp.PluginRecipient.Label.get -> string?
@@ -125,6 +126,22 @@ AgeSharp.Identities.GetEnumerator() -> System.Collections.Generic.IEnumerator<Ag
 AgeSharp.Identities.Identities(System.Collections.Generic.IEnumerable<AgeSharp.IIdentity!>! identities) -> void
 AgeSharp.Identities.Identities(params System.ReadOnlySpan<AgeSharp.IIdentity!> identities) -> void
 AgeSharp.Identities.this[int index].get -> AgeSharp.IIdentity!
+AgeSharp.IdentityMismatch
+AgeSharp.IdentityMismatch.<Clone>$() -> AgeSharp.IdentityMismatch!
+AgeSharp.IdentityMismatch.Deconstruct(out string! Identity, out AgeSharp.IdentityMismatchReason Reason, out string? StanzaType) -> void
+AgeSharp.IdentityMismatch.Equals(AgeSharp.IdentityMismatch? other) -> bool
+AgeSharp.IdentityMismatch.Explanation.get -> string!
+AgeSharp.IdentityMismatch.Identity.get -> string!
+AgeSharp.IdentityMismatch.Identity.init -> void
+AgeSharp.IdentityMismatch.IdentityMismatch(string! Identity, AgeSharp.IdentityMismatchReason Reason, string? StanzaType) -> void
+AgeSharp.IdentityMismatch.Reason.get -> AgeSharp.IdentityMismatchReason
+AgeSharp.IdentityMismatch.Reason.init -> void
+AgeSharp.IdentityMismatch.StanzaType.get -> string?
+AgeSharp.IdentityMismatch.StanzaType.init -> void
+AgeSharp.IdentityMismatchReason
+AgeSharp.IdentityMismatchReason.DidNotMatch = 2 -> AgeSharp.IdentityMismatchReason
+AgeSharp.IdentityMismatchReason.NoStanzaForIt = 1 -> AgeSharp.IdentityMismatchReason
+AgeSharp.IdentityMismatchReason.NoStanzaOfItsType = 0 -> AgeSharp.IdentityMismatchReason
 AgeSharp.LabelledStanzas
 AgeSharp.LabelledStanzas.Deconstruct(out System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>! stanzas, out System.Collections.Generic.IReadOnlyCollection<string!>! labels) -> void
 AgeSharp.LabelledStanzas.LabelledStanzas() -> void
@@ -137,6 +154,9 @@ AgeSharp.MlKem768P256TagRecipient.WrapWithLabels(System.ReadOnlySpan<byte> fileK
 AgeSharp.MlKem768X25519Identity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.MlKem768X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.MlKem768X25519Recipient.WrapWithLabels(System.ReadOnlySpan<byte> fileKey) -> AgeSharp.LabelledStanzas
+AgeSharp.NoIdentityMatchException.Mismatches.get -> System.Collections.Generic.IReadOnlyList<AgeSharp.IdentityMismatch!>!
+AgeSharp.NoIdentityMatchException.NoIdentityMatchException(System.Collections.Generic.IReadOnlyList<string!>! stanzaTypes, System.Collections.Generic.IReadOnlyList<AgeSharp.IdentityMismatch!>! mismatches) -> void
+AgeSharp.NoIdentityMatchException.StanzaTypes.get -> System.Collections.Generic.IReadOnlyList<string!>!
 AgeSharp.P256TagRecipient
 AgeSharp.P256TagRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.Passphrase
@@ -172,8 +192,13 @@ AgeSharp.SshRsaIdentity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fil
 AgeSharp.SshRsaRecipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
 AgeSharp.X25519Identity.TryUnwrap(AgeSharp.Stanza! stanza, System.Span<byte> fileKey) -> bool
 AgeSharp.X25519Recipient.Wrap(System.ReadOnlySpan<byte> fileKey) -> System.Collections.Generic.IReadOnlyList<AgeSharp.Stanza!>!
+override AgeSharp.IdentityMismatch.Equals(object? obj) -> bool
+override AgeSharp.IdentityMismatch.GetHashCode() -> int
+override AgeSharp.IdentityMismatch.ToString() -> string!
 override AgeSharp.MlKem768P256TagRecipient.ToString() -> string!
 override AgeSharp.P256TagRecipient.ToString() -> string!
+override AgeSharp.SshEd25519Recipient.ToString() -> string!
+override AgeSharp.SshRsaRecipient.ToString() -> string!
 static AgeSharp.AgeHeader.Read(System.IO.Stream! input, AgeSharp.AgeDecryptOptions? options = null) -> AgeSharp.AgeHeader!
 static AgeSharp.AgeHeader.ReadAsync(System.IO.Stream! input, AgeSharp.AgeDecryptOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<AgeSharp.AgeHeader!>
 static AgeSharp.Armor.Decode(System.IO.Stream! armored, System.IO.Stream! binary, AgeSharp.AgeDecryptOptions? options = null) -> void
@@ -182,6 +207,8 @@ static AgeSharp.Armor.Encode(System.IO.Stream! binary, System.IO.Stream! armored
 static AgeSharp.Armor.EncodeAsync(System.IO.Stream! binary, System.IO.Stream! armored, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 static AgeSharp.Identities.Parse(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.Identities!
 static AgeSharp.Identities.ParseOne(string! s, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.IIdentity!
+static AgeSharp.IdentityMismatch.operator !=(AgeSharp.IdentityMismatch? left, AgeSharp.IdentityMismatch? right) -> bool
+static AgeSharp.IdentityMismatch.operator ==(AgeSharp.IdentityMismatch? left, AgeSharp.IdentityMismatch? right) -> bool
 static AgeSharp.MlKem768P256TagRecipient.Parse(string! s) -> AgeSharp.MlKem768P256TagRecipient!
 static AgeSharp.P256TagRecipient.Parse(string! s) -> AgeSharp.P256TagRecipient!
 static AgeSharp.Recipients.Parse(string! text, AgeSharp.IPluginCallbacks? plugins = null) -> AgeSharp.Recipients!

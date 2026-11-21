@@ -27,6 +27,9 @@ public sealed class SshEd25519Recipient : IRecipient
         _tag = SshKeyParser.ComputeTag(sshWireBytes);
     }
 
+    /// <summary>The key as an <c>authorized_keys</c> line, without a comment, which <see cref="Parse"/> reads back.</summary>
+    public override string ToString() => $"ssh-ed25519 {Convert.ToBase64String(_sshWireBytes)}";
+
     /// <summary>Parses an <c>ssh-ed25519 AAAA…</c> public key line.</summary>
     /// <exception cref="FormatException">The line is not a valid ssh-ed25519 public key.</exception>
     public static SshEd25519Recipient Parse(string authorizedKeysLine)

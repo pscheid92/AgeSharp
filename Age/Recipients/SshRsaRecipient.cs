@@ -18,6 +18,7 @@ public sealed class SshRsaRecipient : IRecipient
     private const int MinKeyBits = 2048;
 
     private readonly RsaKeyParameters _publicKey;
+    private readonly byte[] _sshWireBytes;
     private readonly string _tag;
 
     internal SshRsaRecipient(RsaKeyParameters publicKey, byte[] sshWireBytes)
@@ -26,8 +27,12 @@ public sealed class SshRsaRecipient : IRecipient
             throw new ArgumentException($"RSA key must be at least {MinKeyBits} bits, got {publicKey.Modulus.BitLength}");
 
         _publicKey = publicKey;
+        _sshWireBytes = sshWireBytes;
         _tag = SshKeyParser.ComputeTag(sshWireBytes);
     }
+
+    /// <summary>The key as an <c>authorized_keys</c> line, without a comment, which <see cref="Parse"/> reads back.</summary>
+    public override string ToString() => $"ssh-rsa {Convert.ToBase64String(_sshWireBytes)}";
 
     /// <summary>Parses an <c>ssh-rsa AAAA…</c> public key line.</summary>
     /// <exception cref="FormatException">The line is not a valid ssh-rsa public key.</exception>
