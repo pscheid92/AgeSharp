@@ -241,8 +241,9 @@ public class TaggedRecipientTests
 
         var (_, enc) = MlKem768P256.Encapsulate(publicKey, new SecureRandom(), p256ScalarSource: null, Backend(portable));
 
-        // The P-256 half of enc is the ephemeral point, on the curve and the recipient's to use.
-        var ephemeral = enc[1088..];
+        // The ML-KEM ciphertext, then the ephemeral point: on the curve and the recipient's to use.
+        Assert.Equal(MlKem768P256.EncSize, enc.Length);
+        var ephemeral = enc[(MlKem768P256.EncSize - DhKemP256.UncompressedPointSize)..];
         Assert.Equal(32, EcdhX(privateKey, ephemeral).Length);
         DhKemP256.ValidateUncompressed(ephemeral);
     }

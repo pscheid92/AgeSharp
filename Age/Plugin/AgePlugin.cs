@@ -64,6 +64,7 @@ public sealed class AgePlugin
     /// recipient, for recipient-v1. A recipient that implements <see cref="IRecipientWithLabels"/>
     /// has its labels passed on to clients that take them.
     /// </summary>
+    /// <remarks>Each call is handed an array of its own, which the handler may keep.</remarks>
     /// <exception cref="InvalidOperationException">A recipient handler is already registered.</exception>
     public void HandleRecipient(Func<byte[], IRecipient> parse) =>
         _recipient = Register(_recipient, parse);
@@ -73,6 +74,10 @@ public sealed class AgePlugin
     /// identity, for recipient-v1: what lets a client encrypt to one of this plugin's identities
     /// (see <see cref="PluginIdentity.Recipient"/>).
     /// </summary>
+    /// <remarks>
+    /// The data is an identity's, so it may be secret. Each call is handed an array of its own,
+    /// which the handler owns and should clear once the recipient no longer needs it.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">An identity-as-recipient handler is already registered.</exception>
     public void HandleIdentityAsRecipient(Func<byte[], IRecipient> parse) =>
         _identityAsRecipient = Register(_identityAsRecipient, parse);
@@ -81,6 +86,11 @@ public sealed class AgePlugin
     /// Registers how to make an identity from the data of an <c>AGE-PLUGIN-&lt;NAME&gt;-1…</c>
     /// identity, for identity-v1. The identities it makes are disposed when the session ends.
     /// </summary>
+    /// <remarks>
+    /// Each call is handed an array of its own, which the handler owns: AgePlugin does not clear
+    /// it, since the identity may keep it. An identity that does should clear it when disposed;
+    /// one that does not can clear it once it has what it needs.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">An identity handler is already registered.</exception>
     public void HandleIdentity(Func<byte[], IIdentity> parse) =>
         _identity = Register(_identity, parse);
@@ -269,7 +279,12 @@ public sealed class AgePlugin
                     else if (!SameLabels(labels, these))
                         return KeyError(kind, index, $"labels {Quoted(these)} do not match previous recipients {Quoted(labels)}");
 
-                    stanzas[f].AddRange(wrapped.Stanzas ?? []);
+                    // As the client refuses for any recipient: a key left out of the file is
+                    // not something to do silently. Null, a default LabelledStanzas, is the same.
+                    if (wrapped.Stanzas is not { Count: > 0 })
+                        return KeyError(kind, index, $"recipient {recipient.GetType().Name} produced no stanzas");
+
+                    stanzas[f].AddRange(wrapped.Stanzas);
                 }
             }
 
@@ -473,16 +488,18 @@ public sealed class AgePlugin
 
     /// <summary>
     /// Asks the user, through the client, to choose between <paramref name="yes"/> and, when
-    /// given, <paramref name="no"/>: true when they chose yes.
+    /// given, <paramref name="no"/>: true when they chose yes. An empty <paramref name="no"/> is
+    /// no option, as go-age reads it.
     /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="yes"/> is empty.</exception>
     /// <exception cref="AgePluginException">The client could not ask, or the protocol broke.</exception>
     /// <exception cref="InvalidOperationException">Not called from a recipient's Wrap or an identity's TryUnwrap during <see cref="Run(string[])"/>.</exception>
     public bool Confirm(string message, string yes, string? no = null)
     {
         ArgumentNullException.ThrowIfNull(message);
-        ArgumentNullException.ThrowIfNull(yes);
+        ArgumentException.ThrowIfNullOrEmpty(yes);
 
-        string[] options = no is null
+        string[] options = string.IsNullOrEmpty(no)
             ? [Base64Unpadded.Encode(Encoding.UTF8.GetBytes(yes))]
             : [Base64Unpadded.Encode(Encoding.UTF8.GetBytes(yes)), Base64Unpadded.Encode(Encoding.UTF8.GetBytes(no))];
 

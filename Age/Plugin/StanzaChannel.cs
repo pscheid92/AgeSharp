@@ -144,7 +144,8 @@ internal sealed class StanzaChannel
     /// <summary>
     /// The string came from the peer, so a bad one means the peer misbehaved. Same rule
     /// <see cref="Stanza"/> applies to its own input — a space or newline would corrupt the
-    /// framing — but worded to name the plugin, since that is who got it wrong here.
+    /// framing — but worded to name the peer ("plugin" or "client"), since that is who got it
+    /// wrong here.
     /// </summary>
     private static void ThrowIfMalformed(string s, string what, string peer)
     {
@@ -158,10 +159,25 @@ internal sealed class StanzaChannel
                 $"{peer} sent an invalid character in a stanza {what}: 0x{(int)s[invalid]:X2}");
     }
 
+    // The body may be a file key or a secret the user typed: the decoded lines it is assembled
+    // from are cleared once copied, or when reading it fails, as Write clears its buffers.
     private byte[] ReadBody()
     {
         var bodyChunks = new List<byte[]>();
 
+        try
+        {
+            return ReadBody(bodyChunks);
+        }
+        finally
+        {
+            foreach (var chunk in bodyChunks)
+                CryptographicOperations.ZeroMemory(chunk);
+        }
+    }
+
+    private byte[] ReadBody(List<byte[]> bodyChunks)
+    {
         while (true)
         {
             var bodyLine = _reader.ReadLine() ?? throw new AgePluginException("unexpected end of stream while reading stanza body");

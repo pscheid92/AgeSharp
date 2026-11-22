@@ -19,7 +19,9 @@ AgeSharp package may lag `main`; check the release notes for what a given versio
 | Plugin recipients and identities | ✅ | ✅ | ✅ | Client side of the `age-plugin-*` protocol |
 | Writing plugins | ✅ | ✅ | ✅ | Go's `plugin` package, rage's `age-plugin` crate, AgeSharp's `AgePlugin` (modelled on Go's) |
 
-AgeSharp builds the HPKE for both on BouncyCastle, so they also work in the browser.
+AgeSharp's P-256 exchange for both runs on the platform's constant-time ECDH; in the browser,
+which has none, it falls back to BouncyCastle's, which is not constant-time. The rest of the HPKE
+is BouncyCastle's and AgeSharp's own, so both also work in the browser.
 
 ## Core format
 
@@ -48,7 +50,7 @@ AgeSharp builds the HPKE for both on BouncyCastle, so they also work in the brow
 | Standalone armor reader/writer | ✅ | ✅ | ✅ | `Armor.Encode` / `Armor.Decode`, sync and async |
 | Adjustable scrypt maximum work factor | ✅ | ✅ | ✅ | `Passphrase.MaxWorkFactor`, default 22 as in Go |
 | Per-identity errors on no match | ✅ | ❌ | ✅ | Go collects each identity's error; AgeSharp says, for its own identities, whether the file had no stanza of their type or none for them |
-| Async encrypt/decrypt | ❌ | ✅ | ✅ | `EncryptAsync`, `DecryptAsync`, `DecryptReaderAsync` and the detached forms, async all the way through; unwrapping for a plugin or encrypted SSH key is synchronous |
+| Async encrypt/decrypt | ❌ | ✅ | ✅ | `EncryptAsync`, `DecryptAsync`, `DecryptReaderAsync` and the detached forms, async all the way through; wrapping and unwrapping themselves are synchronous (`IRecipient.Wrap`, `IIdentity.TryUnwrap`), so a plugin or a passphrase prompt blocks |
 | Browser / WebAssembly | — | ✅ | ✅ | rage's `age` crate builds for `wasm32-unknown-unknown`; AgeSharp runs under Blazor WebAssembly with a managed ChaCha20-Poly1305 backend, but of protected SSH keys only ed25519 with AES-GCM or ChaCha20-Poly1305. Not a stated target for Go |
 
 ## Command line
@@ -58,10 +60,11 @@ ships `rage`, `rage-keygen` and `rage-mount`; use those for the command line.
 
 ## Summary
 
-AgeSharp covers the six standard recipient types and the two tagged ones (encryption only), both sides of the plugin protocol, and Go's
+AgeSharp covers the five standard recipient types and the two tagged ones (encryption only), both sides of the plugin protocol, and Go's
 v1.3 library additions: detached headers, pull-based streams, random-access decryption and
-`inspect`. Like rage's library it runs in the browser, and it has the native ML-KEM-768-X25519
+file-key extraction and injection; it also inspects headers, which Go does only in its CLI. Like rage's library it runs in the browser, and it has the native ML-KEM-768-X25519
 recipient (`age1pq1…`), which rage does not.
 
-It trails Go on file-key extraction and the finer-grained
-recipient and error APIs, and rage on async I/O.
+Where it still falls short: wrapping and unwrapping are synchronous, so a plugin or a passphrase
+prompt blocks even under the async API; and in the browser only some protected SSH keys decrypt,
+and the P-256 exchange is not constant-time.
