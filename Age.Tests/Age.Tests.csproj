@@ -28,6 +28,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Age\Age.csproj" />
+    <!-- Built first, not referenced: PluginInteropTests run it as a process. -->
+    <ProjectReference Include="..\Age.TestPlugin\Age.TestPlugin.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!-- The outer loop's adapter to the public API, shared with the conformance runner. -->

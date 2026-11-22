@@ -30,7 +30,7 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 - [x] AgeSharp's own identities derive the file key straight into the caller's buffer, instead of recovering it into an array and handing that over zeroed (`FileKey.Deliver`): X25519, ML-KEM-768-X25519, `Passphrase` and SSH Ed25519 decrypt on the stack and copy out only once authenticated. SSH RSA and plugins still go through `Deliver`: BouncyCastle's RSA-OAEP returns an array, and a plugin's answer arrives as one
 - [x] Plugin connection: write stanzas to the plugin's stdin as bytes, not through a `StreamWriter`, whose internal buffer keeps a copy of the last body written (a file key, or a secret since rebuild step 2) until it is overwritten: stanzas are laid out as bytes in cleared buffers and written to stdin's stream, never through `Process.StandardInput`
 - [x] Plugin recipients: advertise `extension-labels` and pass a plugin's labels on through `IRecipientWithLabels` (rebuild step 8b)
-- [ ] Plugin authoring: the server side of the plugin protocol
+- [x] Plugin authoring: the server side of the plugin protocol — `AgePlugin`, after go-age's `plugin` package (handlers that make ordinary recipients and identities, `Run` for recipient-v1 and identity-v1, the user-interaction requests, go-age's exit codes); checked in the tests against go-age's `age`, rage and AgeSharp's client, through a test plugin run as a process
 - [x] Small differences from go-age: a stanza of a protected SSH key's type without arguments is malformed, as in go-age, not skipped; an even RSA exponent in a public key or a PKCS#1 key is refused in Go's words ("incorrect public exponent"), not BouncyCastle's
 
 ## Tagged recipients, later (from the #104 review)

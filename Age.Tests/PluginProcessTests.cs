@@ -8,6 +8,7 @@ namespace Age.Tests;
 /// Tests that launch (or refuse to launch) a real plugin process. Everything here
 /// touches the filesystem and, for the working-directory case, process-global state.
 /// </summary>
+[Collection(ProcessPath.Collection)]
 public class PluginProcessTests
 {
     private static string NewTempDir()
