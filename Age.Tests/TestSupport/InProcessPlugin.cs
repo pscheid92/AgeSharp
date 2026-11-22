@@ -12,7 +12,7 @@ internal static class InProcessPlugin
 {
     public sealed record Outcome<T>(int ExitCode, T? Result, Exception? ClientFailure, string Stderr);
 
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
     /// <summary>
     /// Runs <paramref name="plugin"/> as <paramref name="stateMachine"/> and
@@ -30,7 +30,9 @@ internal static class InProcessPlugin
         var pluginOutput = new AnonymousPipeClientStream(PipeDirection.Out, fromPlugin.ClientSafePipeHandle);
         var stderr = new StringWriter();
 
-        var server = Task.Run(() =>
+        // Both sides get threads of their own, not the pool's: the test thread blocks until they
+        // finish, and under a loaded parallel run a pool thread can take seconds to start.
+        var server = Task.Factory.StartNew(() =>
         {
             try
             {
@@ -41,14 +43,14 @@ internal static class InProcessPlugin
                 // The client sees the end of the plugin's output, as it would when a process exits.
                 pluginOutput.Dispose();
             }
-        });
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
         T? result = default;
         Exception? failure = null;
 
         // The client runs on its own task too, so that a plugin that never answers fails the test
         // instead of hanging it: once the time is up, closing both pipes ends both sides' reads.
-        var conversation = Task.Run(() =>
+        var conversation = Task.Factory.StartNew(() =>
         {
             try
             {
@@ -64,7 +66,7 @@ internal static class InProcessPlugin
                 // And the plugin sees the end of the client's, as when the client closes its stdin.
                 toPlugin.Dispose();
             }
-        });
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
         if (!Task.WaitAll([conversation, server], Timeout))
         {
