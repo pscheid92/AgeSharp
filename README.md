@@ -25,7 +25,7 @@ and needs to raise its pin to 2.7.0.
 - All standard recipient types: X25519, scrypt/passphrase, SSH-Ed25519, SSH-RSA
 - **Post-quantum** ML-KEM-768-X25519 hybrid encryption
 - **Hardware keys**: tagged P-256 and P-256 + ML-KEM-768 recipients (`age1tag1…`, `age1tagpq1…`), encryption only
-- **Plugin protocol** — interoperates with `age-plugin-*` binaries
+- **Plugin protocol** — interoperates with `age-plugin-*` binaries, and writes them (`AgePlugin`)
 - Encrypt to multiple recipients
 - ASCII armor, detected when decrypting from any stream, pipes and network streams included
 - Streaming encryption and decryption across all APIs — memory is bounded
@@ -394,6 +394,37 @@ Without callbacks, every request is answered as a failure, as the plugin protoco
 client with no user interface; so is a callback that throws. `Waiting` is called once a plugin
 has kept the operation waiting five seconds, usually for a touch. A plugin's security labels
 (`postquantum`, say) are passed on, so its stanzas mix only with recipients that declare the same.
+
+### Writing a plugin
+
+`AgePlugin` is the other side of the protocol, for an `age-plugin-<name>` binary written in
+.NET, as go-age's `plugin` package is for Go. A plugin exposes ordinary `IRecipient`s and
+`IIdentity`s: it says how to make them from the data in its keys, and `Run` speaks the protocol
+around them for any client (age, rage, AgeSharp):
+
+```csharp
+var plugin = new AgePlugin("frood");   // age-plugin-frood, age1frood1…, AGE-PLUGIN-FROOD-1…
+
+plugin.HandleRecipient(data => new FroodRecipient(plugin, data));
+plugin.HandleIdentity(data => new FroodIdentity(plugin, data));
+plugin.HandleIdentityAsRecipient(data => new FroodIdentity(plugin, data).Recipient);   // optional
+
+if (args is ["keygen"])
+{
+    var key = NewFroodKey();
+    Console.WriteLine(plugin.EncodeIdentity(key.Secret));
+    Console.WriteLine(plugin.EncodeRecipient(key.Public));
+    return 0;
+}
+
+return plugin.Run(args);   // --age-plugin=recipient-v1 or identity-v1, from the client
+```
+
+From inside `Wrap` or `TryUnwrap`, a recipient or identity talks to the user through the client
+with `plugin.DisplayMessage`, `RequestValue`, `RequestSecret` and `Confirm`. An exception thrown
+there, or by a handler, is reported to the client as that key's error; an identity that returns
+false is not the one for the file. A recipient's labels (`IRecipientWithLabels`) are passed on.
+The exit codes are go-age's.
 
 ### Custom recipients and identities
 

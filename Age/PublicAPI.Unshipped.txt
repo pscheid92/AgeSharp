@@ -1,2 +1,15 @@
 #nullable enable
+AgeSharp.AgePlugin
+AgeSharp.AgePlugin.AgePlugin(string! name) -> void
+AgeSharp.AgePlugin.Confirm(string! message, string! yes, string? no = null) -> bool
+AgeSharp.AgePlugin.DisplayMessage(string! message) -> void
+AgeSharp.AgePlugin.EncodeIdentity(System.ReadOnlySpan<byte> data) -> string!
+AgeSharp.AgePlugin.EncodeRecipient(System.ReadOnlySpan<byte> data) -> string!
+AgeSharp.AgePlugin.HandleIdentity(System.Func<byte[]!, AgeSharp.IIdentity!>! parse) -> void
+AgeSharp.AgePlugin.HandleIdentityAsRecipient(System.Func<byte[]!, AgeSharp.IRecipient!>! parse) -> void
+AgeSharp.AgePlugin.HandleRecipient(System.Func<byte[]!, AgeSharp.IRecipient!>! parse) -> void
+AgeSharp.AgePlugin.Name.get -> string!
+AgeSharp.AgePlugin.RequestSecret(string! prompt) -> char[]!
+AgeSharp.AgePlugin.RequestValue(string! prompt) -> string!
+AgeSharp.AgePlugin.Run(string![]! args) -> int
 AgeSharp.PluginIdentity.Recipient.get -> AgeSharp.PluginRecipient!

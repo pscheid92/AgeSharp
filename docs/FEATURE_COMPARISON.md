@@ -17,7 +17,7 @@ AgeSharp package may lag `main`; check the release notes for what a given versio
 | Tagged P-256 (`age1tag1…`) | ✅ | ✅ | ✅ | Encryption only in all three; decryption is a plugin's job |
 | Tagged P-256 + ML-KEM-768 (`age1tagpq1…`) | ✅ | ✅ | ✅ | As above |
 | Plugin recipients and identities | ✅ | ✅ | ✅ | Client side of the `age-plugin-*` protocol |
-| Writing plugins | ✅ | ✅ | ❌ | Go's `plugin` package, rage's `age-plugin` crate |
+| Writing plugins | ✅ | ✅ | ✅ | Go's `plugin` package, rage's `age-plugin` crate, AgeSharp's `AgePlugin` (modelled on Go's) |
 
 AgeSharp builds the HPKE for both on BouncyCastle, so they also work in the browser.
 
@@ -58,10 +58,10 @@ ships `rage`, `rage-keygen` and `rage-mount`; use those for the command line.
 
 ## Summary
 
-AgeSharp covers the six standard recipient types and the two tagged ones (encryption only), the plugin client protocol, and Go's
+AgeSharp covers the six standard recipient types and the two tagged ones (encryption only), both sides of the plugin protocol, and Go's
 v1.3 library additions: detached headers, pull-based streams, random-access decryption and
 `inspect`. Like rage's library it runs in the browser, and it has the native ML-KEM-768-X25519
 recipient (`age1pq1…`), which rage does not.
 
-It trails both Go and rage on support for writing plugins. It trails Go on file-key extraction and the finer-grained
+It trails Go on file-key extraction and the finer-grained
 recipient and error APIs, and rage on async I/O.
