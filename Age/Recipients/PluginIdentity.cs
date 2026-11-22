@@ -7,6 +7,11 @@ namespace AgeSharp;
 /// spawns the plugin named in the identity's HRP (e.g. <c>AGE-PLUGIN-YUBIKEY-1…</c>
 /// runs <c>age-plugin-yubikey</c>) and drives the identity-v1 protocol.
 /// </summary>
+/// <remarks>
+/// It has no <c>Dispose</c> of its own: the identity string it holds, which may be a secret
+/// (see <see cref="ToSecretString"/>), is a .NET string and cannot be cleared. It is passed as
+/// it was parsed, so keep the instance no longer than you would keep that string.
+/// </remarks>
 public sealed class PluginIdentity : IIdentityWithRecipient
 {
     private readonly string _identity;

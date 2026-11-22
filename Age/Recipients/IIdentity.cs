@@ -11,9 +11,11 @@ namespace AgeSharp;
 /// parsing returns it, can be <c>using</c>-scoped without knowing its type. The default
 /// <c>Dispose</c> does nothing, so an identity holding no secret need not write one.
 /// <para>
-/// One that does hold a secret should declare its own <c>Dispose</c>. A default interface
-/// method is not visible on the implementing type: without your own, <c>myIdentity.Dispose()</c>
-/// does not compile, though <c>using</c> and a call through the interface both work.
+/// One that holds a secret it can clear should declare its own <c>Dispose</c>, to clear it. A
+/// default interface method is not visible on the implementing type: without your own,
+/// <c>myIdentity.Dispose()</c> does not compile, though <c>using</c> and a call through the
+/// interface both work. (<see cref="PluginIdentity"/> holds its identity as a string, which
+/// cannot be cleared, so it has none.)
 /// </para>
 /// </remarks>
 public interface IIdentity : IDisposable

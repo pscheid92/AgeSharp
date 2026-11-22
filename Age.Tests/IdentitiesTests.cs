@@ -318,8 +318,10 @@ public class IdentitiesTests
             await new Identities(stranger).DecryptReaderAsync(new AsyncOnlyStream(new MemoryStream(file))));
     }
 
+    // A payload cut off in its nonce is a truncated payload, as one cut off in a chunk is: an
+    // authentication failure, as Decrypt documents.
     [Fact]
-    public async Task ATruncatedNonce_IsAHeaderError_SyncAndAsync()
+    public async Task ATruncatedNonce_IsATruncatedPayload_SyncAndAsync()
     {
         using var alice = X25519Identity.Generate();
         var file = new Recipients(alice.Recipient).Encrypt(Plaintext);
@@ -327,8 +329,8 @@ public class IdentitiesTests
         var truncated = file[..(headerLength + 5)];
         var with = new Identities(alice);
 
-        Assert.Contains("payload nonce", Assert.Throws<AgeFormatException>(() => with.Decrypt(truncated)).Message, StringComparison.Ordinal);
-        var async = await Assert.ThrowsAsync<AgeFormatException>(() => with.DecryptAsync(new MemoryStream(truncated), new MemoryStream()));
+        Assert.Contains("payload nonce", Assert.Throws<AgeAuthenticationException>(() => with.Decrypt(truncated)).Message, StringComparison.Ordinal);
+        var async = await Assert.ThrowsAsync<AgeAuthenticationException>(() => with.DecryptAsync(new MemoryStream(truncated), new MemoryStream()));
         Assert.Contains("payload nonce", async.Message, StringComparison.Ordinal);
     }
 

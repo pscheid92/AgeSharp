@@ -124,7 +124,7 @@ public class EncryptedSshKeyTests
         using var identity = EncryptedSshIdentity.Parse(Key(protectedKey), () => "hunter3".ToCharArray());
         var ciphertext = Encrypt(identity.Recipient);
 
-        var ex = Assert.Throws<AgeException>(() => Decrypt(ciphertext, identity));
+        var ex = Assert.Throws<AgeAuthenticationException>(() => Decrypt(ciphertext, identity));
 
         Assert.IsNotType<NoIdentityMatchException>(ex);
         Assert.Contains("passphrase", ex.Message);
@@ -135,7 +135,7 @@ public class EncryptedSshKeyTests
     {
         using var identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () => "".ToCharArray());
 
-        var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(identity.Recipient), identity));
+        var ex = Assert.Throws<AgeAuthenticationException>(() => Decrypt(Encrypt(identity.Recipient), identity));
 
         Assert.Contains("incorrect passphrase", ex.Message);
     }
@@ -147,7 +147,7 @@ public class EncryptedSshKeyTests
         using var identity = EncryptedSshIdentity.Parse(Key("ed25519_aes256ctr"), () => answers.Dequeue().ToCharArray());
         var ciphertext = Encrypt(identity.Recipient);
 
-        Assert.Throws<AgeException>(() => Decrypt(ciphertext, identity));
+        Assert.Throws<AgeAuthenticationException>(() => Decrypt(ciphertext, identity));
 
         Assert.Equal(Plaintext, Decrypt(ciphertext, identity));
     }

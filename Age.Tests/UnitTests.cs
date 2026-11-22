@@ -1426,7 +1426,7 @@ public class AgeEncryptTests
 
         ms.Position = 0;
         using var output = new MemoryStream();
-        Assert.Throws<AgeFormatException>(() => new Identities(id).Decrypt(ms, output));
+        Assert.Throws<AgeAuthenticationException>(() => new Identities(id).Decrypt(ms, output));
     }
 }
 

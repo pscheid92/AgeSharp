@@ -23,6 +23,12 @@ namespace AgeSharp;
 /// declares (post-quantum, a plugin's own) come with its stanzas, so they are compared when
 /// encrypting, and a mix is refused before anything is written.
 /// <para>
+/// The two kinds of refusal are told apart by type. Misusing the .NET API (no recipients, a
+/// null one) is an <see cref="ArgumentException"/>; breaking one of age's own rules (a
+/// passphrase not alone, recipients whose labels differ) is an <see cref="AgeException"/>, as
+/// go-age returns an error for it.
+/// </para>
+/// <para>
 /// Encrypting does not dispose the streams it is given, nor the recipients.
 /// </para>
 /// </remarks>

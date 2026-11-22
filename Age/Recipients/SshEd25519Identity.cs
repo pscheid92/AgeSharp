@@ -31,8 +31,15 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
     }
 
     /// <summary>The matching recipient, derived from the SSH public key.</summary>
-    public SshEd25519Recipient Recipient =>
-        new(_sshWireBytes, _x25519PublicKey);
+    /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
+    public SshEd25519Recipient Recipient
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return new(_sshWireBytes, _x25519PublicKey);
+        }
+    }
 
     /// <summary>Parses an ssh-ed25519 private key from PEM text (OpenSSH format).</summary>
     /// <exception cref="FormatException">The text is not a valid ssh-ed25519 private key.</exception>

@@ -86,6 +86,30 @@ public class IdentityDisposalTests
         Assert.Equal("MlKem768X25519Identity(disposed)", identity.ToString());
     }
 
+    // As IIdentityWithRecipient says, and as the X25519 and ML-KEM identities do: a disposed SSH
+    // identity gives no recipient, through its type or through the interface.
+    [Theory]
+    [InlineData("ed25519_plain")]
+    [InlineData("rsa_plain")]
+    [InlineData("ed25519_aes256ctr")]
+    public void SshIdentity_Recipient_AfterDispose_Throws(string key)
+    {
+        var identity = SshIdentity.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "EncryptedSsh", key)), () => "hunter2".ToCharArray());
+        var withRecipient = Assert.IsAssignableFrom<IIdentityWithRecipient>(identity);
+        Assert.NotNull(withRecipient.Recipient);
+
+        identity.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => withRecipient.Recipient);
+        Assert.Throws<ObjectDisposedException>(() => identity switch
+        {
+            SshEd25519Identity ed25519 => (object)ed25519.Recipient,
+            SshRsaIdentity rsa => rsa.Recipient,
+            EncryptedSshIdentity encrypted => encrypted.Recipient,
+            _ => throw new InvalidOperationException(identity.GetType().Name),
+        });
+    }
+
     [Fact]
     public void LiveIdentities_StillExposeRecipientAndSecret()
     {
