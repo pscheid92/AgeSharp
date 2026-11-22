@@ -266,19 +266,60 @@ public class AgePluginProtocolTests
         Assert.True(recipient.Disposed);
     }
 
-    // A labelled recipient that leaves its result at the default produces nothing, and the client
-    // hears that as no stanza at all.
-    [Fact]
-    public void ARecipientWithADefaultResult_ProducesNoStanza()
+    // A recipient that wraps to nothing would leave a key out of the file, as the client refuses
+    // for any recipient: it is that key's error. Null, a default LabelledStanzas, is the same.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ARecipientThatProducesNoStanzas_IsThatKeysError(bool defaultResult)
     {
         var plugin = new AgePlugin("frood");
-        plugin.HandleRecipient(_ => new DefaultLabelled());
+        plugin.HandleRecipient(_ => defaultResult ? new DefaultLabelled() : new Empty());
 
         var outcome = InProcessPlugin.Run(plugin, "recipient-v1", conn =>
             PluginRecipient.Parse(Recipient).WrapWithConnection(conn, FileKey));
 
+        Assert.Equal(3, outcome.ExitCode);
+        Assert.Contains("produced no stanzas", Assert.IsType<AgePluginException>(outcome.ClientFailure).Message);
+    }
+
+    // An option label must say something: an empty yes is refused before anything is sent, and
+    // an empty no is no option at all, as go-age reads it.
+    [Fact]
+    public void AnEmptyYes_IsRefused()
+    {
+        var plugin = new AgePlugin("frood");
+        Exception? refused = null;
+        plugin.HandleRecipient(_ => new Asking(() => refused = Record.Exception(() => plugin.Confirm("sure?", ""))));
+
+        var outcome = InProcessPlugin.Run(plugin, "recipient-v1", conn =>
+        {
+            var first = Request(conn, "add-recipient", Recipient);
+            Reply(conn, "ok");
+            Finish(conn);
+            return first;
+        });
+
+        Assert.IsType<ArgumentException>(refused);
+        Assert.Equal("recipient-stanza", outcome.Result.Type);
+    }
+
+    [Fact]
+    public void AnEmptyNo_IsNoOption()
+    {
+        var plugin = new AgePlugin("frood");
+        plugin.HandleRecipient(_ => new Asking(() => plugin.Confirm("sure?", "go", "")));
+
+        var outcome = InProcessPlugin.Run(plugin, "recipient-v1", conn =>
+        {
+            var request = Request(conn, "add-recipient", Recipient);
+            conn.WriteStanza("ok", ["yes"], []);
+            Finish(conn);
+            return request;
+        });
+
+        Assert.Equal(["Z28"], outcome.Result.Args);
         Assert.Equal(0, outcome.ExitCode);
-        Assert.Contains("without producing a recipient stanza", Assert.IsType<AgePluginException>(outcome.ClientFailure).Message);
     }
 
     // --- Helpers ------------------------------------------------------------------------------
@@ -338,6 +379,11 @@ public class AgePluginProtocolTests
         public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey) => [new Stanza("frood", [], [1])];
 
         public void Dispose() => Disposed = true;
+    }
+
+    private sealed class Empty : IRecipient
+    {
+        public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey) => [];
     }
 
     private sealed class DefaultLabelled : IRecipientWithLabels

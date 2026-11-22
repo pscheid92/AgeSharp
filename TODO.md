@@ -46,11 +46,12 @@ AgeSharp is a library; the command-line tool was removed (use `age` or `rage`).
 ## API (breaking — fold into the rebuild)
 
 The rebuild is done and the public API frozen (rebuild step 8d): `PublicAPI.Shipped.txt` holds
-the whole surface, and any change to it from here is a breaking change.
+the surface as frozen, and any change to it from here is a breaking change. Additions since
+(`AgePlugin`, `PluginIdentity.Recipient`) are in `PublicAPI.Unshipped.txt` until a release.
 
 - [x] Async entry points for encrypt and decrypt: `EncryptAsync`, `DecryptAsync`, `DecryptReaderAsync`, the detached forms and the writers (rebuild steps 4b to 4d)
 - [x] Before the freeze, a review of the whole surface: plugin callbacks name the plugin and may decline, `PluginRecipient.Parse`/`PluginIdentity.Parse`, plugin labels, one `Func<char[]?>` shape for passphrase sources (rebuild steps 8a to 8c)
-- [x] Peeking armor detection, so armored input is recognised on non-seekable streams too (pipes, network streams) — rebuild step 3c: `PeekableStream`; `Decrypt`, `DecryptReader` and `AgeHeader.Parse` read ahead instead of seeking
+- [x] Peeking armor detection, so armored input is recognised on non-seekable streams too (pipes, network streams) — rebuild step 3c: `PeekableStream`; `Decrypt`, `DecryptReader` and `AgeHeader.Read` read ahead instead of seeking
 - [x] `Passphrase` type instead of `string`, so it can be zeroed — rebuild step 5a: `Passphrase` from a `string` or `ReadOnlySpan<char>`, keeping only UTF-8 that `Dispose` clears
 - [x] `IRecipient.Wrap` returning several stanzas and labels; make the multi-stanza interface public — rebuild step 1: `Wrap → IReadOnlyList<Stanza>`, `IRecipientWithLabels` with `LabelledStanzas`, `IIdentity.TryUnwrap(Stanza, Span<byte>)`, `IIdentityWithRecipient`
 - [x] Adjustable maximum work factor — `Passphrase.MaxWorkFactor` (default 22), as go-age and rage set it; the passphrase stays one type for both roles, as decided for the rebuild

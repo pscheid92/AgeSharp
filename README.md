@@ -50,9 +50,12 @@ and needs to raise its pin to 2.7.0.
 - Fully interoperable — files produced by AgeSharp decrypt with `age`, `rage`, and vice versa
 - **Runs in Blazor WebAssembly** — automatically uses a managed
   ChaCha20-Poly1305 backend in the browser, where the platform cipher is
-  unavailable. One exception: of passphrase-protected SSH keys, only ssh-ed25519
+  unavailable. The exceptions: of passphrase-protected SSH keys, only ssh-ed25519
   keys protected with `aes256-gcm@openssh.com` or `chacha20-poly1305@openssh.com`
-  decrypt there — not `ssh-keygen`'s default AES-CTR, and no ssh-rsa key
+  decrypt there — not `ssh-keygen`'s default AES-CTR, and no ssh-rsa key; an
+  unprotected ssh-rsa key that only SSH.NET reads (one BouncyCastle refuses) is
+  refused there too; and the tagged recipients' P-256 exchange, constant-time
+  elsewhere, runs on BouncyCastle's managed P-256, which is not
 
 ## Installation
 
