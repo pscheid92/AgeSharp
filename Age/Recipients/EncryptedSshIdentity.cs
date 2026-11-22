@@ -31,11 +31,21 @@ public sealed class EncryptedSshIdentity : IIdentityWithRecipient, IDisposable
         _tag = SshKeyParser.ComputeTag(protectedKey.PublicKey);
 
         var authorizedKeysLine = $"{_keyType} {Convert.ToBase64String(protectedKey.PublicKey)}";
-        Recipient = Recipients.ParseSsh(authorizedKeysLine);
+        _recipient = Recipients.ParseSsh(authorizedKeysLine);
     }
 
+    private readonly IRecipient _recipient;
+
     /// <summary>The matching recipient, from the key's public key. Needs no passphrase.</summary>
-    public IRecipient Recipient { get; }
+    /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
+    public IRecipient Recipient
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return _recipient;
+        }
+    }
 
     /// <summary>
     /// Parses a passphrase-protected SSH private key from PEM text (OpenSSH format).
@@ -66,11 +76,12 @@ public sealed class EncryptedSshIdentity : IIdentityWithRecipient, IDisposable
     /// passphrase, for stanzas of other types or addressed to a different SSH key.
     /// </summary>
     /// <exception cref="AgeFormatException">The stanza is of this key's type but has no arguments, or is addressed to this key but is malformed.</exception>
+    /// <exception cref="AgeAuthenticationException">The passphrase is wrong (or the key's encrypted section is damaged, which OpenSSH cannot tell apart).</exception>
     /// <exception cref="AgeException">
     /// The key cannot be decrypted here (its cipher, KDF or round count, or a browser
-    /// limitation; said before the passphrase is asked for), the passphrase is wrong, was not
-    /// given (the source returned null) or could not be obtained, or the key file's public and
-    /// private keys do not belong together.
+    /// limitation; said before the passphrase is asked for), the passphrase was not given (the
+    /// source returned null) or could not be obtained, or the key file's public and private keys
+    /// do not belong together.
     /// </exception>
     /// <exception cref="OperationCanceledException">The passphrase source threw it, to cancel.</exception>
     /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
@@ -161,7 +172,7 @@ public sealed class EncryptedSshIdentity : IIdentityWithRecipient, IDisposable
         }
         catch (CryptographicException ex)
         {
-            throw new AgeException("failed to decrypt the SSH key: incorrect passphrase", ex);
+            throw new AgeAuthenticationException("failed to decrypt the SSH key: incorrect passphrase", ex);
         }
         catch (FormatException ex)
         {

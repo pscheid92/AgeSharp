@@ -47,7 +47,10 @@ public sealed class EncryptedIdentityFile : IIdentity
     /// The recipients of the identities in the file, for encrypting to keys you hold. Decrypts
     /// the file if it has not been, asking for the passphrase.
     /// </summary>
-    /// <exception cref="AgeException">The passphrase is wrong, or the file is not an identity file encrypted to one.</exception>
+    /// <exception cref="AgeAuthenticationException">The passphrase is wrong, or the file is not encrypted to a passphrase.</exception>
+    /// <exception cref="AgeException">The passphrase was not given (the source returned null) or could not be obtained, or the decrypted file is not an identity file.</exception>
+    /// <exception cref="OperationCanceledException">The passphrase source threw it, to cancel.</exception>
+    /// <exception cref="ObjectDisposedException">The file has been disposed.</exception>
     public IReadOnlyList<IRecipient> GetRecipients() =>
         [.. Unlocked().OfType<IIdentityWithRecipient>().Select(i => i.Recipient)];
 
@@ -55,8 +58,10 @@ public sealed class EncryptedIdentityFile : IIdentity
     /// Unwraps the file key with the identities in the file, decrypting it first if it has not
     /// been: false if none of them opens the stanza.
     /// </summary>
-    /// <exception cref="AgeException">The passphrase is wrong, was not given (the source returned null) or could not be obtained, or the file is not an identity file encrypted to one.</exception>
+    /// <exception cref="AgeAuthenticationException">The passphrase is wrong, or the file is not encrypted to a passphrase.</exception>
+    /// <exception cref="AgeException">The passphrase was not given (the source returned null) or could not be obtained, or the decrypted file is not an identity file.</exception>
     /// <exception cref="OperationCanceledException">The passphrase source threw it, to cancel.</exception>
+    /// <exception cref="ObjectDisposedException">The file has been disposed.</exception>
     public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
     {
         foreach (var identity in Unlocked())
@@ -88,7 +93,7 @@ public sealed class EncryptedIdentityFile : IIdentity
         {
             // Not a match for the file being decrypted, which would be the reader's conclusion
             // if this went through: this file could not be opened at all.
-            throw new AgeException("the identity file's passphrase is wrong, or it is not encrypted to a passphrase", ex);
+            throw new AgeAuthenticationException("the identity file's passphrase is wrong, or it is not encrypted to a passphrase", ex);
         }
         finally
         {

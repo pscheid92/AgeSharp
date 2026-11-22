@@ -61,7 +61,7 @@ public class EncryptedIdentityFileLazinessTests
         using var identityFile = new EncryptedIdentityFile(Protect(key.ToSecretString()), () => answers.Dequeue().ToCharArray());
         var file = new Recipients(key.Recipient).Encrypt(Plaintext);
 
-        var ex = Assert.Throws<AgeException>(() => new Identities(identityFile).Decrypt(file));
+        var ex = Assert.Throws<AgeAuthenticationException>(() => new Identities(identityFile).Decrypt(file));
         Assert.Contains("passphrase is wrong", ex.Message, StringComparison.Ordinal);
         Assert.IsType<NoIdentityMatchException>(ex.InnerException);
 
@@ -75,7 +75,7 @@ public class EncryptedIdentityFileLazinessTests
         var notPassphraseProtected = new Recipients(key.Recipient).Encrypt(Encoding.UTF8.GetBytes(key.ToSecretString()));
         using var identityFile = new EncryptedIdentityFile(notPassphraseProtected, () => "pw".ToCharArray());
 
-        Assert.Throws<AgeException>(() => identityFile.GetRecipients());
+        Assert.Throws<AgeAuthenticationException>(() => identityFile.GetRecipients());
     }
 
     // As every passphrase source in the library: null cancels.

@@ -28,8 +28,15 @@ public sealed class SshRsaIdentity : IIdentityWithRecipient, IDisposable
     }
 
     /// <summary>The matching recipient, derived from the RSA public parameters.</summary>
-    public SshRsaRecipient Recipient =>
-        new(new RsaKeyParameters(false, _privateKey.Modulus, _privateKey.PublicExponent), _sshWireBytes);
+    /// <exception cref="ObjectDisposedException">The identity has been disposed.</exception>
+    public SshRsaRecipient Recipient
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return new(new RsaKeyParameters(false, _privateKey.Modulus, _privateKey.PublicExponent), _sshWireBytes);
+        }
+    }
 
     /// <summary>Parses an ssh-rsa private key from PEM text (OpenSSH, PKCS#1, or PKCS#8).</summary>
     /// <exception cref="FormatException">The text is not a valid ssh-rsa private key.</exception>

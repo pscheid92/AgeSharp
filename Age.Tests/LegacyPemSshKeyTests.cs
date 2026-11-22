@@ -82,7 +82,7 @@ public class LegacyPemSshKeyTests
     {
         using var identity = ParseEncrypted(legacyKey, "rsa_plain.pub", () => "hunter3".ToCharArray());
 
-        var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(identity.Recipient), identity));
+        var ex = Assert.Throws<AgeAuthenticationException>(() => Decrypt(Encrypt(identity.Recipient), identity));
 
         Assert.IsNotType<NoIdentityMatchException>(ex);
         Assert.Contains("incorrect passphrase", ex.Message);
@@ -100,7 +100,7 @@ public class LegacyPemSshKeyTests
 
         for (var i = 0; i < 1000; i++)
         {
-            var ex = Assert.Throws<AgeException>(() => Decrypt(ciphertext, identity));
+            var ex = Assert.Throws<AgeAuthenticationException>(() => Decrypt(ciphertext, identity));
             Assert.Contains("incorrect passphrase", ex.Message);
         }
     }
@@ -110,7 +110,7 @@ public class LegacyPemSshKeyTests
     {
         using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_plain.pub", () => "".ToCharArray());
 
-        var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(identity.Recipient), identity));
+        var ex = Assert.Throws<AgeAuthenticationException>(() => Decrypt(Encrypt(identity.Recipient), identity));
 
         Assert.Contains("incorrect passphrase", ex.Message);
     }
@@ -122,7 +122,7 @@ public class LegacyPemSshKeyTests
         using var identity = ParseEncrypted("rsa_legacy_pem", "rsa_plain.pub", () => answers.Dequeue().ToCharArray());
         var ciphertext = Encrypt(identity.Recipient);
 
-        Assert.Throws<AgeException>(() => Decrypt(ciphertext, identity));
+        Assert.Throws<AgeAuthenticationException>(() => Decrypt(ciphertext, identity));
 
         Assert.Equal(Plaintext, Decrypt(ciphertext, identity));
     }
@@ -214,7 +214,7 @@ public class LegacyPemSshKeyTests
         var pem = DamageBody(Key("rsa_legacy_pem"));
         using var identity = Assert.IsType<EncryptedSshIdentity>(SshIdentity.Parse(pem, Key("rsa_plain.pub"), () => Passphrase.ToCharArray()));
 
-        var ex = Assert.Throws<AgeException>(() => Decrypt(Encrypt(Recipients.ParseOne(Key("rsa_plain.pub"))), identity));
+        var ex = Assert.Throws<AgeAuthenticationException>(() => Decrypt(Encrypt(Recipients.ParseOne(Key("rsa_plain.pub"))), identity));
 
         Assert.Contains("incorrect passphrase", ex.Message);
     }

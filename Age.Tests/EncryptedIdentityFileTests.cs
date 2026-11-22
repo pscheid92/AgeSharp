@@ -150,7 +150,7 @@ public class EncryptedIdentityFileTests
         var encrypted = EncryptIdentityFile(text);
 
         using var wrong = new EncryptedIdentityFile(encrypted, () => "wrong passphrase".ToCharArray());
-        Assert.Throws<AgeException>(() => wrong.GetRecipients());
+        Assert.Throws<AgeAuthenticationException>(() => wrong.GetRecipients());
     }
 
     [Fact]

@@ -539,7 +539,8 @@ public sealed class Identities : IReadOnlyList<IIdentity>, IDisposable
     internal static PayloadKey DerivePayloadKey(FileKey fileKey, byte[] nonce, int nonceRead) =>
         nonceRead == nonce.Length
             ? Crypto.PayloadKey.Derive(fileKey, nonce)
-            : throw new AgeFormatException($"expected {nonce.Length}-byte payload nonce, got {nonceRead} bytes");
+            // A payload cut off in its nonce is a truncated payload, as one cut off in a chunk is.
+            : throw new AgeAuthenticationException($"expected {nonce.Length}-byte payload nonce, got {nonceRead} bytes");
 
     internal static Header ParseHeader(HeaderReader reader)
     {
