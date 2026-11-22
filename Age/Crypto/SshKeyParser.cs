@@ -7,7 +7,6 @@ using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Utilities;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.OpenSsl;
-using Org.BouncyCastle.Security;
 
 namespace AgeSharp.Crypto;
 

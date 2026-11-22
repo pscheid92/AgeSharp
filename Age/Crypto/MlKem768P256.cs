@@ -10,8 +10,9 @@ namespace AgeSharp.Crypto;
 /// </summary>
 /// <remarks>
 /// Ported from filippo.io/hpke v0.4.0 (pq.go, hybridPublicKey.encap and hybridKEM.sharedSecret),
-/// which go-age uses, on BouncyCastle's ML-KEM-768 and P-256, and checked against that module's
-/// hpke-pq test vectors.
+/// which go-age uses, on BouncyCastle's ML-KEM-768 and <see cref="DhKemP256"/>'s exchange (the
+/// platform's constant-time ECDH, BouncyCastle's in the browser), and checked against that
+/// module's hpke-pq test vectors.
 /// </remarks>
 internal static class MlKem768P256
 {

@@ -5,7 +5,7 @@ SDK), BenchmarkDotNet 0.14.0, on 2026-11-19, against `main` at `0.2.0-preview.6`
 previous run, on 2026-07-23 on the same machine, is within a few percent everywhere except
 where noted below.
 
-Memory is bounded: the push APIs (`Encrypt`, `Decrypt`, `EncryptDetached`,
+Memory is bounded: the stream-to-stream APIs (`Encrypt`, `Decrypt`, `EncryptDetached`,
 `DecryptDetached`) stream chunk by chunk with pooled, fixed-size buffers, so a 1 GiB
 file uses the same working set as a 1 MB one. The managed ChaCha20-Poly1305 backend used
 in the browser (BouncyCastle) is 1.5–2× slower than the native one:
