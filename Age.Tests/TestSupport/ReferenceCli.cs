@@ -72,6 +72,10 @@ internal sealed class ReferenceCli(string name, IReadOnlyDictionary<string, stri
         {
             RedirectStandardError = true,
             UseShellExecute = false,
+            // Not the test's output folder: on Windows, Go looks up a plugin binary in the working
+            // directory before PATH, and refuses to run one it finds there. Every path passed is
+            // absolute, so nothing else depends on it.
+            WorkingDirectory = System.IO.Path.GetTempPath(),
         };
         foreach (var arg in args)
             psi.ArgumentList.Add(arg);
