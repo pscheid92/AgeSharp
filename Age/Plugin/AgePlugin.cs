@@ -62,7 +62,8 @@ public sealed class AgePlugin
     /// <summary>
     /// Registers how to make a recipient from the data of an <c>age1&lt;name&gt;1…</c>
     /// recipient, for recipient-v1. A recipient that implements <see cref="IRecipientWithLabels"/>
-    /// has its labels passed on to clients that take them.
+    /// has its labels passed on; a client that does not take labels gets that key's error instead,
+    /// as from rage's plugins, so a labelled stanza is never mixed with others unchecked.
     /// </summary>
     /// <remarks>Each call is handed an array of its own, which the handler may keep.</remarks>
     /// <exception cref="InvalidOperationException">A recipient handler is already registered.</exception>
@@ -278,6 +279,11 @@ public sealed class AgePlugin
 
                     if (InvalidLabels(these) is { } invalid)
                         return KeyError(kind, index, invalid);
+
+                    // A client that does not take labels would mix this key with any other, which
+                    // is what labels exist to prevent: refused, as rage's plugins refuse it.
+                    if (these.Count > 0 && !supportsLabels)
+                        return KeyError(kind, index, "the recipient has security labels, and the client does not support labels");
 
                     if (labels is null)
                         labels = [.. these];
@@ -568,6 +574,11 @@ public sealed class AgePlugin
                 throw new AgePluginException(refused);
             case "ok":
                 return reply;
+            case "unsupported":
+                // The client does not know the request: a refusal, as rage reads it, which the
+                // plugin may get past; not a broken session.
+                ExpectNoBody(reply, 0, interactive: true);
+                throw new AgePluginException($"{refused}: the client does not support it");
             default:
                 throw Broke($"expected ok or fail stanza, got \"{reply.Type}\"");
         }

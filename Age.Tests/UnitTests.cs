@@ -651,11 +651,13 @@ public class AsciiArmorTests
 
         // Prepend whitespace
         var armoredBytes = armored.ToArray();
-        var withWs = new byte[3 + armoredBytes.Length];
+        // On lines of their own: whitespace in front of the begin marker is refused, as in go-age.
+        var withWs = new byte[4 + armoredBytes.Length];
         withWs[0] = (byte)' ';
         withWs[1] = (byte)'\n';
         withWs[2] = (byte)'\t';
-        armoredBytes.CopyTo(withWs, 3);
+        withWs[3] = (byte)'\n';
+        armoredBytes.CopyTo(withWs, 4);
 
         using var wsStream = new MemoryStream(withWs);
         using var dearmored = AsciiArmor.Dearmor(wsStream);

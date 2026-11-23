@@ -414,7 +414,7 @@ public class WriterTests
     {
         using var alice = X25519Identity.Generate();
         var plaintext = Plaintext(100);
-        byte[] file = [.. "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n  "u8,
+        byte[] file = [.. "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n  \n"u8,
             .. new Recipients(alice.Recipient).Encrypt(plaintext, new AgeEncryptOptions { Armor = true })];
         var output = new MemoryStream();
 
@@ -450,14 +450,15 @@ public class WriterTests
         Assert.Equal(read.Message, written.Message);
     }
 
-    // With a raised line limit the bytes looked at to tell armor from binary can hold more than a
-    // chunk: here the begin line is indented by 600,000 spaces, so the lookahead grows past a
-    // megabyte, half of it armor. The writer decrypts what the reader decrypts, whether the file
-    // runs past the lookahead or ends inside it (decided only when the writer is disposed).
+    // A begin line indented by 600,000 spaces once made the lookahead, with a raised line limit,
+    // grow past a megabyte and hold whole chunks, which the writer then refused with a raw
+    // exception the reader did not throw. An indented begin line is refused now, as go-age
+    // refuses it: the reader and the writer refuse it alike, whether the file runs past the
+    // lookahead or ends inside it.
     [Theory]
     [InlineData(512 * 1024)]
     [InlineData(200 * 1024)]
-    public void ALookaheadThatHoldsAChunk_IsDecryptedLikeTheRest(int length)
+    public void AHugelyIndentedBeginLine_IsRefusedAlikeByReaderAndWriter(int length)
     {
         using var key = X25519Identity.Generate();
         var plaintext = Plaintext(length);
@@ -466,16 +467,19 @@ public class WriterTests
         var options = new AgeDecryptOptions { MaxArmorLineBytes = 1024 * 1024 };
         var identities = new Identities(key);
 
-        using var pulled = new MemoryStream();
-        using (var reader = identities.DecryptReader(new MemoryStream(file), options))
-            reader.CopyTo(pulled);
+        Assert.Throws<AgeFormatException>(() =>
+        {
+            using var reader = identities.DecryptReader(new MemoryStream(file), options);
+            reader.CopyTo(Stream.Null);
+        });
 
-        using var pushed = new MemoryStream();
-        using (var writer = identities.DecryptWriter(pushed, options))
+        Assert.Throws<AgeFormatException>(() =>
+        {
+            using var writer = identities.DecryptWriter(Stream.Null, options);
             WriteInPieces(writer, file, 64 * 1024);
+        });
 
-        Assert.Equal(plaintext, pulled.ToArray());
-        Assert.Equal(plaintext, pushed.ToArray());
+        _ = plaintext;
     }
 
     private static byte[] Plaintext(int length) =>

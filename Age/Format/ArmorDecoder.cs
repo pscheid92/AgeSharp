@@ -90,7 +90,9 @@ internal sealed class ArmorDecoder
             return;
         }
 
-        if (line.TrimStart() != BeginMarker)
+        // Exactly, as go-age reads it: whitespace may stand on lines of its own before the marker,
+        // not in front of it.
+        if (line != BeginMarker)
             throw new AgeFormatException($"expected begin marker, got: {line}");
 
         _stage = Stage.Body;

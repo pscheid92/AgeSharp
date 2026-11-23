@@ -123,7 +123,6 @@ public class PluginTests
     [Theory]
     [InlineData("pwn/pwn")]   // forward slash -> relative path to Process.Start
     [InlineData("pwn\\pwn")]  // backslash (Windows separator)
-    [InlineData("a b")]       // space
     public void PluginRecipient_ExtractPluginName_InvalidChars_Throws(string name)
     {
         // Valid bech32 (valid checksum), but the name carries a disallowed character.
@@ -131,6 +130,11 @@ public class PluginTests
         var ex = Assert.Throws<FormatException>(() => PluginRecipient.ExtractPluginName(malicious));
         Assert.Contains("invalid plugin name", ex.Message);
     }
+
+    // A space is not printable ASCII, which Bech32 itself refuses (BIP-173), before any name is read.
+    [Fact]
+    public void PluginRecipient_ExtractPluginName_Space_Throws() =>
+        Assert.Throws<FormatException>(() => PluginRecipient.ExtractPluginName(MakePluginRecipient("a b")));
 
     [Theory]
     [InlineData("pwn/pwn")]

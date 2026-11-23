@@ -53,6 +53,17 @@ is BouncyCastle's and AgeSharp's own, so both also work in the browser.
 | Async encrypt/decrypt | ❌ | ✅ | ✅ | `EncryptAsync`, `DecryptAsync`, `DecryptReaderAsync` and the detached forms, async all the way through; wrapping and unwrapping themselves are synchronous (`IRecipient.Wrap`, `IIdentity.TryUnwrap`), so a plugin or a passphrase prompt blocks |
 | Browser / WebAssembly | — | ✅ | ✅ | rage's `age` crate builds for `wasm32-unknown-unknown`; AgeSharp runs under Blazor WebAssembly with a managed ChaCha20-Poly1305 backend, but of protected SSH keys only ed25519 with AES-GCM or ChaCha20-Poly1305. Not a stated target for Go |
 
+## Where the implementations decide differently
+
+- **A scrypt stanza with others.** The spec says a scrypt stanza MUST be the only one in a
+  header. AgeSharp refuses such a header before trying any identity. go-age checks the rule
+  only inside its scrypt identity, so it opens such a file with any other identity that
+  matches a stanza. No conforming encryptor writes one.
+- **Plugin labels and a client without them.** A plugin built on AgePlugin refuses a labelled
+  recipient for a client that does not take labels, as rage's plugins do; go-age's drop the
+  labels. An `unsupported` answer to a plugin's request is a refusal the plugin can get past,
+  as in rage; go-age ends the session.
+
 ## Command line
 
 AgeSharp is a library only. go-age ships `age`, `age-keygen` and `age-inspect`, with the

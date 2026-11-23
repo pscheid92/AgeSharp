@@ -398,6 +398,65 @@ public class AgePluginProtocolTests
         Assert.Contains("label", Encoding.UTF8.GetString(outcome.Result.Body));
     }
 
+    // A client that does not take labels would mix a labelled recipient with any other, which is
+    // what labels exist to prevent: as rage's plugins do, that key is refused. One without labels
+    // needs no support.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ALabelledRecipient_ForAClientWithoutLabels_IsRefused(bool labelled)
+    {
+        var plugin = new AgePlugin("frood");
+        plugin.HandleRecipient(_ => labelled ? new LabelledFrood(["postquantum"]) : new Frood());
+
+        var outcome = InProcessPlugin.Run(plugin, "recipient-v1", conn =>
+        {
+            conn.WriteStanza("add-recipient", [Recipient], []);
+            conn.WriteStanza("wrap-file-key", [], FileKey);
+            conn.WriteStanza("done", [], []);
+            var reply = conn.ReadNextStanza();
+            Reply(conn, "ok");
+
+            if (reply.Type != "error")
+                Finish(conn);
+
+            return reply;
+        });
+
+        if (labelled)
+        {
+            Assert.Equal(3, outcome.ExitCode);
+            Assert.Equal(["recipient", "0"], outcome.Result.Args);
+            Assert.Contains("does not support labels", Encoding.UTF8.GetString(outcome.Result.Body));
+        }
+        else
+        {
+            Assert.Equal(0, outcome.ExitCode);
+            Assert.Equal("recipient-stanza", outcome.Result.Type);
+        }
+    }
+
+    // A client that does not know a request answers "unsupported": a refusal the plugin hears as
+    // an AgePluginException and can get past, as rage treats it, not a broken session.
+    [Fact]
+    public void AnUnsupportedRequest_IsARefusal_AndTheSessionGoesOn()
+    {
+        var plugin = new AgePlugin("frood");
+        Exception? refused = null;
+        plugin.HandleRecipient(_ => new Asking(() => refused = Record.Exception(() => plugin.Confirm("sure?", "go"))));
+
+        var outcome = InProcessPlugin.Run(plugin, "recipient-v1", conn =>
+        {
+            Request(conn, "add-recipient", Recipient);
+            Reply(conn, "unsupported");
+            Finish(conn);
+            return 0;
+        });
+
+        Assert.Equal(0, outcome.ExitCode);
+        Assert.Contains("does not support it", Assert.IsType<AgePluginException>(refused).Message);
+    }
+
     // --- Helpers ------------------------------------------------------------------------------
 
     // A whole request for one key and a file key, with labels, and the plugin's first reply.

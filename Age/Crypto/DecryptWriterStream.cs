@@ -140,10 +140,9 @@ internal sealed class DecryptWriterStream(Stream destination, Identities identit
     }
 
     // What was looked at to tell armor from binary is read first: true when it completes a chunk,
-    // which waits in _plaintext, and the rest of it is read on the next call. At the default line
-    // bound it holds a few hundred bytes of payload at most, but a begin line indented by up to
-    // MaxArmorLineBytes makes the lookahead grow with it, and a raised bound lets that hold more
-    // than a chunk.
+    // which waits in _plaintext, and the rest of it is read on the next call. The lookahead grows
+    // only over whitespace, at most the whitespace allowance before the begin line, so it holds a
+    // few hundred bytes of payload; read this way it stays right should that ever change.
     private bool ReplayProbe()
     {
         if (_probeStart == _probeLength)
