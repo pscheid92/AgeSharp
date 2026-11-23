@@ -23,17 +23,11 @@ internal static class PluginLocator
     /// <summary>Testable core of <see cref="Find(string)"/> with the environment injected.</summary>
     internal static string? Find(string binaryName, string? searchPath, string? pathExt)
     {
-        if (string.IsNullOrEmpty(searchPath))
-            return null;
+        var windows = OperatingSystem.IsWindows();
 
-        foreach (var entry in searchPath.Split(Path.PathSeparator))
+        foreach (var directory in Directories(searchPath, windows))
         {
-            // An empty entry means "the current directory" on most shells, and a relative
-            // entry resolves against it — both are exactly what the spec forbids.
-            if (entry.Length == 0 || !Path.IsPathRooted(entry))
-                continue;
-
-            foreach (var candidate in Candidates(entry, binaryName, pathExt, OperatingSystem.IsWindows()))
+            foreach (var candidate in Candidates(directory, binaryName, pathExt, windows))
             {
                 if (IsExecutableFile(candidate))
                     return candidate;
@@ -42,6 +36,53 @@ internal static class PluginLocator
 
         return null;
     }
+
+    /// <summary>
+    /// The PATH entries that may be searched: the absolute ones. An empty entry means "the
+    /// current directory" on most shells, and a relative one resolves against it, both of which
+    /// the spec forbids. On Windows that includes a drive without a separator (<c>C:bin</c>) and
+    /// a separator without a drive (<c>\bin</c>), so only fully qualified entries count; and an
+    /// entry may be quoted, to hold a <c>;</c>, as Go's <c>filepath.SplitList</c> reads it.
+    /// </summary>
+    internal static IEnumerable<string> Directories(string? searchPath, bool windows)
+    {
+        if (string.IsNullOrEmpty(searchPath))
+            return [];
+
+        IEnumerable<string> entries = windows ? SplitWindowsPath(searchPath) : searchPath.Split(':');
+
+        return entries.Where(entry => windows ? IsFullyQualifiedOnWindows(entry) : entry.StartsWith('/'));
+    }
+
+    // ';' separates entries except inside double quotes, which are removed.
+    private static List<string> SplitWindowsPath(string searchPath)
+    {
+        var entries = new List<string>();
+        var entry = new System.Text.StringBuilder();
+        var quoted = false;
+
+        foreach (var c in searchPath)
+        {
+            if (c == '"')
+                quoted = !quoted;
+            else if (c == ';' && !quoted)
+            {
+                entries.Add(entry.ToString());
+                entry.Clear();
+            }
+            else
+                entry.Append(c);
+        }
+
+        entries.Add(entry.ToString());
+        return entries;
+    }
+
+    // A drive and a separator (C:\, C:/), or a UNC path (\\server\share): what Windows resolves
+    // without a working directory.
+    private static bool IsFullyQualifiedOnWindows(string entry) =>
+        entry.Length >= 3 && char.IsAsciiLetter(entry[0]) && entry[1] == ':' && entry[2] is '\\' or '/'
+        || entry.Length >= 2 && entry[0] is '\\' or '/' && entry[1] is '\\' or '/';
 
     /// <summary>The paths tried in one PATH directory, in order.</summary>
     internal static IEnumerable<string> Candidates(string directory, string binaryName, string? pathExt, bool windows)

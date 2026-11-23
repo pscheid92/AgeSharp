@@ -31,7 +31,7 @@ is BouncyCastle's and AgeSharp's own, so both also work in the browser.
 | ASCII armor | ✅ | ✅ | ✅ | |
 | Streaming, bounded memory | ✅ | ✅ | ✅ | 64 KiB chunks |
 | Security labels (prevent mixing) | ✅ | ✅ | ✅ | A set of labels per recipient, compared unordered, as in Go |
-| Encrypted identity files | ✅ | ✅ | ✅ | Decrypted only when first needed, as Go's `EncryptedIdentity` is (`EncryptedIdentityFile`) |
+| Encrypted identity files | — | ✅ | ✅ | Go's `EncryptedIdentity` is part of its `age` command, not its library. AgeSharp's `EncryptedIdentityFile` is decrypted only when first needed, as Go's is |
 | Recipients files | ✅ | ✅ | ✅ | |
 | Header limits (2 MiB, 1024 stanzas, 128 arguments) | ✅ | ❌ | ✅ | Introduced by Go v1.3.2; not in the spec. Adjustable in AgeSharp through `AgeDecryptOptions`, with go-age's values as defaults |
 | Armor line length bound | ❌ | ❌ | ✅ | 1 KiB |
@@ -41,9 +41,9 @@ is BouncyCastle's and AgeSharp's own, so both also work in the browser.
 
 | Feature | Go | Rust | AgeSharp | Notes |
 |---|:---:|:---:|:---:|---|
-| Pull-based streams (`EncryptReader`) | ✅ | ✅ | ✅ | |
+| Pull-based streams (`EncryptReader`) | ✅ | ❌ | ✅ | rage encrypts by pushing only (`Encryptor::wrap_output`) |
 | Push-based streams (writers) | ✅ | ✅ | ✅ | Go's `Encrypt` and rage's `wrap_output` push encryption only; AgeSharp pushes decryption too (`DecryptWriter`) |
-| Random-access decryption | ✅ | ✅ | ✅ | Go `DecryptReaderAt`, rage `Seek` on its stream reader, AgeSharp a seekable `DecryptReader` result; binary files only in AgeSharp |
+| Random-access decryption | ✅ | ✅ | ✅ | Go `DecryptReaderAt`, rage `Seek` on its stream reader, AgeSharp a seekable `DecryptReader` result; binary files only in Go and AgeSharp, while rage also seeks in armored files |
 | Detached headers | ✅ | ❌ | ✅ | |
 | File-key extraction and injection | ✅ | ❌ | ✅ | Go `ExtractHeader`, `DecryptHeader`, `NewInjectedFileKeyIdentity`; AgeSharp `AgeHeader.ToBytes`, `Identities.UnwrapFileKey`, `FileKeyIdentity` |
 | Header inspection | — | ❌ | ✅ | go-age's inspection is internal to its `age-inspect` command; its library exposes the raw header through `ExtractHeader` |
@@ -55,8 +55,9 @@ is BouncyCastle's and AgeSharp's own, so both also work in the browser.
 
 ## Command line
 
-AgeSharp is a library only. go-age ships `age`, `age-keygen` and `age-inspect`, and rage
-ships `rage`, `rage-keygen` and `rage-mount`; use those for the command line.
+AgeSharp is a library only. go-age ships `age`, `age-keygen` and `age-inspect`, with the
+plugins `age-plugin-batchpass`, `age-plugin-pq`, `age-plugin-tag` and `age-plugin-tagpq`;
+rage ships `rage`, `rage-keygen` and `rage-mount`. Use those for the command line.
 
 ## Summary
 

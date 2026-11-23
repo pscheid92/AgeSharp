@@ -87,10 +87,10 @@ internal sealed class LegacyPemSshKey : IProtectedSshKey
 
         var headers = pem.Headers.Cast<PemHeader>().ToList();
 
-        if (headers.SingleOrDefault(h => h.Name == "Proc-Type")?.Value != "4,ENCRYPTED")
+        if (Header(headers, "Proc-Type") != "4,ENCRYPTED")
             throw new FormatException("invalid legacy PEM SSH key: missing Proc-Type: 4,ENCRYPTED");
 
-        var dekInfo = headers.SingleOrDefault(h => h.Name == "DEK-Info")?.Value
+        var dekInfo = Header(headers, "DEK-Info")
                       ?? throw new FormatException("invalid legacy PEM SSH key: missing DEK-Info");
 
         var comma = dekInfo.IndexOf(',');
@@ -192,4 +192,15 @@ internal sealed class LegacyPemSshKey : IProtectedSshKey
     // The cipher name comes from the file and ends up in an error message, possibly on a terminal.
     private static string Printable(string text, int maxLength) =>
         string.Concat(text.Take(maxLength).Select(c => c is >= ' ' and <= '~' ? c : '?'));
+
+    // A header's value, or null when it is absent. BouncyCastle's reader keeps a header given
+    // twice, and which one would count is anyone's guess, so that is malformed.
+    private static string? Header(List<PemHeader> headers, string name)
+    {
+        var matching = headers.Where(h => h.Name == name).ToList();
+
+        return matching.Count <= 1
+            ? matching.SingleOrDefault()?.Value
+            : throw new FormatException($"invalid legacy PEM SSH key: the {name} header is given more than once");
+    }
 }

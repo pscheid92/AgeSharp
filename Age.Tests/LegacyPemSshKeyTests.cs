@@ -148,6 +148,20 @@ public class LegacyPemSshKeyTests
         Assert.Contains("ssh-rsa", ex.Message);
     }
 
+    // A header given twice is malformed: which one would count? Refused as a format error, not a
+    // raw InvalidOperationException from looking for the one.
+    [Theory]
+    [InlineData("Proc-Type: 4,ENCRYPTED")]
+    [InlineData("DEK-Info: AES-128-CBC,9AE5A2FF3489F53F266BFD866B68D480")]
+    public void AHeaderGivenTwice_IsRefused(string header)
+    {
+        var pem = Key("rsa_legacy_pem").Replace(header, $"{header}\n{header}");
+
+        var ex = Assert.Throws<FormatException>(() => SshIdentity.Parse(pem, Key("rsa_plain.pub"), NeverAsked));
+
+        Assert.Contains("more than once", ex.Message);
+    }
+
     [Fact]
     public void APublicKeyFileThatIsNotAPublicKey_IsRefused()
     {

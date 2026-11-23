@@ -322,6 +322,82 @@ public class AgePluginProtocolTests
         Assert.Equal(0, outcome.ExitCode);
     }
 
+    // However the recipient or identity treats the exception the broken request raised (lets it
+    // through, wraps it, or swallows it), the session ends with 2, as go-age's does.
+    [Theory]
+    [InlineData("recipient-v1", "rethrow")]
+    [InlineData("recipient-v1", "wrap")]
+    [InlineData("recipient-v1", "swallow")]
+    [InlineData("identity-v1", "rethrow")]
+    [InlineData("identity-v1", "wrap")]
+    [InlineData("identity-v1", "swallow")]
+    public void ABrokenSession_EndsWith2_WhateverIsDoneWithTheException(string stateMachine, string handling)
+    {
+        var plugin = new AgePlugin("frood");
+        Action ask = () =>
+        {
+            try
+            {
+                plugin.DisplayMessage("hello");
+            }
+            catch (AgePluginException ex) when (handling != "rethrow")
+            {
+                if (handling == "wrap")
+                    throw new InvalidOperationException("the PIN could not be asked for", ex);
+            }
+        };
+        plugin.HandleRecipient(_ => new Asking(ask));
+        plugin.HandleIdentity(_ => new AskingIdentity(ask));
+
+        var outcome = InProcessPlugin.Run(plugin, stateMachine, conn =>
+        {
+            if (stateMachine == "recipient-v1")
+            {
+                Request(conn, "add-recipient", Recipient);
+            }
+            else
+            {
+                conn.WriteStanza("add-identity", [Identity], []);
+                conn.WriteStanza("recipient-stanza", ["0", "frood"], [1]);
+                conn.WriteStanza("done", [], []);
+                conn.ReadNextStanza();
+            }
+
+            conn.WriteStanza("frob", [], []);
+            return 0;
+        });
+
+        Assert.Equal(2, outcome.ExitCode);
+    }
+
+    // Labels go on the wire as stanza arguments, and the protocol forbids duplicates: a recipient
+    // whose labels could not be sent as they are is that key's error.
+    [Theory]
+    [InlineData("a space", "pq frood")]
+    [InlineData("a newline", "pq\nfrood")]
+    [InlineData("an empty label", "")]
+    [InlineData("a duplicate", "pq", "pq")]
+    [InlineData("a character outside ASCII", "p\u00e9")]
+    [InlineData("a null label", "pq", null)]
+    public void ALabelThatCannotBeSent_IsThatKeysError(string why, params string?[] labels)
+    {
+        _ = why;
+        var unescaped = labels.Select(l => l is null ? null : System.Text.RegularExpressions.Regex.Unescape(l)).ToArray();
+        var plugin = new AgePlugin("frood");
+        plugin.HandleRecipient(_ => new LabelledFrood(unescaped!));
+
+        var outcome = InProcessPlugin.Run(plugin, "recipient-v1", conn =>
+        {
+            var error = Request(conn, "add-recipient", Recipient);
+            Reply(conn, "ok");
+            return error;
+        });
+
+        Assert.Equal(3, outcome.ExitCode);
+        Assert.Equal("error", outcome.Result.Type);
+        Assert.Contains("label", Encoding.UTF8.GetString(outcome.Result.Body));
+    }
+
     // --- Helpers ------------------------------------------------------------------------------
 
     // A whole request for one key and a file key, with labels, and the plugin's first reply.
@@ -370,6 +446,22 @@ public class AgePluginProtocolTests
             ask();
             return [new Stanza("frood", [], [1])];
         }
+    }
+
+    private sealed class AskingIdentity(Action ask) : IIdentity
+    {
+        public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
+        {
+            ask();
+            return false;
+        }
+    }
+
+    private sealed class LabelledFrood(string[] labels) : IRecipientWithLabels
+    {
+        public IReadOnlyList<Stanza> Wrap(ReadOnlySpan<byte> fileKey) => WrapWithLabels(fileKey).Stanzas;
+
+        public LabelledStanzas WrapWithLabels(ReadOnlySpan<byte> fileKey) => new([new Stanza("frood", [], [1])], labels);
     }
 
     private sealed class DisposableFrood : IRecipient, IDisposable

@@ -25,7 +25,11 @@ public sealed class EncryptedIdentityFile : IIdentity
     private readonly byte[] _contents;
     private readonly Func<char[]?> _passphrase;
     private readonly IPluginCallbacks? _plugins;
+    // Decrypting happens once, under this lock: two threads that need the keys at once would
+    // otherwise each ask for the passphrase, and one set of keys would never be cleared.
+    private readonly Lock _lock = new();
     private Identities? _identities;
+    private bool _unlocking;
     private bool _disposed;
 
     /// <summary>An encrypted identity file, read no further than copying it until it is needed.</summary>
@@ -48,35 +52,72 @@ public sealed class EncryptedIdentityFile : IIdentity
     /// the file if it has not been, asking for the passphrase.
     /// </summary>
     /// <exception cref="AgeAuthenticationException">The passphrase is wrong, or the file is not encrypted to a passphrase.</exception>
-    /// <exception cref="AgeException">The passphrase was not given (the source returned null) or could not be obtained, or the decrypted file is not an identity file.</exception>
+    /// <exception cref="AgeFormatException">The decrypted file is not an identity file.</exception>
+    /// <exception cref="AgeException">The passphrase was not given (the source returned null) or could not be obtained, or the passphrase source decrypted with this file itself.</exception>
     /// <exception cref="OperationCanceledException">The passphrase source threw it, to cancel.</exception>
     /// <exception cref="ObjectDisposedException">The file has been disposed.</exception>
-    public IReadOnlyList<IRecipient> GetRecipients() =>
-        [.. Unlocked().OfType<IIdentityWithRecipient>().Select(i => i.Recipient)];
+    public IReadOnlyList<IRecipient> GetRecipients()
+    {
+        lock (_lock)
+            return [.. Unlocked().OfType<IIdentityWithRecipient>().Select(i => i.Recipient)];
+    }
 
     /// <summary>
     /// Unwraps the file key with the identities in the file, decrypting it first if it has not
     /// been: false if none of them opens the stanza.
     /// </summary>
     /// <exception cref="AgeAuthenticationException">The passphrase is wrong, or the file is not encrypted to a passphrase.</exception>
-    /// <exception cref="AgeException">The passphrase was not given (the source returned null) or could not be obtained, or the decrypted file is not an identity file.</exception>
+    /// <exception cref="AgeFormatException">The decrypted file is not an identity file.</exception>
+    /// <exception cref="AgeException">The passphrase was not given (the source returned null) or could not be obtained, or the passphrase source decrypted with this file itself.</exception>
     /// <exception cref="OperationCanceledException">The passphrase source threw it, to cancel.</exception>
     /// <exception cref="ObjectDisposedException">The file has been disposed.</exception>
     public bool TryUnwrap(Stanza stanza, Span<byte> fileKey)
     {
-        foreach (var identity in Unlocked())
+        lock (_lock)
         {
-            if (identity.TryUnwrap(stanza, fileKey))
-                return true;
-        }
+            foreach (var identity in Unlocked())
+            {
+                if (identity.TryUnwrap(stanza, fileKey))
+                    return true;
+            }
 
-        return false;
+            return false;
+        }
     }
 
+    // Called under the lock, which is reentrant: a passphrase source that decrypts with this file
+    // would get here again, ask itself again, and so on.
     private Identities Unlocked()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        return _identities ??= Decrypt();
+
+        if (_identities is not null)
+            return _identities;
+
+        if (_unlocking)
+            throw new AgeException("the passphrase source must not decrypt with the identity file it is answering for");
+
+        Identities identities;
+        _unlocking = true;
+
+        try
+        {
+            identities = Decrypt();
+        }
+        finally
+        {
+            _unlocking = false;
+        }
+
+        // The passphrase source ran in between, and nothing stops it from disposing the file it
+        // is answering for.
+        if (_disposed)
+        {
+            identities.Dispose();
+            ObjectDisposedException.ThrowIf(_disposed, this);
+        }
+
+        return _identities = identities;
     }
 
     private Identities Decrypt()
@@ -105,6 +146,12 @@ public sealed class EncryptedIdentityFile : IIdentity
             // The decoded string holds the keys too, and cannot be cleared; the bytes can.
             return Identities.Parse(Encoding.UTF8.GetString(plaintext), _plugins);
         }
+        catch (FormatException ex)
+        {
+            // Opened, but it is not an identity file: malformed, as the decrypt entry points
+            // that reach this through TryUnwrap document.
+            throw new AgeFormatException($"the decrypted identity file is malformed: {ex.Message}", ex);
+        }
         finally
         {
             CryptographicOperations.ZeroMemory(plaintext);
@@ -114,10 +161,13 @@ public sealed class EncryptedIdentityFile : IIdentity
     /// <summary>Disposes the identities decrypted from the file, if it was.</summary>
     public void Dispose()
     {
-        if (_disposed)
-            return;
+        lock (_lock)
+        {
+            if (_disposed)
+                return;
 
-        _disposed = true;
-        _identities?.Dispose();
+            _disposed = true;
+            _identities?.Dispose();
+        }
     }
 }

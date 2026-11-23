@@ -136,24 +136,23 @@ internal sealed class DecryptWriterStream(Stream destination, Identities identit
                 DecideFraming();
         }
 
-        ReplayProbe();
-        return AdvanceFramed(ref input);
+        return ReplayProbe() || AdvanceFramed(ref input);
     }
 
-    // What was looked at to tell armor from binary is read first, once. It never completes a
-    // chunk: binary input looked at past the marker's length starts with whitespace, which the
-    // header refuses at its first line; armored input gets at most its whitespace allowance and
-    // a line or two past the marker, a few hundred bytes of payload at most.
-    private void ReplayProbe()
+    // What was looked at to tell armor from binary is read first: true when it completes a chunk,
+    // which waits in _plaintext, and the rest of it is read on the next call. At the default line
+    // bound it holds a few hundred bytes of payload at most, but a begin line indented by up to
+    // MaxArmorLineBytes makes the lookahead grow with it, and a raised bound lets that hold more
+    // than a chunk.
+    private bool ReplayProbe()
     {
         if (_probeStart == _probeLength)
-            return;
+            return false;
 
         ReadOnlySpan<byte> probe = _probe.AsSpan(_probeStart, _probeLength - _probeStart);
-        _probeStart = _probeLength;
-
-        if (AdvanceFramed(ref probe))
-            throw new InvalidOperationException("the bytes looked at to tell armor from binary completed a chunk");
+        var ready = AdvanceFramed(ref probe);
+        _probeStart = _probeLength - probe.Length;
+        return ready;
     }
 
     // Decides from what was looked at, or asks to look further, as reading armor detection does.
@@ -334,8 +333,9 @@ internal sealed class DecryptWriterStream(Stream destination, Identities identit
                         DecideFraming();
 
                     // What writes left behind is drained already; only a file shorter than the
-                    // lookahead, decided just now, still has bytes to read.
-                    ReplayProbe();
+                    // lookahead, decided just now, still has bytes to read, which may hold a chunk.
+                    if (ReplayProbe())
+                        return true;
 
                     // The armor's end rules apply as soon as its last line is in, before anything
                     // that line decodes to is used, as the reading side applies them. A line that

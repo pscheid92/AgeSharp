@@ -450,6 +450,34 @@ public class WriterTests
         Assert.Equal(read.Message, written.Message);
     }
 
+    // With a raised line limit the bytes looked at to tell armor from binary can hold more than a
+    // chunk: here the begin line is indented by 600,000 spaces, so the lookahead grows past a
+    // megabyte, half of it armor. The writer decrypts what the reader decrypts, whether the file
+    // runs past the lookahead or ends inside it (decided only when the writer is disposed).
+    [Theory]
+    [InlineData(512 * 1024)]
+    [InlineData(200 * 1024)]
+    public void ALookaheadThatHoldsAChunk_IsDecryptedLikeTheRest(int length)
+    {
+        using var key = X25519Identity.Generate();
+        var plaintext = Plaintext(length);
+        var armored = System.Text.Encoding.ASCII.GetString(new Recipients(key.Recipient).Encrypt(plaintext, new AgeEncryptOptions { Armor = true }));
+        var file = System.Text.Encoding.ASCII.GetBytes(new string(' ', 600_000) + armored);
+        var options = new AgeDecryptOptions { MaxArmorLineBytes = 1024 * 1024 };
+        var identities = new Identities(key);
+
+        using var pulled = new MemoryStream();
+        using (var reader = identities.DecryptReader(new MemoryStream(file), options))
+            reader.CopyTo(pulled);
+
+        using var pushed = new MemoryStream();
+        using (var writer = identities.DecryptWriter(pushed, options))
+            WriteInPieces(writer, file, 64 * 1024);
+
+        Assert.Equal(plaintext, pulled.ToArray());
+        Assert.Equal(plaintext, pushed.ToArray());
+    }
+
     private static byte[] Plaintext(int length) =>
         Enumerable.Range(0, length).Select(i => (byte)(i * 13 + 1)).ToArray();
 

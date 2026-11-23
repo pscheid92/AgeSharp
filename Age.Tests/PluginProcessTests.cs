@@ -206,6 +206,37 @@ public class PluginProcessTests
         }
     }
 
+    // A plugin may start a background agent that keeps its stderr open after the plugin exits
+    // (the spec's "Agents"). The plugin's failure is still reported, with what stderr had, and
+    // the wait for the rest of stderr does not last as long as the agent does.
+    [SkippableFact]
+    public void APluginWhoseAgentKeepsStderrOpen_StillFailsPromptly()
+    {
+        Skip.If(OperatingSystem.IsWindows(), "the planted plugin is a shell script");
+
+        var dir = NewTempDir();
+        var originalPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+        var name = "agent" + Guid.NewGuid().ToString("N")[..8];
+        PlantScript(dir, $"age-plugin-{name}", "echo 'starting the agent' >&2\n(sleep 30 >/dev/null) &\nexit 0\n");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("PATH", $"{dir}{Path.PathSeparator}{originalPath}");
+            var recipient = PluginRecipient.Parse(Bech32.Encode($"age1{name}", [0x01]));
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+
+            var ex = Assert.Throws<AgePluginException>(() => recipient.Wrap(new byte[16]));
+
+            Assert.InRange(clock.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(10));
+            Assert.Contains("starting the agent", ex.Message);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", originalPath);
+            TryDeleteTempDir(dir);
+        }
+    }
+
     // --- The positive half: a plugin genuinely on PATH runs, over a real pipe ---
 
     // The tests above prove a planted binary is *not* run. This proves the fix did not simply
