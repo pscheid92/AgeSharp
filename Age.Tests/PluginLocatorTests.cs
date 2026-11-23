@@ -157,6 +157,23 @@ public sealed class PluginLocatorTests : IDisposable
             PluginLocator.Candidates(dir, "age-plugin-x.v2", ".COM;.EXE", windows: true));
     }
 
+    // The spec forbids searching anything relative to the working directory. On Windows a drive
+    // without a separator (C:bin) and a separator without a drive (\bin) both are, so only fully
+    // qualified entries count; and PATH entries may be quoted, as Go's filepath.SplitList reads them.
+    [Fact]
+    public void Directories_OnWindows_AreTheFullyQualifiedOnes_Unquoted()
+    {
+        var path = @"C:\bin;C:relative;\rooted;""C:\Program Files\age;x"";\\server\share\bin;D:/forward;;relative;C:;\;1:\x;//server/share";
+
+        Assert.Equal(
+            [@"C:\bin", @"C:\Program Files\age;x", @"\\server\share\bin", "D:/forward", "//server/share"],
+            PluginLocator.Directories(path, windows: true));
+    }
+
+    [Fact]
+    public void Directories_OnUnix_AreTheAbsoluteOnes() =>
+        Assert.Equal(["/usr/bin", "/opt/age bin"], PluginLocator.Directories("/usr/bin::relative:./here:/opt/age bin", windows: false));
+
     [Fact]
     public void Candidates_OnUnix_AreJustTheName() =>
         Assert.Equal([Path.Combine("/usr/bin", "age-plugin-x")], PluginLocator.Candidates("/usr/bin", "age-plugin-x", ".EXE", windows: false));

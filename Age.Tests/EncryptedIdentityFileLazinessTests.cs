@@ -166,6 +166,72 @@ public class EncryptedIdentityFileLazinessTests
     }
 
     // What age -p writes.
+    // The passphrase opened the file, but what it holds is not an identity file: malformed, as
+    // the decrypt entry points document, not a raw FormatException.
+    [Fact]
+    public void AFileThatIsNotAnIdentityFile_IsAFormatError()
+    {
+        using var key = X25519Identity.Generate();
+        var file = new Recipients(key.Recipient).Encrypt(Plaintext);
+        using var identityFile = new EncryptedIdentityFile(Protect("hello, not a key"), () => "pw".ToCharArray());
+
+        Assert.Throws<AgeFormatException>(() => identityFile.GetRecipients());
+        Assert.Throws<AgeFormatException>(() => new Identities(identityFile).Decrypt(file));
+    }
+
+    // Two threads that need the keys at once wait for one decryption: the passphrase is asked
+    // for once, and no second set of keys is decrypted and left uncleared.
+    [Fact]
+    public void TwoThreadsAtOnce_AskForThePassphraseOnce()
+    {
+        using var key = X25519Identity.Generate();
+        var asked = 0;
+        using var identityFile = new EncryptedIdentityFile(Protect(key.ToSecretString()), () =>
+        {
+            Interlocked.Increment(ref asked);
+            Thread.Sleep(200);
+            return "pw".ToCharArray();
+        });
+
+        Parallel.For(0, 2, new ParallelOptions { MaxDegreeOfParallelism = 2 }, _ => identityFile.GetRecipients());
+
+        Assert.Equal(1, asked);
+    }
+
+    // A passphrase source that decrypts with the file it answers for would ask itself again,
+    // forever; it is refused, as EncryptedSshIdentity refuses it.
+    [Fact]
+    public void APassphraseSourceThatUsesItsOwnFile_IsRefused()
+    {
+        using var key = X25519Identity.Generate();
+        EncryptedIdentityFile? identityFile = null;
+        identityFile = new EncryptedIdentityFile(Protect(key.ToSecretString()), () =>
+        {
+            identityFile!.GetRecipients();
+            return "pw".ToCharArray();
+        });
+
+        using (identityFile)
+        {
+            var ex = Assert.Throws<AgeException>(() => identityFile.GetRecipients());
+            Assert.Contains("must not decrypt with the identity file it is answering for", ex.Message);
+        }
+    }
+
+    [Fact]
+    public void DisposedByItsOwnPassphraseSource_ItDoesNotUnlock()
+    {
+        using var key = X25519Identity.Generate();
+        EncryptedIdentityFile? identityFile = null;
+        identityFile = new EncryptedIdentityFile(Protect(key.ToSecretString()), () =>
+        {
+            identityFile!.Dispose();
+            return "pw".ToCharArray();
+        });
+
+        Assert.Throws<ObjectDisposedException>(() => identityFile.GetRecipients());
+    }
+
     private static byte[] Protect(string identityFileText)
     {
         using var passphrase = new Passphrase("pw", 10);

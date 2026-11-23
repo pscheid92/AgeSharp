@@ -264,15 +264,20 @@ public sealed class AgePlugin
                             ? labelled.WrapWithLabels(fileKeys[f])
                             : new LabelledStanzas(recipient.Wrap(fileKeys[f]), []));
                     }
-                    catch (Exception ex) when (!_broken)
+                    catch (Exception ex)
                     {
-                        return KeyError(kind, index, ex.Message);
+                        // Once the session broke, whatever the recipient made of it (let it
+                        // through, wrapped it) ends the session: the client cannot be told.
+                        return _broken ? 2 : KeyError(kind, index, ex.Message);
                     }
 
                     if (_broken)
                         return 2;
 
                     var these = wrapped.Labels ?? [];
+
+                    if (InvalidLabels(these) is { } invalid)
+                        return KeyError(kind, index, invalid);
 
                     if (labels is null)
                         labels = [.. these];
@@ -312,6 +317,27 @@ public sealed class AgePlugin
             foreach (var (_, _, recipient) in keys)
                 (recipient as IDisposable)?.Dispose();
         }
+    }
+
+    // Labels are sent as stanza arguments, which the protocol requires to be VCHAR strings, and
+    // it forbids duplicates (age-plugin.md: "Plugins MUST NOT send duplicate labels").
+    private static string? InvalidLabels(IReadOnlyCollection<string> labels)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var label in labels)
+        {
+            if (string.IsNullOrEmpty(label))
+                return "a label is empty";
+
+            if (Stanza.IndexOfNonVChar(label) >= 0)
+                return $"label \"{label}\" has a character other than printable ASCII";
+
+            if (!seen.Add(label))
+                return $"label \"{label}\" is declared twice";
+        }
+
+        return null;
     }
 
     private static bool SameLabels(IEnumerable<string> a, IEnumerable<string> b) =>
@@ -412,8 +438,13 @@ public sealed class AgePlugin
                 {
                     unwrapped = Interacting(() => identity.TryUnwrap(stanzas, fileKey));
                 }
-                catch (Exception ex) when (!_broken)
+                catch (Exception ex)
                 {
+                    // As for a recipient: once the session broke, it ends, however the identity
+                    // handled the exception.
+                    if (_broken)
+                        return 2;
+
                     Write("error", ["stanza", file.ToString(System.Globalization.CultureInfo.InvariantCulture), "0"], Encoding.UTF8.GetBytes(ex.Message));
                     ExpectOk();
                     return 0;

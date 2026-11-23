@@ -87,10 +87,22 @@ internal sealed class PluginConnection : IDisposable
     internal AgePluginException Failure(string message, Exception? inner = null)
     {
         // BeginErrorReadLine delivers asynchronously, so the plugin's last words may not have
-        // arrived yet. WaitForExit(int) does not flush the async readers; the parameterless
-        // overload does.
+        // arrived yet. WaitForExit(int) does not flush the async readers; WaitForExitAsync waits
+        // for them to reach the end of stderr, which a background agent the plugin started may
+        // hold open for as long as it lives, so that wait has a deadline too.
         if (_process is not null && _process.WaitForExit(StderrFlushMilliseconds))
-            _process.WaitForExit();
+        {
+            using var flushed = new CancellationTokenSource(StderrFlushMilliseconds);
+
+            try
+            {
+                _process.WaitForExitAsync(flushed.Token).GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException)
+            {
+                // Something still holds stderr: what has arrived is what there is to show.
+            }
+        }
 
         string tail;
 
