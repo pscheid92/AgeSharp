@@ -113,6 +113,11 @@ internal static class Bech32
         bool hasLower = false, hasUpper = false;
         foreach (var c in bech)
         {
+            // Printable ASCII only (BIP-173), as go-age checks: the case folding below is
+            // Unicode's, which turns U+212A KELVIN SIGN into a 'k' the checksum then accepts.
+            if (c is < (char)33 or > (char)126)
+                throw new FormatException($"invalid bech32 string: character U+{(int)c:X4} is not printable ASCII");
+
             switch (c)
             {
                 case >= 'a' and <= 'z':

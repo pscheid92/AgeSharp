@@ -426,7 +426,8 @@ return plugin.Run(args);   // --age-plugin=recipient-v1 or identity-v1, from the
 From inside `Wrap` or `TryUnwrap`, a recipient or identity talks to the user through the client
 with `plugin.DisplayMessage`, `RequestValue`, `RequestSecret` and `Confirm`. An exception thrown
 there, or by a handler, is reported to the client as that key's error; an identity that returns
-false is not the one for the file. A recipient's labels (`IRecipientWithLabels`) are passed on.
+false is not the one for the file. A recipient's labels (`IRecipientWithLabels`) are passed on, and a
+client that does not take labels gets an error for that recipient rather than a stanza without them.
 The exit codes are go-age's.
 
 ### Custom recipients and identities

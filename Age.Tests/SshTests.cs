@@ -439,7 +439,7 @@ public class SshEd25519RecipientIdentityTests
     }
 
     [Fact]
-    public void Unwrap_WrongBodyLength_Throws()
+    public void Unwrap_WrongBodyLength_IsNotAMatch()
     {
         var (_, pemText) = GenerateEd25519KeyPair();
         using var identity = SshEd25519Identity.Parse(pemText);
@@ -449,9 +449,10 @@ public class SshEd25519RecipientIdentityTests
         RandomNumberGenerator.Fill(fileKey);
         var goodStanza = recipient.WrapSingle(fileKey);
 
-        // Replace body with wrong length
+        // A body of the wrong length cannot be a wrapped file key: not for this identity, as in
+        // go-age, which does not check the length and fails to decrypt it.
         var stanza = new AgeSharp.Stanza("ssh-ed25519", [.. goodStanza.Args], new byte[16]);
-        Assert.Throws<AgeFormatException>(() => identity.UnwrapOrNull(stanza));
+        Assert.Null(identity.UnwrapOrNull(stanza));
     }
 }
 

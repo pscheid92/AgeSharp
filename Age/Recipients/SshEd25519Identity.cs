@@ -103,10 +103,8 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
         if (stanza.Args.Count != 2)
             throw new AgeFormatException($"ssh-ed25519 stanza must have exactly 2 arguments, got {stanza.Args.Count}");
 
-        var stanzaTag = stanza.Args[0];
-        if (stanzaTag != _tag)
-            return false;
-
+        // The share is checked before the tag, as go-age does (agessh.go): a malformed stanza is
+        // malformed whichever key it names.
         byte[] ephPubBytes;
         try
         {
@@ -120,8 +118,13 @@ public sealed class SshEd25519Identity : IIdentityWithRecipient, IDisposable
         if (ephPubBytes.Length != KeySize)
             throw new AgeFormatException($"ssh-ed25519 ephemeral key must be {KeySize} bytes, got {ephPubBytes.Length}");
 
+        if (stanza.Args[0] != _tag)
+            return false;
+
+        // A body that is not a wrapped file key cannot decrypt to one: not for this identity, as
+        // go-age, which does not check its length, concludes when its decryption fails.
         if (stanza.Body.Length != WrappedKeySize)
-            throw new AgeFormatException($"ssh-ed25519 stanza body must be {WrappedKeySize} bytes, got {stanza.Body.Length}");
+            return false;
 
         var ephPub = new X25519PublicKeyParameters(ephPubBytes);
         var privateKey = new X25519PrivateKeyParameters(_x25519PrivateKey);
