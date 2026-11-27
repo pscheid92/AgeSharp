@@ -38,6 +38,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Age.Tests" />
+    <InternalsVisibleTo Include="Age.Fuzz" />
   </ItemGroup>
 
   <ItemGroup>
