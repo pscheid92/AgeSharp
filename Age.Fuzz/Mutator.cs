@@ -38,9 +38,11 @@ internal static class Mutator
         "aes256-gcm@openssh.com"u8.ToArray(), "chacha20-poly1305@openssh.com"u8.ToArray(),
     ];
 
-    public static byte[] Mutate(List<byte[]> pool, Random rng)
+    // One in four from the seeds themselves (the first seedCount of the pool), so that however
+    // the pool grows they are not crowded out.
+    public static byte[] Mutate(List<byte[]> pool, int seedCount, Random rng)
     {
-        var input = pool[rng.Next(pool.Count)];
+        var input = pool[rng.Next(seedCount > 0 && rng.Next(4) == 0 ? seedCount : pool.Count)];
         var rounds = 1 << rng.Next(4);
         for (var i = 0; i < rounds; i++)
             input = rng.Next(10) switch

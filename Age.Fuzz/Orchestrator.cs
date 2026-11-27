@@ -12,6 +12,7 @@ internal static class Orchestrator
     public static int Run(string[] args)
     {
         var seconds = 60;
+        var seed = Random.Shared.Next(1, 1_000_000);
         var outDir = Path.Combine(Path.GetTempPath(), "agesharp-fuzz", DateTime.Now.ToString("yyyyMMdd-HHmmss"));
         var names = new List<string>();
 
@@ -21,6 +22,9 @@ internal static class Orchestrator
             {
                 case "--seconds" when i + 1 < args.Length:
                     seconds = int.Parse(args[++i]);
+                    break;
+                case "--seed" when i + 1 < args.Length:
+                    seed = int.Parse(args[++i]);
                     break;
                 case "--out" when i + 1 < args.Length:
                     outDir = Path.GetFullPath(args[++i]);
@@ -38,9 +42,9 @@ internal static class Orchestrator
             names.AddRange(Targets.Names);
 
         Directory.CreateDirectory(outDir);
-        Console.WriteLine($"fuzzing {string.Join(", ", names)} for {seconds} s each; findings go to {outDir}");
+        Console.WriteLine($"fuzzing {string.Join(", ", names)} for {seconds} s each, seed {seed}; findings go to {outDir}");
 
-        var results = names.Select(name => Task.Run(() => RunTarget(name, seconds, outDir))).ToArray();
+        var results = names.Select(name => Task.Run(() => RunTarget(name, seconds, outDir, seed))).ToArray();
         Task.WaitAll(results);
 
         var failed = false;
@@ -69,13 +73,14 @@ internal static class Orchestrator
 
     private sealed record Result(string Name, List<int> ExitCodes, string Output);
 
-    private static Result RunTarget(string name, int seconds, string outDir)
+    // A worker that hung starts again with the next seed, so it does not run into the same input.
+    private static Result RunTarget(string name, int seconds, string outDir, int first)
     {
         var deadline = Stopwatch.StartNew();
         var codes = new List<int>();
         var output = new System.Text.StringBuilder();
 
-        for (var seed = 1; ; seed++)
+        for (var seed = first; ; seed++)
         {
             var left = Math.Max(1, seconds - (int)deadline.Elapsed.TotalSeconds);
             var (code, text) = Start(["worker", name, left.ToString(), outDir, seed.ToString()]);
