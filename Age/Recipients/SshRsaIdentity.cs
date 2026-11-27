@@ -34,9 +34,15 @@ public sealed class SshRsaIdentity : IIdentityWithRecipient, IDisposable
         get
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            return new(new RsaKeyParameters(false, _privateKey.Modulus, _privateKey.PublicExponent), _sshWireBytes);
+
+            // Cached: BouncyCastle validates the modulus as it builds the key, some 20 ms, and a
+            // file that matches no identity derives every recipient to name them. No lock — the
+            // derivation is deterministic, so racing threads compute the same value.
+            return _recipient ??= new(new RsaKeyParameters(false, _privateKey.Modulus, _privateKey.PublicExponent), _sshWireBytes);
         }
     }
+
+    private SshRsaRecipient? _recipient;
 
     /// <summary>Parses an ssh-rsa private key from PEM text (OpenSSH, PKCS#1, or PKCS#8).</summary>
     /// <exception cref="FormatException">The text is not a valid ssh-rsa private key.</exception>

@@ -208,6 +208,18 @@ public class SshKeyParserTests
         Assert.IsType<RsaPrivateCrtKeyParameters>(privKey);
     }
 
+    // Deriving it validates the modulus (BouncyCastle's RsaKeyParameters), some 20 ms, and a
+    // decrypt that matches nothing derives every identity's recipient to name it: so it is
+    // derived once, as the ML-KEM identity's is.
+    [Fact]
+    public void RsaIdentity_DerivesItsRecipientOnce()
+    {
+        using var identity = (SshRsaIdentity)SshIdentity.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "EncryptedSsh", "rsa_plain")));
+
+        Assert.Same(identity.Recipient, identity.Recipient);
+        Assert.Same(identity.Recipient, ((IIdentityWithRecipient)identity).Recipient);
+    }
+
     [Fact]
     public void ParsePrivateKey_RejectsPublicKeyPem()
     {
