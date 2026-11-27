@@ -147,15 +147,26 @@ internal static class Outcomes
         }
     }
 
+    /// <summary>The message behind the last outcome, for the worker to show next to it.</summary>
+    public static string? Example { get; set; }
+
     /// <summary>
-    /// The exception's type and the plain words that open its message — none of the bytes,
-    /// names, lengths or positions it quotes, which would make every mutant an outcome of its
-    /// own — and the same for what a wrapping FormatException wraps.
+    /// The exception's type and where it was thrown (the method and the IL offset), and the same
+    /// for what a wrapping FormatException wraps. Not its message: messages repeat the input,
+    /// often unquoted, which would make every mutant an outcome of its own.
     /// </summary>
     public static string Shape(Exception ex)
     {
-        var shape = ex.GetType().Name + ": " + Words(ex.Message);
+        Example ??= ex.Message;
+        var shape = $"{ex.GetType().Name} at {Site(ex)}";
         return ex is FormatException && ex.InnerException is { } inner ? shape + " / " + Shape(inner) : shape;
+    }
+
+    private static string Site(Exception ex)
+    {
+        var frame = new System.Diagnostics.StackTrace(ex, fNeedFileInfo: false).GetFrames().FirstOrDefault();
+        var method = frame?.GetMethod();
+        return method is null ? "?" : $"{method.DeclaringType?.Name}.{method.Name}+{frame!.GetILOffset():x}";
     }
 
     /// <summary>The plain lowercase words that open a message, up to the first quote or colon.</summary>

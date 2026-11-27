@@ -2,7 +2,7 @@ using Age.Fuzz;
 
 // Age.Fuzz — a mutation fuzzer over AgeSharp's parsers and the plugin protocol; see README.md.
 //
-//   run [--seconds N] [--out DIR] [TARGET ...]   every target, or those named, in parallel
+//   run [--seconds N] [--seed N] [--out DIR] [TARGET ...]   every target, or those named, in parallel
 //   replay TARGET FILE                            one input, to reproduce a finding
 //   profile TARGET                                every seed, timed, slowest first
 //   worker TARGET SECONDS OUT SEED                one target in this process (what run starts)
@@ -61,7 +61,7 @@ static string Start(byte[] seed)
 
 static int Usage()
 {
-    Console.Error.WriteLine("usage: Age.Fuzz [run [--seconds N] [--out DIR] [TARGET ...]] | replay TARGET FILE | profile TARGET");
+    Console.Error.WriteLine("usage: Age.Fuzz [run [--seconds N] [--seed N] [--out DIR] [TARGET ...]] | replay TARGET FILE | profile TARGET");
     Console.Error.WriteLine($"targets: {string.Join(", ", Targets.Names)}");
     return 2;
 }

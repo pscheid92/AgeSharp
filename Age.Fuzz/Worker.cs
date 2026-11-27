@@ -24,6 +24,7 @@ internal static class Worker
         var pool = target.Seeds().Where(s => s.Length <= Mutator.MaxLength).ToList();
         var seedCount = pool.Count;
         var counts = new Dictionary<string, long>();
+        var examples = new Dictionary<string, string>();
         var findings = new Findings(Path.Combine(outDir, "findings", name), name);
         var running = new Running();
 
@@ -47,6 +48,7 @@ internal static class Worker
         void Exec(byte[] input)
         {
             running.Start(input);
+            Outcomes.Example = null;
             string outcome;
             try
             {
@@ -68,6 +70,7 @@ internal static class Worker
 
             if (counts.TryAdd(outcome, 0))
             {
+                examples[outcome] = Outcomes.Example ?? "";
                 if (pool.Count < PoolLimit)
                     pool.Add(input);
                 else
@@ -79,12 +82,17 @@ internal static class Worker
         foreach (var s in pool.ToList())
             Exec(s);
         while (clock.Elapsed.TotalSeconds < seconds)
-            Exec(Mutator.Mutate(pool, rng));
+            Exec(Mutator.Mutate(pool, seedCount, rng));
 
         Console.WriteLine($"{name}: {execs:N0} inputs in {clock.Elapsed.TotalSeconds:F0} s from {seedCount} seeds, {counts.Count} outcomes, {findings.Count} findings");
         Console.WriteLine($"  {counts.GetValueOrDefault("ok"),12:N0}  ok");
         foreach (var (outcome, n) in counts.Where(kv => kv.Key != "ok").OrderByDescending(kv => kv.Value).Take(12))
+        {
+            var example = examples[outcome].ReplaceLineEndings(" ");
             Console.WriteLine($"  {n,12:N0}  {outcome}");
+            if (example.Length > 0)
+                Console.WriteLine($"                e.g. {(example.Length > 90 ? example[..90] + "…" : example)}");
+        }
         return findings.Count == 0 ? 0 : 1;
     }
 

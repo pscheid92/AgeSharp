@@ -8,10 +8,12 @@ documents come out. Second, where AgeSharp can check itself, it agrees with itse
 make fuzz                         # every target for 60 s, in parallel
 make fuzz FUZZ_SECONDS=900        # for longer
 dotnet run -c Release --project Age.Fuzz -- run --seconds 300 decrypt plugin   # some targets
+dotnet run -c Release --project Age.Fuzz -- run --seed 1234                     # a run again
 ```
 
 It exits 1 when it found anything. It prints each target's input count and its most common
-outcomes, `ok` first, which shows how deep the inputs got. Findings are saved to the output
+outcomes, `ok` first, which shows how deep the inputs got. Each run draws a seed for the
+mutations and prints it; `--seed N` repeats a run. Findings are saved to the output
 directory (`--out`, by default a new folder under the system's temp directory), one input per
 kind of finding: `<hash>.bin` is the input, `<hash>.txt` is what happened. To reproduce one:
 
@@ -70,11 +72,12 @@ Both reach past the encoding to the parser behind it.
 
 ## What it is not
 
-- **Not coverage-guided.** An input joins the pool when it ends in an outcome not seen before (success, or an exception's type and the plain words of its message). That stands in for coverage, but nothing steers it toward code it has not reached.
+- **Not coverage-guided.** An input joins the pool (up to 20,000) when it ends in an outcome not seen before. An outcome is success, or an exception's type and where it was thrown: the method and IL offset, and the same for an exception it wraps. It is never the message, because messages repeat the input. This stands in for coverage, but nothing steers it toward code it has not reached. One mutant in four starts from an original seed, so a growing pool cannot crowd them out.
 - **Not exhaustive.** The encrypt side is not fuzzed, and neither are inputs that only a matching key opens past the header MAC, beyond the generated seeds.
 
-Before this was checked in, four bugs were planted in the library and all four were found within a minute:
+Before this was checked in, five bugs were planted in the library and all five were found within a minute:
 - a wrong exception type in the Bech32 decoder;
 - a wrong exception type in the plugin client;
 - a plugin exit code out of range;
-- a `DecryptWriter` that accepted a missing payload.
+- a `DecryptWriter` that accepted a missing payload;
+- a `DecryptWriter` that failed a cut-off nonce with another exception type than the other three paths.
