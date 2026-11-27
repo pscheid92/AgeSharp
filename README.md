@@ -533,7 +533,10 @@ AgeSharp reads and writes the same files.
 make build      # Build
 make test       # Run all tests (interop tests run when age and rage are on PATH)
 make bench      # Run BenchmarkDotNet benchmarks
+make fuzz       # Fuzz the parsers and the plugin protocol for a minute (FUZZ_SECONDS=900 for longer)
 ```
+
+[Age.Fuzz/README.md](Age.Fuzz/README.md) says what the fuzzer checks and how to reproduce a finding.
 
 ## Benchmarks
 
